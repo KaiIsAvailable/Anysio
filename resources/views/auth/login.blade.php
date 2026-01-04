@@ -39,9 +39,16 @@
                 </a>
             @endif
 
-            <x-primary-button class="ms-3">
+            <x-primary-button class="ms-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800">
                 {{ __('Log in') }}
             </x-primary-button>
+        </div>
+
+        <div class="mt-6 text-center">
+            <span class="text-sm text-gray-600">New to Anysio?</span>
+            <a class="ms-1 underline text-sm text-indigo-600 hover:text-indigo-900 font-semibold" href="{{ route('register') }}">
+                Create an account
+            </a>
         </div>
     </form>
 </x-guest-layout>

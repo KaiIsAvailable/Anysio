@@ -25,7 +25,7 @@ class Owners extends Model
 
     protected $casts = [
         'email_verify_at' => 'datetime',
-        'discount_rate' => 'integer',
+        'discount_rate' => 'decimal:2',
         'usage_count' => 'integer',
     ];
 

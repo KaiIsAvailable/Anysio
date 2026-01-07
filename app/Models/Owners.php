@@ -16,17 +16,11 @@ class Owners extends Model
         'company_name',
         'ic_number',
         'phone',
-        'referred_by',
         'gender',
-        'subscription_status',
-        'discount_rate',
-        'usage_count',
     ];
 
     protected $casts = [
         'email_verify_at' => 'datetime',
-        'discount_rate' => 'decimal:2',
-        'usage_count' => 'integer',
     ];
 
     public function user(): BelongsTo

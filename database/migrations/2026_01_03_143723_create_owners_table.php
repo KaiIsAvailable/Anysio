@@ -14,11 +14,7 @@ return new class extends Migration
             $table->string('company_name')->nullable();
             $table->string('ic_number');
             $table->string('phone');
-            $table->ulid('referred_by')->nullable();
             $table->string('gender');
-            $table->string('subscription_status')->default('active'); // active/locked
-            $table->integer('discount_rate')->default(0);
-            $table->integer('usage_count')->default(0);
             $table->timestamps();
         });
     }

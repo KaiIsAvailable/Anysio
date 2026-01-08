@@ -21,7 +21,7 @@ class Room extends Model
 
     public function owner(): BelongsTo
     {
-        return $this->belongsTo(Owners::class);
+        return $this->belongsTo(Owners::class, 'owner_id');
     }
 
     public function assets(): HasMany

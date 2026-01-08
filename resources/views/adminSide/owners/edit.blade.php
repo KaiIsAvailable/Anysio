@@ -25,17 +25,20 @@
                         <input type="hidden" name="user_id" value="{{ $owner->user_id }}">
                     </div>
 
+                    <div class="mb-4">
+                        <label for="email" class="block text-sm font-medium text-slate-900">Email Address</label>
+                        <input type="email" name="email" id="email" 
+                            value="{{ old('email', $owner->user->email) }}" 
+                            class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" 
+                            required>
+                        @error('email') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="mb-4">
                             <label for="company_name" class="block text-sm font-medium text-slate-900 mb-1">Company Name</label>
                             <input type="text" name="company_name" id="company_name" value="{{ old('company_name', $owner->company_name) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                             @error('company_name') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="phone" class="block text-sm font-medium text-slate-900 mb-1">Phone</label>
-                            <input type="text" name="phone" id="phone" value="{{ old('phone', $owner->phone) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                            @error('phone') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <div class="mb-4">
@@ -45,44 +48,24 @@
                         </div>
 
                         <div class="mb-4">
+                            <label for="phone" class="block text-sm font-medium text-slate-900 mb-1">Phone</label>
+                            <input type="text" name="phone" id="phone" value="{{ old('phone', $owner->phone) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                            @error('phone') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        </div>
+
+                        <div class="mb-4">
                             <label for="gender" class="block text-sm font-medium text-slate-900 mb-1">Gender</label>
                             <select name="gender" id="gender" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                                <option value="Male" {{ (old('gender', $owner->gender)) == 'Male' ? 'selected' : '' }}>Male</option>
-                                <option value="Female" {{ (old('gender', $owner->gender)) == 'Female' ? 'selected' : '' }}>Female</option>
+                                <option value="">-- Select Gender --</option>
+                                <option value="Male" {{ (old('gender') ?? $owner->gender) == 'Male' ? 'selected' : '' }}>Male</option>
+                                <option value="Female" {{ (old('gender') ?? $owner->gender) == 'Female' ? 'selected' : '' }}>Female</option>
                             </select>
                             @error('gender') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
-
-                        <div class="mb-4">
-                            <label for="subscription_status" class="block text-sm font-medium text-slate-900 mb-1">Subscription Status</label>
-                            <select name="subscription_status" id="subscription_status" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                <option value="Active" {{ (old('subscription_status', $owner->subscription_status)) == 'Active' ? 'selected' : '' }}>Active</option>
-                                <option value="Inactive" {{ (old('subscription_status', $owner->subscription_status)) == 'Inactive' ? 'selected' : '' }}>Inactive</option>
-                            </select>
-                            @error('subscription_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="referred_by" class="block text-sm font-medium text-slate-900 mb-1">Referred By</label>
-                            <input type="text" name="referred_by" id="referred_by" value="{{ old('referred_by', $owner->referred_by) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('referred_by') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="discount_rate" class="block text-sm font-medium text-slate-900 mb-1">Discount Rate (%)</label>
-                            <input type="number" step="0.01" name="discount_rate" id="discount_rate" value="{{ old('discount_rate', $owner->discount_rate) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('discount_rate') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="usage_count" class="block text-sm font-medium text-slate-900 mb-1">Usage Count</label>
-                            <input type="number" name="usage_count" id="usage_count" value="{{ old('usage_count', $owner->usage_count) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('usage_count') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
                     </div>
 
-                    <div class="flex justify-end pt-4">
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow transition duration-150 ease-in-out">
+                    <div class="flex justify-end pt-4 mt-4 border-t border-gray-100">
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-8 rounded-lg shadow-md transition duration-150 ease-in-out">
                             Update Owner
                         </button>
                     </div>

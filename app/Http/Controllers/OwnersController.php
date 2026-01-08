@@ -6,6 +6,8 @@ use App\Models\Owners; // Ensure this matches your filename in app/Models
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 
 class OwnersController extends Controller
 {
@@ -51,22 +53,47 @@ class OwnersController extends Controller
 
     public function store(Request $request)
     {
+        // 1. Validate the incoming data (excluding user_id since we create it here)
         $validatedData = $request->validate([
-            'user_id'             => 'required|exists:users,id|unique:owners,user_id',
-            'company_name'        => 'nullable|string|max:255',
-            'ic_number'           => 'nullable|string|max:20',
-            'phone'               => 'required|string|max:20',
-            'referred_by'         => 'nullable|string|max:255',
-            'gender'              => 'required|string|in:Male,Female',
-            'subscription_status' => 'nullable|string|in:Active,Inactive',
-            'discount_rate'       => 'nullable|numeric',
-            'usage_count'         => 'nullable|integer'
+            'name'         => 'required|string|max:255',
+            'email'        => 'required|email|unique:users,email',
+            'password'     => 'required|string|min:8',
+            'company_name' => 'nullable|string|max:255',
+            'ic_number'    => 'nullable|string|max:20',
+            'phone'        => 'required|string|max:20',
+            'gender'       => 'required|string|in:Male,Female',
         ]);
 
-        // ACTUAL CREATION LOGIC
-        Owners::create($validatedData);
+        try {
+            // 2. Start a transaction to ensure both records are created safely
+            DB::beginTransaction();
 
-        return redirect()->route('admin.owners.index')->with('success', 'Owner created successfully.');
+            // 3. Create the User record with random Email and Password
+            $user = User::create([
+                'name'     => $validatedData['name'],
+                'email'    => $validatedData['email'],
+                'password' => Hash::make($validatedData['password']),
+                'role'     => 'owner',
+            ]);
+
+            // 4. Create the Owner record using the new $user->id
+            Owners::create([
+                'user_id'      => $user->id,
+                'company_name' => $validatedData['company_name'],
+                'ic_number'    => $validatedData['ic_number'],
+                'phone'        => $validatedData['phone'],
+                'gender'       => $validatedData['gender'],
+            ]);
+
+            DB::commit();
+
+            return redirect()->route('admin.owners.index')->with('success', 'Owner and User account created successfully.');
+
+        } catch (\Exception $e) {
+            // Rollback if anything goes wrong
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Failed to create owner: ' . $e->getMessage()]);
+        }
     }
 
     public function edit(Owners $owner)
@@ -79,6 +106,7 @@ class OwnersController extends Controller
         $validatedData = $request->validate([
             // Use the $owner->id to ignore the current record in the unique check
             'user_id'             => 'required|exists:users,id|unique:owners,user_id,' . $owner->id,
+            'email'               => 'required|email|unique:users,email,' . $owner->id,
             'company_name'        => 'nullable|string|max:255',
             'ic_number'           => 'nullable|string|max:20',
             'phone'               => 'required|string|max:20',
@@ -97,6 +125,7 @@ class OwnersController extends Controller
 
     public function destroy(Owners $owner)
     {
+        $owner->user()->delete(); 
         $owner->delete();
         return redirect()->route('admin.owners.index')->with('success', 'Owner deleted successfully.');
     }

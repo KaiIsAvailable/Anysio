@@ -72,8 +72,7 @@
                         <table class="table-fixed w-full min-w-[1200px] divide-y divide-gray-200">
                             <thead class="bg-gray-50">
                                 <tr>
-
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                         <a href="{{ route('admin.tenants.index', array_merge(request()->query(), ['sort' => $nextNameSort])) }}" class="inline-flex items-center space-x-1 text-gray-700 hover:text-indigo-600">
                                             <span>Name</span>
                                             @if($nameAsc) 
@@ -83,14 +82,14 @@
                                             @endif
                                         </a>
                                     </th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">IC Number</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">Passport</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-64">Nationality</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Gender</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Occupation</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">IC Photo</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
+                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">IC Number</th>
+                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">Passport</th>
+                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-64">Nationality</th>
+                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Gender</th>
+                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Occupation</th>
+                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">IC Photo</th>
+                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                         <a href="{{ route('admin.tenants.index', array_merge(request()->query(), ['sort' => $nextDateSort])) }}" class="inline-flex items-center space-x-1 text-gray-700 hover:text-indigo-600">
                                             <span>Created At</span>
                                             @if($dateAsc)
@@ -100,33 +99,33 @@
                                             @endif
                                         </a>
                                     </th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Updated At</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Updated At</th>
+                                    <th scope="col" class="sticky top-0 right-0 z-20 bg-gray-50 px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($tenants as $tenant)
-                                    <tr class="hover:bg-gray-50 transition-colors duration-150">
+                                    <tr class="hover:bg-gray-50 transition-colors duration-150 group">
 
-                                        <td class="px-6 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[12rem]">{{ $tenant->user->name ?? '—' }}</td>
-                                        <td class="px-6 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[10rem]">{{ $tenant->phone ?? '—' }}</td>
-                                        <td class="px-6 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[10rem]">{{ $tenant->ic_number ?? '—' }}</td>
-                                        <td class="px-6 py-4 text-sm text-slate-900 whitespace-normal break-words break-all w-40">{{ $tenant->passport ?? '—' }}</td>
-                                        <td class="px-6 py-4 text-sm text-slate-900 whitespace-normal break-words break-all w-64">{{ $tenant->nationality ? ucfirst($tenant->nationality) : '—' }}</td>
-                                        <td class="px-6 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[8rem]">{{ $tenant->gender ? ucfirst($tenant->gender) : '—' }}</td>
-                                        <td class="px-6 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[14rem]">{{ $tenant->occupation ?? '—' }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
+                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[12rem]">{{ $tenant->user->name ?? '—' }}</td>
+                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[10rem]">{{ $tenant->phone ?? '—' }}</td>
+                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[10rem]">{{ $tenant->ic_number ?? '—' }}</td>
+                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words break-all w-40">{{ $tenant->passport ?? '—' }}</td>
+                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words break-all w-64">{{ $tenant->nationality ? ucfirst($tenant->nationality) : '—' }}</td>
+                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[8rem]">{{ $tenant->gender ? ucfirst($tenant->gender) : '—' }}</td>
+                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[14rem]">{{ $tenant->occupation ?? '—' }}</td>
+                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-slate-900">
                                             @if($tenant->ic_photo_path)
                                                 <a href="{{ asset('storage/' . $tenant->ic_photo_path) }}" target="_blank" class="inline-block">
-                                                    <img class="h-10 w-10 rounded-lg object-cover border border-gray-200" src="{{ asset('storage/' . $tenant->ic_photo_path) }}" alt="IC photo for {{ $tenant->id }}">
+                                                    <img class="h-12 w-12 rounded-lg object-cover border border-gray-200" src="{{ asset('storage/' . $tenant->ic_photo_path) }}" alt="IC photo" style="width: 48px; height: 48px;">
                                                 </a>
                                             @else
                                                 <span class="text-xs text-gray-500">—</span>
                                             @endif
                                         </td>
-                                        <td class="px-6 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[12rem]">{{ optional($tenant->created_at)->format('Y-m-d H:i') ?? '—' }}</td>
-                                        <td class="px-6 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[12rem]">{{ optional($tenant->updated_at)->format('Y-m-d H:i') ?? '—' }}</td>
-                                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[12rem]">{{ optional($tenant->created_at)->format('Y-m-d H:i') ?? '—' }}</td>
+                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[12rem]">{{ optional($tenant->updated_at)->format('Y-m-d H:i') ?? '—' }}</td>
+                                        <td class="sticky right-0 top-0 z-10 px-4 py-4 whitespace-nowrap text-center text-sm font-medium bg-white group-hover:bg-gray-50 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]">
                                             <div class="flex items-center justify-center space-x-2">
                                                 <a href="{{ route('admin.tenants.edit', $tenant->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors" title="Edit">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>

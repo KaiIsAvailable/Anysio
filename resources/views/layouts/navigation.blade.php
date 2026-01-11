@@ -27,6 +27,9 @@
                     <x-nav-link :href="route('admin.customerService.index')" :active="request()->routeIs('admin.customerService.*')">
                         {{ __('Contact Us') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('admin.userManagement.index')" :active="request()->routeIs('admin.userManagement.*')">
+                        {{ __('Users') }}
+                    </x-nav-link>
                 </div>
             </div>
 
@@ -93,6 +96,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('admin.customerService.index')" :active="request()->routeIs('admin.customerService.*')">
                 {{ __('Contact Us') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('admin.userManagement.index')" :active="request()->routeIs('admin.userManagement.*')">
+                {{ __('Users') }}
             </x-responsive-nav-link>
         </div>
 

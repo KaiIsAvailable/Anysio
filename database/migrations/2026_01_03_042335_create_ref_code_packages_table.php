@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('ref_code_packages', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->string('ref_code')->unique();
-            $table->foreignUlid('owner_id')->nullable()->constrained('owners')->nullOnDelete();
+            $table->foreignUlid('user_mgnt_id')->nullable()->constrained('user_management')->nullOnDelete();
             $table->boolean('is_official')->default(false);
             $table->integer('ref_installation_price'); 
             $table->integer('ref_monthly_price');      

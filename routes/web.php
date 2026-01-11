@@ -21,6 +21,7 @@ Route::middleware('auth')->group(function () {
         require __DIR__.'/tenantRoute.php';
         require __DIR__.'/roomRoute.php';
         require __DIR__.'/customerServiceRoute.php';
+        require __DIR__.'/userManagementRoute.php';
     });
 });
 

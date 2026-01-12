@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Ticket extends Model
 {
@@ -21,5 +22,15 @@ class Ticket extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(TicketMsg::class);
+    }
+
+    public function sender(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'sender_id');
+    }
+
+    public function receiver(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'receive_id');
     }
 }

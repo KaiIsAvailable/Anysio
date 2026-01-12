@@ -14,7 +14,7 @@ return new class extends Migration
             $table->ulid('receive_id')->nullable()->index();
             $table->string('category');
             $table->string('subject');
-            $table->string('status')->default('See');
+            $table->string('status')->default('sent');
             $table->timestamps();
         });
     }

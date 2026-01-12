@@ -62,7 +62,8 @@
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($userManagement as $user)
-                                    <tr class="hover:bg-gray-50 transition-colors">
+                                    <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150" 
+                                        onclick="window.location='{{ route('admin.userManagement.show', $user->id) }}'">
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center">
                                                 <div class="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">

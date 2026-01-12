@@ -72,8 +72,8 @@
                     </div>
 
                     <div class="mt-10 flex items-center justify-end space-x-4 border-t border-gray-100 pt-6">
-                        <a href="{{ route('admin.userManagement.index') }}" class="text-sm font-medium text-gray-600 hover:text-gray-900">Cancel</a>
-                        <button type="submit" class="inline-flex justify-center py-2.5 px-6 border border-transparent shadow-sm text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-all focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <a href="{{ route('admin.userManagement.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</a>
+                        <button type="submit" class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all">
                             Save Changes
                         </button>
                     </div>

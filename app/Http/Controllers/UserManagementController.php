@@ -172,9 +172,32 @@ class UserManagementController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(string $id)
+    // 参数名一定要叫 $userManagement
+    public function show(string $userManagement)
     {
-        //
+        // 复用 index 的关联逻辑，确保 details 页面能拿到 name, email 和 ref_code
+        $user = UserManagement::query()
+            ->join('users', 'user_management.user_id', '=', 'users.id')
+            ->leftJoin('ref_code_packages', 'user_management.referred_by', '=', 'ref_code_packages.id')
+            
+            // 关联推荐人信息
+            ->leftJoin('user_management as referrer_mgnt', 'ref_code_packages.user_mgnt_id', '=', 'referrer_mgnt.id')
+            ->leftJoin('users as referrer_users', 'referrer_mgnt.user_id', '=', 'referrer_users.id')
+            
+            ->select(
+                'user_management.*',
+                'users.name as user_name',
+                'users.email as user_email',
+                'ref_code_packages.ref_code as applied_ref_code',
+                'referrer_users.name as referrer_name'
+            )
+            // 关键点：只查当前点击的这一条记录
+            ->where('user_management.id', $userManagement)
+            ->firstOrFail();
+
+        return view('adminSide.userManagement.details', [
+            'userManagement' => $user
+        ]);
     }
 
     /**

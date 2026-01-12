@@ -19,35 +19,61 @@
                     @csrf
 
                     <div class="mb-4">
-                        <label for="user_id" class="block text-sm font-medium text-slate-900 mb-1">Select User Account</label>
-                        <select name="user_id" id="user_id" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                            <option value="">-- Choose User --</option>
-                            @foreach($users as $user)
-                                <option value="{{ $user->id }}" {{ old('user_id') == $user->id ? 'selected' : '' }}>
-                                    {{ $user->name }} ({{ $user->email }})
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('user_id') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                        <label for="name" class="block text-sm font-medium text-slate-900 mb-1">Full Name</label>
+                        <input type="text" name="name" id="name" value="{{ old('name') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Enter owner's full name" required>
+                        @error('name') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="mb-4">
+                        <div class="flex items-center justify-between mb-1">
+                            <label for="email" class="block text-sm font-medium text-slate-900">Email Address</label>
+                            
+                            <div class="flex items-center">
+                                <input type="checkbox" name="random_email_password" id="random_email_password" onclick="Random_Email_Password();" 
+                                      class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 mr-2">
+                                <label for="random_email_password" class="text-xs text-gray-600 cursor-pointer">Generate Random Credentials</label>
+                            </div>
+                        </div>
+
+                        <input type="email" name="email" id="email" value="{{ old('email') }}" 
+                              class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" 
+                              placeholder="Enter owner's email address" required>
+                              
+                        @error('email') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                    </div>
+
+                    <div class="mb-4">
+                      <div class="flex items-center justify-between mb-1">
+                            <label for="password" class="block text-sm font-medium text-slate-900 mb-1">Password</label>
+                            
+                            <div class="flex items-center">
+                                <input type="checkbox" name="show_password" id="show_password" onclick="Show_Password();" 
+                                      class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500 mr-2">
+                                <label for="show_password" class="text-xs text-gray-600 cursor-pointer">Show Password</label>
+                            </div>
+                        </div>
+                        
+                        <input type="password" name="password" id="password" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Enter a secure password" required>
+                        @error('password') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="mb-4">
-                            <label for="company_name" class="block text-sm font-medium text-slate-900 mb-1">Company Name (Optional)</label>
-                            <input type="text" name="company_name" id="company_name" value="{{ old('company_name') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                            <label for="company_name" class="block text-sm font-medium text-slate-900 mb-1">Company Name</label>
+                            <input type="text" name="company_name" id="company_name" value="{{ old('company_name') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Optional">
                             @error('company_name') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <div class="mb-4">
-                            <label for="phone" class="block text-sm font-medium text-slate-900 mb-1">Phone Number</label>
-                            <input type="text" name="phone" id="phone" value="{{ old('phone') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                            @error('phone') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            <label for="ic_number" class="block text-sm font-medium text-slate-900 mb-1">IC Number</label>
+                            <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                            @error('ic_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <div class="mb-4">
-                            <label for="ic_number" class="block text-sm font-medium text-slate-900 mb-1">IC Number</label>
-                            <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('ic_number') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
+                            <label for="phone" class="block text-sm font-medium text-slate-900 mb-1">Phone Number</label>
+                            <input type="text" name="phone" id="phone" value="{{ old('phone') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="e.g. +60123456789" required>
+                            @error('phone') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <div class="mb-4">
@@ -59,37 +85,10 @@
                             </select>
                             @error('gender') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
                         </div>
-
-                        <div class="mb-4">
-                            <label for="subscription_status" class="block text-sm font-medium text-slate-900 mb-1">Subscription Status</label>
-                            <select name="subscription_status" id="subscription_status" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                <option value="Active" {{ old('subscription_status') == 'Active' ? 'selected' : '' }}>Active</option>
-                                <option value="Inactive" {{ old('subscription_status') == 'Inactive' ? 'selected' : '' }}>Inactive</option>
-                            </select>
-                            @error('subscription_status') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="referred_by" class="block text-sm font-medium text-slate-900 mb-1">Referred By</label>
-                            <input type="text" name="referred_by" id="referred_by" value="{{ old('referred_by') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('referred_by') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="discount_rate" class="block text-sm font-medium text-slate-900 mb-1">Discount Rate (%)</label>
-                            <input type="number" step="0.01" name="discount_rate" id="discount_rate" value="{{ old('discount_rate', 0) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('discount_rate') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
-
-                         <div class="mb-4">
-                            <label for="usage_count" class="block text-sm font-medium text-slate-900 mb-1">Initial Usage Count</label>
-                            <input type="number" name="usage_count" id="usage_count" value="{{ old('usage_count', 0) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('usage_count') <span class="text-red-500 text-xs">{{ $message }}</span> @enderror
-                        </div>
                     </div>
 
-                    <div class="flex justify-end pt-4">
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow transition duration-150 ease-in-out">
+                    <div class="flex justify-end pt-4 border-t border-gray-100 mt-4">
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-8 rounded-lg shadow-md transition duration-150 ease-in-out">
                             Save Owner
                         </button>
                     </div>
@@ -97,4 +96,45 @@
             </div>
         </div>
     </div>
+
+@push('scripts')
+<script>
+    function Random_Email_Password() {
+        var random_email_password = document.getElementById("random_email_password");
+        var emailField = document.getElementById("email");
+        var passwordField = document.getElementById("password");
+
+        if (random_email_password.checked == true){
+            var random = Math.random().toString(36).substring(2, 10); 
+
+            // Generate random email
+            var randomEmail = random + "@example.com";
+            emailField.value = randomEmail;
+            emailField.readOnly = true;
+
+            // Generate random password
+            var randomPassword = random;
+            passwordField.value = randomPassword;
+            passwordField.readOnly = true;
+        } else {
+            emailField.value = "";
+            emailField.readOnly = false;
+
+            passwordField.value = "";
+            passwordField.readOnly = false;
+        }
+    }
+
+    function Show_Password() {
+        var show_password = document.getElementById("show_password");
+        var passwordField = document.getElementById("password");
+
+        if (show_password.checked == true){
+            passwordField.type = "text";
+        } else {
+            passwordField.type = "password";
+        }
+    }
+</script>
+@endpush
 </x-app-layout>

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Tenant;
+use App\Models\Tenants;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -14,7 +14,7 @@ class TenantsController extends Controller
      */
     public function index(Request $request)
     {
-        $query = Tenant::with('user');
+        $query = Tenants::with('user');
 
         // Search
         if ($request->has('search') && $request->search != '') {
@@ -60,9 +60,7 @@ class TenantsController extends Controller
      */
     public function create()
     {
-        // Only show users with role 'tenant' who are NOT already in the tenants table
-        $users = User::where('role', 'tenant')->whereDoesntHave('tenant')->get(); 
-        return view('adminSide.tenants.create', compact('users'));
+        return view('adminSide.tenants.create');
     }
 
     /**
@@ -71,7 +69,12 @@ class TenantsController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'user_id' => 'required|exists:users,id|unique:tenants,user_id',
+            // User details
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users',
+            'password' => 'required|string|min:8|confirmed',
+            
+            // Tenant details
             'phone' => 'required|string|max:20',
             'ic_number' => 'nullable|string|max:20|required_without:passport', // Either IC or Passport must be present ideally, or at least one
             'passport' => 'nullable|string|max:20|required_without:ic_number',
@@ -81,22 +84,33 @@ class TenantsController extends Controller
             'ic_photo_path' => 'nullable|image|max:2048|mimes:jpeg,png,jpg,gif',
         ]);
 
-        $data = $request->except('ic_photo_path');
+        // 1. Create User
+        $user = User::create([
+            'name' => $request->name,
+            'email' => $request->email,
+            'password' => \Illuminate\Support\Facades\Hash::make($request->password),
+            'role' => 'tenant',
+        ]);
+
+        // 2. Prepare Tenant Data
+        $data = $request->except(['ic_photo_path', 'name', 'email', 'password', 'password_confirmation']);
+        $data['user_id'] = $user->id;
 
         if ($request->hasFile('ic_photo_path')) {
             $path = $request->file('ic_photo_path')->store('tenants/ic_photos', 'public');
             $data['ic_photo_path'] = $path;
         }
 
-        Tenant::create($data);
+        // 3. Create Tenant
+        Tenants::create($data);
 
-        return redirect()->route('admin.tenants.index')->with('success', 'Tenant created successfully.');
+        return redirect()->route('admin.tenants.index')->with('success', 'Tenant and User created successfully.');
     }
 
     /**
      * Show the form for editing the specified resource.
      */
-    public function edit(Tenant $tenant)
+    public function edit(Tenants $tenant)
     {
         // No need to fetch users list as the user field is disabled/readonly
         return view('adminSide.tenants.edit', compact('tenant'));
@@ -105,10 +119,15 @@ class TenantsController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Tenant $tenant)
+    public function update(Request $request, Tenants $tenant)
     {
         $request->validate([
-            'user_id' => 'required|exists:users,id|unique:tenants,user_id,' . $tenant->id,
+            // User details
+            'name' => 'required|string|max:255',
+            'email' => 'required|string|email|max:255|unique:users,email,' . $tenant->user_id,
+            'password' => 'nullable|string|min:8|confirmed',
+
+            // Tenant details
             'phone' => 'required|string|max:20',
             'ic_number' => 'nullable|string|max:20|required_without:passport',
             'passport' => 'nullable|string|max:20|required_without:ic_number',
@@ -118,7 +137,20 @@ class TenantsController extends Controller
             'ic_photo_path' => 'nullable|image|max:2048|mimes:jpeg,png,jpg,gif',
         ]);
 
-        $data = $request->except('ic_photo_path');
+        // 1. Update User
+        $userData = [
+            'name' => $request->name,
+            'email' => $request->email,
+        ];
+
+        if ($request->filled('password')) {
+            $userData['password'] = \Illuminate\Support\Facades\Hash::make($request->password);
+        }
+
+        $tenant->user->update($userData);
+
+        // 2. Update Tenant
+        $data = $request->except(['ic_photo_path', 'name', 'email']);
 
         if ($request->hasFile('ic_photo_path')) {
             // Delete old photo if exists? For now just overwrite reference.
@@ -128,13 +160,13 @@ class TenantsController extends Controller
 
         $tenant->update($data);
 
-        return redirect()->route('admin.tenants.index')->with('success', 'Tenant updated successfully.');
+        return redirect()->route('admin.tenants.index')->with('success', 'Tenant and User updated successfully.');
     }
 
     /**
      * Remove the specified resource from storage.
      */
-    public function destroy(Tenant $tenant)
+    public function destroy(Tenants $tenant)
     {
         $tenant->delete();
 

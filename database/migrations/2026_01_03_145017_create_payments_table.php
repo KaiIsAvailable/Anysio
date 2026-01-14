@@ -11,11 +11,11 @@ return new class extends Migration
         Schema::create('payments', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('tenant_id')->constrained('tenants')->cascadeOnDelete();
-            $table->string('payment_type');
-            $table->integer('amount_due'); 
+            $table->string('payment_type')->index();
+            $table->integer('amount_due')->index(); 
             $table->integer('amount_paid')->nullable();
             $table->string('receipt_path')->nullable();
-            $table->string('status')->default('pending');
+            $table->string('status')->default('pending')->index();
             $table->foreignUlid('approved_by')->nullable()->constrained('owners')->nullOnDelete();
             $table->timestamps();
         });

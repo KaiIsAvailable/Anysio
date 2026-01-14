@@ -12,12 +12,12 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->foreignUlid('room_id')->constrained('rooms');
             $table->foreignUlid('tenant_id')->constrained('tenants');
-            $table->date('start_date');
-            $table->date('end_date');
-            $table->integer('monthly_rent');
-            $table->integer('security_deposit');
-            $table->integer('utilities_depost');
-            $table->string('status');
+            $table->date('start_date')->index();
+            $table->date('end_date')->index();
+            $table->integer('monthly_rent')->index();
+            $table->integer('security_deposit')->index();
+            $table->integer('utilities_depost')->index();
+            $table->string('status')->index();
             $table->timestamps();
         });
     }

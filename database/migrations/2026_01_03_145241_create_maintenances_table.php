@@ -15,9 +15,9 @@ return new class extends Migration
             $table->string('title');
             $table->text('desc');
             $table->string('photo_path')->nullable();
-            $table->string('status')->default('Pending');
-            $table->integer('cost')->default(0);
-            $table->string('paid_by');
+            $table->string('status')->default('Pending')->index();
+            $table->integer('cost')->default(0)->index();
+            $table->string('paid_by')->index();
             $table->timestamps();
         });
     }

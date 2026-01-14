@@ -14,11 +14,11 @@ return new class extends Migration
         Schema::create('user_management', function (Blueprint $table) {
         $table->ulid('id')->primary();
         $table->foreignUlid('user_id')->constrained('users')->cascadeOnDelete();
-        $table->ulid('referred_by')->nullable(); 
-        $table->string('subscription_status')->default('active');
-        $table->integer('discount_rate')->default(0);
-        $table->integer('usage_count')->default(0);
-        $table->string('role');
+        $table->ulid('referred_by')->nullable()->index(); 
+        $table->string('subscription_status')->default('active')->index();
+        $table->integer('discount_rate')->default(0)->index();
+        $table->integer('usage_count')->default(0)->index();
+        $table->string('role')->index();
         $table->timestamps();
     });
     }

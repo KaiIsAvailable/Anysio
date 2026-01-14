@@ -12,7 +12,7 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->foreignUlid('notification_id')->constrained('notifications')->cascadeOnDelete();
             $table->foreignUlid('tenant_id')->constrained('tenants')->cascadeOnDelete();
-            $table->boolean('is_read')->default(false);
+            $table->boolean('is_read')->default(false)->index();
             $table->timestamps();
         });
     }

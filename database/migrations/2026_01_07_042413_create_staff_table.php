@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('staff', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('user_mgnt_id')->constrained('user_management')->cascadeOnDelete();
-            $table->string('role');
+            $table->string('role')->index();
             $table->timestamps();
         });
     }

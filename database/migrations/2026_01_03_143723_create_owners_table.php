@@ -12,9 +12,9 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->foreignUlid('user_id')->constrained('users')->cascadeOnDelete();
             $table->string('company_name')->nullable();
-            $table->string('ic_number');
-            $table->string('phone');
-            $table->string('gender');
+            $table->string('ic_number')->index();
+            $table->string('phone')->index();
+            $table->string('gender')->index();
             $table->timestamps();
         });
     }

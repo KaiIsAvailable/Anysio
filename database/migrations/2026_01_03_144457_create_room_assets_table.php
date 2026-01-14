@@ -11,9 +11,9 @@ return new class extends Migration
         Schema::create('room_assets', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('room_id')->constrained('rooms')->cascadeOnDelete();
-            $table->string('name');
-            $table->string('condition');
-            $table->date('last_maintenance')->nullable();
+            $table->string('name')->index();
+            $table->string('condition')->index();
+            $table->date('last_maintenance')->nullable()->index();
             $table->string('remark')->nullable();
             $table->timestamps();
         });

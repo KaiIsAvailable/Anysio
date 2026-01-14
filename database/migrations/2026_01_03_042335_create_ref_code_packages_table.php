@@ -12,9 +12,9 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->string('ref_code')->unique();
             $table->foreignUlid('user_mgnt_id')->nullable()->constrained('user_management')->nullOnDelete();
-            $table->boolean('is_official')->default(false);
-            $table->integer('ref_installation_price'); 
-            $table->integer('ref_monthly_price');      
+            $table->boolean('is_official')->default(false)->index();
+            $table->integer('ref_installation_price')->index(); 
+            $table->integer('ref_monthly_price')->index();      
             $table->timestamps();
         });
     }

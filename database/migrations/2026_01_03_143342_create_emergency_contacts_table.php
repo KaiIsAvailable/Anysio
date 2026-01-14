@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('emergency_contacts', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('tenant_id')->constrained('tenants')->cascadeOnDelete();
-            $table->string('phone');
+            $table->string('phone')->index();
             $table->string('relationship');
             $table->timestamps();
         });

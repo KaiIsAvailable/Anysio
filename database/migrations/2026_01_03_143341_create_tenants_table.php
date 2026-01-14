@@ -11,11 +11,11 @@ return new class extends Migration
         Schema::create('tenants', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('user_id')->constrained('users')->cascadeOnDelete();
-            $table->string('phone');
-            $table->string('ic_number')->nullable();
-            $table->string('passport')->nullable();
-            $table->string('nationality');
-            $table->string('gender');
+            $table->string('phone')->index();
+            $table->string('ic_number')->nullable()->index();
+            $table->string('passport')->nullable()->index();
+            $table->string('nationality')->index();
+            $table->string('gender')->index();
             $table->string('occupation')->nullable();
             $table->string('ic_photo_path')->nullable();
             $table->timestamps();

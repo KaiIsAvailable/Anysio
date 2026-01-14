@@ -11,9 +11,9 @@ return new class extends Migration
         Schema::create('rooms', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('owner_id')->constrained('owners')->cascadeOnDelete();
-            $table->string('room_no');
-            $table->string('room_type');
-            $table->string('status')->default('Available');
+            $table->string('room_no')->index();
+            $table->string('room_type')->index();
+            $table->string('status')->default('Vacant')->index();
             $table->text('address');
             $table->timestamps();
         });

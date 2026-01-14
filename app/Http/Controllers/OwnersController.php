@@ -57,12 +57,17 @@ class OwnersController extends Controller
         $validatedData = $request->validate([
             'name'         => 'required|string|max:255',
             'email'        => 'required|email|unique:users,email',
-            'password'     => 'required|string|min:8',
+            'random_email' => 'required|boolean',
             'company_name' => 'nullable|string|max:255',
             'ic_number'    => 'nullable|string|max:20',
             'phone'        => 'required|string|max:20',
             'gender'       => 'required|string|in:Male,Female',
         ]);
+
+        if ($validatedData['random_email']) {
+            $validatedData['email'] = Str::random(10) . '@example.com';
+            $validatedData['password'] = Hash::make(Str::random(10));
+        }
 
         try {
             // 2. Start a transaction to ensure both records are created safely
@@ -72,7 +77,7 @@ class OwnersController extends Controller
             $user = User::create([
                 'name'     => $validatedData['name'],
                 'email'    => $validatedData['email'],
-                'password' => Hash::make($validatedData['password']),
+                'password' => $validatedData['password'] ?? Hash::make('defaultPassword123'),
                 'role'     => 'owner',
             ]);
 
@@ -128,5 +133,12 @@ class OwnersController extends Controller
         $owner->user()->delete(); 
         $owner->delete();
         return redirect()->route('admin.owners.index')->with('success', 'Owner deleted successfully.');
+    }
+
+    public function show(Owners $owner)
+    {
+        $owner->load(['user']);
+
+        return view('adminSide.owners.details', compact('owner'));
     }
 }

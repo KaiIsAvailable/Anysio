@@ -172,4 +172,9 @@ class TenantsController extends Controller
 
         return redirect()->route('admin.tenants.index')->with('success', 'Tenant deleted successfully.');
     }
+
+    public function dashboard()
+    {
+        return view('adminSide.tenants.dashboard');
+    }
 }

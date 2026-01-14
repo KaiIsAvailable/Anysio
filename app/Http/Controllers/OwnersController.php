@@ -141,4 +141,9 @@ class OwnersController extends Controller
 
         return view('adminSide.owners.details', compact('owner'));
     }
+
+    public function dashboard()
+    {
+        return view('adminSide.owners.dashboard');
+    }
 }

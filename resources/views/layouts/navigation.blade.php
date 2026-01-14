@@ -12,24 +12,46 @@
 
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                        {{ __('Dashboard') }}
-                    </x-nav-link>
-                    <x-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*')">
-                        {{ __('Owners') }}
-                    </x-nav-link>
+                    @can('owner-admin')
+                        <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
+                            {{ __('Dashboard') }}
+                        </x-nav-link>
+                    @endcan
+
+                    @can('is-owner')
+                        <x-nav-link :href="route('user.owners.dashboard')" :active="request()->routeIs('user.owners.*')">
+                            {{ __('Dashboard') }}
+                        </x-nav-link>
+                        <x-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*')">
+                            {{ __('Owners') }}
+                        </x-nav-link>
+                    @endcan
+                    
+                    @can('is-tenant')
+                        <x-nav-link :href="route('user.tenants.dashboard')" :active="request()->routeIs('user.tenants.*')">
+                            {{ __('Dashboard') }}
+                        </x-nav-link>
+                    @endcan
+
                     <x-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*')">
                         {{ __('Tenants') }}
                     </x-nav-link>
+
                     <x-nav-link :href="route('admin.rooms.index')" :active="request()->routeIs('admin.rooms.*')">
                         {{ __('Room') }}
                     </x-nav-link>
-                    <x-nav-link :href="route('admin.customerService.index')" :active="request()->routeIs('admin.customerService.*')">
-                        {{ __('Contact Us') }}
-                    </x-nav-link>
-                    <x-nav-link :href="route('admin.userManagement.index')" :active="request()->routeIs('admin.userManagement.*')">
-                        {{ __('Users') }}
-                    </x-nav-link>
+
+                    @can('owner-admin')
+                        <x-nav-link :href="route('admin.customerService.index')" :active="request()->routeIs('admin.customerService.*')">
+                            {{ __('Contact Us') }}
+                        </x-nav-link>
+                    @endcan
+
+                    @can('super-admin')
+                        <x-nav-link :href="route('admin.userManagement.index')" :active="request()->routeIs('admin.userManagement.*')">
+                            {{ __('Users') }}
+                        </x-nav-link>
+                    @endcan
                 </div>
             </div>
 

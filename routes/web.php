@@ -24,6 +24,10 @@ Route::middleware('auth')->group(function () {
             require __DIR__.'/roomRoute.php';
             require __DIR__.'/customerServiceRoute.php';
             require __DIR__.'/userManagementRoute.php';
+            require __DIR__.'/paymentRoute.php';
+            require __DIR__.'/leasesRoute.php';
+            require __DIR__.'/maintenanceRoute.php';
+            require __DIR__.'/staffRoute.php';
         });
 
     Route::name('user.')

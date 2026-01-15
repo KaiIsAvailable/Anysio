@@ -44,11 +44,11 @@ class AppServiceProvider extends ServiceProvider
         });
 
         Gate::define('is-owner', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) >= 2;
+            return ($levels[$user->role] ?? 0) === 2;
         });
         
         Gate::define('is-tenant', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) >= 1;
+            return ($levels[$user->role] ?? 0) === 1;
         });
     }
 }

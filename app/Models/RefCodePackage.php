@@ -13,7 +13,7 @@ class RefCodePackage extends Model
 
     protected $fillable = [
         'ref_code',
-        'owner_id',
+        'user_mgnt_id',
         'is_official',
         'ref_installation_price',
         'ref_monthly_price',

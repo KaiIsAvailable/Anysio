@@ -68,14 +68,13 @@ class UserManagementController extends Controller
      */
     public function store(Request $request)
     {
-        // 1. 验证规则
+        // 1. 验证规则 (保持不变)
         $rules = [
             'name' => 'required|string|max:255',
             'email' => 'required_without:random_email|nullable|email|unique:users,email',
             'role_type' => 'required|in:admin,owner,agent',
         ];
 
-        // 如果选的不是 admin，则 referred_by (邀请码) 必须存在于 ref_code_packages 表
         if ($request->role_type !== 'admin') {
             $rules['referred_by'] = 'required|exists:ref_code_packages,ref_code';
         } else {
@@ -90,44 +89,24 @@ class UserManagementController extends Controller
 
         DB::beginTransaction();
         try {
-            // --- 核心修改：将邀请码转为真正的 User ID ---
-            $finalReferredByUserId = null;
-            if ($request->role_type !== 'admin' && $request->referred_by) {
-                // 1. 查找邀请码包
-                $package = \App\Models\RefCodePackage::where('ref_code', $request->referred_by)->first();
-                
-                if ($package) {
-                    // 2. 查找该包的拥有者 (UserManagement)
-                    $ownerMgnt = \App\Models\UserManagement::find($package->user_mgnt_id);
-                    // 3. 拿到该拥有者的 User ID
-                    $finalReferredByUserId = $ownerMgnt ? $ownerMgnt->user_id : null;
-                }
-            }
-            // ------------------------------------------
-
-            $finalPackageId = null; // 之前是 $finalReferredByUserId
+            $finalPackageId = null;
+            $sourcePackage = null; // 用于存储推荐人的包信息以继承价格
 
             if ($request->role_type !== 'admin' && $request->referred_by) {
-                // 1. 根据前端传来的邀请码字符串 (例如 "AGENT001") 查找包
-                $package = \App\Models\RefCodePackage::where('ref_code', $request->referred_by)->first();
-                
-                if ($package) {
-                    // 2. 直接获取这个包的 ID (这就是我们要存入 referred_by 的值)
-                    $finalPackageId = $package->id;
+                $sourcePackage = RefCodePackage::where('ref_code', $request->referred_by)->first();
+                if ($sourcePackage) {
+                    $finalPackageId = $sourcePackage->id;
                 }
 
-                // 验证：如果不是管理员但没找到有效的包
                 if (!$finalPackageId) {
                     return back()->withErrors(['referred_by' => 'Invalid Reference Code.'])->withInput();
                 }
             }
 
-            // 3. 处理 Email 逻辑
+            // 3. 处理 Email & Password
             $email = $request->has('random_email') 
                 ? strtolower(Str::random(8)) . '@system.com' 
                 : $request->email;
-            
-            // 4. 处理 Password 逻辑
             $plainPassword = Str::random(10); 
 
             // 5. 写入 User 表
@@ -138,16 +117,11 @@ class UserManagementController extends Controller
                 'role' => $request->role_type, 
             ]);
 
-            // 6. 定义角色映射
-            $roleMapping = [
-                'admin' => 'admin',
-                'owner' => 'ownerAdmin',
-                'agent' => 'agentAdmin'
-            ];
+            $roleMapping = ['admin' => 'admin', 'owner' => 'ownerAdmin', 'agent' => 'agentAdmin'];
             $pmsRole = $roleMapping[$request->role_type] ?? 'admin'; 
 
             // 7. 写入 UserManagement 表
-            UserManagement::create([
+            $userMgnt = UserManagement::create([
                 'user_id'             => $user->id,
                 'referred_by'         => $finalPackageId, 
                 'subscription_status' => 'active',
@@ -156,12 +130,41 @@ class UserManagementController extends Controller
                 'role'                => $pmsRole,
             ]);
 
+            // ================== 【新增逻辑 1：为新用户创建专属 Ref Code】 ==================
+            $newRefCode = Str::slug($request->name) . '_' . Str::upper(Str::random(4));
+            
+            $userMgnt = $userMgnt->fresh();
+            
+            RefCodePackage::create([
+                'id'                     => (string) Str::ulid(),
+                'ref_code'               => $newRefCode,
+                'user_mgnt_id'           => $userMgnt->id,
+                'is_official'            => 0,
+                'ref_installation_price' => $sourcePackage ? $sourcePackage->ref_installation_price : 0,
+                'ref_monthly_price'      => $sourcePackage ? $sourcePackage->ref_monthly_price : 0,
+            ]);
+
+            // ================== 【新增逻辑 2：奖励推荐人】 ==================
+            if ($sourcePackage && $sourcePackage->user_mgnt_id) {
+                $referrer = UserManagement::find($sourcePackage->user_mgnt_id);
+                if ($referrer) {
+                    $referrer->usage_count += 1;
+                    
+                    $calculatedDiscount = $referrer->usage_count * 10;
+                    $referrer->discount_rate = min($calculatedDiscount, 100);
+                    
+                    $referrer->save();
+                }
+            }
+            // ===========================================================================
+
             DB::commit();
 
             return redirect()->route('admin.userManagement.index')->with('status', [
                 'message'  => 'User created successfully!',
                 'email'    => $email,
-                'password' => $plainPassword
+                'password' => $plainPassword,
+                'new_ref_code' => $newRefCode // 也可以传回前端展示
             ]);
 
         } catch (\Exception $e) {

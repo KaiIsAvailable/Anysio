@@ -31,11 +31,9 @@
                         </x-nav-link>
                     @endcan
 
-                    @can('is-owner')
-                        <x-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*')">
-                            {{ __('Owners') }}
-                        </x-nav-link>
-                    @endcan
+                    <x-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*')">
+                        {{ __('Owners') }}
+                    </x-nav-link>
 
                     <x-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*')">
                         {{ __('Tenants') }}

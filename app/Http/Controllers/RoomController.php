@@ -127,7 +127,7 @@ class RoomController extends Controller
 
     public function update(Request $request, Room $room)
     {
-        $data = $this->validateRoomForm($request, true);
+        $data = $this->validateRoomForm($request, true, $room);
 
         DB::transaction(function () use ($data, $room) {
             $room->update([
@@ -191,7 +191,7 @@ class RoomController extends Controller
             }
         });
 
-        return redirect()->route('admin.rooms.show', $room->id)->with('success', 'Room updated successfully.');
+        return redirect()->route('admin.rooms.index')->with('success', 'Room updated successfully.');
     }
 
     public function destroy(Room $room)
@@ -250,11 +250,15 @@ class RoomController extends Controller
     // Validation
     // ===============================
 
-    private function validateRoomForm(Request $request, bool $isUpdate = false): array
+    private function validateRoomForm(Request $request, bool $isUpdate = false, ?Room $room = null): array
     {
+        $roomNoRule = $isUpdate
+            ? Rule::unique('rooms', 'room_no')->ignore($room?->id)
+            : Rule::unique('rooms', 'room_no');
+
         return $request->validate([
             'owner_id'  => ['required', 'string'],
-            'room_no'   => ['required', 'string', 'max:50'],
+            'room_no'   => ['required', 'string', 'max:50', $roomNoRule],
             'room_type' => ['required', 'string', 'max:100'],
             'status'    => ['required', Rule::in(['Occupied', 'Vacant', 'Maintenance', 'Available'])],
             'address'   => ['required', 'string', 'max:255'],

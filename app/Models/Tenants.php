@@ -34,7 +34,7 @@ class Tenants extends Model
 
     public function leases(): HasMany
     {
-        return $this->hasMany(Lease::class);
+        return $this->hasMany(Lease::class, 'tenant_id', 'id');
     }
 
     public function payments(): HasMany

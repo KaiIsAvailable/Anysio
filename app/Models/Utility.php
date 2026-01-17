@@ -19,8 +19,8 @@ class Utility extends Model
     ];
 
     protected $casts = [
-        'prev_reading' => 'decimal:2',
-        'curr_reading' => 'decimal:2',
+        'prev_reading' => 'integer',
+        'curr_reading' => 'integer',
         'amount' => 'integer',
     ];
 

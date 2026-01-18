@@ -13,6 +13,7 @@ class Payment extends Model
     protected $fillable = [
         'tenant_id',
         'payment_type',
+        'amount_type',
         'amount_due',
         'amount_paid',
         'receipt_path',
@@ -27,11 +28,11 @@ class Payment extends Model
 
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(Tenants::class);
+        return $this->belongsTo(Tenants::class, 'tenant_id');
     }
 
     public function approver(): BelongsTo
     {
-        return $this->belongsTo(Owners::class, 'approved_by');
+        return $this->belongsTo(User::class, 'approved_by');
     }
 }

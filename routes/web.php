@@ -21,6 +21,7 @@ Route::middleware('auth')->group(function () {
         ->group(function () {
             require __DIR__.'/ownerRoute.php';
             require __DIR__.'/tenantRoute.php';
+            Route::get('tenants/ic-photo/{filename}', [App\Http\Controllers\TenantsController::class, 'showIcPhoto'])->name('tenants.ic_photo');
             require __DIR__.'/roomRoute.php';
             require __DIR__.'/customerServiceRoute.php';
             require __DIR__.'/userManagementRoute.php';

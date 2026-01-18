@@ -20,30 +20,29 @@
             </div>
 
             <!-- Content Card -->
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-                <!-- Name Search -->
-                <div class="p-5 border-b border-gray-100 bg-white mb-4">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+                
+                <!-- Search Section -->
+                <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
-                        <form method="GET" action="{{ route('admin.tenants.index') }}" class="ml-auto">
+                        <form method="GET" action="{{ route('admin.tenants.index') }}" class="flex items-stretch gap-2">
                             <div class="flex items-stretch">
                                 <div class="relative flex-1">
                                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                         </svg>
                                     </div>
-                                    <input type="text"
-                                           name="search"
-                                           value="{{ request('search') }}"
-                                           style="padding-left: 22px;"
+                                    <input type="text" name="search" value="{{ request('search') }}"
+                                           style="padding-left: 45px;"
                                            class="block w-72 sm:w-80 pr-4 py-2.5 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder-gray-400"
-                                           placeholder="Search by name...">
+                                           placeholder="Search by tenant name...">
                                 </div>
-                                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm">
+                                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
                                     Search
                                 </button>
                                 @if(request('search'))
-                                    <a href="{{ route('admin.tenants.index', array_merge(request()->except('search','page'))) }}" class="ml-2 inline-flex items-center px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-slate-900 border border-gray-200 text-sm">
+                                    <a href="{{ route('admin.tenants.index') }}" class="ml-2 inline-flex items-center px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-slate-900 border border-gray-200 text-sm">
                                         Clear
                                     </a>
                                 @endif
@@ -51,82 +50,99 @@
                         </form>
                     </div>
                 </div>
-                
-                <!-- Toolbar removed per request -->
 
                 <!-- Table Section -->
                 <div class="overflow-x-auto">
                     @if($tenants->count() > 0)
-                        @php
-                            $sort = request('sort');
-                            // Default arrows show ASC when no explicit sort provided
-                            $nameDesc = $sort === 'name_desc';
-                            $nameAsc  = $sort === 'name_asc';
-                            $nextNameSort = $nameAsc ? 'name_desc' : 'name_asc';
-
-                            // Created date: ASC = oldest first, DESC = newest first
-                            $dateDesc = $sort === 'newest';
-                            $dateAsc  = is_null($sort) || $sort === 'oldest';
-                            $nextDateSort = $dateAsc ? 'newest' : 'oldest';
-                        @endphp
-                        <table class="table-fixed w-full min-w-[1200px] divide-y divide-gray-200">
+                        <table class="w-full divide-y divide-gray-200 text-left">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                        <a href="{{ route('admin.tenants.index', array_merge(request()->query(), ['sort' => $nextNameSort])) }}" class="inline-flex items-center space-x-1 text-gray-700 hover:text-indigo-600">
-                                            <span>Name</span>
-                                            @if($nameAsc) 
-                                                <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                                            @elseif($nameDesc)
-                                                <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                            @endif
-                                        </a>
-                                    </th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Phone</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">IC Number</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-40">Passport</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider w-64">Nationality</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Gender</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Occupation</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">IC Photo</th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                        <a href="{{ route('admin.tenants.index', array_merge(request()->query(), ['sort' => $nextDateSort])) }}" class="inline-flex items-center space-x-1 text-gray-700 hover:text-indigo-600">
-                                            <span>Created At</span>
-                                            @if($dateAsc)
-                                                <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                                            @elseif($dateDesc)
-                                                <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                            @endif
-                                        </a>
-                                    </th>
-                                    <th scope="col" class="sticky top-0 z-10 bg-gray-50 px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Updated At</th>
-                                    <th scope="col" class="sticky top-0 right-0 z-20 bg-gray-50 px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]">Actions</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Tenant Details</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Contact Info</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Demographics</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Emergency</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Document</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Joined Date</th>
+                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($tenants as $tenant)
-                                    <tr class="hover:bg-gray-50 transition-colors duration-150 group">
+                                    <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
+                                        onclick="window.location='{{ route('admin.tenants.show', $tenant->id) }}'">
+                                        
+                                        <!-- Tenant Details (Avatar + Name + Email) -->
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="flex items-center">
+                                                <div class="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold flex-shrink-0">
+                                                    {{ strtoupper(substr($tenant->user->name ?? 'T', 0, 1)) }}
+                                                </div>
+                                                <div class="ml-4">
+                                                    <div class="text-sm font-medium text-slate-900">{{ $tenant->user->name }}</div>
+                                                    <div class="text-xs text-gray-500">{{ $tenant->user->email }}</div>
+                                                </div>
+                                            </div>
+                                        </td>
 
-                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[12rem]">{{ $tenant->user->name ?? '—' }}</td>
-                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[10rem]">{{ $tenant->phone ?? '—' }}</td>
-                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[10rem]">{{ $tenant->ic_number ?? '—' }}</td>
-                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words break-all w-40">{{ $tenant->passport ?? '—' }}</td>
-                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words break-all w-64">{{ $tenant->nationality ? ucfirst($tenant->nationality) : '—' }}</td>
-                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[8rem]">{{ $tenant->gender ? ucfirst($tenant->gender) : '—' }}</td>
-                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[14rem]">{{ $tenant->occupation ?? '—' }}</td>
-                                        <td class="px-4 py-4 whitespace-nowrap text-sm text-slate-900">
-                                            @if($tenant->ic_photo_path)
-                                                <a href="{{ asset('storage/' . $tenant->ic_photo_path) }}" target="_blank" class="inline-block">
-                                                    <img class="h-12 w-12 rounded-lg object-cover border border-gray-200" src="{{ asset('storage/' . $tenant->ic_photo_path) }}" alt="IC photo" style="width: 48px; height: 48px;">
-                                                </a>
+                                        <!-- Contact Info (Phone + IC/Passport) -->
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-slate-900 font-medium">{{ $tenant->phone }}</div>
+                                            <div class="text-xs text-indigo-600 font-medium">
+                                                {{ $tenant->ic_number ? 'IC: ' . $tenant->ic_number : 'Pass: ' . $tenant->passport }}
+                                            </div>
+                                        </td>
+
+                                        <!-- Demographics (Nationality + Gender + Occupation) -->
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-slate-900">{{ $tenant->nationality }}</div>
+                                            <div class="text-xs text-gray-500">
+                                                {{ $tenant->gender }} • {{ $tenant->occupation ?? 'N/A' }}
+                                            </div>
+                                        </td>
+
+                                        <!-- Emergency Contacts -->
+                                        <td class="px-6 py-4">
+                                            @if($tenant->emergencyContacts->count())
+                                                <div class="flex flex-col gap-1">
+                                                    @foreach($tenant->emergencyContacts as $contact)
+                                                        <div class="text-xs">
+                                                            <span class="font-medium text-slate-900">{{ $contact->name }}</span>
+                                                            <span class="text-gray-500">({{ $contact->phone }})</span>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
                                             @else
-                                                <span class="text-xs text-gray-500">—</span>
+                                                <span class="text-gray-400 text-xs">—</span>
                                             @endif
                                         </td>
-                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[12rem]">{{ optional($tenant->created_at)->format('Y-m-d H:i') ?? '—' }}</td>
-                                        <td class="px-4 py-4 text-sm text-slate-900 whitespace-normal break-words max-w-[12rem]">{{ optional($tenant->updated_at)->format('Y-m-d H:i') ?? '—' }}</td>
-                                        <td class="sticky right-0 top-0 z-10 px-4 py-4 whitespace-nowrap text-center text-sm font-medium bg-white group-hover:bg-gray-50 shadow-[-4px_0_12px_-4px_rgba(0,0,0,0.1)]">
-                                            <div class="flex items-center justify-center space-x-2">
+
+                                        <!-- Document (IC/Passport Photo) -->
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="h-12 w-20 flex-shrink-0 overflow-hidden rounded bg-gray-100 border border-gray-200">
+                                                 @if($tenant->ic_photo_path)
+                                                    <a href="{{ route('admin.tenants.ic_photo', basename($tenant->ic_photo_path)) }}" target="_blank" onclick="event.stopPropagation();" class="block h-full w-full">
+                                                        <img src="{{ route('admin.tenants.ic_photo', basename($tenant->ic_photo_path)) }}" alt="IC" class="h-full w-full object-cover">
+                                                    </a>
+                                                @else
+                                                    <div class="flex items-center justify-center h-full w-full text-gray-400">
+                                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                        </svg>
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        </td>
+
+                                        <!-- Joined Date -->
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="text-sm text-slate-700 font-medium">
+                                                {{ $tenant->created_at->format('d M Y') }}
+                                            </span>
+                                        </td>
+
+                                        <!-- Actions -->
+                                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                            <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
                                                 <a href="{{ route('admin.tenants.edit', $tenant->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors" title="Edit">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                                 </a>
@@ -144,13 +160,13 @@
                             </tbody>
                         </table>
                     @else
-                        <!-- Simple Empty State -->
-                        <div class="text-center py-12">
-                            <h3 class="mt-2 text-sm font-medium text-slate-900">No tenants found</h3>
-                            <p class="mt-1 text-sm text-gray-500">Get started by creating a new tenant.</p>
+                        <!-- Empty State -->
+                        <div class="text-center py-20 bg-white">
+                            <h3 class="text-lg font-medium text-slate-900">No tenants found</h3>
+                            <p class="mt-1 text-gray-500">Get started by creating a new tenant.</p>
                             <div class="mt-6">
                                 <a href="{{ route('admin.tenants.create') }}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                    <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                    <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
                                         <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
                                     </svg>
                                     Add Tenant
@@ -162,7 +178,7 @@
 
                 <!-- Pagination -->
                 @if($tenants->hasPages())
-                    <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
+                    <div class="bg-white px-6 py-4 border-t border-gray-100">
                         {{ $tenants->links() }}
                     </div>
                 @endif

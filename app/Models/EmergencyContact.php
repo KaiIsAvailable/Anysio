@@ -12,12 +12,13 @@ class EmergencyContact extends Model
 
     protected $fillable = [
         'tenant_id',
+        'name',
         'phone',
         'relationship',
     ];
 
     public function tenant(): BelongsTo
     {
-        return $this->belongsTo(Tenants::class);
+        return $this->belongsTo(Tenants::class, 'tenant_id');
     }
 }

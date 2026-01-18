@@ -29,7 +29,7 @@ class Tenants extends Model
 
     public function emergencyContacts(): HasMany
     {
-        return $this->hasMany(EmergencyContact::class);
+        return $this->hasMany(EmergencyContact::class, 'tenant_id');
     }
 
     public function leases(): HasMany
@@ -39,6 +39,6 @@ class Tenants extends Model
 
     public function payments(): HasMany
     {
-        return $this->hasMany(Payment::class);
+        return $this->hasMany(Payment::class, 'tenant_id');
     }
 }

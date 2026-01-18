@@ -17,9 +17,9 @@
                     
                     <div class="space-y-6">
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700">Full Name</label>
-                            <input type="text" name="name" placeholder="Enter user's full name" required 
-                                   class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <x-input-label for="name" value="Full Name" class="text-sm font-semibold text-gray-700" />
+                            <x-text-input id="name" name="name" type="text" placeholder="Enter user's full name" required
+                                        class="mt-1 block w-full rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                         </div>
 
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -76,9 +76,9 @@
 
                         <div class="pt-4 border-t border-gray-100 flex justify-end gap-3">
                             <a href="{{ route('admin.userManagement.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</a>
-                            <button type="submit" class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all">
+                            <x-primary-button class="px-6 py-2.5 text-sm font-medium shadow-md transition-all">
                                 Create Account
-                            </button>
+                            </x-primary-button>
                         </div>
                     </div>
                 </form>

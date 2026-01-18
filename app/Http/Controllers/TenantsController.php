@@ -140,7 +140,7 @@ class TenantsController extends Controller
                 $tenant->emergencyContacts()->create([
                     'name' => $contact['name'],
                     'phone' => $contact['phone'],
-                    'relationship' => $contact['relationship'] ?? 'Friend', // Default or handle optional
+                    'relationship' => $contact['relationship'] ?? 'Friend',
                 ]);
             }
         }
@@ -273,6 +273,14 @@ class TenantsController extends Controller
      */
     public function destroy(Tenants $tenant)
     {
+        // Delete IC Photo if exists
+        if ($tenant->ic_photo_path) {
+            $path = base_path($tenant->ic_photo_path);
+            if (\Illuminate\Support\Facades\File::exists($path)) {
+                \Illuminate\Support\Facades\File::delete($path);
+            }
+        }
+
         $tenant->delete();
 
         return redirect()->route('admin.tenants.index')->with('success', 'Tenant deleted successfully.');

@@ -133,6 +133,7 @@ class DatabaseSeeder extends Seeder
 
                 EmergencyContact::create([
                     'tenant_id' => $tenantProfile->id,
+                    'name' => ($index % 2 == 0) ? 'Ali Baba' : 'Lim Ah Seng',
                     'phone' => '01' . rand(10000000, 99999999),
                     'relationship' => 'Parent',
                 ]);

@@ -2,10 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Owners; // Ensure this matches your filename in app/Models
+use App\Models\Owners;
 use App\Models\User;
+use App\Models\Lease;
+use App\Models\Room;
+use App\Models\Tenants;
+use App\Models\Payment;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
@@ -144,6 +150,42 @@ class OwnersController extends Controller
 
     public function dashboard()
     {
-        return view('adminSide.owners.dashboard');
+        $User_id = Auth::user()->id;
+
+        // Use ->count() to get a single number for each
+        $ownersCount = Owners::where('user_id', $User_id)->count();
+
+        $tenantsCount = Tenants::whereHas('leases.room.owner', function ($query) use ($User_id) {
+            $query->where('user_id', $User_id);
+        })->count();
+
+        $roomsCount = Room::whereHas('owner', function ($query) use ($User_id) {
+            $query->where('user_id', $User_id);
+        })->count();
+
+        $leasesCount = Lease::whereHas('room.owner', function ($query) use ($User_id) {
+            $query->where('user_id', $User_id);
+        })->count();
+
+        // Data for the Pie Chart (Grouping by room status)
+        $roomStatusStats = Room::whereHas('owner', function ($query) use ($User_id) {
+                $query->where('user_id', $User_id);
+            })
+            ->select('status', DB::raw('count(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status'); 
+
+        $payments = Payment::with('tenant')
+            ->whereHas('tenant.owner', function ($query) use ($User_id) {
+                $query->where('user_id', $User_id);
+            })
+        ->whereDate('created_at', now()->today()) 
+        ->latest()
+        ->limit(5)
+        ->get();
+
+        return view('adminSide.owners.dashboard', compact(
+            'ownersCount', 'tenantsCount', 'roomsCount', 'leasesCount', 'roomStatusStats', 'payments'
+        ));
     }
 }

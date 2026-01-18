@@ -9,7 +9,7 @@
                 </div>
                 <div class="flex-shrink-0">
                     <a href="{{ route('admin.rooms.create') }}"
-                       class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-all duration-200">
+                       class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
                         <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
@@ -18,10 +18,10 @@
                 </div>
             </div>
 
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden">
-                <div class="p-5 border-b border-gray-100 bg-white mb-4">
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+                <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
-                        <form method="GET" action="{{ route('admin.rooms.index') }}" class="ml-auto">
+                        <form method="GET" action="{{ route('admin.rooms.index') }}" class="flex items-stretch gap-2">
                             <div class="flex items-stretch">
                                 <div class="relative flex-1">
                                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -36,7 +36,7 @@
                                            class="block w-72 sm:w-80 pr-4 py-2.5 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder-gray-400"
                                            placeholder="Search room / owner / asset...">
                                 </div>
-                                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm">
+                                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
                                     Search
                                 </button>
                                 @if(request('search'))
@@ -63,10 +63,10 @@
                             $nextDateSort = $dateAsc ? 'newest' : 'oldest';
                         @endphp
 
-                        <table class="table-fixed w-full min-w-[1200px] divide-y divide-gray-200">
+                        <table class="table-fixed w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                             <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
                                     <a href="{{ route('admin.rooms.index', array_merge(request()->query(), ['sort' => $nextNoSort])) }}"
                                        class="inline-flex items-center space-x-1 text-gray-700 hover:text-indigo-600">
                                         <span>Room No</span>
@@ -77,12 +77,12 @@
                                         @endif
                                     </a>
                                 </th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Owner</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Address</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Assets</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Type</th>
+                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Owner</th>
+                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Address</th>
+                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Assets</th>
+                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
                                     <a href="{{ route('admin.rooms.index', array_merge(request()->query(), ['sort' => $nextDateSort])) }}"
                                        class="inline-flex items-center space-x-1 text-gray-700 hover:text-indigo-600">
                                         <span>Created</span>
@@ -93,7 +93,7 @@
                                         @endif
                                     </a>
                                 </th>
-                                <th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                             </tr>
                             </thead>
 
@@ -109,29 +109,31 @@
                                     };
                                     $assetNames = $room->assets->pluck('name')->filter()->unique()->values();
                                 @endphp
-                                <tr class="hover:bg-gray-50 transition-colors duration-150">
+                                <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
+                                    data-href="{{ route('admin.rooms.show', $room->id) }}"
+                                    onclick="window.location=this.dataset.href">
                                     <td class="px-6 py-4">
                                         <a href="{{ route('admin.rooms.show', $room->id) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-900">
-                                            {{ $room->room_no ?? '—' }}
+                                            {{ $room->room_no ?? 'ƒ?"' }}
                                         </a>
                                         <div class="text-xs text-gray-500">ID: {{ $room->id }}</div>
                                     </td>
 
-                                    <td class="px-6 py-4 text-sm text-slate-900">{{ $room->room_type ?? '—' }}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-900">{{ $room->room_type ?? 'ƒ?"' }}</td>
 
                                     <td class="px-6 py-4">
                                         <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
-                                            {{ $room->status ?? '—' }}
+                                            {{ $room->status ?? 'ƒ?"' }}
                                         </span>
                                     </td>
 
                                     <td class="px-6 py-4">
-                                        <div class="text-sm font-medium text-slate-900">{{ $room->owner->user->name ?? '—' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $room->owner->user->email ?? '—' }}</div>
+                                        <div class="text-sm font-medium text-slate-900">{{ $room->owner->user->name ?? 'ƒ?"' }}</div>
+                                        <div class="text-xs text-gray-500">{{ $room->owner->user->email ?? 'ƒ?"' }}</div>
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">
-                                        <div class="line-clamp-2 break-words">{{ $room->address ?? '—' }}</div>
+                                        <div class="line-clamp-2 break-words">{{ $room->address ?? 'ƒ?"' }}</div>
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">
@@ -142,14 +144,14 @@
                                                 @endforeach
                                             </div>
                                         @else
-                                            <span class="text-gray-400">—</span>
+                                            <span class="text-gray-400">ƒ?"</span>
                                         @endif
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">{{ optional($room->created_at)->format('d M Y') }}</td>
 
                                     <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                        <div class="flex items-center justify-center space-x-2">
+                                        <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
                                             <a href="{{ route('admin.rooms.edit', $room->id) }}"
                                                class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                                                title="Edit">
@@ -173,22 +175,16 @@
                             </tbody>
                         </table>
                     @else
-                        <div class="text-center py-12">
-                            <h3 class="mt-2 text-sm font-medium text-slate-900">No rooms found</h3>
-                            <p class="mt-1 text-sm text-gray-500">Get started by adding your first room.</p>
-                            <div class="mt-6">
-                                <a href="{{ route('admin.rooms.create') }}"
-                                   class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                                    Add Room
-                                </a>
-                            </div>
+                        <div class="text-center py-20 bg-white">
+                            <h3 class="text-lg font-medium text-slate-900">No rooms found</h3>
+                            <p class="mt-1 text-gray-500">Try adjusting your search or add a new room.</p>
                         </div>
                     @endif
                 </div>
 
                 @if($rooms->hasPages())
-                    <div class="bg-white px-4 py-3 border-t border-gray-200 sm:px-6">
-                        {{ $rooms->links() }}
+                    <div class="bg-white px-6 py-4 border-t border-gray-100">
+                        {{ $rooms->appends(request()->query())->links() }}
                     </div>
                 @endif
             </div>

@@ -7,6 +7,7 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Owners</h1>
                     <p class="mt-2 text-sm text-gray-500">Manage and organize your property owner directory.</p>
                 </div>
+                @can('owner-admin')
                 <div class="flex-shrink-0">
                     <a href="{{ route('admin.owners.create') }}" 
                        class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
@@ -16,6 +17,7 @@
                         Add New Owner
                     </a>
                 </div>
+                @endcan
             </div>
 
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
@@ -57,7 +59,9 @@
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Company</th>
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Contact Info</th>
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Joined Date</th>
+                                    @can('owner-admin')
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    @endcan
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
@@ -92,7 +96,8 @@
                                                 {{ $owner->created_at ? $owner->created_at->format('d M Y') : 'N/A' }}
                                             </span>
                                         </td>
-
+                                        
+                                        @can('owner-admin')
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
                                                 <a href="{{ route('admin.owners.edit', $owner->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 rounded-lg transition-colors">
@@ -106,6 +111,7 @@
                                                 </form>
                                             </div>
                                         </td>
+                                        @endcan
                                     </tr>
                                 @endforeach
                             </tbody>

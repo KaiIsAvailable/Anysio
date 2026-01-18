@@ -12,8 +12,8 @@ return new class extends Migration
             $table->ulid('id')->primary();
             $table->foreignUlid('lease_id')->constrained('leases')->cascadeOnDelete();
             $table->string('type')->index();
-            $table->decimal('prev_reading', 10, 2);
-            $table->decimal('curr_reading', 10, 2);
+            $table->integer('prev_reading');
+            $table->integer('curr_reading');
             $table->integer('amount');
             $table->timestamps();
         });

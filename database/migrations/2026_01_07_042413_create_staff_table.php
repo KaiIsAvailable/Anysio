@@ -13,8 +13,10 @@ return new class extends Migration
     {
         Schema::create('staff', function (Blueprint $table) {
             $table->ulid('id')->primary();
+            $table->foreignUlid('user_id')->constrained('users')->cascadeOnDelete();
             $table->foreignUlid('user_mgnt_id')->constrained('user_management')->cascadeOnDelete();
             $table->string('role')->index();
+            $table->string('is_active')->default('active')->index();
             $table->timestamps();
         });
     }

@@ -13,6 +13,7 @@ class Tenants extends Model
 
     protected $fillable = [
         'user_id',
+        'owner_id',
         'phone',
         'ic_number',
         'passport',
@@ -25,6 +26,11 @@ class Tenants extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(Owners::class, 'owner_id');
     }
 
     public function emergencyContacts(): HasMany

@@ -118,13 +118,13 @@ class TicketController extends Controller
      * Grab a ticket (for admin role)
      * Route: customerService.grab
      */
-    public function grab($id) {
+    public function grab($customerService) {
         // Only admin can grab tickets
         if (Auth::user()->role !== 'admin') {
             abort(403, 'Unauthorized action.');
         }
 
-        $ticket = Ticket::findOrFail($id);
+        $ticket = Ticket::findOrFail($customerService);
 
         // Assign the ticket to the current admin
         $ticket->update([
@@ -133,5 +133,82 @@ class TicketController extends Controller
         ]);
 
         return redirect()->back()->with('success', 'Ticket grabbed successfully!');
+    }
+
+    /**
+     * Close a ticket (for admin role)
+     * Route: customerService.close
+     */
+    public function close($customerService) {
+        // Only admin can close tickets
+        if (Auth::user()->role !== 'admin') {
+            abort(403, 'Unauthorized action.');
+        }
+
+        $ticket = Ticket::findOrFail($customerService);
+
+        // Update ticket status to closed
+        $ticket->update([
+            'status' => 'closed'
+        ]);
+
+        return redirect()->back()->with('success', 'Ticket closed successfully!');
+    }
+
+    /**
+     * Fetch new messages for a ticket (AJAX endpoint)
+     * Route: customerService.newMessages
+     */
+    public function getNewMessages(Request $request, $ticket) {
+        $ticketModel = Ticket::findOrFail($ticket);
+
+        // Security check
+        $userRole = Auth::user()->role;
+        if ($userRole === 'ownerAdmin' && $ticketModel->sender_id !== Auth::id()) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Get last message timestamp from request
+        $lastTimestamp = $request->query('last_timestamp');
+
+        // Fetch messages created after the last timestamp
+        $query = TicketMsg::where('ticket_id', $ticket)
+                          ->orderBy('created_at', 'asc');
+
+        if ($lastTimestamp) {
+            // Convert ISO string to Carbon for proper comparison
+            try {
+                $lastTimestampCarbon = \Carbon\Carbon::parse($lastTimestamp);
+                $query->where('created_at', '>', $lastTimestampCarbon);
+            } catch (\Exception $e) {
+                // If parsing fails, don't filter by timestamp
+                \Log::warning('Failed to parse timestamp: ' . $lastTimestamp);
+            }
+        }
+
+        $newMessages = $query->get();
+
+        // Format messages for JSON response
+        $formattedMessages = $newMessages->map(function($msg) {
+            return [
+                'id' => $msg->id,
+                'sender_type' => $msg->sender_type,
+                'message' => $msg->message,
+                'created_at' => $msg->created_at->format('d M Y, H:i'),
+                'created_at_iso' => $msg->created_at->toIso8601String(),
+            ];
+        });
+
+        // Debug logging
+        \Log::info('AJAX Poll - Ticket: ' . $ticket, [
+            'last_timestamp' => $lastTimestamp,
+            'new_messages_count' => $formattedMessages->count(),
+            'message_ids' => $formattedMessages->pluck('id')->toArray()
+        ]);
+
+        return response()->json([
+            'messages' => $formattedMessages,
+            'count' => $formattedMessages->count()
+        ]);
     }
 }

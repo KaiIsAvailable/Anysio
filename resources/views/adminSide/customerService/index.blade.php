@@ -116,10 +116,15 @@
                                     @endif
                                     <td class="px-6 py-4 text-sm text-gray-500">{{ $ticket->created_at->format('Y-m-d H:i') }}</td>
                                     <td class="px-6 py-4">
-                                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full
-                                            {{ $ticket->status === 'sent' ? 'bg-yellow-100 text-yellow-800' : ($ticket->status === 'in_progress' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800') }}">
-                                            {{ ucfirst(str_replace('_', ' ', $ticket->status)) }}
-                                        </span>
+                                        @if($ticket->status === 'sent')
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Sent</span>
+                                        @elseif($ticket->status === 'in_progress')
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">In Progress</span>
+                                        @elseif($ticket->status === 'closed')
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Closed</span>
+                                        @else
+                                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">{{ ucfirst(str_replace('_', ' ', $ticket->status)) }}</span>
+                                        @endif
                                     </td>
                                     <td class="px-6 py-4">
                                         @if(Auth::user()->role === 'admin' && !$ticket->receiver)

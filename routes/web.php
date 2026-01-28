@@ -23,6 +23,8 @@ Route::middleware('auth')->group(function () {
             require __DIR__.'/tenantRoute.php';
             Route::get('tenants/ic-photo/{filename}', [App\Http\Controllers\TenantsController::class, 'showIcPhoto'])->name('tenants.ic_photo');
             require __DIR__.'/roomRoute.php';
+            // AJAX route for real-time messaging - different path to avoid conflict with resource routes
+            Route::get('ticket-messages/{ticket}', [App\Http\Controllers\TicketController::class, 'getNewMessages'])->name('customerService.newMessages');
             require __DIR__.'/customerServiceRoute.php';
             require __DIR__.'/userManagementRoute.php';
             require __DIR__.'/paymentRoute.php';

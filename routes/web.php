@@ -36,20 +36,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/paymentRoute.php';
         require __DIR__.'/leasesRoute.php';
         require __DIR__.'/maintenanceRoute.php';
-        require __DIR__.'/roomRoute.php'; // 如果普通用户也能看房
+        require __DIR__.'/roomRoute.php';
+        require __DIR__.'/ownerRoute.php';
+        require __DIR__.'/tenantRoute.php';
+        require __DIR__.'/staffRoute.php';
+        require __DIR__.'/userManagementRoute.php';
+        require __DIR__.'/customerServiceRoute.php';
 
         // --- 只有管理员 (owner-admin) 权限能进的路由 ---
         Route::middleware('can:owner-admin')->group(function () {
-            
-            // 基础资源管理
-            require __DIR__.'/ownerRoute.php';
-            require __DIR__.'/tenantRoute.php';
-            require __DIR__.'/staffRoute.php';
-            require __DIR__.'/userManagementRoute.php';
-            
-            // 客服系统相关
-            require __DIR__.'/customerServiceRoute.php';
-            
             // 特定功能路由
             Route::get('tenants/ic-photo/{filename}', [TenantsController::class, 'showIcPhoto'])->name('tenants.ic_photo');
             Route::get('ticket-messages/{ticket}', [TicketController::class, 'getNewMessages'])->name('customerService.newMessages');

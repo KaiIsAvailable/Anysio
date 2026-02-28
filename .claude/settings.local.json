@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php artisan:*)",
+      "Bash(findstr:*)",
+      "Bash(curl -s -o NUL -w \"HTTP Status: %{http_code}\\\\n\" \"http://localhost/admin/customerService/01kfak554135jek0q50edzeb73/new-messages\")"
+    ]
+  }
+}

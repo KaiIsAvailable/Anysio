@@ -8,6 +8,7 @@ use App\Models\TicketMsg;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Log;
 
 class TicketController extends Controller
 {
@@ -178,7 +179,7 @@ class TicketController extends Controller
                 $query->where('created_at', '>', $lastTimestampCarbon);
             } catch (\Exception $e) {
                 // If parsing fails, don't filter by timestamp
-                \Log::warning('Failed to parse timestamp: ' . $lastTimestamp);
+                Log::warning('Failed to parse timestamp: ' . $lastTimestamp);
             }
         }
 
@@ -196,7 +197,7 @@ class TicketController extends Controller
         });
 
         // Debug logging
-        \Log::info('AJAX Poll - Ticket: ' . $ticket, [
+        Log::info('AJAX Poll - Ticket: ' . $ticket, [
             'last_timestamp' => $lastTimestamp,
             'new_messages_count' => $formattedMessages->count(),
             'message_ids' => $formattedMessages->pluck('id')->toArray()

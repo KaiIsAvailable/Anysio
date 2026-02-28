@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('maintenance', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('lease_id')->constrained('leases')->cascadeOnDelete();
-            $table->foreignUlid('asset_id')->nullable()->constrained('room_assets')->nullOnDelete();
+            $table->foreignUlid('asset_room_id')->nullable()->constrained('asset_room')->nullOnDelete();
             $table->string('title');
             $table->text('desc');
             $table->string('photo_path')->nullable();

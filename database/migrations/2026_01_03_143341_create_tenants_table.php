@@ -13,12 +13,14 @@ return new class extends Migration
             $table->foreignUlid('user_id')->constrained('users')->cascadeOnDelete();
             $table->foreignUlid('owner_id')->nullable()->index()->constrained('users')->cascadeOnDelete();
             $table->string('phone')->index();
-            $table->string('ic_number')->nullable()->index();
-            $table->string('passport')->nullable()->index();
+            $table->string('ic_number')->nullable()->unique();
+            $table->string('passport')->nullable()->unique();
             $table->string('nationality')->index();
             $table->string('gender')->index();
             $table->string('occupation')->nullable();
             $table->string('ic_photo_path')->nullable();
+            $table->string('status')->default('active')->index();
+            $table->softDeletes();
             $table->timestamps();
         });
     }

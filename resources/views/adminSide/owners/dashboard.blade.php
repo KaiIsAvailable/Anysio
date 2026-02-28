@@ -26,7 +26,7 @@
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
                     <h3 class="text-gray-500 text-sm font-medium">Rooms</h3>
                     <p class="text-4xl font-bold text-gray-900 my-2">{{ $roomsCount }}</p>
-                    <a href="#" class="text-indigo-600 text-sm hover:underline">View</a>
+                    <a href="{{ route('admin.rooms.index') }}" class="text-indigo-600 text-sm hover:underline">View</a>
                 </div>
                 <div class="bg-white p-6 rounded-xl shadow-sm border border-gray-100 text-center">
                     <h3 class="text-gray-500 text-sm font-medium">Leases</h3>

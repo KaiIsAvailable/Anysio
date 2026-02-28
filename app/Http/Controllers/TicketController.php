@@ -7,6 +7,7 @@ use App\Models\Ticket;
 use App\Models\TicketMsg;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 class TicketController extends Controller
 {
@@ -17,23 +18,18 @@ class TicketController extends Controller
     public function index() {
         $userRole = Auth::user()->role;
 
-        if ($userRole === 'ownerAdmin') {
-            // OwnerAdmin sees their own created tickets
-            $tickets = Ticket::where('sender_id', Auth::id())
-                             ->with(['receiver'])
-                             ->orderBy('created_at', 'desc')
-                             ->get();
-        } elseif ($userRole === 'admin') {
-            // Admin sees all tickets to grab and resolve
-            $tickets = Ticket::with(['sender', 'receiver'])
-                             ->orderBy('created_at', 'desc')
-                             ->get();
+        if (Gate::allows('super-admin')) {
+        // Admin 等级 5：看所有人的 Ticket
+        $tickets = Ticket::with(['sender', 'receiver'])
+                         ->latest()
+                         ->get();
         } else {
-            // Other roles see their own tickets
+            // 其他所有角色（agentAdmin, ownerAdmin, tenant 等）：只看自己的
+            // 因为你之前的逻辑里除了 admin，其他角色代码都是一模一样的
             $tickets = Ticket::where('sender_id', Auth::id())
-                             ->with(['receiver'])
-                             ->orderBy('created_at', 'desc')
-                             ->get();
+                            ->with(['receiver'])
+                            ->latest()
+                            ->get();
         }
 
         return view('adminSide.customerService.index', compact('tickets'));

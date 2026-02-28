@@ -20,20 +20,22 @@
                     @endcan
 
                     @can('is-owner')
-                        <x-nav-link :href="route('user.owners.dashboard')" :active="request()->routeIs('user.owners.*')">
+                        <x-nav-link :href="route('admin.owners.dashboard')" :active="request()->routeIs('admin.owners.*')">
                             {{ __('Dashboard') }}
                         </x-nav-link>
                     @endcan
 
                     @can('is-tenant')
-                        <x-nav-link :href="route('user.tenants.dashboard')" :active="request()->routeIs('user.tenants.*')">
+                        <x-nav-link :href="route('admin.tenants.dashboard')" :active="request()->routeIs('user.tenants.*')">
                             {{ __('Dashboard') }}
                         </x-nav-link>
                     @endcan
 
-                    <x-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*')">
-                        {{ __('Owners') }}
-                    </x-nav-link>
+                    @can('agent-admin')
+                        <x-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*')">
+                            {{ __('Owners') }}
+                        </x-nav-link>
+                    @endcan
 
                     <x-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*')">
                         {{ __('Tenants') }}

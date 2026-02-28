@@ -8,6 +8,7 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Tenants</h1>
                     <p class="mt-2 text-sm text-gray-500">Manage and organize your tenant directory.</p>
                 </div>
+                @can('owner-admin')
                 <div class="flex-shrink-0">
                     <a href="{{ route('admin.tenants.create') }}" 
                        class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-all duration-200">
@@ -17,6 +18,7 @@
                         Add New Tenant
                     </a>
                 </div>
+                @endcan
             </div>
 
             <!-- Content Card -->
@@ -63,7 +65,9 @@
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Emergency</th>
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Document</th>
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Joined Date</th>
+                                    @can('owner-admin')
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    @endcan
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
@@ -75,7 +79,7 @@
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center">
                                                 <div class="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold flex-shrink-0">
-                                                    {{ strtoupper(substr($tenant->user->name ?? 'T', 0, 1)) }}
+                                                    {{ strtoupper(mb_substr($tenant->user->name ?? 'T', 0, 1, 'UTF-8')) }}
                                                 </div>
                                                 <div class="ml-4">
                                                     <div class="text-sm font-medium text-slate-900">{{ $tenant->user->name }}</div>
@@ -118,19 +122,17 @@
 
                                         <!-- Document (IC/Passport Photo) -->
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="h-12 w-20 flex-shrink-0 overflow-hidden rounded bg-gray-100 border border-gray-200">
-                                                 @if($tenant->ic_photo_path)
-                                                    <a href="{{ route('admin.tenants.ic_photo', basename($tenant->ic_photo_path)) }}" target="_blank" onclick="event.stopPropagation();" class="block h-full w-full">
-                                                        <img src="{{ route('admin.tenants.ic_photo', basename($tenant->ic_photo_path)) }}" alt="IC" class="h-full w-full object-cover">
-                                                    </a>
-                                                @else
-                                                    <div class="flex items-center justify-center h-full w-full text-gray-400">
-                                                        <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                                        </svg>
-                                                    </div>
-                                                @endif
-                                            </div>
+                                            @if($tenant->ic_photo_path)
+                                                <a href="{{ route('admin.tenants.ic_photo', basename($tenant->ic_photo_path)) }}" 
+                                                target="_blank" 
+                                                onclick="event.stopPropagation();" 
+                                                class="inline-flex items-center px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase">
+                                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                    Uploaded
+                                                </a>
+                                            @else
+                                                <span class="text-gray-300 text-[10px] font-bold uppercase tracking-widest">Missing</span>
+                                            @endif
                                         </td>
 
                                         <!-- Joined Date -->
@@ -141,6 +143,7 @@
                                         </td>
 
                                         <!-- Actions -->
+                                        @can('owner-admin')
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
                                                 <a href="{{ route('admin.tenants.edit', $tenant->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors" title="Edit">
@@ -155,6 +158,7 @@
                                                 </form>
                                             </div>
                                         </td>
+                                        @endcan
                                     </tr>
                                 @endforeach
                             </tbody>
@@ -164,14 +168,6 @@
                         <div class="text-center py-20 bg-white">
                             <h3 class="text-lg font-medium text-slate-900">No tenants found</h3>
                             <p class="mt-1 text-gray-500">Get started by creating a new tenant.</p>
-                            <div class="mt-6">
-                                <a href="{{ route('admin.tenants.create') }}" class="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                    <svg class="-ml-1 mr-2 h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
-                                        <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
-                                    </svg>
-                                    Add Tenant
-                                </a>
-                            </div>
                         </div>
                     @endif
                 </div>

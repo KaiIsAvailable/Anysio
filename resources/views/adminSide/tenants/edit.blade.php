@@ -5,9 +5,9 @@
             <div class="flex items-center justify-between mb-6">
                 <!-- Left: Back Button -->
                 <div class="flex-1 flex justify-start">
-                    <a href="{{ route('admin.tenants.index') }}" class="inline-flex items-center text-gray-500 hover:text-indigo-600 transition-colors">
-                        <svg class="h-5 w-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
-                        Back
+                    <a href="{{ route('admin.tenants.index') }}" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center">
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+                        Back to Tenants List
                     </a>
                 </div>
                 
@@ -124,59 +124,67 @@
                         </div>
                         
                         <div id="contactList" class="space-y-4">
-                            @foreach($tenant->emergencyContacts as $index => $contact)
-                                <div class="contact-row rounded-lg border border-gray-200 bg-gray-50 p-4" data-index="{{ $index }}">
+                            {{-- 循环输出已有的联系人 --}}
+                            @foreach(old('emergency_contacts', $tenant->emergencyContacts) as $index => $contact)
+                                <div class="contact-row rounded-lg border border-gray-200 bg-gray-50 p-4">
                                     <div class="flex justify-between items-center mb-2">
-                                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact Details</span>
-                                        <div class="flex items-center gap-2">
-                                            <input type="checkbox" name="emergency_contacts[{{ $index }}][_delete]" value="1" class="hidden delete-flag">
-                                            <button type="button" class="remove-contact text-red-500 hover:text-red-700 p-1">
-                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                        <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                            {{ $index === 0 ? 'Primary Contact (Required)' : 'Contact' }}
+                                        </span>
+                                        @if($index > 0)
+                                            {{-- 隐藏的删除标记，默认是 0 --}}
+                                            <input type="hidden" name="emergency_contacts[{{ $index }}][delete]" value="0" class="delete-flag">
+                                            
+                                            <button type="button" class="remove-edit-contact text-sm text-red-600 hover:text-red-800">
+                                                Remove
                                             </button>
-                                        </div>
+                                        @endif
                                     </div>
-                                    <input type="hidden" name="emergency_contacts[{{ $index }}][id]" value="{{ $contact->id }}">
-                                    
                                     <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                                            <input type="text" name="emergency_contacts[{{ $index }}][name]" value="{{ old("emergency_contacts.$index.name", $contact->name) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                                            <input type="text" name="emergency_contacts[{{ $index }}][name]" 
+                                                value="{{ is_array($contact) ? $contact['name'] : $contact->name }}" 
+                                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Relationship</label>
-                                            <input type="text" name="emergency_contacts[{{ $index }}][relationship]" value="{{ old("emergency_contacts.$index.relationship", $contact->relationship) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                                            <input type="text" name="emergency_contacts[{{ $index }}][relationship]" 
+                                                value="{{ is_array($contact) ? $contact['relationship'] : $contact->relationship }}" 
+                                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                                            <input type="text" name="emergency_contacts[{{ $index }}][phone]" value="{{ old("emergency_contacts.$index.phone", $contact->phone) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                                            <input type="text" name="emergency_contacts[{{ $index }}][phone]" 
+                                                value="{{ is_array($contact) ? $contact['phone'] : $contact->phone }}" 
+                                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
                                         </div>
-                                        <!-- Hidden delete flag for JS to toggle -->
-                                        <input type="checkbox" name="emergency_contacts[{{ $index }}][_delete]" value="1" class="hidden delete-flag">
                                     </div>
                                 </div>
                             @endforeach
                         </div>
 
+                        {{-- 保持 template 不变，用于 JS 新增行 --}}
                         <template id="contactRowTpl">
                             <div class="contact-row rounded-lg border border-gray-200 bg-gray-50 p-4">
                                 <div class="flex justify-between items-center mb-2">
                                     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">New Contact</span>
-                                    <button type="button" class="remove-contact text-red-500 hover:text-red-700 p-1">
-                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    <button type="button" class="remove-contact text-sm text-red-600 hover:text-red-800">
+                                        Remove
                                     </button>
                                 </div>
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                                        <input type="text" name="emergency_contacts[__i__][name]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Contact Name" required>
+                                        <input type="text" name="emergency_contacts[__i__][name]" class="w-full rounded-lg border-gray-300 shadow-sm" placeholder="Contact Name" required>
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Relationship</label>
-                                        <input type="text" name="emergency_contacts[__i__][relationship]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="e.g. Spouse, Parent">
+                                        <input type="text" name="emergency_contacts[__i__][relationship]" class="w-full rounded-lg border-gray-300 shadow-sm" placeholder="e.g. Spouse">
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                                        <input type="text" name="emergency_contacts[__i__][phone]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Phone Number" required>
+                                        <input type="text" name="emergency_contacts[__i__][phone]" class="w-full rounded-lg border-gray-300 shadow-sm" placeholder="Phone Number" required>
                                     </div>
                                 </div>
                             </div>
@@ -209,7 +217,7 @@
         </div>
     </div>
     
-    <script>
+    <!--<script>
         // Identity Type Logic
         function toggleIdentityInputs() {
             const identityType = document.querySelector('input[name="identity_type"]:checked').value;
@@ -284,5 +292,5 @@
         document.addEventListener('DOMContentLoaded', function() {
             toggleIdentityInputs();
         });
-    </script>
+    </script>-->
 </x-app-layout>

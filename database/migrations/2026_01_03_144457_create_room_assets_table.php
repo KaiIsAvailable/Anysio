@@ -8,13 +8,18 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::create('room_assets', function (Blueprint $table) {
+        Schema::create('asset_room', function (Blueprint $table) {
             $table->ulid('id')->primary();
+            // 关联到资产字典
+            $table->foreignUlid('asset_id')->constrained('assets')->cascadeOnDelete();
+            // 关联到具体房间
             $table->foreignUlid('room_id')->constrained('rooms')->cascadeOnDelete();
-            $table->string('name')->index();
-            $table->string('condition')->index();
-            $table->date('last_maintenance')->nullable()->index();
+            
+            // 保留你需要的状态字段，因为同一款空调在不同房间的新旧程度不同
+            $table->string('condition')->default('Good')->index();
+            $table->date('last_maintenance')->nullable();
             $table->string('remark')->nullable();
+            $table->integer('quantity')->default(1);
             $table->timestamps();
         });
     }

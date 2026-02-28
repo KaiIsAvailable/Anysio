@@ -8,13 +8,15 @@
                     <p class="mt-2 text-sm text-gray-500">Manage and organize your room directory.</p>
                 </div>
                 <div class="flex-shrink-0">
-                    <a href="{{ route('admin.rooms.create') }}"
-                       class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
-                        <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Add New Room
-                    </a>
+                    @can('owner-admin')
+                        <a href="{{ route('admin.rooms.create') }}"
+                        class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
+                            <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Add New Room
+                        </a>
+                    @endcan
                 </div>
             </div>
 
@@ -93,7 +95,9 @@
                                         @endif
                                     </a>
                                 </th>
-                                <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                @can('owner-admin')
+                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                @endcan
                             </tr>
                             </thead>
 
@@ -112,11 +116,19 @@
                                 <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
                                     data-href="{{ route('admin.rooms.show', $room->id) }}"
                                     onclick="window.location=this.dataset.href">
-                                    <td class="px-6 py-4">
-                                        <a href="{{ route('admin.rooms.show', $room->id) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-900">
-                                            {{ $room->room_no ?? 'ƒ?"' }}
-                                        </a>
-                                        <div class="text-xs text-gray-500">ID: {{ $room->id }}</div>
+
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="flex items-center">
+                                            <div class="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shadow-sm">
+                                                {{ strtoupper(substr($room->room_no ?? 'R', 0, 1)) }}
+                                            </div>
+
+                                            <div class="ml-4">
+                                                <a href="{{ route('admin.rooms.show', $room->id) }}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-900 block">
+                                                    {{ $room->room_no ?? 'N/A' }}
+                                                </a>
+                                            </div>
+                                        </div>
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">{{ $room->room_type ?? 'ƒ?"' }}</td>
@@ -149,27 +161,28 @@
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">{{ optional($room->created_at)->format('d M Y') }}</td>
-
-                                    <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                        <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
-                                            <a href="{{ route('admin.rooms.edit', $room->id) }}"
-                                               class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                                               title="Edit">
-                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                            </a>
-                                            <form action="{{ route('admin.rooms.destroy', $room->id) }}" method="POST"
-                                                  onsubmit="return confirm('Delete room {{ addslashes($room->room_no ?? $room->id) }}? This will delete all assets too.');"
-                                                  class="inline-block">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit"
-                                                        class="p-2 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                                                        title="Delete">
-                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                                </button>
-                                            </form>
-                                        </div>
-                                    </td>
+                                    @can('owner-admin')
+                                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                            <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
+                                                <a href="{{ route('admin.rooms.edit', $room->id) }}"
+                                                class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                                                title="Edit">
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                                </a>
+                                                <form action="{{ route('admin.rooms.destroy', $room->id) }}" method="POST"
+                                                    onsubmit="return confirm('Delete room {{ addslashes($room->room_no ?? $room->id) }}? This will delete all assets too.');"
+                                                    class="inline-block">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit"
+                                                            class="p-2 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                                            title="Delete">
+                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                                    </button>
+                                                </form>
+                                            </div>
+                                        </td>
+                                    @endcan
                                 </tr>
                             @endforeach
                             </tbody>

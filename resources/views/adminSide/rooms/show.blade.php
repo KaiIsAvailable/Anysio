@@ -15,25 +15,27 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Room Details</h1>
                 </div>
 
-                <div class="flex items-center gap-3">
-                    <a href="{{ route('admin.rooms.edit', $room->id) }}"
-                       class="inline-flex items-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all">
-                        <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                        </svg>
-                        Edit Room
-                    </a>
-
-                    <form action="{{ route('admin.rooms.destroy', $room->id) }}" method="POST" onsubmit="return confirm('Delete room {{ addslashes($room->room_no ?? $room->id) }}?');">
-                        @csrf @method('DELETE')
-                        <button type="submit" class="inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-sm transition-all">
-                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                @can('owner-admin')
+                    <div class="flex items-center gap-3">
+                        <a href="{{ route('admin.rooms.edit', $room->id) }}"
+                        class="inline-flex items-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                            <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                             </svg>
-                            Delete
-                        </button>
-                    </form>
-                </div>
+                            Edit Room
+                        </a>
+
+                        <form action="{{ route('admin.rooms.destroy', $room->id) }}" method="POST" onsubmit="return confirm('Delete room {{ addslashes($room->room_no ?? $room->id) }}?');">
+                            @csrf @method('DELETE')
+                            <button type="submit" class="inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-sm transition-all">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                </svg>
+                                Delete
+                            </button>
+                        </form>
+                    </div>
+                @endcan
             </div>
 
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
@@ -120,11 +122,10 @@
                         @if($room->assets->count() > 0)
                             <table class="table-fixed w-full min-w-[1100px] divide-y divide-gray-200">
                                 <colgroup>
-                                    <col class="w-[22%]">
-                                    <col class="w-[14%]">
-                                    <col class="w-[18%]">
-                                    <col class="w-[28%]">
-                                    <col class="w-[18%]">
+                                    <col class="w-[26.5%]">
+                                    <col class="w-[18.5%]">
+                                    <col class="w-[22.5%]">
+                                    <col class="w-[32.5%]">
                                 </colgroup>
 
                                 <thead class="bg-gray-50">
@@ -141,9 +142,6 @@
                                         <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                             <span class="block w-full text-left">Remark</span>
                                         </th>
-                                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            <span class="block w-full text-center">Created</span>
-                                        </th>
                                     </tr>
                                 </thead>
 
@@ -152,14 +150,13 @@
                                         <tr class="hover:bg-gray-50 transition-colors duration-150">
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-left">
-                                                    <div class="text-sm font-medium text-slate-900">{{ $asset->name ?? 'ƒ?"' }}</div>
-                                                    <div class="text-xs text-gray-500">ID: {{ $asset->id ?? 'ƒ?"' }}</div>
+                                                    <div class="text-sm font-medium text-slate-900">{{ $asset->name ?? '—' }}</div>
                                                 </div>
                                             </td>
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-left text-sm text-slate-900">
-                                                    {{ $asset->condition ?? 'ƒ?"' }}
+                                                    {{ $asset->condition ?? '—' }}
                                                 </div>
                                             </td>
 
@@ -168,20 +165,14 @@
                                                     @if(!empty($asset->last_maintenance))
                                                         {{ \Illuminate\Support\Carbon::parse($asset->last_maintenance)->format('d M Y') }}
                                                     @else
-                                                        ƒ?"
+                                                        —   
                                                     @endif
                                                 </div>
                                             </td>
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-left text-sm text-slate-900 break-words line-clamp-2">
-                                                    {{ $asset->remark ?? 'ƒ?"' }}
-                                                </div>
-                                            </td>
-
-                                            <td class="px-6 py-4">
-                                                <div class="w-full text-center text-sm text-slate-900 whitespace-nowrap">
-                                                    {{ optional($asset->created_at)->format('d M Y') }}
+                                                    {{ $asset->remark ?? '—' }}
                                                 </div>
                                             </td>
                                         </tr>
@@ -257,41 +248,41 @@
                                         <tr class="hover:bg-gray-50 transition-colors duration-150">
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-left">
-                                                    <div class="text-sm font-medium text-slate-900">{{ $tu->name ?? 'ƒ?"' }}</div>
-                                                    <div class="text-xs text-gray-500">{{ $tu->email ?? 'ƒ?"' }}</div>
-                                                    <div class="text-xs text-gray-400">ID: {{ $lease->tenant_id ?? 'ƒ?"' }}</div>
+                                                    <div class="text-sm font-medium text-slate-900">{{ $tu->name ?? '—' }}</div>
+                                                    <div class="text-xs text-gray-500">{{ $tu->email ?? '—' }}</div>
+                                                    <div class="text-xs text-gray-400">ID: {{ $lease->tenant_id ?? '—' }}</div>
                                                 </div>
                                             </td>
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-center text-sm text-slate-900 whitespace-nowrap">
-                                                    {{ $lease->start_date ?? 'ƒ?"' }}
+                                                    {{ $lease->start_date ?? '—' }}
                                                 </div>
                                             </td>
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-center text-sm text-slate-900 whitespace-nowrap">
-                                                    {{ $lease->end_date ?? 'ƒ?"' }}
+                                                    {{ $lease->end_date ?? '—' }}
                                                 </div>
                                             </td>
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-center text-sm text-slate-900 whitespace-nowrap">
-                                                    {{ $lease->monthly_rent ?? 'ƒ?"' }}
+                                                    {{ $lease->monthly_rent ?? '—' }}
                                                 </div>
                                             </td>
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-left text-sm text-slate-900">
-                                                    SD: {{ $lease->security_deposit ?? 'ƒ?"' }}
-                                                    <div class="text-xs text-gray-500">Util: {{ $lease->utilities_depost ?? 'ƒ?"' }}</div>
+                                                    SD: {{ $lease->security_deposit ?? '—' }}
+                                                    <div class="text-xs text-gray-500">Util: {{ $lease->utilities_depost ?? '—' }}</div>
                                                 </div>
                                             </td>
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-center whitespace-nowrap">
                                                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $lBadge }}">
-                                                        {{ $lease->status ?? 'ƒ?"' }}
+                                                        {{ $lease->status ?? '—' }}
                                                     </span>
                                                 </div>
                                             </td>

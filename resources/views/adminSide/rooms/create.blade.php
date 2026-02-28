@@ -48,16 +48,40 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Select Owner</label>
-                                <select name="owner_id"
-                                        class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                        required>
-                                    <option value="">-- Select Owner --</option>
-                                    @foreach($owners as $o)
-                                        <option value="{{ $o->id }}" @selected(old('owner_id') == $o->id)>
-                                            {{ $o->user->name ?? '—' }} ({{ $o->user->email ?? '—' }})
-                                        </option>
-                                    @endforeach
-                                </select>
+                                
+                                @can('agent-admin')
+                                    {{-- agentAdmin以上的role可以自由选择 --}}
+                                    <select name="owner_id" id="owner_select"
+                                            class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                            required>
+                                        <option value="">-- Select Owner --</option>
+                                        @foreach($owners as $o)
+                                            <option value="{{ $o->id }}" data-user-id="{{ $o->user_id }}" @selected(old('owner_id') == $o->id)>
+                                                {{ $o->user->name ?? '—' }} ({{ $o->user->email ?? '—' }})
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                @else
+                                    {{-- Owner Admin: 只能看到自己，且不可更改 --}}
+                                    @php
+                                        // 获取当前登录用户对应的 Owner 模型记录
+                                        $currentOwner = $owners->where('user_id', auth()->id())->first();
+                                    @endphp
+
+                                    <div class="relative">
+                                        {{-- 显示给用户看的“假”框（Disabled 状态） --}}
+                                        <select class="w-full rounded-lg border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed shadow-sm" disabled>
+                                            <option selected>
+                                                {{ auth()->user()->name }} ({{ auth()->user()->email }})
+                                            </option>
+                                        </select>
+                                        
+                                        {{-- 实际提交给后端的“真”数据（Hidden Input） --}}
+                                        {{-- 注意：Disabled 的 select 不会提交数据，所以必须用 hidden 传值 --}}
+                                        <input type="hidden" name="owner_id" value="{{ $currentOwner->id ?? '' }}">
+                                    </div>
+                                @endcan
+
                                 @error('owner_id') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
                             </div>
 
@@ -87,7 +111,7 @@
                                     <select name="status"
                                             class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
                                             required>
-                                        @foreach(['Occupied','Vacant','Maintenance'] as $s)
+                                        @foreach(['Vacant','Occupied','Maintenance'] as $s)
                                             <option value="{{ $s }}" @selected(old('status') == $s)>{{ $s }}</option>
                                         @endforeach
                                     </select>
@@ -141,16 +165,38 @@
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-sm font-medium text-slate-900 mb-1">Name</label>
-                                        <input name="assets[__i__][name]"
-                                               placeholder="exp: Chair"
-                                               class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                                        <div class="relative group">
+                                            {{-- 底层的输入框 --}}
+                                            <input type="text" 
+                                                name="assets[__i__][name]" 
+                                                placeholder="Search or type new..."
+                                                class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm pr-10"
+                                                required>
+
+                                            {{-- 顶层的 Select：全覆盖 inset-0，确保弹出框对齐 --}}
+                                            {{-- 关键：使用 onmousedown 逻辑判断点击位置 --}}
+                                            <select class="asset-selector absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                                    onmousedown="if(event.offsetX < this.offsetWidth - 40) { this.previousElementSibling.focus(); return false; }"
+                                                    onchange="this.previousElementSibling.value = this.value; this.previousElementSibling.focus();">
+                                                <option value="">-- Select or Type --</option>
+                                                @foreach($assetLibrary as $lib)
+                                                    <option value="{{ $lib->name }}">{{ $lib->name }}</option>
+                                                @endforeach
+                                            </select>
+
+                                            {{-- 右侧箭头：视觉装饰 --}}
+                                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                                <svg class="h-4 w-4 text-gray-400 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                                </svg>
+                                            </div>
+                                        </div>
                                     </div>
 
                                     <div>
                                         <label class="block text-sm font-medium text-slate-900 mb-1">Condition</label>
                                         <select name="assets[__i__][condition]"
                                                 class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                            <option value="">--</option>
                                             <option value="Good">Good</option>
                                             <option value="Broken">Broken</option>
                                             <option value="Maintaining">Maintaining</option>
@@ -204,27 +250,65 @@
                     const list = document.getElementById('assetList');
                     const tpl = document.getElementById('assetRowTpl');
                     const addBtn = document.getElementById('addAssetBtn');
-
+                    const ownerSelect = document.getElementById('owner_select');
+                    const fullLibrary = @json($assetLibrary);
                     let idx = 0;
 
-                    function addRow() {
-                        const html = tpl.innerHTML.replaceAll('__i__', String(idx));
+                    function getFilteredOptionsHtml() {
+                        const selectedOption = ownerSelect.options[ownerSelect.selectedIndex];
+                        const userId = selectedOption ? selectedOption.getAttribute('data-user-id') : null;
+
+                        let html = '<option value="">-- Select or Type --</option>';
+                        if (userId) {
+                            const filtered = fullLibrary.filter(a => String(a.user_id) === String(userId));
+                            filtered.forEach(asset => {
+                                html += `<option value="${asset.name}">${asset.name}</option>`;
+                            });
+                        }
+                        return html;
+                    }
+
+                    // 修正点 1：在这里添加参数 isInitial
+                    function addRow(isInitial = false) {
+                        const templateHtml = tpl.innerHTML.replaceAll('__i__', String(idx));
                         const wrap = document.createElement('div');
-                        wrap.innerHTML = html.trim();
+                        wrap.innerHTML = templateHtml.trim();
                         const row = wrap.firstElementChild;
 
-                        row.querySelector('.remove-asset').addEventListener('click', () => {
-                            row.remove();
-                        });
+                        const selector = row.querySelector('.asset-selector');
+                        if (selector) selector.innerHTML = getFilteredOptionsHtml();
+
+                        // 修正点 2：根据 isInitial 判断是否移除删除按钮
+                        if (isInitial) {
+                            const removeBtn = row.querySelector('.remove-asset');
+                            if (removeBtn) removeBtn.remove(); 
+                            
+                            // 确保你的 HTML template 里有这个 class 为 uppercase 的 span
+                            const titleSpan = row.querySelector('.uppercase');
+                            if (titleSpan) titleSpan.textContent = "Primary Asset (Required)";
+                        } else {
+                            const removeBtn = row.querySelector('.remove-asset');
+                            if (removeBtn) {
+                                removeBtn.addEventListener('click', () => row.remove());
+                            }
+                        }
 
                         list.appendChild(row);
                         idx++;
                     }
 
-                    addBtn.addEventListener('click', addRow);
+                    ownerSelect.addEventListener('change', function() {
+                        const newOptions = getFilteredOptionsHtml();
+                        document.querySelectorAll('.asset-selector').forEach(s => {
+                            s.innerHTML = newOptions;
+                        });
+                    });
 
-                    // default 1 row
-                    addRow();
+                    // 普通点击：传入 false
+                    addBtn.addEventListener('click', () => addRow(false));
+                    
+                    // 修正点 3：初始化页面时传入 true
+                    addRow(true);
                 })();
             </script>
 

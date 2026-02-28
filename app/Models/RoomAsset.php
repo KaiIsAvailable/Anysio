@@ -12,6 +12,7 @@ class RoomAsset extends Model
     use HasUlids;
 
     protected $fillable = [
+        'assest_id',
         'room_id',
         'name',
         'condition',
@@ -26,6 +27,11 @@ class RoomAsset extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function asset()
+    {
+        return $this->belongsTo(Asset::class);
     }
 
     /**

@@ -14,12 +14,23 @@ use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Gate;
 
 class OwnersController extends Controller
 {
     public function index(Request $request)
     {
+        $userId = Auth::id();
         $query = Owners::with('user');
+
+        if (!Gate::allows('super-admin')) {
+            if ($userId) {
+                $query->where('agent_id', $userId);
+            } else {
+                // 如果该用户在 owners 表里竟然没有记录，为了安全，让他什么都搜不到
+                $query->whereRaw('1 = 0'); 
+            }
+        }
 
         // Search by User Name
         if ($request->filled('search')) {
@@ -59,10 +70,14 @@ class OwnersController extends Controller
 
     public function store(Request $request)
     {
+        $request->merge([
+            'random_email' => $request->has('random_email') ? true : false,
+        ]);
+
         // 1. Validate the incoming data (excluding user_id since we create it here)
         $validatedData = $request->validate([
             'name'         => 'required|string|max:255',
-            'email'        => 'required|email|unique:users,email',
+            'email'        => $request->random_email ? 'nullable' : 'required|email|unique:users,email',
             'random_email' => 'required|boolean',
             'company_name' => 'nullable|string|max:255',
             'ic_number'    => 'nullable|string|max:20',
@@ -88,13 +103,19 @@ class OwnersController extends Controller
             ]);
 
             // 4. Create the Owner record using the new $user->id
-            Owners::create([
+           $ownerData = [
                 'user_id'      => $user->id,
                 'company_name' => $validatedData['company_name'],
                 'ic_number'    => $validatedData['ic_number'],
                 'phone'        => $validatedData['phone'],
                 'gender'       => $validatedData['gender'],
-            ]);
+            ];
+
+            if (Auth::user()->role === 'agentAdmin') {
+                $ownerData['agent_id'] = Auth::id();
+            }
+
+            Owners::create($ownerData);
 
             DB::commit();
 

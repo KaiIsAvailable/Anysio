@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class UserManagement extends Model
 {
-    use HasFactory, HasUlids;
+    use HasFactory, HasUlids, SoftDeletes;
     protected $keyType = 'string';
     public $incrementing = false;
 
@@ -35,5 +36,10 @@ class UserManagement extends Model
 
     public function staff() {
         return $this->hasOne(Staff::class, 'user_mgnt_id');
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(UserPayment::class, 'user_management_id');
     }
 }

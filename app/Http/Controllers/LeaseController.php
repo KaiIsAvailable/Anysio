@@ -6,14 +6,20 @@ use App\Models\Lease;
 use App\Models\Room;
 use App\Models\Tenants;
 use App\Models\Utility;
+use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Str;
+use App\Http\Controllers\PaymentsController;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class LeaseController extends Controller
 {
     public function index(Request $request)
     {
+        $userId = Auth::id();
         $search = $request->input('search');
         $status = $request->input('status');
 
@@ -21,6 +27,13 @@ class LeaseController extends Controller
             'room.owner.user',
             'tenant.user',
         ]);
+
+        if (Gate::denies('super-admin')) {
+        $query->whereHas('room.owner', function($q) use ($userId) {
+            // 假设你的 Owner 模型里关联 User 的字段是 user_id
+            $q->where('user_id', $userId);
+        });
+    }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -186,7 +199,9 @@ class LeaseController extends Controller
                 ->withInput();
         }
 
-        DB::transaction(function () use ($payload, $status, $waterPrev, $waterCurr, $electricPrev, $electricCurr) {
+        $tenantId = $payload['tenant_id'];
+
+        DB::transaction(function () use ($payload, $status, $waterPrev, $waterCurr, $electricPrev, $electricCurr, $tenantId) {
             $lease = Lease::create([
                 'room_id' => $payload['room_id'],
                 'tenant_id' => $payload['tenant_id'],
@@ -213,6 +228,65 @@ class LeaseController extends Controller
                 'curr_reading' => $electricCurr,
                 'amount' => $electricCurr - $electricPrev,
             ]);
+
+            // --- 3. 生成初始支付账单 (Payments) ---
+    
+            // 准备通用的账单数据
+            $basePaymentData = [
+                'id' => (string) Str::ulid(), // 既然你模型用了 HasUlids，最好手动生成或确保模型处理了
+                'tenant_id' => $tenantId,
+                'lease_id' => $lease->id,
+                'period' => $payload['start_date'],
+                'status' => 'unpaid',
+                'amount_paid' => 0,
+            ];
+
+            // A. 房租账单 (Rent)
+            if ($payload['monthly_rent'] > 0) {
+                Payment::create(array_merge($basePaymentData, [
+                    'payment_type' => 'rent',
+                    'amount_due' => $this->toCents($payload['monthly_rent']),
+                    'invoice_no' => PaymentsController::generateSequenceInvoiceNo('RENT'), 
+                ]));
+            }
+
+            // B. 抵押金账单 (Security Deposit)
+            if ($payload['security_deposit'] > 0) {
+                Payment::create(array_merge($basePaymentData, [
+                    'payment_type' => 'deposit_security',
+                    'amount_due' => $this->toCents($payload['security_deposit']),
+                    'invoice_no' => PaymentsController::generateSequenceInvoiceNo('SD'), 
+                ]));
+            }
+
+            // C. 水电押金账单 (Utilities Deposit)
+            if ($payload['utilities_deposit'] > 0) {
+                Payment::create(array_merge($basePaymentData, [
+                    'payment_type' => 'deposit_utilities',
+                    'amount_due' => $this->toCents($payload['utilities_deposit']),
+                    'invoice_no' => PaymentsController::generateSequenceInvoiceNo('UD'), 
+                ]));
+            }
+
+            // D. 水费 (如有金额)
+            $waterAmount = $waterCurr - $waterPrev;
+            if ($waterAmount > 0) {
+                Payment::create(array_merge($basePaymentData, [
+                    'payment_type' => 'utility_water',
+                    'amount_due' => $waterAmount,
+                    'invoice_no' => PaymentsController::generateSequenceInvoiceNo('WAT'), 
+                ]));
+            }
+
+            // E. 电费 (如有金额)
+            $electricAmount = $electricCurr - $electricPrev;
+            if ($electricAmount > 0) {
+                Payment::create(array_merge($basePaymentData, [
+                    'payment_type' => 'utility_electric',
+                    'amount_due' => $electricAmount,
+                    'invoice_no' => PaymentsController::generateSequenceInvoiceNo('ELE'), 
+                ]));
+            }
         });
 
         return redirect()

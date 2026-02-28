@@ -254,24 +254,28 @@ class UserManagementController extends Controller
     {
         try {
             DB::transaction(function () use ($id) {
+                // 找到记录（如果之前没删过）
                 $userMgnt = UserManagement::findOrFail($id);
-                $user = $userMgnt->user; // 获取关联的 User
+                $user = $userMgnt->user; 
 
-                // 1. 删除管理记录
+                // 1. 软删除管理记录
+                // 只要模型里用了 SoftDeletes Trait，这一行就是软删除
                 $userMgnt->delete();
 
-                // 2. 如果需要连同登录账号一起删除：
+                // 2. 处理关联的登录账号
                 if ($user) {
+                    // 如果 User 模型也用了 SoftDeletes，这里也是软删除
+                    // 如果 User 模型没用 SoftDeletes，这里就是永久删除（小心！）
                     $user->delete();
                 }
             });
 
             return redirect()->route('admin.userManagement.index')
-                            ->with('success', 'Manager and associated user account deleted successfully.');
+                            ->with('success', 'User moved to trash successfully.');
 
         } catch (\Exception $e) {
             return redirect()->back()
-                            ->with('error', 'Error deleting user: ' . $e->getMessage());
+                            ->with('error', 'Error: ' . $e->getMessage());
         }
     }
 }

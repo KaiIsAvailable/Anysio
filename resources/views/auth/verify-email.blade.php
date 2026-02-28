@@ -29,3 +29,21 @@
         </form>
     </div>
 </x-guest-layout>
+
+<script>
+    // 每 3 秒检查一次用户是否点击了邮件里的链接
+    const checkInterval = setInterval(async () => {
+        try {
+            const response = await fetch('/email/verify/status'); // 指向你刚才写的接口
+            const data = await response.json();
+
+            if (data.verified) {
+                // 如果后端返回已验证，直接刷新或跳转到 Dashboard
+                clearInterval(checkInterval);
+                window.location.href = "{{ route('dashboard') }}";
+            }
+        } catch (error) {
+            console.error('Error checking verification status:', error);
+        }
+    }, 3000);
+</script>

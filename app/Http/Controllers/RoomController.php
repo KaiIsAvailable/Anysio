@@ -4,9 +4,15 @@ namespace App\Http\Controllers;
 
 use App\Models\Room;
 use App\Models\RoomAsset;
+use App\Models\Owners;
+use App\Models\Asset;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Str;
+use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class RoomController extends Controller
 {
@@ -18,6 +24,34 @@ class RoomController extends Controller
         $query = Room::query()
             ->with(['owner.user', 'assets'])
             ->withCount(['assets', 'leases']);
+
+        if (!Gate::allows('super-admin')) {
+            $user = Auth::user();
+
+            if ($user->role === 'owner' || $user->role === 'ownerAdmin') {
+                // 如果是房东，只看自己的房
+                $ownerId = $user->owner?->id;
+                if ($ownerId) {
+                    $query->where('owner_id', $ownerId);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+            } elseif ($user->role === 'agent' || $user->role === 'agentAdmin') {
+                // 如果是 Agent，看他名下所有 Owner 的房
+                // 假设 Owners 表里有 agent_user_id 或者是通过关联获取
+                $managedOwnerIds = Owners::where('agent_id', $user->id)
+                                    ->pluck('id');
+
+                if ($managedOwnerIds->isNotEmpty()) {
+                    $query->whereIn('owner_id', $managedOwnerIds);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+            } else {
+                // 其他角色（如 Tenant）默认不给看，或者根据你的需求调整
+                $query->whereRaw('1 = 0');
+            }
+        }
 
         if ($search) {
             $query->where(function ($q) use ($search) {
@@ -58,15 +92,31 @@ class RoomController extends Controller
 
     public function create()
     {
-        $owners = \App\Models\Owners::with('user')->orderBy('created_at', 'desc')->get();
-        return view('adminSide.rooms.create', compact('owners'));
+        Gate::authorize('owner-admin');
+    
+        $owners = Owners::with('user')->orderBy('created_at', 'desc')->get();
+
+        // 筛选只属于当前登录 Admin 的资产库
+        if (Gate::allows('super-admin')) {
+            $assetLibrary = Asset::orderBy('name', 'asc')->get();
+        } else {
+            $assetLibrary = Asset::where('user_id', Auth::id())
+                                ->orderBy('name', 'asc')
+                                ->get();
+        }
+
+        return view('adminSide.rooms.create', compact('owners', 'assetLibrary'));
     }
 
     public function store(Request $request)
     {
+        Gate::authorize('owner-admin');
+        
+        // 记得更新 validateRoomForm，确保 assets.*.name 是必须的字符串
         $data = $this->validateRoomForm($request);
 
         DB::transaction(function () use ($data) {
+            // 1. 创建房间
             $room = Room::create([
                 'owner_id'  => $data['owner_id'],
                 'room_no'   => $data['room_no'],
@@ -77,25 +127,33 @@ class RoomController extends Controller
 
             $assets = $data['assets'] ?? [];
             foreach ($assets as $a) {
-                if (!isset($a['name']) || trim((string) $a['name']) === '') {
+                // 跳过空值或标记删除的项
+                if (!isset($a['name']) || trim((string) $a['name']) === '' || !empty($a['_delete'])) {
                     continue;
                 }
 
-                // 如果用户打勾 delete，就当作不创建
-                if (!empty($a['_delete'])) {
-                    continue;
-                }
+                // 2. 关键逻辑：firstOrCreate
+                // 在资产字典表里找这个名字，如果没有就为当前登录用户创建一个新的
+                $assetName = Str::upper(trim((string) $a['name']));
+                $owner = Owners::findOrFail($data['owner_id']);
+                $asset = Asset::firstOrCreate(
+                    [
+                        'name'    => $assetName, 
+                        'user_id' => $owner->user_id,// 锁定资产属于当前 Admin/User
+                    ]
+                );
 
-                $room->assets()->create([
-                    'name'             => $a['name'],
-                    'condition'        => $a['condition'] ?? null,
+                // 3. 建立多对多关联 (使用 attach)
+                $room->assets()->attach($asset->id, [
+                    'id'               => (string) Str::ulid(), // 手动生成中间表 ULID
+                    'condition'        => $a['condition'] ?? 'Good',
                     'last_maintenance' => $a['last_maintenance'] ?? null,
                     'remark'           => $a['remark'] ?? null,
                 ]);
             }
         });
 
-        return redirect()->route('admin.rooms.index')->with('success', 'Room created successfully.');
+        return redirect()->route('admin.rooms.index')->with('success', 'Room and assets created successfully.');
     }
 
     public function show(Room $room)
@@ -119,6 +177,7 @@ class RoomController extends Controller
 
     public function edit(Room $room)
     {
+        Gate::authorize('owner-admin');
         $room->load(['assets', 'owner.user']);
         $owners = \App\Models\Owners::with('user')->orderBy('created_at', 'desc')->get();
 
@@ -127,6 +186,7 @@ class RoomController extends Controller
 
     public function update(Request $request, Room $room)
     {
+        Gate::authorize('owner-admin');
         $data = $this->validateRoomForm($request, true, $room);
 
         DB::transaction(function () use ($data, $room) {
@@ -196,6 +256,7 @@ class RoomController extends Controller
 
     public function destroy(Room $room)
     {
+        Gate::authorize('owner-admin');
         DB::transaction(function () use ($room) {
             $room->assets()->delete();
             $room->delete();
@@ -210,6 +271,7 @@ class RoomController extends Controller
 
     public function assetStore(Request $request, Room $room)
     {
+        Gate::authorize('owner-admin');
         $payload = $request->validate([
             'name'             => ['required', 'string', 'max:255'],
             'condition'        => ['nullable', Rule::in(['Good', 'Broken', 'Maintaining'])],
@@ -224,6 +286,7 @@ class RoomController extends Controller
 
     public function assetUpdate(Request $request, Room $room, RoomAsset $asset)
     {
+        Gate::authorize('owner-admin');
         abort_unless($asset->room_id === $room->id, 404);
 
         $payload = $request->validate([
@@ -240,6 +303,7 @@ class RoomController extends Controller
 
     public function assetDestroy(Room $room, RoomAsset $asset)
     {
+        Gate::authorize('owner-admin');
         abort_unless($asset->room_id === $room->id, 404);
         $asset->delete();
 
@@ -252,6 +316,7 @@ class RoomController extends Controller
 
     private function validateRoomForm(Request $request, bool $isUpdate = false, ?Room $room = null): array
     {
+        Gate::authorize('owner-admin');
         $roomNoRule = $isUpdate
             ? Rule::unique('rooms', 'room_no')->ignore($room?->id)
             : Rule::unique('rooms', 'room_no');

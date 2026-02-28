@@ -1,4 +1,3 @@
-<script src="{{ asset('js/userManagement.js') }}"></script>
 <x-app-layout>
     <div class="py-12 bg-gray-50 min-h-screen">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">

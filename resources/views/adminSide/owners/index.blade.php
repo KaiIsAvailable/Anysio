@@ -72,7 +72,7 @@
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center">
                                                 <div class="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">
-                                                    {{ strtoupper(substr($owner->user->name ?? 'O', 0, 1)) }}
+                                                    {{ mb_strtoupper(mb_substr($owner->user->name ?? 'P', 0, 1, 'UTF-8')) }}
                                                 </div>
                                                 <div class="ml-4">
                                                     <div class="text-sm font-medium text-slate-900">{{ $owner->user->name ?? '—' }}</div>

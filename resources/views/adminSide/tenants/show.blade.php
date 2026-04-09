@@ -1,9 +1,32 @@
-<!--把makePament的page叫出来-->
-@include('adminSide.tenants.payments.makePayment')
-@include('adminSide.tenants.payments.generateInvoice')
-
+<style>
+    [x-cloak] { display: none !important; }
+</style>
 <x-app-layout>
-    <div class="py-12 bg-gray-50 min-h-screen font-sans">
+    <div x-data="{ 
+                openPayment: false, 
+                shakePayment: false,
+                {{-- 1. 初始化结构，保持驼峰命名 --}}
+                paymentData: { id: '', invoiceNo: '', amountDue: 0, actionUrl: '' },
+                
+                {{-- 2. 如果你在其他地方需要手动调用这个方法 --}}
+                openMakePayment(data) {
+                    this.paymentData = {
+                        id: data.id,
+                        invoiceNo: data.invoiceNo,
+                        amountDue: data.amountDue,
+                        actionUrl: data.actionUrl
+                    };
+                    this.openPayment = true;
+                }
+            }" 
+            {{-- 3. 核心修改：直接从 $event.detail 中读取驼峰命名的 Key --}}
+            @open-payment.window="
+                paymentData.id = $event.detail.id;
+                paymentData.invoiceNo = $event.detail.invoiceNo;
+                paymentData.amountDue = $event.detail.amountDue;
+                paymentData.actionUrl = $event.detail.actionUrl;
+                openPayment = true;
+            ">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -181,7 +204,7 @@
                                             </div>
                                             <div>
                                                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Monthly Rent</label>
-                                                <p class="text-sm font-bold {{ $isExpired ? 'text-gray-500' : 'text-slate-900' }}">RM {{ number_format($lease->monthly_rent / 100, 2) }}</p>
+                                                <p class="text-sm font-bold {{ $isExpired ? 'text-gray-500' : 'text-slate-900' }}">RM {{ number_format($lease->rent_price, 2) }}</p>
                                             </div>
                                             <div>
                                                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Duration</label>
@@ -192,13 +215,9 @@
                                             <div>
                                                 <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
                                                 <div>
-                                                    @if($isExpired)
-                                                        <span class="px-2.5 py-0.5 inline-flex text-xs font-bold rounded-full bg-gray-100 text-gray-500">History</span>
-                                                    @else
-                                                        <span class="px-2.5 py-0.5 inline-flex text-xs font-bold rounded-full {{ $lease->status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600' }}">
-                                                            {{ ucfirst($lease->status) }}
-                                                        </span>
-                                                    @endif
+                                                    <span class="px-2.5 py-0.5 inline-flex text-xs font-bold rounded-full {{ $lease->status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600' }}">
+                                                        {{ ucfirst($lease->status) }}
+                                                    </span>
                                                 </div>
                                             </div>
                                         </div>
@@ -235,8 +254,7 @@
                             <div class="flex items-center gap-2">
                                 {{-- 次按钮 --}}
                                 <button type="button" 
-                                        onclick="openManualInvoiceModal(this)"
-                                        data-url="{{ route('admin.payments.storeManualInvoice', $tenant->id) }}"
+                                        @click="$dispatch('open-manual-modal', { action: '{{ route('admin.payments.storeManualInvoice', $tenant->id) }}' })"
                                         class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
                                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
@@ -246,46 +264,76 @@
                             </div>
                         </div>
 
-                        <h4 class="text-sm font-bold text-gray-700 mb-2">Rent Outstanding</h4>
-                        <div class="overflow-x-auto bg-white border border-gray-200 rounded-xl shadow-sm">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr></tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    @include('adminSide.tenants.payments.paymentTable', [
-                                        'payments' => $rentPayments,
-                                        'emptyMessage' => 'No outstanding rent found.'
-                                    ])
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="mt-4">
-                            {{ $rentPayments->appends(['other_page' => request('other_page')])->links() }}
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <span class="w-1.5 h-4 bg-indigo-500 rounded-full"></span>
+                                Rent Outstanding
+                            </h4>
+                            <div class="overflow-x-auto border border-gray-100 rounded-xl">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice</th>
+                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type / Period</th>
+                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount Details</th>
+                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Method</th>
+                                            <th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        @include('adminSide.tenants.payments.paymentTable', [
+                                            'payments' => $rentPayments,
+                                            'emptyMessage' => 'No outstanding rent found.'
+                                        ])
+                                    </tbody>
+                                </table>
+                            </div>
+                            @if($rentPayments->hasPages())
+                                <div class="mt-4">
+                                    {{ $rentPayments->appends(['other_page' => request('other_page')])->links() }}
+                                </div>
+                            @endif
                         </div>
 
-                        <br>
+                        <hr class="border-gray-100">
 
-                        <h4 class="text-sm font-bold text-gray-700 mb-2">Other Bills & Miscellaneous</h4>
-                        <div class="overflow-x-auto bg-white border border-gray-200 rounded-xl shadow-sm">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr></tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    @include('adminSide.tenants.payments.paymentTable', [
-                                        'payments' => $otherPayments,
-                                        'emptyMessage' => 'No miscellaneous records found.'
-                                    ])
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="mt-4">
-                            {{ $otherPayments->appends(['rent_page' => request('rent_page')])->links() }}
+                        {{-- Other Bills & Miscellaneous 部分 --}}
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <span class="w-1.5 h-4 bg-emerald-500 rounded-full"></span>
+                                Other Bills & Miscellaneous
+                            </h4>
+                            <div class="overflow-x-auto border border-gray-100 rounded-xl">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice</th>
+                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Type / Period</th>
+                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount Details</th>
+                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Method</th>
+                                            <th class="px-6 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white divide-y divide-gray-200">
+                                        @include('adminSide.tenants.payments.paymentTable', [
+                                            'payments' => $otherPayments,
+                                            'emptyMessage' => 'No miscellaneous records found.'
+                                        ])
+                                    </tbody>
+                                </table>
+                            </div>
+                            @if($otherPayments->hasPages())
+                                <div class="mt-4">
+                                    {{ $otherPayments->appends(['rent_page' => request('rent_page')])->links() }}
+                                </div>
+                            @endif
                         </div>
                     </div>
                 </div>
             </div>
         </div>
+        <x-manual-invoice-modal />
     </div>
 </x-app-layout>

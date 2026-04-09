@@ -2,38 +2,15 @@
     <div class="bg-gray-50 min-h-screen p-6">
         <div class="max-w-3xl mx-auto">
 
-            {{-- Header (same style as Owner create) --}}
-            <div class="flex items-center justify-between mb-6">
-                <div class="flex-1 flex justify-start">
-                    <a href="{{ route('admin.rooms.index') }}"
-                       class="inline-flex items-center text-gray-500 hover:text-indigo-600 transition-colors">
-                        <svg class="h-5 w-5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                  d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-                        </svg>
-                        Back
-                    </a>
-                </div>
-
-                <div class="text-center">
-                    <h1 class="text-2xl font-bold text-slate-900 font-sans whitespace-nowrap">Add Room</h1>
-                    <p class="mt-1 text-sm text-gray-500">Create a room and add multiple assets in one form.</p>
-                </div>
-
-                <div class="flex-1"></div>
+            <div class="mb-6">
+                <a href="{{ route('admin.units.show', $unit->id) }}" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center transition-colors">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    Back to List
+                </a>
+                <h1 class="text-2xl font-bold text-slate-900 mt-2">Add Room</h1>
             </div>
-
-            {{-- Validation Errors --}}
-            @if ($errors->any())
-                <div class="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
-                    <div class="text-sm font-semibold text-red-800 mb-2">Please fix the following:</div>
-                    <ul class="list-disc ml-5 text-sm text-red-700 space-y-1">
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                </div>
-            @endif
 
             <form method="POST" action="{{ route('admin.rooms.store') }}">
                 @csrf
@@ -46,66 +23,58 @@
                         <h2 class="text-lg font-semibold text-slate-900">Room Details</h2>
                         <div class="mt-4 space-y-4">
 
+                            {{-- Unit 字段 (已选定状态) --}}
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Select Owner</label>
+                                <label class="block text-sm font-medium text-slate-900 mb-1">Unit</label>
                                 
-                                @can('agent-admin')
-                                    {{-- agentAdmin以上的role可以自由选择 --}}
-                                    <select name="owner_id" id="owner_select"
-                                            class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                            required>
-                                        <option value="">-- Select Owner --</option>
-                                        @foreach($owners as $o)
-                                            <option value="{{ $o->id }}" data-user-id="{{ $o->user_id }}" @selected(old('owner_id') == $o->id)>
-                                                {{ $o->user->name ?? '—' }} ({{ $o->user->email ?? '—' }})
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                @else
-                                    {{-- Owner Admin: 只能看到自己，且不可更改 --}}
-                                    @php
-                                        // 获取当前登录用户对应的 Owner 模型记录
-                                        $currentOwner = $owners->where('user_id', auth()->id())->first();
-                                    @endphp
-
-                                    <div class="relative">
-                                        {{-- 显示给用户看的“假”框（Disabled 状态） --}}
-                                        <select class="w-full rounded-lg border-gray-100 bg-gray-50 text-gray-500 cursor-not-allowed shadow-sm" disabled>
-                                            <option selected>
-                                                {{ auth()->user()->name }} ({{ auth()->user()->email }})
-                                            </option>
-                                        </select>
-                                        
-                                        {{-- 实际提交给后端的“真”数据（Hidden Input） --}}
-                                        {{-- 注意：Disabled 的 select 不会提交数据，所以必须用 hidden 传值 --}}
-                                        <input type="hidden" name="owner_id" value="{{ $currentOwner->id ?? '' }}">
+                                @if(isset($unit))
+                                    {{-- 显示已选定的 Unit 信息 --}}
+                                    <div class="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-700 font-medium flex items-center shadow-sm">
+                                        <svg class="w-4 h-4 mr-2 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                                        </svg>
+                                        Unit {{ $unit->unit_no }} 
+                                        <span class="ml-2 text-xs text-gray-400 font-normal">({{ $unit->property->name ?? 'N/A' }})</span>
                                     </div>
-                                @endcan
-
-                                @error('owner_id') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
+                                    
+                                    {{-- 重要：必须通过 hidden input 把 unit_id 传给 store 方法 --}}
+                                    <input type="hidden" name="unit_id" value="{{ $unit->id }}">
+                                    
+                                    {{-- 如果你的房间需要地址，可以从 Unit 自动带入 --}}
+                                    <input type="hidden" name="address" value="{{ $unit->address ?? ($unit->property->address ?? '') }}">
+                                @else
+                                    {{-- 容错处理：如果没有带 unit_id 过来 (虽然你的逻辑里不应该发生) --}}
+                                    <div class="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">
+                                        Error: No unit selected. 
+                                        <a href="{{ route('admin.properties.index') }}" class="underline font-bold">Go back</a>
+                                    </div>
+                                @endif
                             </div>
 
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {{-- 2. Room Number --}}
                                 <div>
                                     <label class="block text-sm font-medium text-slate-900 mb-1">Room Number</label>
                                     <input name="room_no"
-                                           value="{{ old('room_no') }}"
-                                           placeholder="exp: 1-1-1A"
-                                           class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                           required>
+                                        value="{{ old('room_no') }}"
+                                        placeholder="exp: Master Room / Room A"
+                                        class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                        required>
                                     @error('room_no') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
                                 </div>
 
+                                {{-- 3. Room Type --}}
                                 <div>
                                     <label class="block text-sm font-medium text-slate-900 mb-1">Room Type</label>
                                     <input name="room_type"
-                                           value="{{ old('room_type') }}"
-                                           placeholder="exp: Single room"
-                                           class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                           required>
+                                        value="{{ old('room_type') }}"
+                                        placeholder="exp: Single / Master / Balcony"
+                                        class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                        required>
                                     @error('room_type') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
                                 </div>
 
+                                {{-- 4. Status --}}
                                 <div>
                                     <label class="block text-sm font-medium text-slate-900 mb-1">Status</label>
                                     <select name="status"
@@ -118,115 +87,89 @@
                                     @error('status') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
                                 </div>
 
+                                {{-- 5. Address (增加自动填充逻辑) --}}
                                 <div class="md:col-span-2">
                                     <label class="block text-sm font-medium text-slate-900 mb-1">Address</label>
-                                    <input name="address"
-                                           value="{{ old('address') }}"
-                                           placeholder="exp: no100, jalan jaya jalan, taman ampang, 51900, kuala lumpur"
-                                           class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                           required>
-                                    @error('address') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
+                                    
+                                    {{-- 1. 视觉展示框：让用户看到 Property 的地址 --}}
+                                    <div class="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-600 text-sm flex items-start shadow-sm">
+                                        <svg class="w-4 h-4 mr-2 mt-0.5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        </svg>
+                                        <span>{{ $unit->property->address . ', ' . $unit->property->city . ', ' . $unit->property->postcode . ' ' . $unit->property->state ?? 'No address set for this property' }}</span>
+                                    </div>
+
+                                    {{-- 2. 隐藏域：确保表单提交时，这个地址会被存入 Room 的数据里 --}}
+                                    <input type="hidden" name="address" value="{{ $unit->property->address ?? '' }}">
+
+                                    <div class="text-xs text-gray-400 mt-1 italic">
+                                        * This room will be registered under the primary property address.
+                                    </div>
                                 </div>
                             </div>
-
                         </div>
                     </div>
 
                     {{-- Divider --}}
                     <hr class="border-gray-100">
 
-                    {{-- Assets --}}
-                    @php $today = now()->toDateString(); @endphp
-
-                    <div>
-                        <div class="flex items-center justify-between">
-                            <h2 class="text-lg font-semibold text-slate-900">Room Assets</h2>
-
-                            <button type="button" id="addAssetBtn"
-                                    class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow transition duration-150 ease-in-out">
-                                + Add Asset
-                            </button>
-                        </div>
-
-                        <p class="mt-2 text-sm text-gray-500">You can add more than one asset before saving.</p>
-
-                        <div class="mt-4 space-y-4" id="assetList"></div>
-
-                        <template id="assetRowTpl">
-                            <div class="asset-row rounded-xl border border-gray-200 bg-gray-50 p-4">
-                                <div class="flex items-center justify-between mb-3">
-                                    <div class="text-sm font-semibold text-slate-900">Asset</div>
-                                    <button type="button"
-                                            class="remove-asset text-sm text-red-600 hover:text-red-800">
-                                        Remove
-                                    </button>
+                    {{-- Asset Selection (Library) --}}
+                    <div class="mt-6">
+                        <label class="block text-sm font-medium text-slate-900 mb-2">Room Assets (Asset Library)</label>
+                        
+                        <div class="block w-full p-4 bg-white border border-gray-200 rounded-xl shadow-sm mb-4">
+                            <div class="flex items-center justify-between mb-3 border-b pb-2">
+                                <div class="flex items-center gap-3">
+                                    <svg class="w-4 h-4 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
+                                    </svg>
+                                    <h3 class="font-bold text-slate-800 text-sm">Select Assets for this Room</h3>
                                 </div>
-
-                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-900 mb-1">Name</label>
-                                        <div class="relative group">
-                                            {{-- 底层的输入框 --}}
-                                            <input type="text" 
-                                                name="assets[__i__][name]" 
-                                                placeholder="Search or type new..."
-                                                class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm pr-10"
-                                                required>
-
-                                            {{-- 顶层的 Select：全覆盖 inset-0，确保弹出框对齐 --}}
-                                            {{-- 关键：使用 onmousedown 逻辑判断点击位置 --}}
-                                            <select class="asset-selector absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                                                    onmousedown="if(event.offsetX < this.offsetWidth - 40) { this.previousElementSibling.focus(); return false; }"
-                                                    onchange="this.previousElementSibling.value = this.value; this.previousElementSibling.focus();">
-                                                <option value="">-- Select or Type --</option>
-                                                @foreach($assetLibrary as $lib)
-                                                    <option value="{{ $lib->name }}">{{ $lib->name }}</option>
-                                                @endforeach
-                                            </select>
-
-                                            {{-- 右侧箭头：视觉装饰 --}}
-                                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                                <svg class="h-4 w-4 text-gray-400 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                                </svg>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-900 mb-1">Condition</label>
-                                        <select name="assets[__i__][condition]"
-                                                class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                            <option value="Good">Good</option>
-                                            <option value="Broken">Broken</option>
-                                            <option value="Maintaining">Maintaining</option>
-                                        </select>
-                                    </div>
-
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-900 mb-1">Last Maintenance</label>
-                                        <input type="date"
-                                               name="assets[__i__][last_maintenance]"
-                                               max="{{ $today }}"
-                                               class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                        <div class="text-xs text-gray-400 mt-1">Cannot be a future date. Leave empty for NULL.</div>
-                                    </div>
-
-                                    <div class="md:col-span-2">
-                                        <label class="block text-sm font-medium text-slate-900 mb-1">Remark</label>
-                                        <input name="assets[__i__][remark]"
-                                               placeholder="(optional)"
-                                               class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                        <div class="text-xs text-gray-400 mt-1">Leave empty for NULL.</div>
-                                    </div>
-                                </div>
+                                <span class="text-[10px] text-gray-400 font-mono">ASSET-PICKER</span>
                             </div>
-                        </template>
+                            
+                            {{-- Asset Grid --}}
+                            <div class="custom-scrollbar mb-2 p-1 bg-gray-50 rounded-lg" style="height: 200px; overflow-y: auto !important; border: 1px solid #f1f5f9;">
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
+                                    @forelse($assetLibrary as $lib)
+                                        @if($lib->status === "Active")
+                                            <div class="flex items-center justify-between py-1.5 px-2 bg-white border border-gray-100 rounded-md shadow-sm hover:border-indigo-200 transition-all">
+                                                {{-- Checkbox logic: 如果 qty > 0 则选中 --}}
+                                                <input type="hidden" 
+                                                    name="assets[{{ $loop->index }}][id]" 
+                                                    value="{{ $lib->id }}" 
+                                                    class="hidden asset-checkbox" 
+                                                    id="asset_{{ $lib->id }}">
+                                                
+                                                <span class="text-[12px] text-slate-600 font-semibold truncate flex-1 mr-2" title="{{ $lib->name }}">
+                                                    {{ $lib->name }}
+                                                </span>
+                                                
+                                                <div class="flex items-center bg-gray-50 rounded-md p-0.5 border border-gray-100">
+                                                    <button type="button" onclick="adjustQty(this, -1)" 
+                                                        class="w-5 h-5 flex items-center justify-center rounded bg-white text-gray-400 hover:text-red-500 hover:shadow-sm transition-all text-xs border border-gray-100">-</button>
+                            
+                                                    <input type="text" 
+                                                        name="assets[{{ $loop->index }}][qty]" 
+                                                        value="{{ old("assets.$loop->index.qty", 0) }}" 
+                                                        readonly
+                                                        class="qty-input w-10 text-center text-[12px] bg-transparent border-none focus:ring-0 p-0"
+                                                        onchange="syncCheckbox(this)">
 
-                        <div class="mt-4 text-sm text-gray-600 space-y-1">
-                            <div>• Condition options: Good / Broken / Maintaining.</div>
-                            <div>• Last Maintenance / Remark can be empty (NULL).</div>
-                        </div>
+                                                    <button type="button" onclick="adjustQty(this, 1)" 
+                                                        class="w-5 h-5 flex items-center justify-center rounded bg-white text-gray-400 hover:text-indigo-600 hover:shadow-sm transition-all text-xs border border-gray-100">+</button>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    @empty
+                                        <div class="col-span-3 flex flex-col items-center justify-center h-[160px]">
+                                            <span class="text-[13px] text-slate-400 font-medium">No active assets found in library</span>
+                                        </div>
+                                    @endforelse
+                                </div>
+                            </div>                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+                                                                                                                                                                 </div>
                     </div>
 
                     {{-- Actions --}}
@@ -244,75 +187,23 @@
 
                 </div>
             </form>
-
-            <script>
-                (function () {
-                    const list = document.getElementById('assetList');
-                    const tpl = document.getElementById('assetRowTpl');
-                    const addBtn = document.getElementById('addAssetBtn');
-                    const ownerSelect = document.getElementById('owner_select');
-                    const fullLibrary = @json($assetLibrary);
-                    let idx = 0;
-
-                    function getFilteredOptionsHtml() {
-                        const selectedOption = ownerSelect.options[ownerSelect.selectedIndex];
-                        const userId = selectedOption ? selectedOption.getAttribute('data-user-id') : null;
-
-                        let html = '<option value="">-- Select or Type --</option>';
-                        if (userId) {
-                            const filtered = fullLibrary.filter(a => String(a.user_id) === String(userId));
-                            filtered.forEach(asset => {
-                                html += `<option value="${asset.name}">${asset.name}</option>`;
-                            });
-                        }
-                        return html;
-                    }
-
-                    // 修正点 1：在这里添加参数 isInitial
-                    function addRow(isInitial = false) {
-                        const templateHtml = tpl.innerHTML.replaceAll('__i__', String(idx));
-                        const wrap = document.createElement('div');
-                        wrap.innerHTML = templateHtml.trim();
-                        const row = wrap.firstElementChild;
-
-                        const selector = row.querySelector('.asset-selector');
-                        if (selector) selector.innerHTML = getFilteredOptionsHtml();
-
-                        // 修正点 2：根据 isInitial 判断是否移除删除按钮
-                        if (isInitial) {
-                            const removeBtn = row.querySelector('.remove-asset');
-                            if (removeBtn) removeBtn.remove(); 
-                            
-                            // 确保你的 HTML template 里有这个 class 为 uppercase 的 span
-                            const titleSpan = row.querySelector('.uppercase');
-                            if (titleSpan) titleSpan.textContent = "Primary Asset (Required)";
-                        } else {
-                            const removeBtn = row.querySelector('.remove-asset');
-                            if (removeBtn) {
-                                removeBtn.addEventListener('click', () => row.remove());
-                            }
-                        }
-
-                        list.appendChild(row);
-                        idx++;
-                    }
-
-                    ownerSelect.addEventListener('change', function() {
-                        const newOptions = getFilteredOptionsHtml();
-                        document.querySelectorAll('.asset-selector').forEach(s => {
-                            s.innerHTML = newOptions;
-                        });
-                    });
-
-                    // 普通点击：传入 false
-                    addBtn.addEventListener('click', () => addRow(false));
-                    
-                    // 修正点 3：初始化页面时传入 true
-                    addRow(true);
-                })();
-            </script>
-
         </div>
     </div>
-    
+    <script>
+        function adjustQty(btn, amount) {
+            const input = btn.parentElement.querySelector('.qty-input');
+            let newVal = parseInt(input.value) + amount;
+            if (newVal < 0) newVal = 0;
+            input.value = newVal;
+            
+            // 自动勾选/取消隐藏的 checkbox
+            const checkbox = btn.closest('.flex').parentElement.querySelector('.asset-checkbox');
+            checkbox.checked = newVal > 0;
+        }
+
+        function syncCheckbox(input) {
+            const checkbox = input.closest('.flex').parentElement.querySelector('.asset-checkbox');
+            checkbox.checked = parseInt(input.value) > 0;
+        }
+    </script>
 </x-app-layout>

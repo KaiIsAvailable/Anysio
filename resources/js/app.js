@@ -5,7 +5,7 @@ import Alpine from 'alpinejs';
 window.Alpine = Alpine;
 
 Alpine.start();
-
+/*
 document.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
         // 1. 如果是在选择 Gender 的下拉框
@@ -46,4 +46,4 @@ function focusNextInput(currentElement) {
             visibleInputs[index + 1].focus();
         }, 10);
     }
-}
+}*/

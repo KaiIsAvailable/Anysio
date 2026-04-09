@@ -31,7 +31,7 @@ class AuthenticatedSessionController extends Controller
         $user = Auth::user();
 
         // 1. 支付状态优先拦截 (仅限 Admin)
-        if (in_array($user->role, ['ownerAdmin', 'agentAdmin'])) {
+        if (in_array($user->role, ['ownerAdmin', 'agentAdmin', 'admin'])) {
             $status = $user->userManagement?->subscription_status;
             if ($status !== 'active') {
                 // 如果没给钱，去 dashboard (或者你指定的付款提醒页)

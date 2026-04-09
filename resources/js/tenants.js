@@ -40,47 +40,35 @@ document.addEventListener('DOMContentLoaded', function() {
         let idx = list.querySelectorAll('.contact-row').length; 
 
         window.addContactRow = function(isInitial = false, data = null) {
+            if (!list || !tpl) return;
             const html = tpl.innerHTML.replaceAll('__i__', String(idx));
-            const wrap = document.createElement('div');
-            wrap.innerHTML = html.trim();
-            const row = wrap.firstElementChild;
+            const div = document.createElement('div');
+            div.innerHTML = html.trim();
+            const row = div.firstElementChild;
 
             if (data) {
-                if (data.name) row.querySelector('input[name*="[name]"]').value = data.name;
-                if (data.relationship) row.querySelector('input[name*="[relationship]"]').value = data.relationship;
-                if (data.phone) row.querySelector('input[name*="[phone]"]').value = data.phone;
+                row.querySelector('input[name*="[name]"]').value = data.name || '';
+                row.querySelector('input[name*="[phone]"]').value = data.phone || '';
             }
 
             if (isInitial) {
-                const removeBtn = row.querySelector('.remove-contact');
-                if (removeBtn) removeBtn.remove(); 
-                const label = row.querySelector('.uppercase');
-                if (label) label.textContent = "Primary Contact (Required)";
+                row.querySelector('.remove-contact')?.remove();
             } else {
-                // 统一绑定删除逻辑
-                const removeBtn = row.querySelector('.remove-contact');
-                if (removeBtn) {
-                    removeBtn.addEventListener('click', () => row.remove());
-                }
+                row.querySelector('.remove-contact').addEventListener('click', () => row.remove());
             }
 
             list.appendChild(row);
             idx++;
-        }
+        };
 
-        addBtn.addEventListener('click', () => window.addContactRow(false));
-
-        const oldContacts = JSON.parse('{!! json_encode(old("emergency_contacts", [])) !!}');
-
-        if (oldContacts && Object.keys(oldContacts).length > 0) {
-            // 关键修复：如果有 old 数据，说明是验证失败返回，先清空 PHP 渲染的旧行避免重复
-            list.innerHTML = ''; 
-            idx = 0; // 重置索引从 0 开始回填 old 数据
-            Object.values(oldContacts).forEach((contact, index) => {
-                window.addContactRow(index === 0, contact);
+        // 2. 回填 old() 数据逻辑
+        const oldContacts = window.LaravelData?.oldContacts || [];
+        if (Object.keys(oldContacts).length > 0) {
+            Object.values(oldContacts).forEach((contact, i) => {
+                window.addContactRow(i === 0, contact);
             });
-        } else if (list.children.length === 0) {
-            window.addContactRow(true);
+        } else {
+            window.addContactRow(true); // 默认初始行
         }
     }
 

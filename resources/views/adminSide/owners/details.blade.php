@@ -42,7 +42,7 @@
                 <div class="px-8 py-8 border-b border-gray-100 bg-white">
                     <div class="flex items-center">
                         <div class="h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 text-2xl font-bold">
-                            {{ strtoupper(substr($owner->user->name, 0, 1)) }}
+                            {{ mb_strtoupper(mb_substr($owner->user->name ?? 'P', 0, 1, 'UTF-8')) }}
                         </div>
                         <div class="ml-6">
                             <h2 class="text-2xl font-bold text-slate-900 tracking-tight">{{ $owner->user->name }}</h2>

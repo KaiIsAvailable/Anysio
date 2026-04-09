@@ -13,6 +13,7 @@ class Tenants extends Model
 
     protected $fillable = [
         'user_id',
+        'created_by',
         'owner_id',
         'phone',
         'ic_number',
@@ -21,6 +22,7 @@ class Tenants extends Model
         'gender',
         'occupation',
         'ic_photo_path',
+        'status',
     ];
 
     public function user(): BelongsTo

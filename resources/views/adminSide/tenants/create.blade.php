@@ -1,21 +1,14 @@
 <x-app-layout>
     <div class="bg-gray-50 min-h-screen p-6">
         <div class="max-w-3xl mx-auto">
-            <!-- Header -->
-            <div class="flex items-center justify-between mb-6">
-                <!-- Left: Back Button -->
-                <div class="flex-1 flex justify-start">
-                    <a href="{{ route('admin.tenants.index') }}" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                        Back to Tenants List
-                    </a>
-                </div>
-                
-                <!-- Center: Title -->
-                <h1 class="text-2xl font-bold text-slate-900 font-sans whitespace-nowrap">Create Tenant</h1>
-
-                <!-- Right: Spacer for centering -->
-                <div class="flex-1"></div>
+            <div class="mb-6">
+                <a href="{{ route('admin.tenants.index') }}" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center transition-colors">
+                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    Back to List
+                </a>
+                <h1 class="text-2xl font-bold text-slate-900 mt-2">Create Tenant</h1>
             </div>
 
             <div class="bg-white shadow-lg rounded-xl p-6">
@@ -26,26 +19,10 @@
                     <div class="mb-6 border-b border-gray-100 pb-6">
                         <h2 class="text-xl font-semibold text-slate-800 mb-4">Tenant Details</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            @if(auth()->user()->role === 'agent' || auth()->user()->role === 'agentAdmin')
-                                <div>
-                                    <label for="owner_id" class="block text-sm font-medium text-slate-700 mb-1">Assign to Property Owner</label>
-                                    <select name="owner_id" id="owner_id" 
-                                        class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" 
-                                        required tabindex="2" autofocus>
-                                        <option value="" disabled selected>-- Select an Owner --</option>
-                                        @foreach($managedOwners as $owner)
-                                            <option value="{{ $owner->id }}" {{ old('owner_id') == $owner->id ? 'selected' : '' }}>
-                                                {{ $owner->user->name }} ({{ $owner->ic_number ?? 'No IC' }})
-                                            </option>
-                                        @endforeach
-                                    </select>
-                                    @error('owner_id') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
-                                </div>
-                            @endif
                             <!-- Name -->
                             <div>
                                 <label for="name" class="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                                <input type="text" name="name" id="name" value="{{ old('name') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required tabindex="1">
+                                <input type="text" name="name" id="name" value="{{ old('name') }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required tabindex="1">
                                 @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                             </div>
 
@@ -69,7 +46,8 @@
                         <!-- Phone -->
                         <div>
                             <label for="phone" class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                            <input type="text" name="phone" id="phone" value="{{ old('phone') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required tabindex="4">
+                            <input type="text" name="phone" id="phone" value="{{ old('phone') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" inputmode="numeric" maxlength="20" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required tabindex="4">
+                            <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 01xxxxxxxxx</p>
                             @error('phone') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
@@ -91,7 +69,8 @@
                         <!-- IC Number -->
                         <div id="ic_container">
                             <label for="ic_number" class="block text-sm font-medium text-slate-700 mb-1">IC Number</label>
-                            <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" tabindex="7">
+                            <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" tabindex="7">
+                            <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
                             @error('ic_number') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
@@ -99,6 +78,7 @@
                         <div id="passport_container" class="hidden">
                             <label for="passport" class="block text-sm font-medium text-slate-700 mb-1">Passport Number</label>
                             <input type="text" name="passport" id="passport" value="{{ old('passport') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                            <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: A12345678</p>
                             @error('passport') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
@@ -106,7 +86,7 @@
                         <div>
                             <label for="nationality" class="block text-sm font-medium text-slate-700 mb-1">Nationality</label>
                             <!-- Note: JS will toggle readonly/value -->
-                            <input type="text" name="nationality" id="nationality" value="{{ old('nationality', 'Malaysian') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm bg-gray-100" readonly required>
+                            <input type="text" name="nationality" id="nationality" value="{{ old('nationality', 'MALAYSIAN') }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm bg-gray-100" readonly required>
                             @error('nationality') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
@@ -115,15 +95,15 @@
                             <label for="gender" class="block text-sm font-medium text-slate-700 mb-1">Gender</label>
                             <select name="gender" id="gender" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required tabindex="8">
                                 <option value="">-- Select Gender --</option>
-                                <option value="Male" {{ old('gender') == 'Male' ? 'selected' : '' }}>Male</option>
-                                <option value="Female" {{ old('gender') == 'Female' ? 'selected' : '' }}>Female</option>
+                                <option value="Male" {{ old('gender') == 'Male' ? 'selected' : '' }}>MALE</option>
+                                <option value="Female" {{ old('gender') == 'Female' ? 'selected' : '' }}>FEMALE</option>
                             </select>
                             @error('gender') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <div class="col-span-1 md:col-span-2">
                             <label for="occupation" class="block text-sm font-medium text-slate-700 mb-1">Occupation</label>
-                            <input type="text" name="occupation" id="occupation" value="{{ old('occupation') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" tabindex="9">
+                            <input type="text" name="occupation" id="occupation" value="{{ old('occupation') }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" tabindex="9">
                             @error('occupation') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -132,12 +112,7 @@
                     <div class="mb-6 border-b border-gray-100 pb-6">
                         <div class="flex items-center justify-between mb-4">
                             <h2 class="text-xl font-semibold text-slate-800">Emergency Contacts</h2>
-                            @error('emergency_contacts')
-                                <div class="mb-4 p-2 bg-red-50 border border-red-200 text-red-600 rounded text-xs">
-                                    Please provide at least one complete emergency contact.
-                                </div>
-                            @enderror
-                            <button type="button" id="addContactBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition duration-150 ease-in-out text-sm">
+                            <button type="button" id="addContactBtn" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition duration-150 ease-in-out text-sm">
                                 + Add Contact
                             </button>
                         </div>
@@ -156,11 +131,11 @@
                                 <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                                        <input type="text" name="emergency_contacts[__i__][name]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Contact Name" required tabindex="10">
+                                        <input type="text" name="emergency_contacts[__i__][name]" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Contact Name" required tabindex="10">
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Relationship</label>
-                                        <input type="text" name="emergency_contacts[__i__][relationship]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="e.g. Spouse, Parent" tabindex="11">
+                                        <input type="text" name="emergency_contacts[__i__][relationship]" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="e.g. Spouse, Parent" tabindex="11">
                                     </div>
                                     <div>
                                         <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
@@ -170,6 +145,12 @@
                             </div>
                         </template>
                     </div>
+
+                    <script>
+                        window.LaravelData = {
+                            oldContacts: @json(old('emergency_contacts', []))
+                        };
+                    </script>
 
                     <!-- Photo -->
                     <div class="mb-6">

@@ -24,6 +24,13 @@
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
                         <form method="GET" action="{{ route('admin.rooms.index') }}" class="flex items-stretch gap-2">
+                            <a href="{{ route('admin.roomAsset.index') }}" 
+                            class="inline-flex items-center px-4 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
+                                <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                                </svg>
+                                View Room Assets
+                            </a>
                             <div class="flex items-stretch">
                                 <div class="relative flex-1">
                                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -104,11 +111,11 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                             @foreach($rooms as $room)
                                 @php
-                                    $status = strtolower((string) $room->status);
+                                    $status = $room->status;
                                     $badge = match ($status) {
-                                        'vacant','available' => 'bg-green-100 text-green-800',
-                                        'occupied'  => 'bg-amber-100 text-amber-800',
-                                        'maintenance' => 'bg-blue-100 text-blue-800',
+                                        'Vacant' => 'bg-green-100 text-green-800',
+                                        'Occupied'  => 'bg-amber-100 text-amber-800',
+                                        'Maintenance' => 'bg-blue-100 text-blue-800',
                                         default     => 'bg-gray-100 text-gray-800',
                                     };
                                     $assetNames = $room->assets->pluck('name')->filter()->unique()->values();
@@ -120,32 +127,32 @@
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="flex items-center">
                                             <div class="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shadow-sm">
-                                                {{ strtoupper(substr($room->room_no ?? 'R', 0, 1)) }}
+                                                {{ mb_strtoupper(mb_substr($room->room_no?? 'P', 0, 1, 'UTF-8')) }}
                                             </div>
 
                                             <div class="ml-4">
                                                 <a href="{{ route('admin.rooms.show', $room->id) }}" class="text-sm font-semibold text-indigo-600 hover:text-indigo-900 block">
-                                                    {{ $room->room_no ?? 'N/A' }}
+                                                    {{ $room->room_no ?? '-' }}
                                                 </a>
                                             </div>
                                         </div>
                                     </td>
 
-                                    <td class="px-6 py-4 text-sm text-slate-900">{{ $room->room_type ?? 'ƒ?"' }}</td>
+                                    <td class="px-6 py-4 text-sm text-slate-900">{{ $room->room_type ?? '-' }}</td>
 
                                     <td class="px-6 py-4">
                                         <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
-                                            {{ $room->status ?? 'ƒ?"' }}
+                                            {{ $room->status ?? '-' }}
                                         </span>
                                     </td>
 
                                     <td class="px-6 py-4">
-                                        <div class="text-sm font-medium text-slate-900">{{ $room->owner->user->name ?? 'ƒ?"' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $room->owner->user->email ?? 'ƒ?"' }}</div>
+                                        <div class="text-sm font-medium text-slate-900">{{ $room->unit->owner->user->name ?? '-' }}</div>
+                                        <div class="text-xs text-gray-500">{{ $room->unit->owner->user->email ?? '-' }}</div>
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">
-                                        <div class="line-clamp-2 break-words">{{ $room->address ?? 'ƒ?"' }}</div>
+                                        <span>{{ $room->unit->property->address . ', ' . $room->unit->property->city . ', ' . $room->unit->property->postcode . ' ' . $room->unit->property->state ?? 'No address set for this property' }}</span>
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">

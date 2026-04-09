@@ -14,7 +14,6 @@ return new class extends Migration
             $table->string('room_no')->index();
             $table->string('room_type')->index();
             $table->string('status')->default('Vacant')->index();
-            $table->text('address');
             $table->timestamps();
         });
     }

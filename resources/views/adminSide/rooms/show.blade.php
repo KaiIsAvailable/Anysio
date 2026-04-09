@@ -5,7 +5,7 @@
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
                     <nav class="flex mb-2" aria-label="Breadcrumb">
-                        <a href="{{ route('admin.rooms.index') }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center transition-colors">
+                        <a href="{{ route('admin.units.show', $room->unit->id) }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center transition-colors">
                             <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                             </svg>
@@ -17,6 +17,7 @@
 
                 @can('owner-admin')
                     <div class="flex items-center gap-3">
+                        {{-- Edit 按钮 --}}
                         <a href="{{ route('admin.rooms.edit', $room->id) }}"
                         class="inline-flex items-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all">
                             <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -25,7 +26,11 @@
                             Edit Room
                         </a>
 
-                        <form action="{{ route('admin.rooms.destroy', $room->id) }}" method="POST" onsubmit="return confirm('Delete room {{ addslashes($room->room_no ?? $room->id) }}?');">
+                        {{-- Delete 表单 - 核心修改：添加 class="inline-block" 或 "contents" --}}
+                        <form action="{{ route('admin.rooms.destroy', $room->id) }}" 
+                            method="POST" 
+                            class="inline-block" 
+                            onsubmit="return confirm('Delete room {{ addslashes($room->room_no ?? $room->id) }}?');">
                             @csrf @method('DELETE')
                             <button type="submit" class="inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-sm transition-all">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -42,7 +47,7 @@
                 <div class="px-8 py-8 border-b border-gray-100 bg-white">
                     <div class="flex items-center">
                         <div class="h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 text-2xl font-bold">
-                            {{ strtoupper(substr($room->room_no ?? 'R', 0, 1)) }}
+                            {{ mb_strtoupper(mb_substr($room->room_no ?? 'U', 0, 1, 'UTF-8')) }}
                         </div>
                         <div class="ml-6">
                             <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Room {{ $room->room_no ?? $room->id }}</h2>
@@ -62,7 +67,7 @@
                             </div>
                             <div class="pl-4">
                                 <label class="text-xs font-medium text-gray-400">Address</label>
-                                <p class="text-sm font-semibold text-slate-700 mt-0.5">{{ $room->address ?? '—' }}</p>
+                                <p class="text-sm font-semibold text-slate-700 mt-0.5">{{ $fullAddress ?? '—' }}</p>
                             </div>
                         </div>
 
@@ -70,22 +75,22 @@
                             <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Owner Info</h3>
                             <div class="pl-4">
                                 <label class="text-xs font-medium text-gray-400">Owner Name</label>
-                                <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $room->owner?->user?->name ?? '—' }}</p>
+                                <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $room->unit->owner->user->name ?? '—' }}</p>
                             </div>
                             <div class="pl-4">
                                 <label class="text-xs font-medium text-gray-400">Owner Email</label>
-                                <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $room->owner?->user?->email ?? '—' }}</p>
+                                <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $room->unit->owner->user->email ?? '—' }}</p>
                             </div>
                         </div>
 
                         <div class="space-y-4">
                             <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">System Info</h3>
                             @php
-                                $status = strtolower((string) ($room->status ?? ''));
+                                $status = $room->status ?? '';
                                 $badge = match ($status) {
-                                    'vacant','available' => 'bg-green-100 text-green-800',
-                                    'occupied' => 'bg-amber-100 text-amber-800',
-                                    'maintenance' => 'bg-blue-100 text-blue-800',
+                                    'Vacant' => 'bg-green-100 text-green-800',
+                                    'Occupied' => 'bg-amber-100 text-amber-800',
+                                    'Maintenance' => 'bg-blue-100 text-blue-800',
                                     default => 'bg-gray-100 text-gray-800',
                                 };
                             @endphp
@@ -156,23 +161,23 @@
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-left text-sm text-slate-900">
-                                                    {{ $asset->condition ?? '—' }}
+                                                    {{ $asset->pivot->condition ?? '—' }}
                                                 </div>
                                             </td>
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-left text-sm text-slate-900 whitespace-nowrap">
                                                     @if(!empty($asset->last_maintenance))
-                                                        {{ \Illuminate\Support\Carbon::parse($asset->last_maintenance)->format('d M Y') }}
+                                                        {{ \Illuminate\Support\Carbon::parse($asset->pivot->last_maintenance)->format('d M Y') }}
                                                     @else
-                                                        —   
+                                                        No maintencne yet   
                                                     @endif
                                                 </div>
                                             </td>
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-left text-sm text-slate-900 break-words line-clamp-2">
-                                                    {{ $asset->remark ?? '—' }}
+                                                    {{ $asset->pivot->remark ?? '—' }}
                                                 </div>
                                             </td>
                                         </tr>

@@ -36,7 +36,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/paymentRoute.php';
         require __DIR__.'/leasesRoute.php';
         require __DIR__.'/maintenanceRoute.php';
+        require __DIR__.'/propertyRoute.php';
+        require __DIR__.'/unitRoute.php';
         require __DIR__.'/roomRoute.php';
+        require __DIR__.'/roomAssetRoute.php';
         require __DIR__.'/ownerRoute.php';
         require __DIR__.'/tenantRoute.php';
         require __DIR__.'/staffRoute.php';

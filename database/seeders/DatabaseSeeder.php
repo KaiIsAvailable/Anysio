@@ -8,6 +8,8 @@ use App\Models\Owners;
 use App\Models\Room;
 use App\Models\Asset; // 必须引入新的 Asset 模型
 use App\Models\Tenants;
+use App\Models\Property;
+use App\Models\Unit;
 use App\Models\EmergencyContact;
 use App\Models\RefCodePackage;
 use Illuminate\Database\Seeder;
@@ -57,7 +59,7 @@ class DatabaseSeeder extends Seeder
                 ]);
             }
 
-            // --- 4. 普通房东 (Owner) 循环 ---
+            // --- 4. 房东、物业、单位及房间循环生成 ---
             $ownersData = [
                 ['name' => 'Michael Scott', 'email' => 'michael@anysio.com', 'company' => 'Dunder Mifflin'],
                 ['name' => 'Harvey Specter', 'email' => 'harvey@anysio.com', 'company' => 'Specter Realty'],
@@ -65,6 +67,7 @@ class DatabaseSeeder extends Seeder
             ];
 
             foreach ($ownersData as $index => $data) {
+                // 创建用户和管理记录
                 $user = $this->createPmsUserWithRefCode(
                     $data['name'], 
                     $data['email'], 
@@ -72,6 +75,7 @@ class DatabaseSeeder extends Seeder
                     $ownerAdminUser->id
                 );
 
+                // 创建 Owner Profile
                 $ownerProfile = Owners::create([
                     'user_id' => $user->id,
                     'company_name' => $data['company'],
@@ -80,27 +84,51 @@ class DatabaseSeeder extends Seeder
                     'gender' => ($index % 2 == 0) ? 'male' : 'female',
                 ]);
 
-                // 房产和房间生成逻辑
-                for ($r = 1; $r <= 2; $r++) {
-                    $room = Room::create([
-                        'owner_id' => $ownerProfile->id,
-                        'room_no' => 'A-' . ($index + 1) . '-0' . $r,
-                        'room_type' => ($r == 1) ? 'Master Room' : 'Single Room',
+                // --- 第一层：Property (大楼/小区) ---
+                $property = Property::create([
+                    'name' => ($index % 2 == 0) ? 'PV15 Platinum Victory' : 'SS2 Landed House',
+                    'address' => 'No ' . rand(1, 100) . ', Jalan Genting Klang, Setapak',
+                    'city' => 'Kuala Lumpur',
+                    'postcode' => '53300',
+                    'state' => 'WPKL',
+                    'type' => ($index % 2 == 0) ? 'Condo' : 'Landed',
+                ]);
+
+                // --- 第二层：Unit (产权单位) ---
+                for ($u = 1; $u <= 2; $u++) {
+                    $unit = Unit::create([
+                        'property_id' => $property->id,
+                        'owner_id' => $ownerProfile->id, // 明确 Unit 属于哪个 Owner
+                        'unit_no' => ($property->type == 'Condo') ? 'A-' . ($index + 10) . '-0' . $u : 'No ' . ($u + 5),
+                        'block' => ($property->type == 'Condo') ? 'Block A' : null,
+                        'floor' => ($property->type == 'Condo') ? 10 + $index : 1,
+                        'sqft' => rand(800, 1300),
                         'status' => 'Vacant',
-                        'address' => 'No ' . ($index + 1) . ', Jalan Anysio, 50450 Kuala Lumpur',
                     ]);
 
-                    // --- 重点：Many-to-Many 关联资产 ---
-                    // 随机给每个房间分配 2-3 个资产
-                    $randomAssets = collect($assets)->random(rand(2, 3));
-                    
-                    foreach ($randomAssets as $asset) {
-                        $room->assets()->attach($asset->id, [
-                            'id' => (string) Str::ulid(), // 中间表主键
-                            'condition' => 'Good',
-                            'last_maintenance' => now()->subMonths(rand(1, 6)),
-                            'remark' => 'Standard Furnished',
+                    // --- 第三层：Room (租赁房间) ---
+                    // 每个 Unit 生成 3 个房间 (Master, Medium, Small)
+                    $roomTypes = ['Master Room', 'Medium Room', 'Small Room'];
+                    foreach ($roomTypes as $rIndex => $type) {
+                        $room = Room::create([
+                            'unit_id' => $unit->id, // 关联到 Unit
+                            'room_no' => $unit->unit_no . '-' . ($rIndex + 1),
+                            'room_type' => $type,
+                            'status' => 'Vacant',
                         ]);
+
+                        // --- 重点：关联资产 ---
+                        // 随机分配 2-3 个预设资产
+                        $randomAssets = collect($assets)->random(rand(2, 3));
+                        foreach ($randomAssets as $asset) {
+                            $room->assets()->attach($asset->id, [
+                                'id' => (string) Str::ulid(), // 必须手动生成中间表 ULID 主键
+                                'condition' => 'Good',
+                                'last_maintenance' => now()->subMonths(rand(1, 6)),
+                                'remark' => 'Standard Item',
+                                'quantity' => 1,
+                            ]);
+                        }
                     }
                 }
             }

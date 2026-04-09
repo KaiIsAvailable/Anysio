@@ -13,16 +13,15 @@ class Room extends Model
     use HasUlids;
 
     protected $fillable = [
-        'owner_id',
+        'unit_id',
         'room_no',
         'room_type',
         'status',
-        'address',
     ];
 
-    public function owner(): BelongsTo
+    public function unit(): BelongsTo
     {
-        return $this->belongsTo(Owners::class, 'owner_id');
+        return $this->belongsTo(Unit::class, 'unit_id');
     }
 
     public function assets(): BelongsToMany

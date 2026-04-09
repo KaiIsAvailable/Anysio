@@ -5,7 +5,20 @@
             <div class="flex">
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}">
+                    @php
+                        // 根据角色确定跳转的路由
+                        $dashboardRoute = route('dashboard'); // 默认路由
+
+                        if (auth()->user()->can('is-owner')) {
+                            $dashboardRoute = route('admin.owners.dashboard');
+                        } elseif (auth()->user()->can('is-tenant')) {
+                            $dashboardRoute = route('admin.tenants.dashboard');
+                        } elseif (auth()->user()->can('owner-admin')) {
+                            $dashboardRoute = route('dashboard');
+                        }
+                    @endphp
+
+                    <a href="{{ $dashboardRoute }}">
                         <x-application-logo class="block h-9 w-auto fill-current text-gray-800" />
                     </a>
                 </div>
@@ -20,29 +33,46 @@
                     @endcan
 
                     @can('is-owner')
-                        <x-nav-link :href="route('admin.owners.dashboard')" :active="request()->routeIs('admin.owners.*')">
+                        <x-nav-link :href="route('admin.owners.dashboard')" :active="request()->routeIs('admin.owners.dashboard')">
                             {{ __('Dashboard') }}
                         </x-nav-link>
                     @endcan
 
                     @can('is-tenant')
-                        <x-nav-link :href="route('admin.tenants.dashboard')" :active="request()->routeIs('user.tenants.*')">
+                        <x-nav-link :href="route('admin.tenants.dashboard')" :active="request()->routeIs('admin.tenants.dashboard')">
                             {{ __('Dashboard') }}
                         </x-nav-link>
                     @endcan
 
                     @can('agent-admin')
-                        <x-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*')">
+                        <x-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*') && !request()->routeIs('admin.owners.dashboard')">
                             {{ __('Owners') }}
+                        </x-nav-link>
+
+                        <x-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*') && !request()->routeIs('admin.tenants.dashboard')">
+                            {{ __('Tenants') }}
+                        </x-nav-link>
+
+                        <x-nav-link :href="route('admin.properties.index')" 
+                            :active="request()->routeIs('admin.properties.*') || request()->routeIs('admin.units.*') || request()->routeIs('admin.rooms.*') || request()->routeIs('admin.roomAsset.*')">
+                            {{ __('Properties') }}
                         </x-nav-link>
                     @endcan
 
-                    <x-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*')">
-                        {{ __('Tenants') }}
+                    <!--<x-nav-link :href="route('admin.rooms.index')" :active="request()->routeIs('admin.rooms.*')">
+                        {{ __('Rooms') }}
+                    </x-nav-link>-->
+
+                    <x-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*')">
+                        {{ __('Leases') }}
                     </x-nav-link>
 
-                    <x-nav-link :href="route('admin.rooms.index')" :active="request()->routeIs('admin.rooms.*')">
-                        {{ __('Room') }}
+                    <x-nav-link :href="route('admin.payments.index')" :active="request()->routeIs('admin.payments.*')">
+                        {{ __('Payments') }}
+                    </x-nav-link>
+                    
+                    <x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
+                        {{ __('Maintenance') }}
                     </x-nav-link>
 
                     @can('owner-admin')
@@ -56,30 +86,11 @@
                             {{ __('Users') }}
                         </x-nav-link>
                     @endcan
-
-                    <div class="hidden sm:flex sm:items-center sm:ms-4">
-                        <x-dropdown align="right" width="48">
-                            <x-slot name="trigger">
-                                <button class="inline-flex items-center px-1 pt-1 border-b-2 border-transparent text-sm font-medium leading-5 text-gray-500 hover:text-gray-700 hover:border-gray-300 focus:outline-none transition duration-150 ease-in-out">
-                                    <div>{{ __('Operations') }}</div>
-                                    <div class="ms-1">
-                                        <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                            <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                        </svg>
-                                    </div>
-                                </button>
-                            </x-slot>
-                            <x-slot name="content">
-                                <x-dropdown-link :href="route('admin.payments.index')">{{ __('Payments') }}</x-dropdown-link>
-                                <x-dropdown-link :href="route('admin.leases.index')">{{ __('Leases') }}</x-dropdown-link>
-                                <x-dropdown-link :href="route('admin.maintenance.index')">{{ __('Maintenance') }}</x-dropdown-link>
-                            </x-slot>
-                        </x-dropdown>
-                    </div>
-
-                    <x-nav-link :href="route('admin.staff.index')" :active="request()->routeIs('admin.staff.*')">
-                        {{ __('Staff') }}
-                    </x-nav-link>
+                    @can('owner-admin')
+                        <x-nav-link :href="route('admin.staff.index')" :active="request()->routeIs('admin.staff.*')">
+                            {{ __('Staff') }}
+                        </x-nav-link>
+                    @endcan
                 </div>
             </div>
 

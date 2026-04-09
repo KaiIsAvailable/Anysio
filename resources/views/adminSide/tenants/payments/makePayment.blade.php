@@ -14,7 +14,7 @@
                         <label class="block text-sm font-medium text-gray-700">Amount Paid (RM)</label>
                         <input type="number" 
                             step="0.01" 
-                            name="amount_paid" 
+                            name="amount_paid"
                             id="modalAmountPaid" 
                             required
                             class="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500"

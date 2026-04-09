@@ -30,7 +30,7 @@
                             <!-- Name -->
                             <div class="mb-4">
                                 <label for="name" class="block text-sm font-medium text-slate-900 mb-1">Full Name</label>
-                                <input type="text" name="name" id="name" value="{{ old('name', $tenant->user->name) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                                <input type="text" name="name" id="name" value="{{ old('name', $tenant->user->name) }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
                                 @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                             </div>
 
@@ -51,7 +51,7 @@
                         <!-- Phone -->
                         <div class="mb-4">
                             <label for="phone" class="block text-sm font-medium text-slate-900 mb-1">Phone</label>
-                            <input type="text" name="phone" id="phone" value="{{ old('phone', $tenant->phone) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                            <input type="text" name="phone" id="phone" value="{{ old('phone', $tenant->phone) }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
                             @error('phone') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
@@ -77,7 +77,7 @@
                         <!-- IC Number -->
                         <div class="mb-4" id="ic_container">
                             <label for="ic_number" class="block text-sm font-medium text-slate-900 mb-1">IC Number</label>
-                            <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number', $tenant->ic_number) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                            <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number', $tenant->ic_number) }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                             @error('ic_number') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
@@ -91,7 +91,7 @@
                         <!-- Nationality -->
                         <div class="mb-4">
                             <label for="nationality" class="block text-sm font-medium text-slate-900 mb-1">Nationality</label>
-                            <input type="text" name="nationality" id="nationality" value="{{ old('nationality', $tenant->nationality) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                            <input type="text" name="nationality" id="nationality" value="{{ old('nationality', $tenant->nationality) }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
                             @error('nationality') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
@@ -100,8 +100,8 @@
                             <label for="gender" class="block text-sm font-medium text-slate-900 mb-1">Gender</label>
                             <select name="gender" id="gender" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
                                 <option value="">-- Select Gender --</option>
-                                <option value="Male" {{ (old('gender') ?? $tenant->gender) == 'Male' ? 'selected' : '' }}>Male</option>
-                                <option value="Female" {{ (old('gender') ?? $tenant->gender) == 'Female' ? 'selected' : '' }}>Female</option>
+                                <option value="MALE" {{ (old('gender') ?? $tenant->gender) == 'MALE' ? 'selected' : '' }}>MALE</option>
+                                <option value="FEMALE" {{ (old('gender') ?? $tenant->gender) == 'FEMALE' ? 'selected' : '' }}>FEMALE</option>
                             </select>
                             @error('gender') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
@@ -109,7 +109,7 @@
                         <!-- Occupation -->
                         <div class="mb-4">
                             <label for="occupation" class="block text-sm font-medium text-slate-900 mb-1">Occupation</label>
-                            <input type="text" name="occupation" id="occupation" value="{{ old('occupation', $tenant->occupation) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                            <input type="text" name="occupation" id="occupation" value="{{ old('occupation', $tenant->occupation) }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                             @error('occupation') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -118,7 +118,7 @@
                     <div class="mb-6 border-b border-gray-100 pb-6">
                         <div class="flex items-center justify-between mb-4">
                             <h2 class="text-xl font-semibold text-slate-800">Emergency Contacts</h2>
-                            <button type="button" id="addContactBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition duration-150 ease-in-out text-sm">
+                            <button type="button" id="addContactBtn" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition duration-150 ease-in-out text-sm">
                                 + Add Contact
                             </button>
                         </div>

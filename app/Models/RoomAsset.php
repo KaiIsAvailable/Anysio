@@ -11,13 +11,17 @@ class RoomAsset extends Model
 {
     use HasUlids;
 
+    protected $table = 'asset_room';
+
     protected $fillable = [
-        'assest_id',
+        'asset_id',
         'room_id',
-        'name',
+        'unit_id',
+        'status',
         'condition',
         'last_maintenance',
         'remark',
+        'quantity',
     ];
 
     protected $casts = [
@@ -27,6 +31,11 @@ class RoomAsset extends Model
     public function room(): BelongsTo
     {
         return $this->belongsTo(Room::class);
+    }
+
+    public function unit(): BelongsTo
+    {
+        return $this->belongsTo(Unit::class);
     }
 
     public function asset()

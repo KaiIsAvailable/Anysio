@@ -10,14 +10,17 @@ return new class extends Migration
     {
         Schema::create('leases', function (Blueprint $table) {
             $table->ulid('id')->primary();
-            $table->foreignUlid('room_id')->constrained('rooms');
+            $table->string('leasable_type')->index(); 
+            $table->ulid('leasable_id')->index();
             $table->foreignUlid('tenant_id')->constrained('tenants');
             $table->date('start_date')->index();
             $table->date('end_date')->index();
-            $table->integer('monthly_rent')->index();
-            $table->integer('security_deposit')->index();
-            $table->integer('utilities_depost')->index();
-            $table->string('status')->index();
+            $table->string('term_type')->default('monthly')->index();
+            $table->integer('rent_price')->index(); 
+            $table->string('deposit_mode')->default('both')->index();
+            $table->integer('security_deposit')->default(0)->index();
+            $table->integer('utilities_deposit')->default(0)->index(); // 修正了原本的拼写错误 depost -> deposit
+            $table->string('status')->index(); // New, Renew, Check Out, etc.
             $table->timestamps();
         });
     }

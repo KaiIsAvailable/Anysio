@@ -5,6 +5,8 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Casts\Attribute;
+use Carbon\Carbon;
 
 class Payment extends Model
 {
@@ -57,19 +59,57 @@ class Payment extends Model
         return $this->belongsTo(User::class, 'approved_by');
     }
 
-    // --- Accessors (方便前端显示) ---
-
-    /**
-     * 获取显示用的金额 (RM)
-     * 在 Blade 中可以使用 $payment->amount_due_formatted
-     */
-    public function getAmountDueFormattedAttribute()
+    // Payment.php
+    protected function amountPaid(): Attribute
     {
-        return number_format($this->amount_due / 100, 2);
+        return Attribute::make(
+            get: fn ($value) => $value / 100,
+            // 这里不写 set，或者原样返回：set: fn ($value) => $value
+        );
     }
 
-    public function getAmountPaidFormattedAttribute()
+    protected function amountDue(): Attribute
     {
-        return number_format($this->amount_paid / 100, 2);
+        return Attribute::make(
+            get: fn ($value) => $value / 100,
+        );
+    }
+
+    protected function periodDisplay(): Attribute
+    {
+        return Attribute::get(function () {
+            if (!$this->period) return null;
+
+            $date = Carbon::parse($this->period);
+            $lease = $this->lease; // 获取关联的租约
+            $termType = strtolower($lease->term_type ?? 'monthly');
+
+            $formatted = match($termType) {
+                'daily'   => $date->format('d/m/Y'),
+
+                'weekly'  => (function() use ($date, $lease) {
+                    $start = $date->format('d/m/Y');
+                    
+                    // 默认结束日期是起始日 + 6 天
+                    $expectedEnd = $date->copy()->addDays(6);
+                    
+                    // 获取租约真实的结束日期
+                    $leaseEnd = $lease ? Carbon::parse($lease->end_date) : $expectedEnd;
+
+                    // 如果 +6 天超过了租约结束日，则取租约结束日
+                    $actualEnd = $expectedEnd->gt($leaseEnd) ? $leaseEnd : $expectedEnd;
+
+                    return $start . ' - ' . $actualEnd->format('d/m/Y');
+                })(),
+
+                'monthly' => $date->format('M Y'),
+
+                'yearly'  => $date->format('Y'),
+
+                default   => $date->format('M Y'),
+            };
+
+            return "For " . $formatted;
+        });
     }
 }

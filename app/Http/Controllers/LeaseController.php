@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Models\Lease;
 use App\Models\Room;
+use App\Models\Unit;
+use App\Models\Property;
 use App\Models\Tenants;
+use App\Models\Owners;
 use App\Models\Utility;
 use App\Models\Payment;
 use Illuminate\Http\Request;
@@ -12,8 +15,10 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use App\Http\Controllers\PaymentsController;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 
 class LeaseController extends Controller
 {
@@ -23,24 +28,37 @@ class LeaseController extends Controller
         $search = $request->input('search');
         $status = $request->input('status');
 
+        // 1. 使用 leasable 预加载多态关联
+        // 同时保留 tenant 关联
         $query = Lease::with([
-            'room.owner.user',
+            'leasable', // 这会自动加载 Room, Unit 或 Property
             'tenant.user',
         ]);
 
+        // 2. 权限过滤：如果不是 super-admin，只能看自己拥有的资源
+        // 这里需要根据你的业务逻辑调整，如果不同模型的 owner 字段不一样，可能需要更复杂的判断
         if (Gate::denies('super-admin')) {
-        $query->whereHas('room.owner', function($q) use ($userId) {
-            // 假设你的 Owner 模型里关联 User 的字段是 user_id
-            $q->where('user_id', $userId);
-        });
-    }
+            $query->whereHasMorph('leasable', ['Room', 'Unit', 'Property'], function($q) use ($userId) {
+                // 假设这些模型都有 owner 关联，且 owner 表有 user_id
+                $q->whereHas('owner', function($oq) use ($userId) {
+                    $oq->where('user_id', $userId);
+                });
+            });
+        }
 
+        // 3. 搜索逻辑更新
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('status', 'like', '%' . $search . '%')
-                    ->orWhereHas('room', function ($rq) use ($search) {
-                        $rq->where('room_no', 'like', '%' . $search . '%')
-                            ->orWhere('room_type', 'like', '%' . $search . '%');
+                    // 搜索多态关联的数据
+                    ->orWhereHasMorph('leasable', ['Room', 'Unit', 'Property'], function ($mq, $type) use ($search) {
+                        if ($type === 'Room') {
+                            $mq->where('room_no', 'like', '%' . $search . '%');
+                        } elseif ($type === 'Unit') {
+                            $mq->where('unit_no', 'like', '%' . $search . '%');
+                        } elseif ($type === 'Property') {
+                            $mq->where('name', 'like', '%' . $search . '%');
+                        }
                     })
                     ->orWhereHas('tenant', function ($tq) use ($search) {
                         $tq->where('ic_number', 'like', '%' . $search . '%')
@@ -56,53 +74,225 @@ class LeaseController extends Controller
             $query->where('status', $status);
         }
 
+        // 4. 获取数据（既然去掉了 hover 展开，不需要 $groups 了）
         $leases = $query->orderBy('created_at', 'desc')
+            ->where('is_current', true)
             ->paginate(10)
             ->appends($request->query());
 
-        $groups = $leases->getCollection()
-            ->groupBy(function (Lease $lease) {
-                return $lease->tenant_id . '|' . $lease->room_id;
-            });
+        $statusOptions = ['New', 'Renew', 'Check out', 'End Agreement'];
 
-        $statusOptions = ['New', 'Renew', 'Check out', 'End'];
-
-        return view('adminSide.leases.index', compact('leases', 'groups', 'statusOptions'));
+        return view('adminSide.leases.index', compact('leases', 'statusOptions'));
     }
 
     public function create(Request $request)
     {
-        $roomId = $request->query('room_id');
-        $tenantId = $request->query('tenant_id');
-        $forceRenew = $request->boolean('renew');
+        $user = Auth::user();
+        
+        $authFilter = function ($query) use ($user) {
+            if ($user->role === 'ownerAdmin') {
+                $query->where('user_id', $user->id);
+            } elseif ($user->role === 'agentAdmin') {
+                $query->where('agent_id', $user->id);
+            }
+        };
 
-        $rooms = Room::with('owner.user')
-            ->orderBy('room_no')
+        $properties = Property::with(['owner.user'])
+        ->where('status', 'Vacant')
+        ->when($user->role !== 'admin', function ($q) use ($authFilter) {
+            $q->whereHas('owner', $authFilter);
+        })
+        ->get();
+
+        $units = Unit::with(['owner.user'])
+        ->where('status', 'Vacant')
+        ->when($user->role !== 'admin', function ($q) use ($authFilter) {
+            $q->whereHas('owner', $authFilter);
+        })
+        ->get();
+
+        $rooms = Room::with(['unit.owner.user'])
+        ->where('status', 'Vacant')
+        ->when($user->role !== 'admin', function ($q) use ($authFilter) {
+            $q->whereHas('unit.property.owner', $authFilter);
+        })
+        ->get();
+
+        $tenants = Tenants::with('user')
+        ->when($user->role !== 'admin', function ($query) use ($user) {
+            return $query->where('created_by', $user->id);
+        })
+        ->get();
+
+        $status = $request->query('status');
+
+        $leases = Lease::with(['tenant.user', 'leasable'])
+            ->where('is_current', true)
+            // 根据请求的 status 切换查询逻辑
+            ->when($status === 'End Agreement', function ($query) {
+                // 如果是终止协议或退房，只显示目前处于 Active 状态的租约
+                return $query->where('status', ['Check Out']);
+            }, function ($query) {
+                // 默认情况（比如 New 或 Renew），显示你原本定义的范围
+                return $query->whereIn('status', ['New', 'Renew']);
+            })
+            // 权限过滤逻辑保持不变
+            ->when($user->role !== 'admin', function ($query) use ($user) {
+                $query->whereHas('tenant', function($q) use ($user) {
+                    $q->where('created_by', $user->id);
+                });
+            })
             ->get();
 
-        $statuses = ['New', 'Renew', 'Check out', 'End'];
-
-        $selectedRoom = $roomId ? Room::with('owner.user')->find($roomId) : null;
-        $selectedTenant = $tenantId ? Tenants::with('user')->find($tenantId) : null;
-        $latestStatus = null;
-        if ($forceRenew && $roomId && $tenantId) {
-            $latestStatus = Lease::where('room_id', $roomId)
-                ->where('tenant_id', $tenantId)
-                ->orderBy('created_at', 'desc')
-                ->value('status');
-        }
+        // 初始变量
+        $selectedRoom = null; 
+        $selectedTenant = null;
+        $statuses = ['New', 'Renew', 'Check out', 'End Agreement'];
 
         return view('adminSide.leases.create', compact(
+            'properties', 
+            'units',
             'rooms',
+            'tenants',
+            'leases',
             'statuses',
-            'selectedRoom',
-            'selectedTenant',
-            'forceRenew',
-            'latestStatus'
+            'selectedRoom', 
+            'selectedTenant'
         ));
     }
 
     public function store(Request $request)
+    {
+        // 1. 验证数据 (修复了逻辑冲突，确保选 room 时不要求 property_id)
+        $validated = $request->validate([
+            'status' => 'required|string|in:New,Renew,Check Out,End Agreement',
+            'lease_id' => 'required_unless:status,New|nullable|exists:leases,id',
+            
+            // 关键修复：去掉 required_if:status,New，改用更精准的依赖关系
+            'lease_selection' => 'required_if:status,New|nullable|in:property,unit,room',
+            //'property_id' => 'required_if:lease_selection,property|nullable',
+            //'unit_id'     => 'required_if:lease_selection,unit|nullable',
+            //'room_id'     => 'required_if:lease_selection,room|nullable',
+
+            // 别忘了验证租客 ID
+            'tenant_id'   => 'required_if:status,New|nullable|exists:tenants,id',
+
+            'start_date' => 'required_if:status,New,Renew|nullable|date',
+            'end_date'   => 'required_if:status,New,Renew|nullable|date|after:start_date',
+            'checked_out_at' => 'required_if:status,Check Out|nullable|date',
+            'agreement_ended_at' => 'required_if:status,End Agreement|nullable|date',
+            'rent_price' => 'required_if:status,New,Renew|nullable|numeric|min:0',
+            'term_type'  => 'required_if:status,New,Renew|nullable|string',
+            'security_deposit'  => 'nullable|numeric|min:0',
+            'utilities_deposit' => 'nullable|numeric|min:0',
+        ]);
+
+        // 2. 预提取旧租约 (仅 Renew/Check Out/End)
+        $oldLease = null;
+        if ($validated['status'] !== 'New') {
+            $oldLease = Lease::findOrFail($validated['lease_id']);
+        }
+
+        if ($validated['status'] === 'Renew' && $oldLease) {
+            $request->validate([
+                // 这里的 start_date 必须在旧租约的 end_date 之后（或者当天，取决于你的业务）
+                // 如果要求必须是之后的一天，用 after
+                // 如果允许衔接当天，用 after_or_equal
+                'start_date' => [
+                    'required',
+                    'date',
+                    'after_or_equal:' . $oldLease->end_date->format('Y-m-d'),
+                ],
+            ], [
+                'start_date.after_or_equal' => 'Your start date must be after or equal (' . $oldLease->end_date->format('d/m/Y') . ')',
+            ]);
+        }
+
+        // 3. 确定物理属性 (房产信息和租客)
+        if ($validated['status'] === 'New') {
+            // 使用 request() 配合 ?? null，可以防止 "Undefined array key" 报错
+            $leasableId = match ($validated['lease_selection']) {
+                'property' => $request->property_id ?? null,
+                'unit'     => $request->unit_id ?? null,
+                'room'     => $request->room_id ?? null,
+            };
+
+            // 严谨起见，检查一下是否真的拿到了 ID
+            if (!$leasableId) {
+                return back()->withErrors(['lease_selection' => 'Please select a valid property/unit/room.'])->withInput();
+            }
+
+            $leasableType = match ($validated['lease_selection']) {
+                'property' => Property::class,
+                'unit'     => Unit::class,
+                'room'     => Room::class,
+            };
+            
+            $tenantId = $validated['tenant_id']; 
+        } else {
+            // Renew/Check Out 模式：直接从旧记录继承
+            $leasableId   = $oldLease->leasable_id;
+            $leasableType = $oldLease->leasable_type;
+            $tenantId     = $oldLease->tenant_id;
+        }
+
+
+
+        // 4. 金额计算 (转为 Cents)
+        $sDep = $validated['security_deposit'] ?? 0;
+        $uDep = $validated['utilities_deposit'] ?? 0;
+
+        $depositMode = 'none';
+        if ($sDep > 0 && $uDep > 0) $depositMode = 'both';
+        elseif ($sDep > 0) $depositMode = 'security_only';
+        elseif ($uDep > 0) $depositMode = 'utilities_only';
+
+        // 5. 执行数据库事务
+        DB::transaction(function () use ($validated, $oldLease, $leasableType, $leasableId, $tenantId, $sDep, $uDep, $depositMode) {
+            
+            if ($oldLease) {
+                $oldLease->update(['is_current' => false]);
+            }
+
+            // 更新物理状态
+            $targetRoomStatus = match ($validated['status']) {
+                'Check Out'     => 'Cleaning',
+                'End Agreement' => 'Vacant',
+                default         => 'Occupied', 
+            };
+            $leasableType::where('id', $leasableId)->update(['status' => $targetRoomStatus]);
+
+            // 创建新记录
+            Lease::create([
+                'parent_lease_id'   => $oldLease?->id,
+                'is_current'        => true, 
+                'leasable_type'     => $leasableType,
+                'leasable_id'       => $leasableId,
+                'tenant_id'         => $tenantId,
+                'start_date'        => in_array($validated['status'], ['New', 'Renew']) 
+                                       ? $validated['start_date'] 
+                                       : $oldLease?->start_date,
+                'end_date'          => in_array($validated['status'], ['New', 'Renew']) 
+                                        ? $validated['end_date'] 
+                                        : $oldLease?->end_date,
+                'checked_out_at'    => $validated['status'] === 'Check Out' ? $validated['checked_out_at'] : null,
+                'agreement_ended_at'=> $validated['status'] === 'End Agreement' ? $validated['agreement_ended_at'] : null,
+                'term_type'         => $validated['term_type'] ?? $oldLease?->term_type,
+                // 注意：rent_price 如果是 New/Renew 应该用输入的，如果是 CheckOut 建议保留旧的
+                'rent_price'        => ($validated['status'] === 'New' || $validated['status'] === 'Renew') 
+                                ? ($validated['rent_price'] ?? 0) 
+                                : ($oldLease?->rent_price ?? 0),
+                'deposit_mode'      => $depositMode,
+                'security_deposit'  => $sDep,
+                'utilities_deposit' => $uDep,
+                'status'            => $validated['status'],
+            ]);
+        });
+
+        return redirect()->route('admin.leases.index')->with('success', 'Operation completed successfully.');
+    }
+
+    /*public function store(Request $request)
     {
         $statusInput = $request->input('status');
         $isFinal = in_array($statusInput, ['Check out', 'End'], true);
@@ -292,18 +482,73 @@ class LeaseController extends Controller
         return redirect()
             ->route('admin.leases.index')
             ->with('success', 'Lease created successfully.');
-    }
+    }*/
 
-    public function show(Lease $lease)
+    public function show(Request $request, Lease $lease)
     {
-        $lease->load([
-            'room.owner.user',
-            'room.assets',
-            'tenant.user',
-            'utilities',
-        ]);
+        // 如果是 AJAX 请求 (点击 Progression 切换)
+        if ($request->ajax()) {
+            $targetId = $request->get('lease_id');
+            // 查找特定的 Lease，确保它属于当前链条（安全起见）
+            $targetLease = Lease::findOrFail($targetId);
 
-        return view('adminSide.leases.show', compact('lease'));
+            $rentPayments = $targetLease->payments()
+                ->where('payment_type', 'rent')
+                ->where('status', '!=', 'void')
+                ->orderBy('period', 'desc')
+                ->latest()
+                ->paginate(5, ['*'], 'rent_page');
+
+            $otherPayments = $targetLease->payments()
+                ->where('payment_type', '!=', 'rent')
+                ->where('status', '!=', 'void')
+                ->latest()
+                ->paginate(5, ['*'], 'other_page');
+
+            // 返回专门的局部视图
+            return view('adminSide.tenants.payments.partial_overview', [
+                'lease' => $targetLease,
+                'rentPayments' => $rentPayments,
+                'otherPayments' => $otherPayments
+            ])->render();
+        }
+
+        // 加载当前租约需要的关联
+        $lease->load(['tenant.user', 'room.owner.user', 'room.assets', 'utilities']);
+
+        // --- 开始获取历史链条 ---
+        $leaseHistory = collect([$lease]); // 先把当前的放进去
+        $current = $lease;
+
+        // 只要有 parent_lease_id，就一直往上找
+        while ($current->parent_lease_id) {
+            $parent = Lease::with(['tenant.user', 'room'])->find($current->parent_lease_id);
+            if ($parent) {
+                $leaseHistory->push($parent);
+                $current = $parent;
+            } else {
+                break;
+            }
+        }
+
+        $rentPayments = $lease->payments()
+            ->where('payment_type', 'rent')
+            ->where('status', '!=', 'void')
+            ->orderBy('period', 'desc')
+            ->latest()
+            ->paginate(5, ['*'], 'rent_page');
+
+        // 2. 如果你还想显示其他类型的费用（比如押金、水电费）
+        $otherPayments = $lease->payments()
+            ->where('payment_type', '!=', 'rent')
+            ->where('status', '!=', 'void')
+            ->latest()
+            ->paginate(5, ['*'], 'other_page');
+
+        // 将结果按时间正序排列（从最老的到最新的）
+        $leaseHistory = $leaseHistory->reverse();
+
+        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'rentPayments', 'otherPayments'));
     }
 
     public function edit()
@@ -321,31 +566,6 @@ class LeaseController extends Controller
         abort(403);
     }
 
-    public function tenantSearch(Request $request)
-    {
-        $ic = trim((string) $request->query('ic', ''));
-        if ($ic === '') {
-            return response()->json([]);
-        }
-
-        $tenants = Tenants::with('user')
-            ->where('ic_number', 'like', '%' . $ic . '%')
-            ->orderBy('ic_number')
-            ->limit(10)
-            ->get()
-            ->map(function (Tenants $tenant) {
-                return [
-                    'id' => $tenant->id,
-                    'ic_number' => $tenant->ic_number,
-                    'name' => $tenant->user?->name,
-                    'email' => $tenant->user?->email,
-                ];
-            })
-            ->values();
-
-        return response()->json($tenants);
-    }
-
     private function toCents($value): int
     {
         $sanitized = preg_replace('/[^0-9.]/', '', (string) $value);
@@ -354,5 +574,107 @@ class LeaseController extends Controller
         }
 
         return (int) round(((float) $sanitized) * 100);
+    }
+
+    // LeaseController.php
+
+    public function getDetailsJson(Lease $lease)
+    {
+        // 获取历史记录（为了保持逻辑一致，虽然详情页可能只用 $lease）
+        // 这里建议只返回详情部分的 HTML
+        return view('admin.leases.partials.details-content', [
+            'lease' => $lease
+        ])->render();
+    }
+
+    public function uploadStamping(Request $request, Lease $lease)
+    {
+        $request->validate([
+            'stamping_reference_no' => 'required|string|max:100',
+            'stamping_cert' => 'required|mimes:pdf|max:2048',
+        ]);
+
+        if ($request->hasFile('stamping_cert')) {
+            // --- 优化点：删除旧文件 ---
+            if ($lease->stamping_cert_path && Storage::disk('local')->exists($lease->stamping_cert_path)) {
+                Storage::disk('local')->delete($lease->stamping_cert_path);
+            }
+
+            $path = $request->file('stamping_cert')->store('stamping_certs', 'local');
+
+            $lease->update([
+                'stamping_status' => true,
+                'stamping_cert_path' => $path,
+                'stamping_reference_no' => $request->stamping_reference_no,
+                'stamped_at' => now(),  
+            ]);
+            $lease->save(['validate' => false]);
+        }
+
+        return back()->with('success', 'Stamping uploaded successfully!');
+    }
+
+    public function viewCert(Lease $lease)
+    {
+        // 1. 确保数据库有路径记录
+        if (empty($lease->stamping_cert_path)) {
+            abort(404, 'No certificate path record.');
+        }
+
+        // 2. 获取文件的物理路径 (注意检查你的 store() 是存放在哪个目录)
+        // 如果你 store 时没指定 disk，默认在 storage/app/
+        $path = storage_path('app/private/' . $lease->stamping_cert_path);
+
+        if (!file_exists($path)) {
+            abort(404, 'File not found on server.');
+        }
+
+        // 3. 读取文件并转为 Base64
+        $fileContent = file_get_contents($path);
+        $base64 = base64_encode($fileContent);
+        $pdfData = 'data:application/pdf;base64,' . $base64;
+
+        // 4. 返回视图，并传入 pdfData 和 lease 对象
+        return view('adminSide.leases.view-cert', compact('pdfData', 'lease'));
+    }
+
+    public function getPaymentsTableOnly(Lease $lease) {
+        // 重新获取这个 Lease 的支付记录
+        $payments = $lease->payments()->latest()->get(); 
+        
+        // 渲染你那个不可改动的 table 文件
+        return view('your.table.path', [
+            'payments' => $payments,
+            'emptyMessage' => 'No records for this lease.'
+        ])->render(); // 使用 render() 转成字符串返回给前端
+    }
+
+    public function refreshPaymentsTable(Lease $lease)
+    {
+        // 1. 获取该 Lease 下的所有支付记录，并按类型分类
+        // 这里的逻辑最好和你原本 show 方法里的逻辑保持一致
+        $allPayments = $lease->payments()
+            ->where('status', '!=', 'void')
+            ->latest()->get();
+
+        $rentPayments = $allPayments->filter(fn($p) => in_array($p->payment_type, ['rent']));
+        $otherPayments = $allPayments->filter(fn($p) => !in_array($p->payment_type, ['rent']));
+
+        // 2. 渲染 Table 模板为 HTML 字符串
+        $rentHtml = view('adminSide.tenants.payments.paymentTable', [
+            'payments' => $rentPayments,
+            'emptyMessage' => 'No outstanding rent found.'
+        ])->render();
+
+        $otherHtml = view('adminSide.tenants.payments.paymentTable', [
+            'payments' => $otherPayments,
+            'emptyMessage' => 'No miscellaneous records found.'
+        ])->render();
+
+        // 3. 以 JSON 格式返回给前端
+        return response()->json([
+            'rentHtml' => $rentHtml,
+            'otherHtml' => $otherHtml
+        ]);
     }
 }

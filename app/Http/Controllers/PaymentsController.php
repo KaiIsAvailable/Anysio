@@ -45,60 +45,93 @@ class PaymentsController extends Controller
     // 参数直接改为 Lease $lease
     public function generateMonthlyInvoice(Lease $lease)
     {
-        // 1. 校验租约状态（双重保险）
+        // 1. 状态校验
         if (!in_array($lease->status, ['New', 'Renew'])) {
             return back()->with('error', 'This lease is not active.');
         }
 
-        // 2. 生成该租约期间所有的 [年-月] 列表
-        $startDate = Carbon::parse($lease->start_date)->startOfMonth();
-        $endDate = Carbon::parse($lease->end_date)->startOfMonth();
-        
-        $allMonths = [];
+        $termType = strtolower($lease->term_type); 
+        $startDate = Carbon::parse($lease->start_date)->startOfDay();
+        $endDate = Carbon::parse($lease->end_date)->startOfDay();
+
+        // 2. 生成该租约所有应收的周期 (Periods)
+        $allPeriods = [];
         $current = $startDate->copy();
+
         while ($current <= $endDate) {
-            $allMonths[] = $current->format('Y-m');
-            $current->addMonth();
+            // --- 核心逻辑：根据类型确定存入数据库的精确日期 ---
+            $storageDate = match($termType) {
+                'daily'   => $current->copy()->format('Y-m-d'),
+                'weekly'  => $current->copy()->format('Y-m-d'), // 存周起始日
+                'monthly' => $current->copy()->startOfMonth()->format('Y-m-d'), // 强制存 1 号
+                'yearly'  => $current->copy()->startOfYear()->format('Y-m-d'),  // 强制存 1 月 1 号
+                default   => $current->copy()->format('Y-m-d')
+            };
+
+            $allPeriods[] = [
+                'date' => $storageDate,
+                // key 用于精准查重，保持与 storageDate 一致即可
+                'key'  => $storageDate 
+            ];
+
+            // 步进：移动到下一个周期
+            match($termType) {
+                'daily'   => $current->addDay(),
+                'weekly'  => $current->addWeek(),
+                'monthly' => $current->addMonth(),
+                'yearly'  => $current->addYear(),
+                default   => $current->addMonth(),
+            };
         }
 
-        // 3. 只针对这个具体的 lease_id 检查已有的账单
-        $existingMonths = Payment::where('lease_id', $lease->id)
+        // 3. 找出所有已存在的账单 (只需查 period 字段)
+        $existingKeys = Payment::where('lease_id', $lease->id)
             ->where('payment_type', 'rent')
             ->where('status', '!=', 'void')
-            ->get()
-            ->map(fn($p) => Carbon::parse($p->period)->format('Y-m'))
+            ->pluck('period') // 直接获取 period 数组
+            ->map(fn($date) => Carbon::parse($date)->format('Y-m-d'))
             ->toArray();
 
-        // 4. 找出第一个缺的月份
-        $targetMonth = null;
-        foreach ($allMonths as $month) {
-            if (!in_array($month, $existingMonths)) {
-                $targetMonth = $month;
+        // 4. 寻找第一个还没生成的周期
+        $target = null;
+        foreach ($allPeriods as $p) {
+            if (!in_array($p['key'], $existingKeys)) {
+                $target = $p;
                 break; 
             }
         }
 
-        // 5. 执行
-        if (!$targetMonth) {
-            return back()->with('error', 'All invoices for this specific lease have been generated.');
+        // 5. 如果没有找到，说明全出了
+        if (!$target) {
+            return back()->with('error', "All $termType invoices for this period have already been generated.");
         }
 
-        $targetPeriod = Carbon::parse($targetMonth . '-01'); 
+        // 6. 创建账单
+        $targetDate = Carbon::parse($target['date']);
         $newInvoiceNo = $this->generateSequenceInvoiceNo('RENT');
 
         Payment::create([
-            'id' => (string) Str::ulid(),
-            'tenant_id' => $lease->tenant_id, // 从 lease 自动获取租客 ID
-            'lease_id' => $lease->id,
-            'invoice_no' => $newInvoiceNo,
+            'id'           => (string) Str::ulid(),
+            'tenant_id'    => $lease->tenant_id,
+            'lease_id'     => $lease->id,
+            'invoice_no'   => $newInvoiceNo,
             'payment_type' => 'rent',
-            'period' => $targetPeriod->format('Y-m-d'),
-            'amount_due' => $lease->monthly_rent,
-            'amount_paid' => 0,
-            'status' => 'unpaid',
+            'period'       => $targetDate->format('Y-m-d'), // 这里存的就是 01号 或 01-01
+            'amount_due'   => (int) round($lease->rent_price * 100),
+            'amount_paid'  => 0,
+            'status'       => 'unpaid',
         ]);
 
-        return back()->with('success', 'Rent invoice for ' . $targetPeriod->format('M Y') . ' generated.');
+        // 7. 格式化提示语 (让用户看得舒服)
+        $msg = match($termType) {
+            'daily'   => $targetDate->format('d M Y'),
+            'weekly'  => $targetDate->format('d M Y') . ' (Weekly)',
+            'monthly' => $targetDate->format('M Y'),
+            'yearly'  => $targetDate->format('Y'),
+            default   => $targetDate->format('Y-m-d')
+        };
+
+        return back()->with('success', "Invoice for $msg generated successfully.");
     }
 
     public function storeManualInvoice(Request $request, Tenants $tenant)
@@ -162,17 +195,19 @@ class PaymentsController extends Controller
         }
 
         return DB::transaction(function () use ($payload, $payment) {
-            $paidCents = (int) round($payload['amount_paid'] * 100);
-            $dueCents = $payment->amount_due;
+            // 1. 转换输入为分
+            $totalInputCents = (int) round($payload['amount_paid'] * 100);
+            
+            // 2. 获取数据库里原始的“分” (避开 Model 的 get 转换)
+            $dueCents = $payment->getRawOriginal('amount_due'); 
 
-            $underPaid = 0;
-            $overPaid = 0;
+            $underPaidCents = 0;
+            $overPaidCents = 0;
+            $actualAppliedCents = $totalInputCents;
 
-            // 2. 处理欠收情况
-            if ($paidCents < $dueCents) {
-                $underPaid = $dueCents - $paidCents;
+            if ($totalInputCents < $dueCents) {
+                $underPaidCents = $dueCents - $totalInputCents;
                 
-                // 生成补缴单，关键点：period 保持不变，这样它会继续阻塞后续月份
                 Payment::create([
                     'id' => (string) Str::ulid(),
                     'tenant_id' => $payment->tenant_id,
@@ -180,44 +215,42 @@ class PaymentsController extends Controller
                     'invoice_no' => $this->generateSequenceInvoiceNo('RENT'), 
                     'payment_type' => 'Underpaid ' . $payment->invoice_no,
                     'period' => $payment->period, 
-                    'amount_due' => $underPaid,
+                    'amount_due' => $underPaidCents, // Model set: 转回 Cent
                     'amount_paid' => 0, 
                     'status' => 'unpaid',
                     'remarks' => 'Remaining balance from ' . $payment->invoice_no,
                 ]);
-            } elseif ($paidCents > $dueCents) {
-                $overPaid = $paidCents - $dueCents;
-                $paidCents = $dueCents; // 本张单只收它该收的部分
+            } 
+            // 3. 处理溢缴 (Overpaid)
+            elseif ($totalInputCents > $dueCents) {
+                $overPaidCents = $totalInputCents - $dueCents;
+                $actualAppliedCents = $dueCents;
 
-                // --- 核心：处理多出的钱 (Overpaid) ---
-                // 寻找该租客下一个“最接近”的未付账单
+                // 寻找下一期抵扣
                 $nextPayment = Payment::where('tenant_id', $payment->tenant_id)
                     ->where('status', 'unpaid')
-                    ->where('period', '>', $payment->period) // 必须是未来的账单
-                    ->orderBy('period', 'asc')              // 拿最近的一个
+                    ->where('period', '>', $payment->period)
+                    ->orderBy('period', 'asc')
                     ->first();
 
                 if ($nextPayment) {
-                    // 将溢出的钱从下一个账单的应付金额中扣除
-                    // 注意：这里要确保扣除后金额不为负数（如果多给的钱超过了下个月租金）
-                    $newAmountDue = max(0, $nextPayment->amount_due - $overPaid);
+                    // 注意：这里也要拿原始的分来减
+                    $nextDueCents = $nextPayment->getRawOriginal('amount_due');
+                    $newDueCents = max(0, $nextDueCents - $overPaidCents);
                     
                     $nextPayment->update([
-                        'amount_due' => $newAmountDue,
-                        'remarks' => $nextPayment->remarks . " | Deducted " . ($overPaid / 100) . " from previous overpayment (INV: {$payment->invoice_no})"
+                        'amount_due' => $newDueCents, // 存入扣减后的分
+                        'remarks' => $nextPayment->remarks . " | Deducted RM" . ($overPaidCents / 100)
                     ]);
-
-                    // 如果溢缴款非常大，连下个月都扣完了，多出的部分可以在这里继续循环处理，
-                    // 或者暂时存入租客的账户余额字段（如果有的话）。
                 }
-            }
+    }
 
-            // 3. 更新当前账单状态
+            // 4. 更新当前账单
             $payment->update([
-                'amount_paid' => $paidCents,
-                'amount_under_paid' => $underPaid,
-                'amount_over_paid' => $overPaid,
-                'status' => 'paid', // 只要处理了，这张旧单就标记为 paid
+                'amount_paid' => $actualAppliedCents,    // Model set: 转回 Cent
+                'amount_under_paid' => $underPaidCents,  // Model set: 转回 Cent
+                'amount_over_paid' => $overPaidCents,    // Model set: 转回 Cent
+                'status' => 'paid',
                 'payment_date' => $payload['payment_date'],
                 'received_via' => $payload['received_via'],
                 'transaction_ref' => $payload['transaction_ref'],
@@ -226,7 +259,7 @@ class PaymentsController extends Controller
                 'approved_at' => now(),
             ]);
 
-            return back()->with('success', 'Payment recorded and balance updated.');
+            return back()->with('success', 'Payment recorded.');
         });
     }
 

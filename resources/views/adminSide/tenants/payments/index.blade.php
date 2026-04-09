@@ -1,6 +1,19 @@
-@include('adminSide.tenants.payments.makePayment')
 <x-app-layout>
-    <div class="py-12 bg-gray-50 min-h-screen font-sans">
+    <div x-data="{ 
+            openPayment: false, 
+            shakePayment: false,
+            paymentData: { id: '', invoiceNo: '', amountDue: 0, actionUrl: '' },
+            openMakePayment(data) {
+                this.paymentData = {
+                    id: data.id,
+                    invoiceNo: data.invoice_no,
+                    amountDue: data.amount_due,
+                    actionUrl: data.action
+                };
+                this.openPayment = true;
+            }
+         }" 
+         class="py-12 bg-gray-50 min-h-screen font-sans text-slate-900">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -61,9 +74,9 @@
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-slate-900 font-semibold">{{ number_format($payment->amount_due / 100, 2) }}</div>
+                                            <div class="text-sm text-slate-900 font-semibold">{{ number_format($payment->amount_due, 2) }}</div>
                                             @if($payment->amount_paid > 0)
-                                                <div class="text-[10px] text-green-600">Paid: {{ number_format($payment->amount_paid / 100, 2) }}</div>
+                                                <div class="text-[10px] text-green-600">Paid: {{ number_format($payment->amount_paid, 2) }}</div>
                                             @endif
                                         </td>
 
@@ -81,10 +94,16 @@
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex justify-center items-center gap-2">
                                                 @if($payment->status === 'unpaid')
-                                                    <button type="button" onclick="openPaymentModal(this)"
-                                                            data-url="{{ route('admin.payments.update', $payment->id) }}"
-                                                            data-invoice="{{ $payment->invoice_no }}"
-                                                            data-due="{{ $payment->amount_due / 100 }}"
+                                                    <button type="button" 
+                                                            {{-- 1. 改为 @click --}}
+                                                            {{-- 2. 函数名改为 openMakePayment --}}
+                                                            {{-- 3. 直接传数据对象 --}}
+                                                            @click="openMakePayment({
+                                                                id: '{{ $payment->id }}',
+                                                                invoice_no: '{{ $payment->invoice_no }}',
+                                                                amount_due: '{{ number_format($payment->amount_due, 2, '.', '') }}',
+                                                                action: '{{ route('admin.payments.update', $payment->id) }}'
+                                                            })"
                                                             class="inline-flex items-center justify-center p-2 text-emerald-600 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors shrink-0 leading-none" 
                                                             title="Pay Now">
                                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

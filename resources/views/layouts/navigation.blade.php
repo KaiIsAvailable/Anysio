@@ -76,6 +76,12 @@
                     </x-nav-link>
 
                     @can('owner-admin')
+                        <x-nav-link :href="route('admin.agreements.index')" :active="request()->routeIs('admin.agreements.*')">
+                            {{ __('Agreements') }}
+                        </x-nav-link>
+                    @endcan
+
+                    @can('owner-admin')
                         <x-nav-link :href="route('admin.customerService.index')" :active="request()->routeIs('admin.customerService.*')">
                             {{ __('Contact Us') }}
                         </x-nav-link>
@@ -113,6 +119,34 @@
                         <x-dropdown-link :href="route('profile.edit')">
                             {{ __('Profile') }}
                         </x-dropdown-link>
+
+                        @can('owner-admin')
+                            <div class="border-t border-gray-100"></div>
+
+                            <div x-data="{ openSetting: false }" class="relative"> 
+                                <div @click.stop="openSetting = !openSetting" 
+                                    class="flex items-center justify-between w-full px-4 py-2 text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none transition cursor-pointer">
+                                    <span>{{ __('Settings') }}</span>
+                                    <svg class="w-4 h-4 ml-1 text-gray-400 transition-transform duration-200" 
+                                        :class="openSetting ? 'rotate-90' : ''" 
+                                        fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+                                    </svg>
+                                </div>
+
+                                <div x-show="openSetting" 
+                                    x-cloak
+                                    x-transition:enter="transition ease-out duration-100"
+                                    x-transition:enter-start="opacity-0 transform scale-95"
+                                    x-transition:enter-end="opacity-100 transform scale-100"
+                                    class="bg-gray-50 border-l-4 border-indigo-400">
+                                    
+                                    <x-dropdown-link :href="route('admin.agreements.create')" class="pl-8 py-2 text-xs">
+                                        {{ __('+ Add Agreement') }}
+                                    </x-dropdown-link>
+                                </div>
+                            </div>
+                        @endcan
 
                         <!-- Authentication -->
                         <form method="POST" action="{{ route('logout') }}">

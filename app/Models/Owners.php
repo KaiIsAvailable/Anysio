@@ -34,8 +34,8 @@ class Owners extends Model
         return $this->hasMany(Room::class);
     }
 
-    public function agreementTemplates(): HasMany
+    public function agreements(): HasMany
     {
-        return $this->hasMany(AgreementTemplate::class);
+        return $this->hasMany(Agreements::class);
     }
 }

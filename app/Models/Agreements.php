@@ -6,18 +6,21 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-class AgreementTemplate extends Model
+class Agreements extends Model
 {
     use HasUlids;
 
     protected $fillable = [
         'owner_id',
-        'template_path',
-        'is_default',
+        'type',
+        'title',
+        'version',
+        'content',
+        'is_active',
     ];
 
     protected $casts = [
-        'is_default' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     public function owner(): BelongsTo

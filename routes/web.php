@@ -45,6 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/staffRoute.php';
         require __DIR__.'/userManagementRoute.php';
         require __DIR__.'/customerServiceRoute.php';
+        require __DIR__.'/agreementRoute.php';
 
         // --- 只有管理员 (owner-admin) 权限能进的路由 ---
         Route::middleware('can:owner-admin')->group(function () {

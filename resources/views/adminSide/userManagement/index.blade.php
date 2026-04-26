@@ -1,17 +1,8 @@
 <x-app-layout>
     <div class="py-12 bg-gray-50 min-h-screen font-sans">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            
-            {{-- 1. 反馈提示区域 (新增) --}}
-            @if(session('success'))
-                <x-alert type="success" :message="session('success')" />
-            @endif
-            @if(session('error'))
-                <x-alert type="error" :message="session('error')" />
-            @endif
-            @if(session('status')) {{-- 处理 Store 方法返回的特殊状态 --}}
-                <x-alert type="success" :message="session('status')['message']" :details="'Email: '.session('status')['email']" />
-            @endif
+ 
+            <x-approve-payment :payment="$pendingPayment" />
 
             {{-- Header Section --}}
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -40,7 +31,7 @@
                     <div class="flex justify-end">
                         <form method="GET" action="{{ route('admin.userManagement.index') }}" class="flex items-stretch gap-2">
                             <div class="flex items-stretch relative">
-                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none z-10">
+                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                     <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                     </svg>

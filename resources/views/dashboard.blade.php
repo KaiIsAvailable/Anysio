@@ -19,7 +19,7 @@
                                     ->first();
                 
                 // 判断是否需要强制弹窗：状态是 pending 且不是 Admin (假设 Admin 角色叫 'admin')
-                $mustPay = ($userMgmt && $userMgmt->subscription_status === 'pending' && auth()->user()->role !== 'admin');
+                $mustPay = ($userMgmt && $userMgmt->subscription_status !== 'active' && auth()->user()->role !== 'admin');
             @endphp
 
             @if($mustPay)

@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\UserManagement;
+use App\Models\UserPayment;
 use App\Models\RefCodePackage; 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Auth;
 
 class UserManagementController extends Controller
 {
@@ -38,6 +40,12 @@ class UserManagementController extends Controller
                 'referrer_users.name as referrer_name'
             );
 
+        $pendingPayment = UserPayment::with('user') // 假设有关联
+            ->where('status', 'pending')
+            ->whereNotNull('attachment')
+            ->latest()
+            ->first();
+
         if ($request->filled('search')) {
             $search = $request->get('search');
             $query->where(function($q) use ($search) {
@@ -50,7 +58,7 @@ class UserManagementController extends Controller
         // 注意：latest() 里的字段要写全表名
         $userManagement = $query->orderBy('user_management.created_at', 'desc')->paginate(5);
         //dd($userManagement->toArray());
-        return view('adminSide.userManagement.index', compact('userManagement'));
+        return view('adminSide.userManagement.index', compact('userManagement', 'pendingPayment'));
     }
 
     /**
@@ -277,5 +285,65 @@ class UserManagementController extends Controller
             return redirect()->back()
                             ->with('error', 'Error: ' . $e->getMessage());
         }
+    }
+
+    public function displayReceipt($filename)
+    {
+        // 因为 $filename 现在是 "receipts/MuEX...png"
+        // storage_path('app/private') 后面直接接上这个 $filename 即可
+        $path = storage_path('app' . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . $filename);
+
+        if (!file_exists($path)) {
+            // 如果图片不显示，取消下面这一行的注释来检查生成的绝对路径是否正确
+            // dd($path); 
+            abort(404);
+        }
+
+        return response()->file($path);
+    }
+
+    // Approve 处理
+    public function approve(UserPayment $payment)
+    {
+        DB::transaction(function () use ($payment) {
+            // 1. 更新支付记录
+            $payment->update([
+                'status' => 'approved',
+                'approved_at' => now(),
+                'approved_by' => Auth::id(),
+            ]);
+
+            // 2. 更新用户的订阅状态
+            if ($payment->user->user_management) {
+                $payment->user->user_management->update([
+                    'subscription_status' => 'active',
+                    // 如果需要记录审批时间，也可以在这里加
+                ]);
+            }
+        });
+
+        // 这里可以触发发放订阅、发送通知给 User 的逻辑
+        
+        return back()->with('success', 'Payment for ' . $payment->user->name . ' approved successfully!');
+    }
+
+    // Reject 处理
+    public function reject(UserPayment $payment)
+    {
+        DB::transaction(function () use ($payment) {
+            $payment->update([
+                'status' => 'rejected',
+                'rejected_at' => now(),
+            ]);
+
+            if ($payment->user->user_management) {
+                $payment->user->user_management->update([
+                    'subscription_status' => 'inactive',
+                    // 如果需要记录审批时间，也可以在这里加
+                ]);
+            }
+        });
+
+        return back()->with('info', 'Payment proof has been rejected.');
     }
 }

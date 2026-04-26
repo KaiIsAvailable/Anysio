@@ -50,7 +50,8 @@ class Lease extends Model
 
     public function room(): BelongsTo
     {
-        return $this->belongsTo(Room::class);
+        // 强制让它指向 leasable_id
+        return $this->belongsTo(Room::class, 'leasable_id');
     }
 
     public function tenant(): BelongsTo

@@ -24,14 +24,35 @@
                         
                         <div class="space-y-4">
                             {{-- 1. Has Owner？ --}}
-                            <div>
-                                <label class="block text-sm font-bold text-slate-900 mb-1">Does this property has an owner?</label>
-                                <select name="has_owner" id="has_owner" onchange="toggleOwnerInput()" 
-                                        class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                    <option value="0" @selected(old('has_owner') == 0)>No</option>
-                                    <option value="1" @selected(old('has_owner') == 1)>Yes</option>
-                                </select>
-                            </div>
+                            @if($isOwnerAdmin)
+                                {{-- 信号为真：显示“锁定”模式 --}}
+                                @php $owner = $owners->first(); @endphp
+                                
+                                <div class="flex items-center p-4 bg-gray-50 border border-gray-200 rounded-2xl">
+                                    <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3 text-indigo-600">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm font-black text-slate-800">{{ $owner->user->name }}</p>
+                                        <p class="text-xs text-slate-500 uppercase tracking-tight">
+                                            {{ $owner->company_name ?? 'Individual Owner' }}
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <input type="hidden" name="owner_id" value="{{ $owner->id }}">
+                            @else
+                                <div>
+                                    <label class="block text-sm font-bold text-slate-900 mb-1">Does this property has an owner?</label>
+                                    <select name="has_owner" id="has_owner" onchange="toggleOwnerInput()" 
+                                            class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                        <option value="0" @selected(old('has_owner') == 0)>No</option>
+                                        <option value="1" @selected(old('has_owner') == 1)>Yes</option>
+                                    </select>
+                                </div>
+                            @endif
 
                             {{-- 2. Owner 选择器 (增加了一个 id="owner_input_wrapper") --}}
                             <div id="owner_input_wrapper" style="{{ old('has_owner') == 1 ? '' : 'display:none;' }}">

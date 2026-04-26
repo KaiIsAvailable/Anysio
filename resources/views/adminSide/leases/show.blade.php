@@ -34,7 +34,6 @@
     {{-- 1. 初始化数据，注意 activeId 加了单引号 --}}
     <div class="py-12 bg-gray-50 min-h-screen font-sans" 
         x-data="{ 
-            // --- Lease & History 逻辑 ---
             activeId: '{{ $lease->id }}',
             source: {{ $historyJson->isNotEmpty() ? $historyJson->toJson() : '{}' }},
             
@@ -42,58 +41,48 @@
                 return (this.source && this.activeId) ? (this.source[this.activeId] || {}) : {} 
             },
 
-            // --- Payment Modal 逻辑 ---
             openPayment: false, 
             shakePayment: false,
             paymentData: { id: '', invoice_no: '', amount_due: 0, actionUrl: '' },
 
-            // --- Manual Invoice 逻辑 ---
             openManual: false,
             manualActionUrl: '',
 
-            // --- Ajax 刷新表格函数 ---
-            async refreshTable() {
-                if (!this.activeId) return;
-                
-                const baseUrl = '{{ url('/') }}';
-                const url = `${baseUrl}/admin/leases/${this.activeId}/refresh-payments`;
-
-                try {
-                    const response = await fetch(url, {
-                        headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                    });
-                    
-                    if (!response.ok) throw new Error('Status: ' + response.status);
-                    const data = await response.json();
-                    
-                    const rentEl = document.getElementById('rent-payments-container');
-                    const otherEl = document.getElementById('other-payments-container');
-
-                    if (rentEl) rentEl.innerHTML = data.rentHtml;
-                    if (otherEl) otherEl.innerHTML = data.otherHtml;
-                    
-                } catch (e) {
-                    console.error('Table refresh failed:', e);
-                }
+            getManualInvoiceUrl() {
+                if (!this.activeId) return '#';
+                return `{{ url('admin/payments/store-manual') }}/${this.activeId}`;
             },
 
-            // --- 初始化 ---
-            init() {
-                console.log('Alpine Initialized. Source:', this.source);
+            // 修复点：将异步逻辑包装在一个普通函数里调用，或者使用 .then 链式调用
+            refreshTable() {
+                if (!this.activeId) return;
+                const url = `{{ url('/') }}/admin/leases/${this.activeId}/refresh-payments`;
 
-                // 监听 activeId 变化，自动刷新表格
+                fetch(url, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(response => {
+                    if (!response.ok) throw new Error('Status: ' + response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    const rentEl = document.getElementById('rent-payments-container');
+                    const otherEl = document.getElementById('other-payments-container');
+                    if (rentEl) rentEl.innerHTML = data.rentHtml;
+                    if (otherEl) otherEl.innerHTML = data.otherHtml;
+                })
+                .catch(e => console.error('Table refresh failed:', e));
+            },
+
+            init() {
                 this.$watch('activeId', (newVal) => {
-                    if (newVal) {
-                        this.refreshTable();
-                    }
+                    if (newVal) this.refreshTable();
                 });
             }
         }"
-        @open-payment.window="
-            paymentData = $event.detail;
-            manualActionUrl = $event.detail.action;
-            openPayment = true;
-        ">
+        @open-payment.window="paymentData = $event.detail; openPayment = true;"
+        @open-manual-modal.window="openManual = true; manualActionUrl = $event.detail.action;"
+    >
         
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <a href="{{ route('admin.leases.index') }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center transition-colors">
@@ -284,10 +273,18 @@
                         <div class="flex items-center gap-2">
                             {{-- Add Manual Invoice 按钮 --}}
                             <button type="button" 
-                                    @click.stop="$dispatch('open-manual-modal', { action: '{{ route('admin.payments.storeManualInvoice', $lease->tenant_id) }}' })"
-                                    class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
+                                {{-- 关键：确保 $lease->tenant 存在再生成路由，否则传 null --}}
+                                @click="$dispatch('open-manual-modal', { 
+                                    action: '{{ route('admin.payments.storeManualInvoice', $lease->tenant_id) }}' 
+                                })"
+                                class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                </svg>
                                 Add Manual Invoice
                             </button>
+
+                            <x-manual-invoice-modal />
 
                             <form action="{{ route('admin.payments.generateMonthlyInvoice', $lease->id) }}" method="POST" class="inline-block">
                                 @csrf

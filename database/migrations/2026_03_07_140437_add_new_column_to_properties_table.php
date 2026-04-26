@@ -33,6 +33,17 @@ return new class extends Migration
                 $table->string('status')->default('Vacant')->after('owner_id')->index();
             }
         });
+
+        Schema::table('properties', function (Blueprint $table) {
+            // 1. 处理字段
+            if (!Schema::hasColumn('properties', 'created_by')) {
+                $table->foreignUlid('created_by')
+                    ->after('id')
+                    ->nullable()
+                    ->constrained('users')
+                    ->nullOnDelete();
+            }
+        });
     }
 
     public function down(): void

@@ -12,6 +12,7 @@ use App\Models\Owners;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Auth;
 
 class UnitController extends Controller
 {
@@ -119,6 +120,7 @@ class UnitController extends Controller
             $unit->status = $request->status;
             $unit->has_rooms = $request->has_rooms; 
             $unit->total_rooms = $request->has_rooms ? count($request->rooms) : 0;
+            $unit->created_by = Auth::id();
             $unit->save();
 
             // --- 步骤 2: 处理 Unit 级别的 Assets (Common Area) ---

@@ -24,6 +24,7 @@ class Unit extends Model
         'status',
         'has_rooms',
         'total_rooms',
+        'created_by',
     ];
 
     /**

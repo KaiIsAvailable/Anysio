@@ -28,6 +28,17 @@ return new class extends Migration
             }
             $table->integer('total_rooms')->default(0)->after('has_rooms');
         });
+
+        Schema::table('units', function (Blueprint $table) {
+            // 1. 处理字段
+            if (!Schema::hasColumn('units', 'created_by')) {
+                $table->foreignUlid('created_by')
+                    ->after('owner_id')
+                    ->nullable()
+                    ->constrained('users')
+                    ->nullOnDelete();
+            }
+        });
     }
 
     /**

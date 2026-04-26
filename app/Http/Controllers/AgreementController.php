@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 use App\Models\Owners;
 use App\Models\Agreements;
+use Illuminate\Support\Facades\Auth;
 
 use Illuminate\Http\Request;
 
@@ -35,10 +36,16 @@ class AgreementController extends Controller
     public function create()
     {
         // 1. 抓取所有房东数据，只需要 ID 和 Name 即可
+        $user = Auth::user();
+        $isOwnerAgentAdmin = false;
         $owners = Owners::with('user:id,name')->get(['id', 'user_id']);
 
+        if ($user->role === 'ownerAdmin' || $user->role === 'agentAdmin'){
+            $isOwnerAgentAdmin = true;
+        }
+
         // 2. 用 compact 把变量传给视图
-        return view('adminSide.setting.agreement.create', compact('owners'));
+        return view('adminSide.setting.agreement.create', compact('owners', 'isOwnerAgentAdmin'));
     }
 
     public function store(Request $request)

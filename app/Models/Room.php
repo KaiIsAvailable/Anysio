@@ -17,6 +17,7 @@ class Room extends Model
         'room_no',
         'room_type',
         'status',
+        'created_by',
     ];
 
     public function unit(): BelongsTo
@@ -32,8 +33,9 @@ class Room extends Model
                     ->withTimestamps();
     }
 
-    public function leases(): HasMany
-    {
-        return $this->hasMany(Lease::class);
-    }
+    public function leases()
+{
+    // 使用 morphMany 而不是 hasMany
+    return $this->morphMany(Lease::class, 'leasable');
+}
 }

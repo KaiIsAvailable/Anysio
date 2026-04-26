@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use App\Models\Property;
 use App\Models\Owners;
+use App\Models\UserManagement;
 use App\Models\Room;
 use App\Models\Unit;
 use Illuminate\Support\Facades\DB;
@@ -29,7 +30,7 @@ class PropertyController extends Controller
             ->pluck('property_id')
             ->unique();
 
-        if ($user->role === 'owner' || $user->role === 'ownerAdmin') {
+        if ($user->role === 'owner') {
             $accessiblePropertyIds = Unit::where('owner_id', $user->owner?->id)
                 ->pluck('property_id')
                 ->unique();
@@ -38,6 +39,10 @@ class PropertyController extends Controller
             $accessiblePropertyIds = Unit::whereIn('owner_id', $managedOwnerIds)
                 ->pluck('property_id')
                 ->unique();
+        } elseif ($user->role === 'ownerAdmin' || $user->role === 'agentAdmin') {
+            // 逻辑：查找 Property 表中所有由我创建的房产 ID
+            $accessiblePropertyIds = Property::where('created_by', Auth::id()) // 注意字段名是 create_by 还是 created_by
+                ->pluck('id'); // 这里拿主键 id
         }
         if (!Gate::allows('super-admin')) {
             $query->whereIn('id', $accessiblePropertyIds);
@@ -87,8 +92,22 @@ class PropertyController extends Controller
      */
     public function create()
     {
-        $owners = Owners::with('user')->get();
-        return view('adminSide.rooms.property.create', compact('owners')); 
+        $user = Auth::user();
+        
+        // 1. 判断身份
+        $isOwnerAdmin = ($user->role === 'ownerAdmin');
+
+        if ($isOwnerAdmin) {
+            $owners = UserManagement::where('user_id', $user->id)->with('user')->get();
+            if ($owners->isEmpty()) {
+                return redirect()->back()->with('error', 'Owner profile not found. Please contact admin.');
+            }
+        } else {
+            $owners = Owners::with('user')->get();
+        }
+
+        // 将 $isOwnerAdmin 传给 Blade
+        return view('adminSide.rooms.property.create', compact('owners', 'isOwnerAdmin')); 
     }
 
     /**
@@ -109,6 +128,7 @@ class PropertyController extends Controller
         if ($request->has_owner == 0) {
             $validated['owner_id'] = null;
         }
+        $validated['created_by'] = Auth::id();
 
         Property::create($validated);
 

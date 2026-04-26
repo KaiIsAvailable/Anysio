@@ -23,6 +23,7 @@ class Property extends Model
         'state',
         'type',
         'owner_id',
+        'created_by',
     ];
 
     public function units(): HasMany

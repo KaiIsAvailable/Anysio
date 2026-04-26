@@ -145,6 +145,7 @@ class RoomController extends Controller
                 'room_no'   => $data['room_no'],
                 'room_type' => $data['room_type'],
                 'status'    => $data['status'],
+                'created_by'=> Auth::id(),
             ]);
 
             // 3. 处理 Assets (仅处理数量大于 0 的)
@@ -175,21 +176,18 @@ class RoomController extends Controller
 
     public function show(Room $room)
     {
-        $room->load(['unit.property', 'unit.owner.user', 'assets', 'leases']);
+        // 1. 加载关联 (只要 Room 模型改了 morphMany，这里就生效了)
+        $room->load(['unit.property', 'unit.owner.user', 'assets', 'leases.tenant.user']);
+
         $property = $room->unit->property;
         $fullAddress = "{$property->address}, {$property->postcode} {$property->city}, {$property->state}";
 
-        $tenantsById = [];
-        if ($room->leases->count() > 0) {
-            $tenantIds = $room->leases->pluck('tenant_id')->filter()->unique()->values();
-            if ($tenantIds->count() > 0) {
-                $tenantsById = Tenants::with('user')
-                    ->whereIn('id', $tenantIds)
-                    ->get()
-                    ->keyBy('id')
-                    ->all();
-            }
-        }
+        // 2. 这里的逻辑优化：直接从加载好的 leases 里提取租客，不需要手动去查 Tenants 表
+        // 这样可以减少数据库查询次数 (Eager Loading)
+        $tenantsById = $room->leases->map(fn($lease) => $lease->tenant)
+                                    ->filter()
+                                    ->keyBy('id')
+                                    ->all();
 
         return view('adminSide.rooms.show', compact('room', 'tenantsById', 'fullAddress'));
     }

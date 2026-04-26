@@ -12,7 +12,7 @@
                             Back to Leases List
                         </a>
                     </nav>
-                    <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Create Lease</h1>
+                    <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Lease Controller</h1>
                     <p class="mt-2 text-sm text-gray-500">Set up a new tenant lease with utilities.</p>
                 </div>
             </div>

@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Models\Payment;
 use App\Models\Tenants;
 use App\Models\Lease;
+use App\Models\UserPayment;
+use App\Models\UserManagement;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use \Illuminate\Validation\Rule;
@@ -12,6 +14,7 @@ use \Carbon\Carbon;
 use \Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Storage;
 
 class PaymentsController extends Controller
 {
@@ -20,10 +23,10 @@ class PaymentsController extends Controller
         $userId = Auth::id();
         $query = Payment::with(['tenant.user', 'lease.room']);
 
-        if (Gate::denies('super-admin')) {
-            // 嵌套三层 whereHas，顺着关系链摸到最深处的 user_id
-            $query->whereHas('lease.room.owner', function($q) use ($userId) {
-                $q->where('user_id', $userId);
+        if (!Gate::allows('super-admin')) {
+            // 关键：只要 tenant 表里的 created_by 是当前登录用户，就显示这条账单
+            $query->whereHas('tenant', function($q) use ($userId) {
+                $q->where('created_by', $userId);
             });
         }
 
@@ -300,5 +303,43 @@ class PaymentsController extends Controller
         // 返回格式：INV-类型-年月日-序号
         // 例如：INV-RENT-20260212-00001
         return "INV-{$type}-{$today}-{$nextNum}";
+    }
+
+    public function uploadProof(Request $request, $id)
+    {
+        // 1. 验证上传的文件
+        $request->validate([
+            'attachment' => 'required|image|mimes:jpg,jpeg,png|max:2048', // 最大 2MB
+            'transaction_ref' => 'nullable|string|max:255',
+        ]);
+
+        // 2. 找到对应的支付记录
+        $payment = UserPayment::findOrFail($id);
+
+        // 3. 处理文件上传
+        if ($request->hasFile('attachment')) {
+            // 如果之前有旧图，可以先删掉（选做）
+            if ($payment->attachment) {
+                // 如果之前存的是 local，这里也要指定 local
+                Storage::disk('local')->delete($payment->attachment);
+            }
+
+            // 存入 storage/app/receipts (不可直接外网访问)
+            $path = $request->file('attachment')->store('receipts', 'local');
+
+            // 4. 更新支付表记录
+            $payment->update([
+                'attachment' => $path,
+                'transaction_ref' => $request->transaction_ref ?? 'N/A',
+                'status' => 'pending', // 支付记录设为待审核
+            ]);
+
+            // 5. 确保 UserManagement 表也是 pending 状态（触发 Dashboard 的弹窗）
+            UserManagement::where('user_id', $payment->user_id)->update([
+                'subscription_status' => 'pending'
+            ]);
+        }
+
+        return back()->with('success', 'Receipt uploaded! Please wait for admin approval.');
     }
 }

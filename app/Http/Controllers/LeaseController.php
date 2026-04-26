@@ -37,11 +37,20 @@ class LeaseController extends Controller
 
         // 2. 权限过滤：如果不是 super-admin，只能看自己拥有的资源
         // 这里需要根据你的业务逻辑调整，如果不同模型的 owner 字段不一样，可能需要更复杂的判断
-        if (Gate::denies('super-admin')) {
-            $query->whereHasMorph('leasable', ['Room', 'Unit', 'Property'], function($q) use ($userId) {
-                // 假设这些模型都有 owner 关联，且 owner 表有 user_id
-                $q->whereHas('owner', function($oq) use ($userId) {
-                    $oq->where('user_id', $userId);
+        if (!Gate::allows('super-admin')) {
+            $query->where(function ($q) use ($userId) {
+                // A: 基于多态资源的归属权 (你原有的逻辑)
+                $q->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($userId) {
+                    if ($type === Room::class) {
+                        $mq->whereHas('unit.owner', fn($oq) => $oq->where('user_id', $userId));
+                    } else {
+                        $mq->whereHas('owner', fn($oq) => $oq->where('user_id', $userId));
+                    }
+                })
+                // B: 或者基于租户的创建者 (你新要求的逻辑)
+                // 只要满足其中一个条件，就能看到该租约
+                ->orWhereHas('tenant', function ($tq) use ($userId) {
+                    $tq->where('created_by', $userId);
                 });
             });
         }
@@ -90,19 +99,16 @@ class LeaseController extends Controller
         $user = Auth::user();
         
         $authFilter = function ($query) use ($user) {
-            if ($user->role === 'ownerAdmin') {
-                $query->where('user_id', $user->id);
-            } elseif ($user->role === 'agentAdmin') {
-                $query->where('agent_id', $user->id);
+            if ($user->role === 'ownerAdmin' || $user->role === 'agentAdmin') {
+                // 直接匹配 created_by 字段
+                $query->where('created_by', $user->id);
             }
         };
 
         $properties = Property::with(['owner.user'])
-        ->where('status', 'Vacant')
-        ->when($user->role !== 'admin', function ($q) use ($authFilter) {
-            $q->whereHas('owner', $authFilter);
-        })
-        ->get();
+            ->where('status', 'Vacant')
+            ->when($user->role !== 'admin', $authFilter)
+            ->get();
 
         $units = Unit::with(['owner.user'])
         ->where('status', 'Vacant')

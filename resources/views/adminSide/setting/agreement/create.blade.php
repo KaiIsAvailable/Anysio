@@ -21,9 +21,12 @@
                             <label for="type" class="block text-sm font-semibold text-gray-700">Agreement Type</label>
                             <select name="type" id="type" x-model="agreementType" required 
                                     class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                <option value="tos">Register T&C (Terms of Service)</option>
-                                <option value="privacy">Register Privacy Policy</option>
-                                <option value="rental_lease">Lease Agreement (For Owners)</option>
+                                @if ($isOwnerAgentAdmin === false)
+                                    <option value="tos">Register T&C (Terms of Service)</option>
+                                    <option value="privacy">Register Privacy Policy</option>
+                                @else
+                                    <option value="rental_lease">Lease Agreement</option>
+                                @endif
                             </select>
                             <p class="mt-2 text-xs text-gray-500 italic">Select the category of this document.</p>
                             @error('type') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror

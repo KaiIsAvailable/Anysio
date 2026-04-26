@@ -30,6 +30,17 @@ return new class extends Migration
                 $table->string('status')->default('Vacant')->after('unit_id')->index();
             }
         });
+
+        Schema::table('rooms', function (Blueprint $table) {
+            // 1. 处理字段
+            if (!Schema::hasColumn('rooms', 'created_by')) {
+                $table->foreignUlid('created_by')
+                    ->after('unit_id')
+                    ->nullable()
+                    ->constrained('users')
+                    ->nullOnDelete();
+            }
+        });
     }
 
     public function down(): void

@@ -34,9 +34,9 @@ class TenantsController extends Controller
                         ->where('status', 'active');
 
         // --- 权限范围过滤重构 ---
-        if (in_array($user->role, ['agent', 'agentAdmin'])) {
+        if (in_array($user->role, ['agent', 'agentAdmin', 'ownerAdmin'])) {
             $query->where('created_by', $user->id);
-        } elseif ($user->role === 'owner') {
+        } elseif ($user->role === ['owner']) {
             $query->where('owner_id', $user->id);
         }
         // ----------------------------

@@ -17,19 +17,25 @@
         </div>
 
         <!-- Role Selection -->
-        <div class="mt-4" x-data="{ role: '', hasAgent: '' }">
+        <div class="mt-4" x-data="{ 
+            role: '{{ old('role', '') }}', 
+            hasAgent: '{{ old('has_agent', '') }}' 
+        }">
             <x-input-label :value="__('I am a...')" />
             <div class="flex gap-4 mt-2">
                 <label class="flex items-center">
-                    <input type="radio" name="role" value="owner" x-model="role" class="text-indigo-600 focus:ring-indigo-500" required>
+                    <input type="radio" name="role" value="owner" x-model="role" 
+                        class="text-indigo-600 focus:ring-indigo-500" required>
                     <span class="ml-2 text-sm text-gray-600">Owner</span>
                 </label>
                 <label class="flex items-center">
-                    <input type="radio" name="role" value="tenant" x-model="role" class="text-indigo-600 focus:ring-indigo-500">
+                    <input type="radio" name="role" value="tenant" x-model="role" 
+                        class="text-indigo-600 focus:ring-indigo-500">
                     <span class="ml-2 text-sm text-gray-600">Tenant</span>
                 </label>
                 <label class="flex items-center">
-                    <input type="radio" name="role" value="agent" x-model="role" class="text-indigo-600 focus:ring-indigo-500">
+                    <input type="radio" name="role" value="agent" x-model="role" 
+                        class="text-indigo-600 focus:ring-indigo-500">
                     <span class="ml-2 text-sm text-gray-600">Agent</span>
                 </label>
             </div>
@@ -49,8 +55,19 @@
             </div>
             
             <x-input-error :messages="$errors->get('role')" class="mt-2" />
+            <x-input-error :messages="$errors->get('has_agent')" class="mt-2" />
             <x-input-error :messages="$errors->get('ic')" class="mt-2" />
             <x-input-error :messages="$errors->get('tenant_ic')" class="mt-2" />
+
+            <div x-show="(role === 'owner' && hasAgent === 'no') || role === 'agent'" 
+                x-transition 
+                x-cloak
+                class="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                <x-input-label for="ref_code" :value="__('Reference Code (Optional)')" />
+                <x-text-input id="ref_code" class="block mt-1 w-full border-indigo-200" type="text" name="ref_code" :value="old('ref_code')" placeholder="e.g. ANYSIO-REF" />
+                <p class="mt-1 text-xs text-indigo-600 italic">If you have a referral code from our partners, enter it here.</p>
+                <x-input-error :messages="$errors->get('ref_code')" class="mt-2" />
+            </div>
 
             <div x-show="role === 'owner' && hasAgent === 'yes'" x-transition class="mt-4">
                 <x-input-label for="ic" :value="__('IC Number')" />

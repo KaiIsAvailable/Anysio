@@ -24,6 +24,17 @@ class Owners extends Model
         'email_verify_at' => 'datetime',
     ];
 
+    public function owner()
+    {
+        return $this->unit()->with('owner'); 
+    }
+
+    public function leases()
+    {
+        // 通过 rooms 找到所有的 leases
+        return $this->hasManyThrough(Lease::class, Room::class, 'owner_id', 'leasable_id');
+    }
+
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);

@@ -25,6 +25,12 @@ class Room extends Model
         return $this->belongsTo(Unit::class, 'unit_id');
     }
 
+    public function owner()
+    {
+        // 假设 Unit 模型里有 owner_id 或者关联了 Owner
+        return $this->unit->owner(); 
+    }
+
     public function assets(): BelongsToMany
     {
         // 关联 Asset 字典表，指定中间表为 asset_room
@@ -34,8 +40,8 @@ class Room extends Model
     }
 
     public function leases()
-{
-    // 使用 morphMany 而不是 hasMany
-    return $this->morphMany(Lease::class, 'leasable');
-}
+    {
+        // 使用 morphMany 而不是 hasMany
+        return $this->morphMany(Lease::class, 'leasable');
+    }
 }

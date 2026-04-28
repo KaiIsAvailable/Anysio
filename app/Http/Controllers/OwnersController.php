@@ -171,42 +171,56 @@ class OwnersController extends Controller
 
     public function dashboard()
     {
-        $User_id = Auth::user()->id;
+        $user = Auth::user();
 
-        // Use ->count() to get a single number for each
-        $ownersCount = Owners::where('user_id', $User_id)->count();
+        // 先找到当前登录用户对应的 Owner 业务记录
+        $ownerProfile = Owners::where('user_id', $user->id)->first();
 
-        $tenantsCount = Tenants::whereHas('leases.room.owner', function ($query) use ($User_id) {
-            $query->where('user_id', $User_id);
+        // 如果该用户甚至不是一个登记的业主，直接返回 0
+        if (!$ownerProfile) {
+            return view('adminSide.owners.dashboard', [
+                'ownersCount' => 0, 'tenantsCount' => 0, 'roomsCount' => 0, 
+                'leasesCount' => 0, 'roomStatusStats' => collect(), 'payments' => collect()
+            ]);
+        }
+
+        $owner_id = $ownerProfile->id; // 获取 Owners 表的 ULID
+
+        // 1. 统计租客 (通过房间的 owner_id 匹配)
+        $tenantsCount = Tenants::whereHas('leases.room', function ($query) use ($owner_id) {
+            $query->where('owner_id', $owner_id);
         })->count();
 
-        $roomsCount = Room::whereHas('owner', function ($query) use ($User_id) {
-            $query->where('user_id', $User_id);
+        // 2. 统计房间
+        $roomsCount = Room::whereHas('unit', function ($query) use ($owner_id) {
+            $query->where('owner_id', $owner_id);
         })->count();
 
-        $leasesCount = Lease::whereHas('room.owner', function ($query) use ($User_id) {
-            $query->where('user_id', $User_id);
+        // 3. 统计租约
+        $leasesCount = Lease::whereHas('room.unit', function ($query) use ($owner_id) {
+            $query->where('owner_id', $owner_id);
         })->count();
 
-        // Data for the Pie Chart (Grouping by room status)
-        $roomStatusStats = Room::whereHas('owner', function ($query) use ($User_id) {
-                $query->where('user_id', $User_id);
-            })
-            ->select('status', DB::raw('count(*) as total'))
-            ->groupBy('status')
-            ->pluck('total', 'status'); 
+        // 4. 饼图：房间状态
+        $roomStatusStats = Room::whereHas('unit', function ($query) use ($owner_id) {
+            $query->where('owner_id', $owner_id);
+        })
+        ->select('status', DB::raw('count(*) as total'))
+        ->groupBy('status')
+        ->pluck('total', 'status');
 
+        // 5. 支付动态
         $payments = Payment::with('tenant')
-            ->whereHas('tenant.owner', function ($query) use ($User_id) {
-                $query->where('user_id', $User_id);
+            ->whereHas('tenant.leases.room', function ($query) use ($owner_id) {
+                $query->where('owner_id', $owner_id);
             })
-        ->whereDate('created_at', now()->today()) 
-        ->latest()
-        ->limit(5)
-        ->get();
+            ->whereDate('created_at', now())
+            ->latest()
+            ->limit(5)
+            ->get();
 
         return view('adminSide.owners.dashboard', compact(
-            'ownersCount', 'tenantsCount', 'roomsCount', 'leasesCount', 'roomStatusStats', 'payments'
+            'tenantsCount', 'roomsCount', 'leasesCount', 'roomStatusStats', 'payments'
         ));
     }
 }

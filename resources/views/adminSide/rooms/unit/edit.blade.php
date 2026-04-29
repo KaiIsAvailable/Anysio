@@ -142,7 +142,7 @@
                             </div>
                         </div>
                     </section>
-
+                    
                     {{-- 操作按钮 --}}
                     <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">
                         <a href="{{ route('admin.properties.show', $targetProperty->id) }}" class="px-6 py-2 text-slate-700 font-bold border rounded-lg hover:bg-gray-50">Cancel</a>

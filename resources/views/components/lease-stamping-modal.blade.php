@@ -54,7 +54,7 @@
                             Reference Number (Adjudication No)
                         </label>
                         <input type="text" name="stamping_reference_no" required 
-                               :value="activeLease.stamping_reference_no"
+                               :value="activeLease?.stamping_reference_no || ''"
                                placeholder="e.g. J1234567890"
                                class="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all placeholder:text-gray-300">
                     </div>

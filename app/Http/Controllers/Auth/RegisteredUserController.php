@@ -59,8 +59,8 @@ class RegisteredUserController extends Controller
             'terms' => ['accepted'],
         ]);
 
-        $latestTos = Agreements::where('type', 'tos')->where('is_active', true)->latest()->first();
-        $latestPrivacy = Agreements::where('type', 'privacy')->where('is_active', true)->latest()->first();
+        $latestTos = Agreements::where('type', 'tos')->where('status', 'active')->latest()->first();
+        $latestPrivacy = Agreements::where('type', 'privacy')->where('status', 'active')->latest()->first();
 
         return DB::transaction(function () use ($request, $latestTos, $latestPrivacy) {
             $user = null;

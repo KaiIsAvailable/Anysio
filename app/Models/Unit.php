@@ -56,4 +56,8 @@ class Unit extends Model
         // 假设你的中间表模型是 RoomAsset
         return $this->hasMany(RoomAsset::class, 'unit_id');
     }
+
+    public function getFullAddressAttribute() {
+        return $this->property ? $this->property->full_address : 'N/A';
+    }
 }

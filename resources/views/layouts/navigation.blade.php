@@ -65,7 +65,7 @@
                         {{ __('Rooms') }}
                     </x-nav-link>-->
 
-                    <x-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*')">
+                    <x-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*', 'admin.agreements.*')">
                         {{ __('Leases') }}
                     </x-nav-link>
 
@@ -77,11 +77,11 @@
                         {{ __('Maintenance') }}
                     </x-nav-link>-->
 
-                    @can('owner-admin')
+                    <!--@can('owner-admin')
                         <x-nav-link :href="route('admin.agreements.index')" :active="request()->routeIs('admin.agreements.*')">
-                            {{ __('Agreements') }}
+                            {{ __('Agreement Templates') }}
                         </x-nav-link>
-                    @endcan
+                    @endcan-->
 
                     <!--<x-nav-link :href="route('admin.customerService.index')" :active="request()->routeIs('admin.customerService.*')">
                         {{ __('Contact Us') }}

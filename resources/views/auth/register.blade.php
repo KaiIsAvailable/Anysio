@@ -145,10 +145,12 @@
                                 
                                 <div x-show="activeTab === 'tos'">
                                     @php
-                                        $tos = \App\Models\Agreements::where('type', 'tos')->where('is_active', true)->latest()->first();
+                                        $tos = \App\Models\Agreements::where('type', 'tos')->where('status', 'active')->latest()->first();
                                     @endphp
                                     @if($tos)
-                                        {!! preg_replace("/(\r\n|\r|\n){3,}/", "\n\n", e($tos->content)) !!}
+                                        <div class="prose prose-indigo max-w-none quill-content"> {{-- 建议使用 Tailwind Typography 插件的 prose 类 --}}
+                                            {!! $tos->content !!}
+                                        </div>
                                     @else
                                         <p class="italic text-gray-400">Terms of Service content is being updated...</p>
                                     @endif
@@ -156,10 +158,12 @@
 
                                 <div x-show="activeTab === 'privacy'">
                                     @php
-                                        $privacy = \App\Models\Agreements::where('type', 'privacy')->where('is_active', true)->latest()->first();
+                                        $privacy = \App\Models\Agreements::where('type', 'privacy')->where('status', 'active')->latest()->first();
                                     @endphp
                                     @if($privacy)
-                                        {!! preg_replace("/(\r\n|\r|\n){3,}/", "\n\n", e($privacy->content)) !!}
+                                        <div class="prose prose-indigo max-w-none quill-content"> {{-- 建议使用 Tailwind Typography 插件的 prose 类 --}}
+                                            {!! $privacy->content !!}
+                                        </div>
                                     @else
                                         <p class="italic text-gray-400">Privacy Policy content is being updated...</p>
                                     @endif

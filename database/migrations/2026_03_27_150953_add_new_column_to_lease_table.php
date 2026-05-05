@@ -47,13 +47,17 @@ return new class extends Migration
 
                 if (!Schema::hasColumn('leases', 'stamping_status')) {
                     $table->boolean('stamping_status')->default(false)->after('agreement_ended_at')->index();
-                    
                     $table->string('stamping_cert_path')->nullable()->after('stamping_status');
-                    
-                    $table->string('stamping_reference_no')->nullable()->after('stamping_cert_path')
-                        ->comment('LHDN Adjudication Number / No. Penyelarasan');
-                        
+                    $table->string('stamping_reference_no')->nullable()->after('stamping_cert_path');
                     $table->timestamp('stamped_at')->nullable()->after('stamping_reference_no');
+                }
+
+                if(!Schema::hasColumn('leases', 'agreement_id')) {
+                    $table->foreignUlid('agreement_id')
+                          ->nullable()
+                          ->after('parent_lease_id')
+                          ->constrained('agreements')
+                          ->onDelete('set null');
                 }
                 
                 // 以后若需增加更多 Lease 相关字段，直接在此下方添加 if (!Schema::hasColumn...)

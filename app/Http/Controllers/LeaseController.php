@@ -7,6 +7,7 @@ use App\Models\Room;
 use App\Models\Unit;
 use App\Models\Property;
 use App\Models\Tenants;
+use App\Models\Agreements;
 use App\Models\Owners;
 use App\Models\Utility;
 use App\Models\Payment;
@@ -150,6 +151,12 @@ class LeaseController extends Controller
             })
             ->get();
 
+        $templates = Agreements::withTrashed() // 关键：包含已删除的数据
+            ->where('type', 'rental_lease')
+            ->where('status', 'active')
+
+            ->get();
+
         // 初始变量
         $selectedRoom = null; 
         $selectedTenant = null;
@@ -163,7 +170,8 @@ class LeaseController extends Controller
             'leases',
             'statuses',
             'selectedRoom', 
-            'selectedTenant'
+            'selectedTenant',
+            'templates'
         ));
     }
 
@@ -191,6 +199,7 @@ class LeaseController extends Controller
             'term_type'  => 'required_if:status,New,Renew|nullable|string',
             'security_deposit'  => 'nullable|numeric|min:0',
             'utilities_deposit' => 'nullable|numeric|min:0',
+            'agreement_id' => 'required',
         ]);
 
         // 2. 预提取旧租约 (仅 Renew/Check Out/End)
@@ -271,6 +280,7 @@ class LeaseController extends Controller
             // 创建新记录
             Lease::create([
                 'parent_lease_id'   => $oldLease?->id,
+                'agreement_id'      => $validated['agreement_id'],
                 'is_current'        => true, 
                 'leasable_type'     => $leasableType,
                 'leasable_id'       => $leasableId,
@@ -520,7 +530,18 @@ class LeaseController extends Controller
         }
 
         // 加载当前租约需要的关联
-        $lease->load(['tenant.user', 'room.owner.user', 'room.assets', 'utilities']);
+        $lease->load([
+            'tenant.user', 
+            'utilities',
+            'agreement', // 别忘了加载合同模板
+            'leasable' => function ($morphTo) {
+                $morphTo->morphWith([
+                    Room::class => ['owner.user', 'assets'],
+                    Unit::class => ['owner.user'],
+                    Property::class => ['owner.user'],
+                ]);
+            }
+        ]);
 
         // --- 开始获取历史链条 ---
         $leaseHistory = collect([$lease]); // 先把当前的放进去

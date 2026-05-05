@@ -10,6 +10,10 @@ return new class extends Migration
     {
         Schema::create('agreements', function (Blueprint $table) {
             $table->ulid('id')->primary();
+
+            // 添加 parent_agreement_id，放在 id 后面
+            $table->ulid('parent_agreement_id')->nullable()->index();
+            $table->foreign('parent_agreement_id')->references('id')->on('agreements')->onDelete('set null');
             
             // 房东 ID (可为空，为空代表是系统全局协议)
             $table->ulid('owner_id')->nullable()->index();
@@ -24,8 +28,9 @@ return new class extends Migration
             // 核心：存放带有 {owner_name} 等变量的固定文本
             $table->longText('content'); 
             
-            $table->boolean('is_active')->default(true);
-            $table->timestamps(); 
+            $table->string('status')->default('active')->index();
+            $table->timestamps();
+            $table->softDeletes();
         });
     }
 

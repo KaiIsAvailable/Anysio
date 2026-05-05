@@ -27,8 +27,15 @@ class Room extends Model
 
     public function owner()
     {
-        // 假设 Unit 模型里有 owner_id 或者关联了 Owner
-        return $this->unit->owner(); 
+        // 使用 HasOneThrough 建立从 Room 到 Owner 的“管道”
+        return $this->hasOneThrough(
+            Owners::class, 
+            Unit::class, 
+            'id',       // Unit 的主键
+            'id',       // Owner 的主键
+            'unit_id',  // Room 表里的外键
+            'owner_id'  // Unit 表里的外键
+        );
     }
 
     public function assets(): BelongsToMany
@@ -43,5 +50,11 @@ class Room extends Model
     {
         // 使用 morphMany 而不是 hasMany
         return $this->morphMany(Lease::class, 'leasable');
+    }
+
+    public function getFullAddressAttribute() {
+        return $this->unit && $this->unit->property 
+            ? $this->unit->property->full_address 
+            : 'N/A';
     }
 }

@@ -29,6 +29,11 @@ class Owners extends Model
         return $this->unit()->with('owner'); 
     }
 
+    public function properties(): HasMany
+    {
+        return $this->hasMany(Property::class, 'owner_id');
+    }
+
     public function leases()
     {
         // 通过 rooms 找到所有的 leases

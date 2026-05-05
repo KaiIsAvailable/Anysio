@@ -1,5 +1,6 @@
 <x-app-layout>
     <div class="py-12 bg-gray-50 min-h-screen font-sans">
+
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             {{-- Header --}}
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -8,6 +9,10 @@
                     <p class="mt-2 text-sm text-gray-500">Manage and review tenant leases.</p>
                 </div>
                 <div class="flex-shrink-0">
+                    <a href="{{ route('admin.agreements.index') }}"
+                       class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
+                        Agreement Templates
+                    </a>
                     <a href="{{ route('admin.leases.create') }}"
                        class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
                         Lease Controller
@@ -108,35 +113,101 @@
                                         </td>
                                         {{-- action --}}
                                         <td class="px-6 py-4" x-data="{ openUpload: false, shake: false }" @click.stop>
-    
-                                            {{-- 情况 A: 已经上传了证书 --}}
-                                            @if($lease->stamping_status)
-                                                <div class="flex items-center gap-2">
-                                                    <span class="p-1 bg-emerald-100 text-emerald-600 rounded-full">
-                                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                                                    </span>
-                                                    <a href="{{ route('admin.leases.view-cert', $lease->id) }}" 
-                                                    target="_blank" 
-                                                    class="text-xs font-bold text-indigo-600 hover:underline">
-                                                        View Cert
-                                                    </a>
+                                            <div class="flex flex-col gap-3"> {{-- 使用垂直容器包裹所有内容 --}}
+                                                
+                                                {{-- 第一部分：Stamping 状态区 --}}
+                                                <div class="min-h-[32px] flex items-center"> {{-- 固定最小高度防止跳动 --}}
+                                                    @if($lease->stamping_status)
+                                                        {{-- 情况 A: 已经上传了证书 --}}
+                                                        <div class="flex items-center gap-2">
+                                                            <span class="p-1 bg-emerald-100 text-emerald-600 rounded-full">
+                                                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
+                                                            </span>
+                                                            <a href="{{ route('admin.leases.view-cert', $lease->id) }}" 
+                                                            target="_blank" 
+                                                            class="text-xs font-bold text-emerald-600 hover:underline">
+                                                                View Cert
+                                                            </a>
+                                                        </div>
+
+                                                    @elseif(!in_array(strtolower($lease->status), ['check out', 'end agreement']))
+                                                        {{-- 情况 B: 还没上传且进行中 --}}
+                                                        <button @click="openUpload = true" 
+                                                                class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                                            UPLOAD STAMPING
+                                                        </button>
+
+                                                    @else
+                                                        {{-- 情况 C: 结束了 --}}
+                                                        <span class="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
+                                                            NO STAMPING NEEDED
+                                                        </span>
+                                                    @endif
                                                 </div>
 
-                                            {{-- 情况 B: 还没上传，且租约还在进行中 (不是 Check Out 或 End) --}}
-                                            @elseif(!in_array(strtolower($lease->status), ['check out', 'end agreement']))
-                                                <button @click="openUpload = true" 
-                                                        class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
-                                                    UPLOAD STAMPING
-                                                </button>
+                                                {{-- 第二部分：始终显示的 View Agreement 按钮 --}}
+                                                <div>
+                                                    @if (!empty($lease->agreement_id))
+                                                        <button type="button"
+                                                            {{-- 关键修复：属性名要和 JS 里的 baseContent 对应，或者 JS 里改用 dataset.content --}}
+                                                            data-base-content="{{ $lease->agreement?->content }}"
+                                                            data-title="{{ $lease->agreement?->title }}"
 
-                                            {{-- 情况 C: 租约已结束且没上传证书 (显示一个淡淡的提示或留空) --}}
-                                            @else
-                                                <span class="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
-                                                    NO STAMPING NEEDED
-                                                </span>
-                                            @endif
+                                                            {{-- 传递替换数据 --}}
+                                                            data-replacements="{{ json_encode([
+                                                                '{status}' => $lease->status ?? 'N/A',
+                                                                '{tenant_name}' => $lease->tenant?->user->name ?? 'N/A',
+                                                                '{tenant_ic}'   => $lease->tenant?->ic_number ?? 'N/A',
+                                                                '{owner_name}' => $lease->leasable?->owner?->user->name ?? 'N/A',
+                                                                '{owner_ic}'   => $lease->leasable?->owner?->ic_number ?? 'N/A',
+                                                                '{property_address}'   => $lease->leasable?->full_address ?? 'N/A',
+                                                                '{property_type}'   => $lease->leasableTypeLabel ?? 'N/A',
+                                                                '{property_name}'   => $lease->leasableName ?? 'N/A',
+                                                                '{rent_mode}'   => $lease->term_type ?? 'N/A',
+                                                                '{rent_price}'  => number_format($lease->rent_price, 2),
+                                                                '{deposit_mode}'  => $lease->deposit_mode ?? 'N/A',
+                                                                '{security_deposit}' => number_format($lease->security_deposit, 2),
+                                                                '{utilities_deposit}' => number_format($lease->utilities_deposit, 2),
+                                                                '{start_date}'  => $lease->start_date?->format('d/m/Y') ?? 'N/A',
+                                                                '{end_date}'    => $lease->end_date?->format('d/m/Y') ?? 'N/A',
+                                                                '{check_out_date}'    => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
+                                                                '{end_agreement_date}'    => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
+                                                            ]) }}"
 
-                                            {{-- 只有在需要上传的情况下才渲染 Modal，节省 DOM 资源 --}}
+                                                            @click="
+                                                                const btn = $el;
+                                                                let content = btn.dataset.baseContent; // 这里的 baseContent 对应 data-base-content
+                                                                
+                                                                if (!content) {
+                                                                    console.error('Agreement content is empty');
+                                                                    return;
+                                                                }
+
+                                                                const replacements = JSON.parse(btn.dataset.replacements);
+
+                                                                // 执行替换逻辑
+                                                                Object.keys(replacements).forEach(key => {
+                                                                    const val = replacements[key];
+                                                                    // 对 key 进行转义，防止 {} 影响正则
+                                                                    const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                                                                    content = content.replace(regex, `<span class='text-inherit font-semibold'>${val}</span>`);
+                                                                });
+
+                                                                // 发送给 Modal
+                                                                $dispatch('open-lease-preview', { 
+                                                                    content: content, 
+                                                                    title: btn.dataset.title 
+                                                                });
+                                                            "
+                                                            class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                                            VIEW AGREEMENT
+                                                        </button>
+                                                    @endif
+                                                </div>
+
+                                            </div>
+
+                                            {{-- Modal 只有在需要时渲染 --}}
                                             @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
                                                 <x-lease-stamping-modal :lease="$lease" />
                                             @endif
@@ -151,6 +222,8 @@
                         </div>
                     @endif
                 </div>
+
+                <x-preview-agreement-modal />
 
                 {{-- Pagination --}}
                 @if($leases && method_exists($leases, 'hasPages') && $leases->hasPages())

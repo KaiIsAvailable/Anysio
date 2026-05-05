@@ -10,6 +10,7 @@ export default defineConfig({
                 'resources/js/userManagement.js',
                 'resources/js/tenants.js',
                 'resources/js/room.js',
+                'resources/js/agreementPreview.js',
             ],
             
             refresh: true,

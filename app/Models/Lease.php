@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Casts\Attribute;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Lease extends Model
 {
@@ -19,6 +20,7 @@ class Lease extends Model
         'leasable_type',
         'leasable_id',
         'parent_lease_id',
+        'agreement_id',
         'is_current',
         'tenant_id',
         'start_date',
@@ -50,8 +52,7 @@ class Lease extends Model
 
     public function room(): BelongsTo
     {
-        // 强制让它指向 leasable_id
-        return $this->belongsTo(Room::class, 'leasable_id');
+        return $this->belongsTo(Tenants::class, 'leasable_id');
     }
 
     public function tenant(): BelongsTo
@@ -74,9 +75,49 @@ class Lease extends Model
         return $this->hasMany(Payment::class);
     }
 
+    public function agreement(): BelongsTo
+    {
+        // 参数 1: 关联的模型类名
+        // 参数 2: 你 Lease 表里的外键名 (agreement_id)
+        return $this->belongsTo(Agreements::class, 'agreement_id');
+    }
+
     public function leasable()
     {
         return $this->morphTo();
+    }
+
+    protected function leasableName(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                $model = $this->leasable;
+                if (!$model) return 'N/A';
+
+                // 根据不同的模型类名返回不同的字段
+                return match (get_class($model)) {
+                    \App\Models\Property::class => $model->name,
+                    \App\Models\Unit::class     => $model->unit_no,
+                    \App\Models\Room::class     => $model->room_no,
+                    default                     => 'Unknown',
+                };
+            },
+        );
+    }
+
+    /**
+     * 获取更易读的类型名称
+     */
+    protected function leasableTypeLabel(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => match ($this->leasable_type) {
+                \App\Models\Property::class => 'Property',
+                \App\Models\Unit::class     => 'Unit',
+                \App\Models\Room::class     => 'Room',
+                default                     => 'N/A',
+            },
+        );
     }
 
     protected function rentPrice(): Attribute

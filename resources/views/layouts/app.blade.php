@@ -10,11 +10,13 @@
 
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
-
+        <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet"> <!-- Quill Editor Styles -->
         <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
 
         <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
         <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+        <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script> <!-- Quill Editor Script -->
+        <script>window.currentUser = { name: "{{ auth()->user()->name }}" };</script>
 
         @vite([
             'resources/css/app.css',
@@ -22,6 +24,7 @@
             'resources/js/tenants.js', 
             'resources/js/userManagement.js',
             'resources/js/room.js',
+            'resources/js/agreementPreview.js',
         ])
         @stack('scripts')
     </head>

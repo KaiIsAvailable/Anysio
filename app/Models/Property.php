@@ -35,4 +35,14 @@ class Property extends Model
     {
         return $this->belongsTo(Owners::class, 'owner_id');
     }
+
+    public function getFullAddressAttribute()
+    {
+        // 使用 PHP 8.0+ 的方式，确保字段为空时不会有奇怪的逗号
+        return implode(', ', array_filter([
+            $this->address,
+            $this->postcode . ' ' . $this->city,
+            $this->state
+        ]));
+    }
 }

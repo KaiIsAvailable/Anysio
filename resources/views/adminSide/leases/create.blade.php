@@ -25,7 +25,8 @@
                         <div class="grid grid-cols-1 md:grid-cols-1 gap-6 mb-6">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Status</label>
-                                <select name="status" id="lease-status" onchange="toggleLeaseSelect()" class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                                <select name="status" id="lease-status" onchange="toggleLeaseSelect()" class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                                data-preview="{status}">
                                     <option value="New" {{ request('status') == 'New' ? 'selected' : '' }}>New</option>
                                     <option value="Renew" {{ request('status') == 'Renew' ? 'selected' : '' }}>Renew</option>
                                     <option value="Check Out" {{ request('status') == 'Check Out' ? 'selected' : '' }}>Check Out</option>
@@ -63,7 +64,7 @@
                                                 N/A
                                             @endif
 
-                                            {{ \Carbon\Carbon::parse($lease->start_date)->format('d/m/Y') . ' - ' . \Carbon\Carbon::parse($lease->end_date)->format('d/m/Y') ?? '' }}
+                                            {{ dateFormat($lease->start_date) . ' - ' . dateFormat($lease->end_date) ?? '' }}
                                         </option>
                                     @endforeach
                                 </select>
@@ -78,14 +79,14 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Select Properties Type</label>
                                 <select name="lease_selection" id="lease_selection" onchange="toggleLeaseInput()" 
-                                        class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                        class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm"
+                                        data-preview="{property_type}">
                                     <option value="property" @selected(old('lease_selection') == 'property')>Entire Property</option>
                                     <option value="unit" @selected(old('lease_selection') == 'unit')>Specific Unit</option>
                                     <option value="room" @selected(old('lease_selection') == 'room')>Specific Room</option>
                                 </select>
                             </div>
 
-                            {{-- 2. 右边：动态切换的 Select Fields --}}
                             {{-- 2. 右边：动态切换的 Select Fields --}}
                             <div>
                                 {{-- Property --}}
@@ -95,9 +96,12 @@
                                     <select name="property_id" id="property_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Property --</option>
                                         @foreach($properties as $p)
-                                            <option value="{{ $p->id }}">{{ $p->name }}</option>
+                                            <option value="{{ $p->id }}" data-owner="{{ $p->owner->user?->name ?? 'N/A' }}" data-owner-ic="{{ $p->owner?->ic_number ?? 'N/A' }}" data-address="{{ $p->full_address }}">{{ $p->name }}</option>
                                         @endforeach
                                     </select>
+                                    @error('property_id')
+                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                    @enderror
                                 </div>
 
                                 {{-- Unit (你原本就有了，保持一致即可) --}}
@@ -106,9 +110,12 @@
                                     <select name="unit_id" id="unit_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Unit --</option>
                                         @foreach($units as $u)
-                                            <option value="{{ $u->id }}">{{ $u->unit_no }}</option>
+                                            <option value="{{ $u->id }}" data-owner="{{ $u->owner->user->name }}" data-owner-ic="{{ $u->owner->ic_number }}" data-address="{{ $u->full_address }}">{{ $u->unit_no }}</option>
                                         @endforeach
                                     </select>
+                                    @error('unit_id')
+                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                    @enderror
                                 </div>
 
                                 {{-- Room --}}
@@ -118,9 +125,12 @@
                                     <select name="room_id" id="room_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Room --</option>
                                         @foreach($rooms as $r)
-                                            <option value="{{ $r->id }}">{{ $r->room_no }}</option>
+                                            <option value="{{ $r->id }}" data-owner="{{ $r->unit->owner->user->name }}" data-owner-ic="{{ $r->unit->owner->ic_number }}" data-address="{{ $r->full_address }}">{{ $r->room_no }}</option>
                                         @endforeach
                                     </select>
+                                    @error('room_id')
+                                        <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                    @enderror
                                 </div>
                             </div>
                         </div>
@@ -148,7 +158,7 @@
                         <div id="date_section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Start Date</label>
-                                <input type="date" id="start-date" name="start_date" value="{{ old('start_date') }}"
+                                <input type="date" id="start-date" name="start_date" value="{{ old('start_date') }}" data-preview="{start_date}"
                                        class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('start_date')
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -157,7 +167,7 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">End Date</label>
-                                <input type="date" id="end-date" name="end_date" value="{{ old('end_date') }}"
+                                <input type="date" id="end-date" name="end_date" value="{{ old('end_date') }}" data-preview="{end_date}"
                                        class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('end_date')
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -167,14 +177,14 @@
 
                         <div id="check_out_section" class="mt-4">
                             <label class="block text-sm font-medium text-gray-700">Check Out Date</label>
-                            <input type="date" name="checked_out_at" value="{{ old('checked_out_at') }}" 
+                            <input type="date" name="checked_out_at" value="{{ old('checked_out_at') }}" data-preview="{check_out_date}"
                                 class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                             @error('checked_out_at') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
 
                         <div id="agreement_end_section" class="mt-4">
                             <label class="block text-sm font-medium text-gray-700">Agreement Ended Date</label>
-                            <input type="date" name="agreement_ended_at" value="{{ old('agreement_ended_at') }}" 
+                            <input type="date" name="agreement_ended_at" value="{{ old('agreement_ended_at') }}" data-preview="{end_agreement_date}"
                                 class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                             @error('agreement_ended_at') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
@@ -182,7 +192,7 @@
                         <div id="fee_section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Select Fee Type</label>
-                                <select name="term_type" id="term_type" onchange="toggleLeaseInput()" 
+                                <select name="term_type" id="term_type" onchange="toggleLeaseInput()" data-preview="{rent_mode}"
                                         class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                     <option value="monthly" @selected(old('term_type') == 'monthly')>Monthly Fee</option>
                                     <option value="daily" @selected(old('term_type') == 'daily')>Daily Fee</option>
@@ -193,7 +203,7 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Rent Price(RM)</label>
-                                <input type="text" id="monthly-rent" name="rent_price" value="{{ old('rent_price') }}"
+                                <input type="text" id="monthly-rent" name="rent_price" value="{{ old('rent_price') }}" data-preview="{rent_price}"
                                        class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('rent_price')
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -204,7 +214,7 @@
                         <div id="deposit_section" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div class="max-w-xs">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Deposit Collection Mode</label>
-                                <select id="deposit_mode" name="deposit_mode" onchange="toggleDepositVisibility()" 
+                                <select id="deposit_mode" name="deposit_mode" onchange="toggleDepositVisibility()" data-preview="{deposit_mode}"
                                         class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm text-sm">
                                         <option value="security_only" selected>Security Deposit Only</option> {{-- Default Security --}}
                                         <option value="utilities_only">Utilities Deposit Only</option>
@@ -215,7 +225,7 @@
                             {{-- Security 容器 --}}
                             <div id="security_container">
                                 <label class="block text-sm font-medium text-gray-700">Security Deposit (RM)</label>
-                                <input type="text" id="security-deposit" name="security_deposit" value="{{ old('security_deposit') }}"
+                                <input type="text" id="security-deposit" name="security_deposit" value="{{ old('security_deposit') }}" data-preview="{security_deposit}"
                                     class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('security_deposit')
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -225,13 +235,40 @@
                             {{-- Utilities 容器 --}}
                             <div id="utilities_container">
                                 <label class="block text-sm font-medium text-gray-700">Utilities Deposit (RM)</label>
-                                <input type="text" id="utilities-deposit" name="utilities_deposit" value="{{ old('utilities_deposit') }}"
+                                <input type="text" id="utilities-deposit" name="utilities_deposit" value="{{ old('utilities_deposit') }}" data-preview="{utilities_deposit}"
                                     class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('utilities_deposit')
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                 @enderror
                             </div>
                         </div>
+
+                        <div>
+                            <div class="flex justify-between items-center mb-1">
+                                <label for="agreement_id" class="block text-sm font-medium text-gray-700">
+                                    Agreements Template
+                                </label>
+                                {{-- Preview 按钮 --}}
+                                <button type="button" id="preview-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
+                                    Preview Template
+                                </button>
+                            </div>
+                            <select id="agreement_id" name="agreement_id" 
+                                class="block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                                <option value="">-- Select Template --</option>
+                                @foreach($templates as $template)
+                                    {{-- 将 content 存入 data-content 属性 --}}
+                                    <option value="{{ $template->id }}" data-content="{{ $template->content }}" data-title="{{ $template->title }}">
+                                        {{ $template->title }} (v{{ $template->version }}) - {{ $template->owner->user->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            @error('agreement_id')
+                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        <x-preview-agreement-modal />
 
                         <div id="utilities_section" class="pt-4 border-t border-gray-100">
                             <h2 class="text-lg font-semibold text-slate-900 mb-4">Utilities (RM)</h2>
@@ -492,6 +529,173 @@
         // 页面加载时运行一次，处理 validation error 后的回显情况
         document.addEventListener('DOMContentLoaded', function() {
             toggleLeaseSelect();
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const previewBtn = document.getElementById('preview-btn');
+            const modal = document.getElementById('preview-modal');
+            const modalContent = document.getElementById('modal-content');
+            const modalTitle = document.getElementById('modal-title');
+            const agreementSelect = document.getElementById('agreement_id');
+
+            // 关闭 Modal 的元素
+            const closeElements = ['close-modal-btn', 'close-modal-bg', 'close-modal-footer'];
+
+            // 点击 Preview 按钮
+            previewBtn.addEventListener('click', function() {
+                const selectedOption = agreementSelect.options[agreementSelect.selectedIndex];
+                const content = selectedOption.getAttribute('data-content');
+                const title = selectedOption.getAttribute('data-title');
+
+                //console.log("Selected Content:", content);
+
+                if (!content || agreementSelect.value === "") {
+                    alert("Please select a template first.");
+                    return;
+                }
+
+                // 注入内容并显示 Modal
+                modalTitle.innerText = "Preview: " + title;
+                modalContent.innerHTML = content; // 这里会解析 HTML
+                modal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden'; // 防止背景滚动
+            });
+
+            // 统一关闭逻辑
+            closeElements.forEach(id => {
+                document.getElementById(id).addEventListener('click', () => {
+                    modal.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                });
+            });
+
+            // ESC 键关闭
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
+                    modal.classList.add('hidden');
+                    document.body.style.overflow = 'auto';
+                }
+            });
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            // --- 1. 元素获取 ---
+            const previewBtn = document.getElementById('preview-btn');
+            const agreementSelect = document.getElementById('agreement_id');
+            // 注意：不再需要获取 modal 元素，因为 Alpine 会处理显示
+
+            // --- 2. 核心逻辑：保持不变，只需确保返回值 ---
+            function generatePreviewContent() {
+                if (!agreementSelect || !agreementSelect.value) {
+                    alert("Please select a template first.");
+                    return null;
+                }
+
+                const selectedOption = agreementSelect.options[agreementSelect.selectedIndex];
+                let content = selectedOption.getAttribute('data-content');
+                const title = selectedOption.getAttribute('data-title');
+
+                if (!content) return null;
+
+                const replacements = {};
+                
+                // A. 自动抓取 data-preview
+                document.querySelectorAll('[data-preview]').forEach(el => {
+                    const placeholder = el.getAttribute('data-preview');
+                    replacements[placeholder] = el.value || '';
+                });
+
+                // B. Tenant 逻辑
+                const tenantSelect = document.getElementById('tenant_id');
+                if (tenantSelect && tenantSelect.value) {
+                    const fullText = tenantSelect.options[tenantSelect.selectedIndex].text;
+                    const match = fullText.match(/(.+?)\s*\((.+?)\)/);
+                    replacements['{tenant_name}'] = match ? match[1].trim() : fullText;
+                    replacements['{tenant_ic}'] = match ? match[2].trim() : '';
+                }
+
+                // C. Property/Owner 逻辑
+                const leaseSelectionEl = document.getElementById('lease_selection');
+                if (leaseSelectionEl) {
+                    const leaseType = leaseSelectionEl.value;
+                    const activeSelect = document.getElementById(`${leaseType}_select_input`);
+
+                    if (activeSelect && activeSelect.value) {
+                        const opt = activeSelect.options[activeSelect.selectedIndex];
+                        replacements['{property_name}'] = opt.text.trim();
+                        replacements['{property_address}'] = opt.getAttribute('data-address') || '';
+                        replacements['{owner_name}'] = opt.getAttribute('data-owner') || '';
+                        replacements['{owner_ic}'] = opt.getAttribute('data-owner-ic') || '';
+                    }
+                }
+                
+                // 默认值填充
+                const defaults = ['{utilities_deposit}', '{security_deposit}', '{rent_price}'];
+                defaults.forEach(key => {
+                    if (!replacements[key]) replacements[key] = '0.00';
+                });
+
+                const dateDefaults = ['{start_date}', '{end_date}', '{check_out_date}', '{end_agreement_date}'];
+                dateDefaults.forEach(key => {
+                    if (!replacements[key]) replacements[key] = 'N/A';
+                });
+
+                // 执行替换
+                Object.keys(replacements).forEach(placeholder => {
+                    const val = replacements[placeholder];
+                    const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                    content = content.replace(regex, `<span class="text-inherit font-semibold">${val}</span>`);
+                });
+
+                return { content, title };
+            }
+
+            // --- 3. 事件监听 (关键修改点) ---
+
+            if (previewBtn) {
+                previewBtn.addEventListener('click', function() {
+                    const result = generatePreviewContent();
+                    
+                    if (result) {
+                        // 1. 注入内容到 Component 里的 ID
+                        const modalContent = document.getElementById('modal-content');
+                        if (modalContent) {
+                            modalContent.innerHTML = result.content;
+                        }
+
+                        // 2. 发送自定义事件给 Alpine.js
+                        // 这对应了组件里的 @open-preview-modal.window="openPreview = true"
+                        window.dispatchEvent(new CustomEvent('open-preview-modal'));
+                    }
+                });
+            }
+
+            // 移除旧的 closeElements 监听逻辑，因为 Alpine 的 @click="openPreview = false" 已经接管了关闭功能
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const previewBtn = document.getElementById('preview-btn');
+            
+            if (previewBtn) {
+                previewBtn.addEventListener('click', function() {
+                    // 1. 执行你原本的数据替换逻辑
+                    const result = generatePreviewContent(); // 调用你那个复杂的替换函数
+                    
+                    if (result) {
+                        // 2. 注入内容
+                        const modalContent = document.getElementById('modal-content');
+                        if (modalContent) {
+                            modalContent.innerHTML = result.content;
+                            
+                            // 3. 核心修复：直接派发事件
+                            // 确保 CustomEvent 的名字和组件里的 @... 一致
+                            window.dispatchEvent(new CustomEvent('open-preview-modal'));
+                        } else {
+                            console.error("找不到 ID 为 modal-content 的元素，请检查组件文件。");
+                        }
+                    }
+                });
+            }
         });
     </script>
 </x-app-layout>

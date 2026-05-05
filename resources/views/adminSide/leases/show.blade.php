@@ -26,6 +26,21 @@
                 'can_stamp' => in_array($item->status, ['New', 'Renew']),
                 'upload_url' => route('admin.leases.upload-stamping', $item->id),
                 'view_url' => route('admin.leases.view-cert', $item->id),
+                'agreement' => [
+                    'title' => $item->agreement?->title ?? 'Agreement',
+                    'content' => $item->agreement?->content ?? '', 
+                ],
+                'agreement_id' => $item->agreement_id,
+                'tenant_name' => $item->tenant?->user->name ?? 'N/A',
+                'tenant_ic' => $item->tenant?->ic_number ?? 'N/A',
+                'owner_name' => $item->leasable?->owner?->user->name ?? 'N/A',
+                'owner_ic' => $item->leasable?->owner?->ic_number ?? 'N/A',
+                'property_address' => $item->leasable?->full_address ?? 'N/A',
+                'property_type' => $item->leasableTypeLabel ?? 'N/A',
+                'property_name' => $item->leasableName ?? 'N/A',
+                'rent_mode' => strtoupper($item->term_type ?? 'N/A'),
+                'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
+                'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
             ];
         });
         $historyData = $historyJson->toArray();
@@ -43,6 +58,7 @@
 
             openPayment: false, 
             shakePayment: false,
+            openPreview: false, 
             paymentData: { id: '', invoice_no: '', amount_due: 0, actionUrl: '' },
 
             openManual: false,
@@ -203,11 +219,67 @@
                                 </span>
                             </template>
 
+                            <div x-show="activeLease && activeLease.agreement_id">
+                                <button type="button"
+                                    @click="
+                                        console.log('Button clicked! Active Lease Data:', activeLease); // 调试1: 看看数据进来了没
+                                        
+                                        let content = activeLease.agreement?.content || '';
+                                        if (!content) {
+                                            console.warn('Agreement content is empty');
+                                            return;
+                                        }
+
+                                        const formatMoney = (val) => {
+                                            const num = parseFloat(val);
+                                            return isNaN(num) ? '0.00' : num.toLocaleString(undefined, {minimumFractionDigits: 2});
+                                        };
+
+                                        const replacements = {
+                                            '{status}': activeLease.status,
+                                            '{tenant_name}': activeLease.tenant_name,
+                                            '{tenant_ic}': activeLease.tenant_ic,
+                                            '{owner_name}': activeLease.owner_name,
+                                            '{owner_ic}': activeLease.owner_ic,
+                                            '{property_address}': activeLease.property_address,
+                                            '{property_type}': activeLease.property_type,
+                                            '{property_name}': activeLease.property_name,
+                                            '{rent_mode}': activeLease.rent_mode,
+                                            '{rent_price}': activeLease.rent_price,
+                                            '{deposit_mode}': activeLease.deposit_mode,
+                                            '{security_deposit}': activeLease.security_deposit,
+                                            '{utilities_deposit}': activeLease.utilities_deposit,
+                                            '{start_date}': activeLease.start_date,
+                                            '{end_date}': activeLease.end_date,
+                                            '{check_out_date}': activeLease.check_out_date,
+                                            '{end_agreement_date}': activeLease.end_agreement_date,
+                                        };
+
+                                        console.log('Replacements ready:', replacements); // 调试2: 看看替换表是否正确
+
+                                        Object.keys(replacements).forEach(key => {
+                                            const val = replacements[key];
+                                            const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                                            content = content.replace(regex, `<span class='text-inherit font-semibold'>${val}</span>`);
+                                        });
+
+                                        console.log('Dispatching event...'); // 调试3
+                                        $dispatch('open-lease-preview', { 
+                                            content: content, 
+                                            title: activeLease.agreement?.title || 'Agreement Preview'
+                                        });
+                                    "
+                                    class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                    VIEW AGREEMENT
+                                </button>
+                            </div>
+
                             <div class="h-6 w-[1px] bg-gray-200 mx-1"></div>
                             
                             {{-- 3. 关键：将 $lease 替换为页面上定义的变量 --}}
                             {{-- 这里假设你的后端已经通过路由或初始化传了一个总的 $lease 对象 --}}
                             <x-lease-stamping-modal ::lease-id="activeId" />
+                            <x-preview-agreement-modal ::lease-id="activeId"  />
                         </div>
                     </div>
 

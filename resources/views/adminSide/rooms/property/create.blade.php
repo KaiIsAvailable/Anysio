@@ -109,8 +109,8 @@
 
                                 <div>
                                     <label class="block text-sm font-medium text-slate-900 mb-1">Postcode</label>
-                                    <input type="text" name="postcode" value="{{ old('postcode') }}" placeholder="e.g. 51900"
-                                           class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                                     <input type="text" name="postcode" value="{{ old('postcode') }}" placeholder="e.g. 51900"
+                                         class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" pattern="\d{5}" maxlength="5" minlength="5" inputmode="numeric" title="請輸入5位數字">
                                     @error('postcode') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
                                 </div>
                             </div>

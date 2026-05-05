@@ -119,7 +119,7 @@ class PropertyController extends Controller
             'name'     => 'required|string|max:255',
             'address'  => 'required|string',
             'city'     => 'required|string|max:100',
-            'postcode' => 'required|string|max:10',
+            'postcode' => 'required|digits:5',
             'state'    => 'required|string|max:100',
             'type'     => 'required|in:Condo,Landed,Commercial', // 根据你的需求定义
             'owner_id'  => 'nullable|required_if:has_owner,1|exists:owners,id'

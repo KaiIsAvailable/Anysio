@@ -221,20 +221,33 @@
                                                 </div>
                                             </div>
                                         </div>
-                                        @if ($lease->status === 'New' || $lease->status === 'Renew')
-                                            <form action="{{ route('admin.payments.generateMonthlyInvoice', $lease->id) }}" method="POST" class="contents">
-                                                @csrf
-                                                {{-- 为了防止卡片点击跳转冲突，建议在按钮上加 stopPropagation --}}
-                                                <button type="submit" 
+                                        <div class="flex items-center gap-3">
+                                            @if ($lease->status === 'New' || $lease->status === 'Renew')
+                                                {{-- 1. Generate Invoice 按钮 (主操作) --}}
+                                                <form action="{{ route('admin.payments.generateMonthlyInvoice', $lease->id) }}" method="POST" class="m-0">
+                                                    @csrf
+                                                    <button type="submit" 
+                                                            onclick="event.stopPropagation();"
+                                                            class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                                        </svg>
+                                                        Generate Invoice
+                                                    </button>
+                                                </form>
+
+                                                {{-- 2. Add Manual Invoice 按钮 (次操作) --}}
+                                                <button type="button" 
                                                         onclick="event.stopPropagation();"
-                                                        class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all">
+                                                        @click="$dispatch('open-manual-modal', { action: '{{ route('admin.payments.storeManualInvoice', $tenant->id) }}' })"
+                                                        class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                                                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                                                     </svg>
-                                                    Generate Invoice
+                                                    Add Manual Invoice
                                                 </button>
-                                            </form>
-                                        @endif
+                                            @endif
+                                        </div>
                                     </div>
                                 </div>
                                 @empty
@@ -251,17 +264,6 @@
                                 </svg>
                                 Invoices & Payments
                             </h3>
-                            <div class="flex items-center gap-2">
-                                {{-- 次按钮 --}}
-                                <button type="button" 
-                                        @click="$dispatch('open-manual-modal', { action: '{{ route('admin.payments.storeManualInvoice', $tenant->id) }}' })"
-                                        class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                                    </svg>
-                                    Add Manual Invoice
-                                </button>
-                            </div>
                         </div>
 
                         <div>

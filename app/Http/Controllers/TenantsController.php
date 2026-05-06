@@ -6,6 +6,8 @@ use App\Models\Tenants;
 use App\Models\Owners;
 use App\Models\User;
 use App\Models\Room;
+use App\Models\Unit;
+use App\Models\Property;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File;
@@ -241,7 +243,14 @@ class TenantsController extends Controller
             'emergencyContacts', 
             'user:id,name,email',
             'leases' => function($query) {
-                $query->with('room:id,room_no')->orderBy('start_date', 'desc');
+                $query->with(['leasable' => function($morphTo) {
+                    // 这里处理多态加载
+                    $morphTo->morphWith([
+                        Room::class => ['unit'], // 如果是房间，顺便带出它的单位
+                        Unit::class,
+                        Property::class,
+                    ]);
+                }])->orderBy('start_date', 'desc');
             }
         ]);
 

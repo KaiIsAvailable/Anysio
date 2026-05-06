@@ -49,7 +49,6 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Unit Owner</label>
                                 <select name="owner_id" id="owner_selector" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                    <option value="">-- Select Owner (Optional) --</option>
                                     @foreach($owners as $owner)
                                         <option value="{{ $owner->id }}" 
                                             @selected(old('owner_id', $unit->owner_id) == $owner->id)>
@@ -86,7 +85,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Floor</label>
-                                <input type="text" name="floor" 
+                                <input type="number" name="floor" 
                                     value="{{ old('floor', $unit->floor) }}" 
                                     class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                             </div>
@@ -128,20 +127,8 @@
                         </div>
                     </section>
 
-                    <section>
-                        {{-- 在 Status 字段下面或者适当位置插入 --}}
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-indigo-50 rounded-xl border border-indigo-100">
-                            {{-- Has Rooms 开关 --}}
-                            <div>
-                                <label class="block text-sm font-bold text-indigo-900 mb-1">Any Rooms inside Unit?</label>
-                                <select name="has_rooms" id="has_rooms" onchange="toggleRoomInput()" 
-                                        class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                    <option value="0" @selected(old('has_rooms', $hasRoomsCount) == 0)>No</option>
-                                    <option value="1" @selected(old('has_rooms', $hasRoomsCount) == 1)>Yes</option>
-                                </select>
-                            </div>
-                        </div>
-                    </section>
+                    {{-- Hidden field for has_rooms to maintain form submission --}}
+                    <input type="hidden" name="has_rooms" value="{{ old('has_rooms', $hasRoomsCount) }}">
                     
                     {{-- 操作按钮 --}}
                     <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">

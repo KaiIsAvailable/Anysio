@@ -87,14 +87,8 @@
                                     };
                                 @endphp
                                 <tr class="hover:bg-indigo-50 transition-colors cursor-pointer group"
-                                    @if($unit->has_rooms)
-                                        onclick="window.location='{{ route('admin.units.show', $unit->id) }}'"
-                                        style="cursor: pointer;"
-                                    @else
-                                        {{-- 如果是 false (0)，可以不写 onclick，或者弹个窗 --}}
-                                        onclick="alert('This unit is a single unit (No rooms inside).')"
-                                        style="cursor: default;"
-                                    @endif
+                                    onclick="window.location='{{ route('admin.units.show', $unit->id) }}'"
+                                    style="cursor: pointer;"
                                     >
                                     
                                     <td class="px-6 py-4 whitespace-nowrap">

@@ -88,7 +88,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Floor</label>
-                                <input type="text" name="floor" value="{{ old('floor') }}" placeholder="e.g. 10" 
+                                <input type="number" name="floor" value="{{ old('floor') }}" placeholder="e.g. 10" 
                                        class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                             </div>
                             <div>

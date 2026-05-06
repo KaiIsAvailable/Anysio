@@ -17,6 +17,8 @@ class UserManagement extends Model
         'user_id',
         'referred_by',
         'subscription_status',
+        'start_date',
+        'end_date',
         'discount_rate',
         'usage_count',
         'role',

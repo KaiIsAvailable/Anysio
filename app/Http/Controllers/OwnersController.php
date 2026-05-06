@@ -6,6 +6,8 @@ use App\Models\Owners;
 use App\Models\User;
 use App\Models\Lease;
 use App\Models\Room;
+use App\Models\Unit;
+use App\Models\Property;
 use App\Models\Tenants;
 use App\Models\Payment;
 use Carbon\Carbon;
@@ -197,9 +199,24 @@ class OwnersController extends Controller
         })->count();
 
         // 3. 统计租约
-        $leasesCount = Lease::whereHas('room.unit', function ($query) use ($owner_id) {
-            $query->where('owner_id', $owner_id);
-        })->count();
+        $leasesCount = Lease::where(function ($query) use ($owner_id) {
+            // 1. 如果租的是 Room，通过 Room -> Unit -> Owner 找
+            $query->whereHasMorph('leasable', [Room::class], function ($q) use ($owner_id) {
+                $q->whereHas('unit', function ($sq) use ($owner_id) {
+                    $sq->where('owner_id', $owner_id);
+                });
+            })
+            // 2. 或者：如果租的是 Unit，通过 Unit -> Owner 找
+            ->orWhereHasMorph('leasable', [Unit::class], function ($q) use ($owner_id) {
+                $q->where('owner_id', $owner_id);
+            })
+            // 3. 或者：如果租的是 Property，通过 Property -> Owner 找
+            ->orWhereHasMorph('leasable', [Property::class], function ($q) use ($owner_id) {
+                $q->where('owner_id', $owner_id);
+            });
+        })
+        ->where('status', 'active') // 记得只算 active 的，这才是占用名额的
+        ->count();
 
         // 4. 饼图：房间状态
         $roomStatusStats = Room::whereHas('unit', function ($query) use ($owner_id) {

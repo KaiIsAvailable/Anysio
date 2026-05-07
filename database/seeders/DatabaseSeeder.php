@@ -175,16 +175,31 @@ class DatabaseSeeder extends Seeder
             'subscription_status' => 'active',
         ]);
 
-        $formattedName = Str::upper(str_replace(' ', '_', $name));
-        $refCode = $formattedName . '_' . Str::random(20);
+        RefCodePackage::updateOrCreate(
+            ['ref_code' => 'P1_MONTHLY'],
+            [
+                'name'              => 'Starter Plan (1%)',
+                'price_mode'        => 'monthly',
+                'price'             => 0,
+                'commission_rate'   => 100,
+                'max_lease_limit'   => 5,
+                'allow_extra_lease' => true,
+                'extra_lease_price' => 500,
+            ]
+        );
 
-        RefCodePackage::create([
-            'user_mgnt_id' => $userMgmt->id, 
-            'ref_code' => $refCode,
-            'is_official' => $isOfficial,
-            'ref_installation_price' => 250000,
-            'ref_monthly_price' => 50000,
-        ]);
+        RefCodePackage::updateOrCreate(
+            ['ref_code' => 'P3_MONTHLY'],
+            [
+                'name'              => 'Standard Business (P3)',
+                'price_mode'        => 'monthly',
+                'price'             => 49900,
+                'commission_rate'   => 0,
+                'max_lease_limit'   => 50,
+                'allow_extra_lease' => true,
+                'extra_lease_price' => 500,
+            ]
+        );
 
         return $user;
     }

@@ -88,6 +88,12 @@
                     </x-nav-link>-->
 
                     @can('super-admin')
+                        <x-nav-link :href="route('admin.packages.index')" :active="request()->routeIs('admin.packages.*')">
+                            {{ __('Packages') }}
+                        </x-nav-link>
+                    @endcan
+
+                    @can('super-admin')
                         <x-nav-link :href="route('admin.userManagement.index')" :active="request()->routeIs('admin.userManagement.*')">
                             {{ __('Users') }}
                         </x-nav-link>

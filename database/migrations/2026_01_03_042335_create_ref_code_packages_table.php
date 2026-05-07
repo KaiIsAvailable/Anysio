@@ -11,10 +11,15 @@ return new class extends Migration
         Schema::create('ref_code_packages', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->string('ref_code')->unique();
-            $table->foreignUlid('user_mgnt_id')->nullable()->constrained('user_management')->nullOnDelete();
-            $table->boolean('is_official')->default(false)->index();
-            $table->integer('ref_installation_price')->index(); 
-            $table->integer('ref_monthly_price')->index();      
+            $table->string('name');              
+            $table->string('price_mode')->default('monthly')->index(); 
+            $table->integer('price')->default(0); 
+            $table->integer('commission_rate')->default(0); 
+            $table->integer('base_lease')->default(0); 
+            $table->integer('max_lease_limit')->default(0); 
+            $table->boolean('allow_extra_lease')->default(true); 
+            $table->integer('extra_lease_price')->default(0); 
+
             $table->timestamps();
         });
     }

@@ -170,7 +170,7 @@ class DatabaseSeeder extends Seeder
 
         $userMgmt = UserManagement::create([
             'user_id' => $user->id,
-            'referred_by' => $referredBy,
+            'package_id' => $referredBy,
             'role' => $role,
             'subscription_status' => 'active',
         ]);

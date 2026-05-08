@@ -20,12 +20,10 @@ class RefCodePackage extends Model
         'max_lease_limit',  
         'allow_extra_lease',
         'extra_lease_price',
-        'user_mgnt_id',     
-        'is_official',
+        'status',     
     ];
 
     protected $casts = [
-        'is_official'       => 'boolean',
         'allow_extra_lease' => 'boolean',
         'price'             => 'integer',
         'commission_rate'   => 'integer',

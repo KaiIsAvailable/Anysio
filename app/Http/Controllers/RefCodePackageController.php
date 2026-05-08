@@ -125,4 +125,27 @@ class RefCodePackageController extends Controller
         return redirect()->route('admin.packages.index')
             ->with('success', "Package Updated Successfully.");
     }
+
+    public function destroy($id)
+    {
+        $package = RefCodePackage::findOrFail($id);
+
+        // 将状态改为 inactive
+        $package->update(['status' => 'inactive']);
+
+        return redirect()->route('admin.packages.index')
+            ->with('success', "Package '{$package->name}' has been disabled.");
+    }
+
+    // 2. 恢复套餐 (Restore -> Set Active)
+    public function restore($id)
+    {
+        $package = RefCodePackage::findOrFail($id);
+
+        // 将状态改为 active
+        $package->update(['status' => 'active']);
+
+        return redirect()->route('admin.packages.index')
+            ->with('success', "Package '{$package->name}' has been restored.");
+    }
 }

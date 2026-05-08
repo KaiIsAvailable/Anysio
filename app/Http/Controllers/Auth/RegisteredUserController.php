@@ -10,6 +10,7 @@ use App\Models\Agreements;
 use App\Models\Owners;
 use App\Models\Tenants;
 use App\Models\UserManagement;
+use App\Models\RefCodePackage;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,6 +21,7 @@ use Illuminate\View\View;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use \Illuminate\Support\Str;
+use Carbon\Carbon;
 
 class RegisteredUserController extends Controller
 {
@@ -54,7 +56,9 @@ class RegisteredUserController extends Controller
                 'nullable',
                 'string',
                 // 检查 ref_code 必须存在于 ref_code_packages 表的 ref_code 字段中
-                Rule::exists('ref_code_packages', 'ref_code'), 
+                Rule::exists('ref_code_packages', 'ref_code')->where(function ($query) {
+                    $query->where('status', 'active');
+                }),
             ],
             'terms' => ['accepted'],
         ]);
@@ -64,6 +68,13 @@ class RegisteredUserController extends Controller
 
         return DB::transaction(function () use ($request, $latestTos, $latestPrivacy) {
             $user = null;
+            $packageId = null;
+            if ($request->filled('ref_code')) {
+                $package = RefCodePackage::where('ref_code', $request->ref_code)
+                            ->where('status', 'active')
+                            ->first();
+                $packageId = $package ? $package->id : null;
+            }
 
             $complianceData = [
                 'is_agree' => true,
@@ -114,16 +125,25 @@ class RegisteredUserController extends Controller
                         ->first();
                 
                 $user = User::create(array_merge([
-                    'name' => $request->name,
+                    'name' => toupper($request->name),
                     'email' => $request->email,
                     'password' => Hash::make($request->password),
                     'role' => $finalRole,
                 ], $complianceData));
 
+                $startDate = now(); 
+
+                $endDate = ($packageDetails->price_mode === 'monthly') 
+                    ? $startDate->copy()->addMonth() 
+                    : $startDate->copy()->addYear();
+
                 // 同时也要在 UserManagement 创建记录
                 UserManagement::create([
                     'user_id' => $user->id,
+                    'package_id' => $packageId,
                     'role' => $finalRole,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
                     'subscription_status' => 'pending', // 这些人是要付钱的
                 ]);
             }
@@ -131,17 +151,14 @@ class RegisteredUserController extends Controller
             // 3. 生成订阅账单 (套用你的 Payment 逻辑)
             $subscriptionType = 'SUBSCRIPTION'; // 对应你的 payment_type
             $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType);
-            
-            // 假设订阅费是 1000.00 (存为分则是 100000)
-            $price = 1000; 
 
             UserPayment::create([
                 'id'           => (string) Str::ulid(),
                 'user_id'      => $user->id, // 确保你的 payment 表有 user_id 字段
-                'ref_code'     => $packageDetails->ref_code,
+                'ref_code'     => $request->ref_code,
                 'invoice_no'   => $newInvoiceNo,
                 'payment_type' => strtolower($subscriptionType),
-                'amount_due'   => $packageDetails->ref_monthly_price,
+                'amount_due'   => $packageDetails->price,
                 'amount_paid'  => 0,
                 'status'       => 'unpaid',
             ]);
@@ -149,7 +166,7 @@ class RegisteredUserController extends Controller
             event(new Registered($user));
             Auth::login($user);
 
-            return redirect(route('dashboard'));
+            return redirect(route('login'));
         });
     }
 }

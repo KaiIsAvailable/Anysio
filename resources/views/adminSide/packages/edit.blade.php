@@ -137,21 +137,18 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const commRadios = document.querySelectorAll('input[name="comm_type"]');
-            const secPercentage = document.getElementById('section_percentage');
-            const secFixed = document.getElementById('section_fixed');
-
-            commRadios.forEach(radio => {
-                radio.addEventListener('change', function() {
-                    if (this.value === 'percentage') {
-                        secPercentage.classList.remove('hidden');
-                        secFixed.classList.add('hidden');
-                    } else {
-                        secFixed.classList.remove('hidden');
-                        secPercentage.classList.add('hidden');
-                    }
-                });
+        document.querySelectorAll('input[name="comm_type"]').forEach((radio) => {
+            radio.addEventListener('change', function() {
+                if (this.value === 'percentage') {
+                    document.getElementById('section_percentage').classList.remove('hidden');
+                    document.getElementById('section_fixed').classList.add('hidden');
+                    // 可选：清空另一个值，避免干扰
+                    document.getElementById('price_display').value = '';
+                } else {
+                    document.getElementById('section_fixed').classList.remove('hidden');
+                    document.getElementById('section_percentage').classList.add('hidden');
+                    document.getElementById('commission_display').value = '';
+                }
             });
         });
     </script>

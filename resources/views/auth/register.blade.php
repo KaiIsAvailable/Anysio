@@ -1,11 +1,14 @@
 <x-guest-layout>
+    <!-- Session Status -->
+    <x-auth-session-status class="mb-4" :status="session('status')" />
+
     <form method="POST" action="{{ route('register') }}">
         @csrf
 
         <!-- Name -->
         <div>
             <x-input-label for="name" :value="__('Name')" />
-            <x-text-input id="name" class="block mt-1 w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
+            <x-text-input id="name" class="block mt-1 w-full uppercase" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
             <x-input-error :messages="$errors->get('name')" class="mt-2" />
         </div>
 
@@ -63,7 +66,7 @@
                 x-transition 
                 x-cloak
                 class="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
-                <x-input-label for="ref_code" :value="__('Reference Code (Optional)')" />
+                <x-input-label for="ref_code" :value="__('Reference Code')" />
                 <x-text-input id="ref_code" class="block mt-1 w-full border-indigo-200" type="text" name="ref_code" :value="old('ref_code')" placeholder="e.g. ANYSIO-REF" />
                 <p class="mt-1 text-xs text-indigo-600 italic">If you have a referral code from our partners, enter it here.</p>
                 <x-input-error :messages="$errors->get('ref_code')" class="mt-2" />

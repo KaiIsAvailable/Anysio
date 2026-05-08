@@ -15,7 +15,7 @@ class UserManagement extends Model
 
     protected $fillable = [
         'user_id',
-        'referred_by',
+        'package_id',
         'subscription_status',
         'start_date',
         'end_date',
@@ -32,8 +32,8 @@ class UserManagement extends Model
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    public function referred_person() {
-        return $this->belongsTo(User::class, 'referred_by');
+    public function package() {
+        return $this->belongsTo(RefCodePackage::class, 'package_id');
     }
 
     public function staff() {

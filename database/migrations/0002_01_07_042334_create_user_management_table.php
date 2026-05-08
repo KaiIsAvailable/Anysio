@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('user_management', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('user_id')->constrained('users');
-            $table->ulid('referred_by')->nullable()->index(); 
+            $table->ulid('package_id')->nullable()->index(); 
             $table->string('subscription_status')->default('active')->index();
             $table->integer('discount_rate')->default(0)->index();
             $table->integer('usage_count')->default(0)->index();

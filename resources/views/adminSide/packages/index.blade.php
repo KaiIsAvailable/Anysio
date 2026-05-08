@@ -58,19 +58,19 @@
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Pricing</th>
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Base Lease</th>
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Usage Limits</th>
+                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($packages as $package)
-                                    <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                                        onclick="window.location='{{ route('admin.packages.edit', $package->id) }}'">
+                                    <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150">
                                         
                                         {{-- 1. Plan Details --}}
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center">
-                                                <div class="h-10 w-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">
-                                                    {{ substr($package->ref_code, 0, 2) }}
+                                                <div class="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shadow-sm">
+                                                    {{ strtoupper(substr($package->ref_code, 0, 2)) }}
                                                 </div>
                                                 <div class="ml-4">
                                                     <div class="text-sm font-bold text-slate-900">{{ $package->name }}</div>
@@ -116,19 +116,55 @@
                                                 Rate: RM {{ number_format($package->extra_lease_price / 100, 2) }}/ea
                                             </div>
                                         </td>
+
+                                        {{-- 6. Status --}}
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            @php
+                                                $status = strtolower($package->status ?? 'unknown');
+                                                $badge = match($status) {
+                                                    'active' => 'bg-emerald-100 text-emerald-800 border-emerald-200',
+                                                    'inactive' => 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                                                    default => 'bg-gray-100 text-gray-800 border-gray-200',
+                                                };
+                                            @endphp
+                                            <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }} uppercase">
+                                                {{ $package->status ?? '-' }}
+                                            </span>
+                                        </td>
                                         
                                         {{-- 6. Actions --}}
-                                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                            <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
-                                                <a href="{{ route('admin.packages.edit', $package->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 rounded-lg transition-all duration-200 hover:scale-110">
-                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                            <div class="flex justify-end items-center gap-3">
+                                                {{-- Edit 按钮 --}}
+                                                <a href="{{ route('admin.packages.edit', $package->id) }}" class="text-indigo-600 hover:text-indigo-900"> <!-- transition-transform hover:scale-110 -->
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                                    </svg>
                                                 </a>
-                                                <form action="{{ route('admin.packages.destroy', $package->id) }}" method="POST" onsubmit="return confirm('Delete this package?');" class="inline">
-                                                    @csrf @method('DELETE')
-                                                    <button type="submit" class="p-2 text-red-600 hover:text-red-900 bg-red-50 rounded-lg transition-all duration-200 hover:scale-110">
-                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                                    </button>
-                                                </form>
+
+                                                @if($package->status === 'active')
+                                                    {{-- 禁用按钮 (Destroy) --}}
+                                                    <form action="{{ route('admin.packages.destroy', $package->id) }}" method="POST" onsubmit="return confirm('Disable this package? New users won\'t be able to subscribe to it.');" class="inline">
+                                                        @csrf
+                                                        @method('DELETE')
+                                                        <button type="submit" class="p-2 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
+                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                            </svg>
+                                                        </button>
+                                                    </form>
+                                                @else
+                                                    {{-- 恢复按钮 (Restore) --}}
+                                                    <form action="{{ route('admin.packages.restore', $package->id) }}" method="POST" class="inline">
+                                                        @csrf
+                                                        @method('PATCH')
+                                                        <button type="submit" class="p-2 text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 rounded-lg transition-colors" title="Restore Package">
+                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                                                            </svg>
+                                                        </button>
+                                                    </form>
+                                                @endif
                                             </div>
                                         </td>
                                     </tr>

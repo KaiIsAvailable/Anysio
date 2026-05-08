@@ -32,61 +32,28 @@
         <div class="min-h-screen bg-gray-100">
             @include('layouts.navigation')
 
-            <div class="fixed top-5 right-5 z-[100] flex flex-col items-end space-y-3 pointer-events-none">
-    
-                {{-- 成功通知 --}}
-                @if (session('success'))
-                    <div x-data="{ show: true }" 
-                        x-show="show" 
-                        x-init="setTimeout(() => show = false, 5000)"
-                        x-transition:enter="transition ease-out duration-300"
-                        x-transition:enter-start="opacity-0 transform translate-x-10"
-                        x-transition:enter-end="opacity-100 transform translate-x-0"
-                        x-transition:leave="transition ease-in duration-500"
-                        x-transition:leave-start="opacity-100 transform translate-x-0"
-                        x-transition:leave-end="opacity-0 transform translate-x-10"
-                        class="pointer-events-auto flex items-center w-full max-w-xs p-4 bg-white border-l-4 border-green-500 rounded-lg shadow-xl" 
-                        role="alert">
-                        <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 text-green-500 bg-green-100 rounded-lg">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                        </div>
-                        <div class="ml-3 text-sm font-bold text-gray-800">{{ session('success') }}</div>
-                        <button @click="show = false" class="ml-auto text-gray-400 hover:text-gray-900 rounded-lg p-1.5 inline-flex items-center justify-center h-8 w-8 hover:bg-gray-100">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                    </div>
-                @endif
+            @auth
+                @php
+                    $userMgmt = \App\Models\UserManagement::where('user_id', auth()->id())->first();
+                    $latestPayment = \App\Models\UserPayment::where('user_id', auth()->id())
+                                        ->where('payment_type', 'subscription')
+                                        ->latest()
+                                        ->first();
+                    
+                    // 如果不是 Admin 且状态不是 active，则必须支付
+                    $mustPay = false;
+                    if ($userMgmt && auth()->user()->role !== 'admin') {
+                        $isNotActive = $userMgmt->subscription_status !== 'active';
+                        $hasPrice = $userMgmt->package && (int)$userMgmt->package->price > 0;
 
-                {{-- 错误通知 (包含 Session 错误和 Validator 错误) --}}
-                @if (session('error') || $errors->any())
-                    <div x-data="{ show: true }" 
-                        x-show="show" 
-                        x-init="setTimeout(() => show = false, 7000)"
-                        x-transition:enter="transition ease-out duration-300"
-                        x-transition:enter-start="opacity-0 transform translate-x-10"
-                        x-transition:enter-end="opacity-100 transform translate-x-0"
-                        x-transition:leave="transition ease-in duration-500"
-                        x-transition:leave-start="opacity-100 transform translate-x-0"
-                        x-transition:leave-end="opacity-0 transform translate-x-10"
-                        class="pointer-events-auto flex items-center w-full max-w-xs p-4 bg-white border-l-4 border-red-500 rounded-lg shadow-xl" 
-                        role="alert">
-                        <div class="inline-flex items-center justify-center flex-shrink-0 w-8 h-8 text-red-500 bg-red-100 rounded-lg">
-                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
-                        </div>
-                        <div class="ml-3 text-sm font-bold text-gray-800">
-                            @if(session('error'))
-                                {{ session('error') }}
-                            @else
-                                {{ $errors->first() }}
-                            @endif
-                        </div>
-                        <button @click="show = false" class="ml-auto text-gray-400 hover:text-gray-900 rounded-lg p-1.5 inline-flex items-center justify-center h-8 w-8 hover:bg-gray-100">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-                        </button>
-                    </div>
-                @endif
+                        if ($isNotActive && $hasPrice) {
+                            $mustPay = true;
+                        }
+                    }
+                @endphp
+            @endauth
 
-            </div>
+            <x-auth-session-status class="mb-4" :status="session('status')" />
 
             @isset($header)
                 <header class="bg-white shadow">
@@ -96,7 +63,18 @@
                 </header>
             @endisset
 
-            <main>
+            <main x-data="{ openPayment: @json($mustPay ?? false) }">
+                @auth
+                    @if($mustPay)
+                        {{-- 强制显示 Modal --}}
+                        <div x-init="openPayment = true"></div>
+                        @include('components.make_payment', ['latestPayment' => $latestPayment])
+
+                        {{-- 背景遮罩层：防止用户点击主界面内容 --}}
+                        <div class="fixed inset-0 bg-gray-600 bg-opacity-50 z-[40] backdrop-blur-sm"></div>
+                    @endif
+                @endauth
+
                 {{ $slot }}
             </main>
         </div>

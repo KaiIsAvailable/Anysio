@@ -51,7 +51,6 @@
                                     <input type="hidden" name="owner_id" value="{{ $targetOwner->id }}">
                                 @else
                                     <select name="owner_id" id="owner_selector" onchange="filterAssetsByOwner()" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                        <option value="">-- Select Owner (Optional) --</option>
                                         @foreach($owners as $owner)
                                             {{-- 统一使用 $owner->id --}}
                                             <option value="{{ $owner->id }}" 
@@ -81,7 +80,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Block / Tower</label>
                                 <input type="text" name="block" value="{{ old('block') }}" placeholder="e.g. Block A" 
-                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" required>
                             </div>
                         </div>
 
@@ -89,13 +88,13 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Floor</label>
                                 <input type="number" name="floor" value="{{ old('floor') }}" placeholder="e.g. 10" 
-                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" min="0" required>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Size (Sqft)</label>
                                 <div class="relative">
                                     <input type="number" name="sqft" value="{{ old('sqft') }}" 
-                                           class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                           class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" min="0" required>
                                 </div>
                             </div>
                         </div>
@@ -108,12 +107,12 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Electricity Acc No. (TNB)</label>
                                 <input type="text" name="electricity_acc_no" value="{{ old('electricity_acc_no') }}" 
-                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" pattern="[0-9]{12}" maxlength="12" minlength="12" inputmode="numeric" required title="Must be exactly 12 digits">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Water Acc No. (Air Selangor/SAJ)</label>
                                 <input type="text" name="water_acc_no" value="{{ old('water_acc_no') }}" 
-                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" pattern="[0-9]{16}" maxlength="16" minlength="16" inputmode="numeric" required title="Must be exactly 16 digits">
                             </div>
                         </div>
 

@@ -100,6 +100,17 @@
         reindexRows(); // 保持 Entry # 编号正确
     }
 
+    function attachRemoveHandler(row) {
+        const removeBtn = row.querySelector('.remove-asset') || row.querySelector('.delete-asset-btn');
+        if (!removeBtn) return;
+
+        removeBtn.addEventListener('click', function() {
+            row.remove();
+            reindexRows();
+            toggleEmptyState();
+        });
+    }
+
     // --- 批量添加与 Modal 逻辑 ---
 
     function openAssetModal() {
@@ -187,10 +198,13 @@
         const addBtn = document.getElementById('addAssetBtn') || document.getElementById('add-asset-btn');
 
         // 1. 同步索引
-        const rows = list ? list.querySelectorAll('.asset-row') : [];
+        const rows = list ? Array.from(list.querySelectorAll('.asset-row')) : [];
         idx = rows.length;
 
-        // 2. 绑定添加按钮
+        // 2. 绑定现有行删除事件
+        rows.forEach(row => attachRemoveHandler(row));
+
+        // 3. 绑定添加按钮
         if (addBtn) {
             addBtn.onclick = (e) => {
                 e.preventDefault();
@@ -198,7 +212,7 @@
             };
         }
 
-        // 3. 初始空状态处理
+        // 4. 初始空状态处理
         if (rows.length === 0) {
             addRow(true);
         } else {

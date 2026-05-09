@@ -85,7 +85,6 @@
                         <!-- Nationality -->
                         <div>
                             <label for="nationality" class="block text-sm font-medium text-slate-700 mb-1">Nationality</label>
-                            <!-- Note: JS will toggle readonly/value -->
                             <input type="text" name="nationality" id="nationality" value="{{ old('nationality', 'MALAYSIAN') }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm bg-gray-100" readonly required>
                             @error('nationality') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
@@ -112,50 +111,24 @@
                     <div class="mb-6 border-b border-gray-100 pb-6">
                         <div class="flex items-center justify-between mb-4">
                             <h2 class="text-xl font-semibold text-slate-800">Emergency Contacts</h2>
-                            <button type="button" id="addContactBtn" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition duration-150 ease-in-out text-sm">
+                            <button type="button" id="addContactBtn" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg shadow-sm transition duration-150 ease-in-out text-sm">
                                 + Add Contact
                             </button>
                         </div>
                         
                         <div id="contactList" class="space-y-4"></div>
-
-                        <template id="contactRowTpl">
-                            <div class="contact-row rounded-lg border border-gray-200 bg-gray-50 p-4">
-                                <div class="flex justify-between items-center mb-2">
-                                    <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">New Contact</span>
-                                    <button type="button"
-                                            class="remove-contact text-sm text-red-600 hover:text-red-800">
-                                        Remove
-                                    </button>
-                                </div>
-                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                                        <input type="text" name="emergency_contacts[__i__][name]" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Contact Name" required tabindex="10">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Relationship</label>
-                                        <input type="text" name="emergency_contacts[__i__][relationship]" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="e.g. Spouse, Parent" tabindex="11">
-                                    </div>
-                                    <div>
-                                        <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                                        <input type="text" name="emergency_contacts[__i__][phone]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Phone Number" required tabindex="12">
-                                    </div>
-                                </div>
-                            </div>
-                        </template>
                     </div>
-
-                    <script>
-                        window.LaravelData = {
-                            oldContacts: @json(old('emergency_contacts', []))
-                        };
-                    </script>
 
                     <!-- Photo -->
                     <div class="mb-6">
                         <label for="ic_photo_path" id="photo_label" class="block text-sm font-medium text-slate-700 mb-1">IC Photo</label>
-                        <input type="file" name="ic_photo_path" id="ic_photo_path" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors" tabindex="13">
+                        
+                        <!-- Image Preview Container -->
+                        <div id="ic_preview_container" class="mb-3 hidden">
+                            <img id="ic_preview" src="#" alt="IC Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
+                        </div>
+
+                        <input type="file" name="ic_photo_path" id="ic_photo_path" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors" tabindex="13">
                         @error('ic_photo_path') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                     </div>
 
@@ -168,4 +141,129 @@
             </div>
         </div>
     </div>
+
+    <script>
+        // Identity Type Toggle
+        function toggleIdentityInputs() {
+            const identityType = document.querySelector('input[name="identity_type"]:checked').value;
+            const icContainer = document.getElementById('ic_container');
+            const passportContainer = document.getElementById('passport_container');
+            const nationalityInput = document.getElementById('nationality');
+            const icNumberInput = document.getElementById('ic_number');
+            const passportInput = document.getElementById('passport');
+            const photoLabel = document.getElementById('photo_label');
+
+            if (identityType === 'ic') {
+                icContainer.classList.remove('hidden');
+                passportContainer.classList.add('hidden');
+                nationalityInput.value = 'MALAYSIAN';
+                nationalityInput.classList.add('bg-gray-100');
+                nationalityInput.readOnly = true;
+                icNumberInput.required = true;
+                passportInput.required = false;
+                photoLabel.innerText = 'IC Photo';
+            } else {
+                icContainer.classList.add('hidden');
+                passportContainer.classList.remove('hidden');
+                nationalityInput.value = '';
+                nationalityInput.classList.remove('bg-gray-100');
+                nationalityInput.readOnly = false;
+                icNumberInput.required = false;
+                passportInput.required = true;
+                photoLabel.innerText = 'Passport Photo';
+            }
+        }
+
+        // Image Preview
+        function previewImage(input, previewId, containerId) {
+            const container = document.getElementById(containerId);
+            const preview = document.getElementById(previewId);
+            
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    container.classList.remove('hidden');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        // Dynamic Emergency Contacts
+        (function() {
+            const list = document.getElementById('contactList');
+            const addBtn = document.getElementById('addContactBtn');
+            const oldContacts = @json(old('emergency_contacts', []));
+            let idx = 0;
+
+            function addRow(data = null) {
+                const html = `
+                    <div class="contact-row rounded-lg border border-gray-200 bg-gray-50 p-4">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">NEW CONTACT</span>
+                            <button type="button" class="remove-contact text-sm text-red-600 hover:text-red-800" onclick="this.closest('.contact-row').remove()">
+                                Remove
+                            </button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                                <input type="text" name="emergency_contacts[${idx}][name]" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Contact Name" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Relationship</label>
+                                <input type="text" name="emergency_contacts[${idx}][relationship]" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="e.g. Spouse, Parent">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
+                                <input type="text" name="emergency_contacts[${idx}][phone]" oninput="this.value = this.value.replace(/[^0-9]/g, '')" inputmode="numeric" maxlength="20" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Phone Number" required>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                const wrap = document.createElement('div');
+                wrap.innerHTML = html.trim();
+                const row = wrap.firstElementChild;
+
+                if (data) {
+                    const nameInput = row.querySelector(`input[name="emergency_contacts[${idx}][name]"]`);
+                    const relationshipInput = row.querySelector(`input[name="emergency_contacts[${idx}][relationship]"]`);
+                    const phoneInput = row.querySelector(`input[name="emergency_contacts[${idx}][phone]"]`);
+                    
+                    if (nameInput) nameInput.value = data.name || '';
+                    if (relationshipInput) relationshipInput.value = data.relationship || '';
+                    if (phoneInput) phoneInput.value = data.phone || '';
+                }
+
+                // Hide remove button for the first row to ensure at least one contact
+                const removeBtn = row.querySelector('.remove-contact');
+                if (list.children.length === 0) {
+                    removeBtn.style.display = 'none';
+                }
+
+                list.appendChild(row);
+                idx++;
+            }
+
+            addBtn.addEventListener('click', () => addRow());
+
+            // Initialize
+            list.innerHTML = '';
+            
+            // Check if oldContacts is a non-empty array or object
+            const hasOldData = oldContacts && (
+                (Array.isArray(oldContacts) && oldContacts.length > 0) ||
+                (typeof oldContacts === 'object' && Object.keys(oldContacts).length > 0)
+            );
+
+            if (hasOldData) {
+                Object.values(oldContacts).forEach(c => addRow(c));
+            } else {
+                addRow(); // Add exactly one row by default
+            }
+        })();
+
+        document.addEventListener('DOMContentLoaded', toggleIdentityInputs);
+    </script>
 </x-app-layout>

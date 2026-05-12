@@ -25,7 +25,7 @@
                             class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm transition">
                         <option value="">-- Choose who this asset belongs to --</option>
                         @foreach($users as $user)
-                            <option value="{{ $user->id }}" {{ request('user_id') == $user->id ? 'selected' : '' }}>
+                            <option value="{{ $user->id }}" {{ $selectedUserId == $user->id ? 'selected' : '' }}>
                                 {{ $user->name }} ({{ ucfirst($user->role) }})
                             </option>
                         @endforeach
@@ -33,10 +33,10 @@
                 </section>
 
                 {{-- Step 2: Assets List --}}
-                @if(request('user_id'))
+                @if($selectedUserId)
                     <form action="{{ route('admin.roomAsset.store') }}" method="POST">
                         @csrf
-                        <input type="hidden" name="target_user_id" value="{{ request('user_id') }}">
+                        <input type="hidden" name="target_user_id" value="{{ $selectedUserId }}">
 
                         <div class="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100">
                             <div class="px-6 py-5 border-b border-gray-50 bg-white flex items-center justify-between">

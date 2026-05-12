@@ -61,6 +61,10 @@ class RoomAssetController extends Controller
             ->get();
         $selectedUserId = $request->query('user_id');
 
+        if (!$selectedUserId && Auth::user()->role === 'ownerAdmin') {
+            $selectedUserId = Auth::id();
+        }
+
         return view('adminSide.rooms.roomAsset.create', compact(
             'users', 
             'assetLibrary', 
@@ -157,15 +161,15 @@ class RoomAssetController extends Controller
         try {
             // 1. 更新主资产表
             $asset = Asset::findOrFail($id);
-            $asset->update(['status' => 'Removed']);
+            $asset->update(['status' => 'Inactive']);
 
             // 2. 更新关联的所有房间资产记录
             DB::table('asset_room')
                 ->where('asset_id', $id)
-                ->update(['status' => 'Removed']);
+                ->update(['status' => 'Inactive']);
 
             DB::commit();
-            return redirect()->back()->with('success', 'Asset and its records marked as Removed.');
+            return redirect()->back()->with('success', 'Asset and its records marked as Inactive.');
         } catch (\Exception $e) {
             DB::rollBack();
             return redirect()->back()->with('error', 'Failed to remove asset: ' . $e->getMessage());
@@ -183,10 +187,10 @@ class RoomAssetController extends Controller
             $asset = Asset::findOrFail($id);
             $asset->update(['status' => 'Active']);
 
-            // 2. 仅恢复那些之前被设为 Removed 的房间关联记录
+            // 2. 仅恢复那些之前被设为 Inactive 的房间关联记录
             DB::table('asset_room')
                 ->where('asset_id', $id)
-                ->where('status', 'Removed') 
+                ->where('status', 'Inactive') 
                 ->update(['status' => 'Active']);
 
             DB::commit();

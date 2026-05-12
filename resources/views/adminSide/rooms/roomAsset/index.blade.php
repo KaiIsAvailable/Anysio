@@ -104,7 +104,7 @@
                                         </a>
 
                                         {{-- Delete 表单 --}}
-                                        @if($asset->status === 'Removed')
+                                        @if(strtolower($asset->status) === 'inactive')
                                             {{-- 恢复按钮 (Restore) --}}
                                             <form action="{{ route('admin.roomAsset.restore', $asset->id) }}" method="POST"
                                                 onsubmit="return confirm('Restore asset {{ addslashes($asset->name) }}?');"

@@ -118,13 +118,11 @@
                 <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
                     <div class="p-6 border-b border-gray-100 flex items-center justify-between">
                         <h2 class="text-lg font-semibold text-slate-900">Assets</h2>
-                        <span class="text-sm text-gray-500">
-                            Total: {{ $room->assets->count() }}
-                        </span>
+                        <span class="text-sm text-gray-500">Total: {{ $room->allAssets->count() }}</span>
                     </div>
 
                     <div class="overflow-x-auto">
-                        @if($room->assets->count() > 0)
+                        @if($room->allAssets->count() > 0)
                             <table class="table-fixed w-full min-w-[1100px] divide-y divide-gray-200">
                                 <colgroup>
                                     <col class="w-[26.5%]">
@@ -151,11 +149,16 @@
                                 </thead>
 
                                 <tbody class="bg-white divide-y divide-gray-200">
-                                    @foreach($room->assets as $asset)
+                                    @foreach($room->allAssets as $asset)
                                         <tr class="hover:bg-gray-50 transition-colors duration-150">
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-left">
-                                                    <div class="text-sm font-medium text-slate-900">{{ $asset->name ?? '—' }}</div>
+                                                    <div class="flex items-center justify-between gap-3">
+                                                        <div class="text-sm font-medium text-slate-900">{{ $asset->name ?? '—' }}</div>
+                                                        @if(!empty($asset->pivot->status) && strtolower($asset->pivot->status) === 'inactive')
+                                                            <span class="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-gray-100 text-gray-700">Inactive</span>
+                                                        @endif
+                                                    </div>
                                                 </div>
                                             </td>
 
@@ -167,10 +170,10 @@
 
                                             <td class="px-6 py-4">
                                                 <div class="w-full text-left text-sm text-slate-900 whitespace-nowrap">
-                                                    @if(!empty($asset->last_maintenance))
+                                                    @if(!empty($asset->pivot->last_maintenance))
                                                         {{ \Illuminate\Support\Carbon::parse($asset->pivot->last_maintenance)->format('d M Y') }}
                                                     @else
-                                                        No maintencne yet   
+                                                        No maintenance yet
                                                     @endif
                                                 </div>
                                             </td>

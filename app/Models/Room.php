@@ -40,9 +40,17 @@ class Room extends Model
 
     public function assets(): BelongsToMany
     {
-        // 关联 Asset 字典表，指定中间表为 asset_room
+        // 关联 Asset 字典表，指定中间表为 asset_room；只返回当前 Active 的房间资产
         return $this->belongsToMany(Asset::class, 'asset_room')
-                    ->withPivot('id', 'condition', 'last_maintenance', 'remark') // 允许访问中间表字段
+                    ->withPivot(['id', 'status', 'condition', 'last_maintenance', 'remark'])
+                    ->wherePivot('status', 'Active')
+                    ->withTimestamps();
+    }
+
+    public function allAssets(): BelongsToMany
+    {
+        return $this->belongsToMany(Asset::class, 'asset_room')
+                    ->withPivot(['id', 'status', 'condition', 'last_maintenance', 'remark'])
                     ->withTimestamps();
     }
 

@@ -245,8 +245,9 @@ class RoomController extends Controller
             ->get();
 
         // 4. 获取当前房间已经存在的资产及其数量映射 [asset_id => quantity]
-        // 假设你的关联表模型是 RoomAsset
+        // 仅查询 Active 状态的资产，不包含被标记为 Inactive 的旧记录
         $currentAssets = RoomAsset::where('room_id', $room->id)
+            ->where('status', 'Active')
             ->pluck('quantity', 'asset_id')
             ->toArray();
 
@@ -292,9 +293,10 @@ class RoomController extends Controller
                 'status'    => $data['status'],
             ]);
 
-            // 4. 处理 Assets 更新 (采用 "删除并重新插入" 策略，最简单稳健)
-            // 首先移除该房间所有旧的资产关联
-            RoomAsset::where('room_id', $room->id)->delete();
+            // 4. 处理 Assets 更新：将旧资产标记为 Inactive，保留历史记录
+            RoomAsset::where('room_id', $room->id)
+                ->where('status', 'Active')
+                ->update(['status' => 'Inactive']);
 
             // 重新插入前端提交的、数量大于 0 的资产
             if (!empty($data['assets'])) {
@@ -338,11 +340,43 @@ class RoomController extends Controller
         }
 
         DB::transaction(function () use ($room) {
-            $room->assets()->delete();
-            $room->delete();
+            RoomAsset::where('room_id', $room->id)
+                ->where('status', 'Active')
+                ->update(['status' => 'Inactive']);
+            $room->update(['status' => 'Inactive']);
         });
 
-        return redirect()->route('admin.units.show', $room->unit_id)->with('success', 'Room deleted successfully.');
+        return redirect()->route('admin.units.show', $room->unit_id)->with('success', 'Room marked Inactive and related assets preserved.');
+    }
+
+    public function restore(Room $room)
+    {
+        Gate::authorize('owner-admin');
+        $user = Auth::user();
+
+        // 权限检查：验证当前用户是否有权恢复这个 Room
+        if (!Gate::allows('super-admin')) {
+            if ($user->role === 'agentAdmin' || $user->role === 'agent') {
+                if ($room->unit->agent_id !== $user->id) {
+                    abort(403, 'Unauthorized action.');
+                }
+            } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
+                if ($room->unit->owner_id !== $user->owner?->id) {
+                    abort(403, 'Unauthorized action.');
+                }
+            }
+        }
+
+        DB::transaction(function () use ($room) {
+            // 恢复房间状态为 Vacant
+            $room->update(['status' => 'Vacant']);
+            // 恢复之前被标记为 Inactive 的房间资产
+            RoomAsset::where('room_id', $room->id)
+                ->where('status', 'Inactive')
+                ->update(['status' => 'Active']);
+        });
+
+        return redirect()->route('admin.units.show', $room->unit_id)->with('success', 'Room has been restored successfully.');
     }
 
     // ===============================
@@ -415,9 +449,9 @@ class RoomController extends Controller
     {
         Gate::authorize('owner-admin');
         abort_unless($asset->room_id === $room->id, 404);
-        $asset->delete();
+        $asset->update(['status' => 'inactive']);
 
-        return back()->with('success', 'Asset deleted.');
+        return back()->with('success', 'Asset marked inactive.');
     }
 
     // ===============================

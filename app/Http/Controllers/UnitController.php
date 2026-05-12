@@ -185,11 +185,12 @@ class UnitController extends Controller
      */
     public function show(Request $request, Unit $unit)
     {
-        $query = $unit->rooms()->with([
-            'unit.owner:id,user_id,company_name', 
-            'unit.owner.user:id,name,email',
-            'assets'
-        ]);
+        $query = $unit->rooms()
+            ->with([
+                'unit.owner:id,user_id,company_name', 
+                'unit.owner.user:id,name,email',
+                'assets'
+            ]);
 
         // 1. 处理搜索逻辑 (参考你之前的 room index)
         if ($request->has('search')) {

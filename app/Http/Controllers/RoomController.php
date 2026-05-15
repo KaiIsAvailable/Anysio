@@ -154,7 +154,7 @@ class RoomController extends Controller
                     abort(403, 'Unauthorized action.');
                 }
             } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($unit->owner_id !== $user->owner?->id) {
+                if ($unit->created_by !== $user->id) {
                     abort(403, 'Unauthorized action.');
                 }
             }

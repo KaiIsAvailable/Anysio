@@ -2,8 +2,13 @@
 
 {{-- 逻辑：优先使用传入的 status，如果没有，则尝试读取 session('success') --}}
 @php
-    $message = $status ?? session('success');
+    // 💡 修改这里：优先获取 status，其次是 success，最后是 error
+    $message = $status ?? session('success') ?? session('error');
+    
+    // 判定是否是错误状态（有 error session 或者有验证错误）
     $isError = session()->has('error') || $errors->any();
+    
+    // 如果没有上述消息，但有表单验证错误，则抓取第一个验证错误
     if (!$message && $errors->any()) {
         $message = $errors->first();
         $isError = true;

@@ -81,9 +81,9 @@
                                 <select name="lease_selection" id="lease_selection" onchange="toggleLeaseInput()" 
                                         class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm"
                                         data-preview="{property_type}">
-                                    <option value="property" @selected(old('lease_selection') == 'property')>Entire Property</option>
-                                    <option value="unit" @selected(old('lease_selection') == 'unit')>Specific Unit</option>
-                                    <option value="room" @selected(old('lease_selection') == 'room')>Specific Room</option>
+                                    <option value="property" {{ old('lease_selection', 'property') == 'property' ? 'selected' : '' }}>Entire Property</option>
+                                    <option value="unit" {{ old('lease_selection') == 'unit' ? 'selected' : '' }}>Specific Unit</option>
+                                    <option value="room" {{ old('lease_selection') == 'room' ? 'selected' : '' }}>Specific Room</option>
                                 </select>
                             </div>
 
@@ -96,7 +96,7 @@
                                     <select name="property_id" id="property_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Property --</option>
                                         @foreach($properties as $p)
-                                            <option value="{{ $p->id }}" data-owner="{{ $p->owner->user?->name ?? 'N/A' }}" data-owner-ic="{{ $p->owner?->ic_number ?? 'N/A' }}" data-address="{{ $p->full_address }}">{{ $p->name }}</option>
+                                            <option value="{{ $p->id }}" data-owner="{{ $p->owner->user?->name ?? 'N/A' }}" data-owner-ic="{{ $p->owner?->ic_number ?? 'N/A' }}" data-address="{{ $p->full_address }}" {{ old('property_id') == $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
                                         @endforeach
                                     </select>
                                     @error('property_id')
@@ -110,7 +110,7 @@
                                     <select name="unit_id" id="unit_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Unit --</option>
                                         @foreach($units as $u)
-                                            <option value="{{ $u->id }}" data-owner="{{ $u->owner->user->name }}" data-owner-ic="{{ $u->owner->ic_number }}" data-address="{{ $u->full_address }}">{{ $u->unit_no }}</option>
+                                            <option value="{{ $u->id }}" data-owner="{{ $u->owner->user->name }}" data-owner-ic="{{ $u->owner->ic_number }}" data-address="{{ $u->full_address }}" {{ old('unit_id') == $u->id ? 'selected' : '' }}>{{ $u->unit_no }}</option>
                                         @endforeach
                                     </select>
                                     @error('unit_id')
@@ -125,7 +125,7 @@
                                     <select name="room_id" id="room_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Room --</option>
                                         @foreach($rooms as $r)
-                                            <option value="{{ $r->id }}" data-owner="{{ $r->unit->owner->user->name }}" data-owner-ic="{{ $r->unit->owner->ic_number }}" data-address="{{ $r->full_address }}">{{ $r->room_no }}</option>
+                                            <option value="{{ $r->id }}" data-owner="{{ $r->unit->owner->user->name }}" data-owner-ic="{{ $r->unit->owner->ic_number }}" data-address="{{ $r->full_address }}" {{ old('room_id') == $r->id ? 'selected' : '' }}>{{ $r->room_no }}</option>
                                         @endforeach
                                     </select>
                                     @error('room_id')
@@ -258,7 +258,7 @@
                                 <option value="">-- Select Template --</option>
                                 @foreach($templates as $template)
                                     {{-- 将 content 存入 data-content 属性 --}}
-                                    <option value="{{ $template->id }}" data-content="{{ $template->content }}" data-title="{{ $template->title }}">
+                                    <option value="{{ $template->id }}" data-content="{{ $template->content }}" data-title="{{ $template->title }}" {{ old('agreement_id') == $template->id ? 'selected' : '' }}>
                                         {{ $template->title }} (v{{ $template->version }}) - {{ $template->owner->user->name }}
                                     </option>
                                 @endforeach

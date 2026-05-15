@@ -101,38 +101,6 @@ class LeaseController extends Controller
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        /** @var \App\Models\UserManagement|null $management */
-        $management = $user->user_management;
-
-        // 2. Check if the management record AND the package exist
-        if (!$management || !$management->package) {
-            return back()->with('error', 'You do not have an active subscription package.');
-        }
-
-        // 3. Now define the package and limit
-        $package = $management->package;
-        $baseLeaseLimit = $package->base_lease; 
-
-        // 4. Count leases
-        $currentLeaseCount = Lease::when($user->role !== 'admin', function ($query) use ($user) {
-                return $query->whereHas('tenant', function ($q) use ($user) {
-                    $q->where('created_by', $user->id);
-                });
-            })
-            ->count();
-
-        // DEBUGGING: Move DD here, BEFORE the limit check
-        // dd([
-        //    'package_name' => $package->name,
-        //    'limit' => $baseLeaseLimit,
-        //    'current' => $currentLeaseCount
-        // ]);
-
-        // 5. Block if limit reached
-        if ($user->role !== 'admin' && $currentLeaseCount >= $baseLeaseLimit) {
-            return back()->with('error', "Limit Reached: Your current package ({$package->name}) only allows {$baseLeaseLimit} leases.");
-        }
-
         $authFilter = function ($query) use ($user) {
             if ($user->role === 'ownerAdmin' || $user->role === 'agentAdmin') {
                 // 直接匹配 created_by 字段
@@ -155,7 +123,7 @@ class LeaseController extends Controller
         $rooms = Room::with(['unit.owner.user'])
             ->where('status', 'Vacant')
             ->when($user->role !== 'admin', function ($q) use ($authFilter) {
-                $q->whereHas('unit.property.owner', $authFilter);
+                $q->whereHas('unit.owner', $authFilter);
             })
             ->get();
 
@@ -211,6 +179,45 @@ class LeaseController extends Controller
 
     public function store(Request $request)
     {
+        /** @var \App\Models\User $user */
+       $user = Auth::user();
+
+        // 💡 步骤 1：先紧急验证最基础的状态，因为我们需要通过 status 来判断接下来的限额逻辑
+        $baseRules = [
+            'status' => 'required|string|in:New,Renew,Check Out,End Agreement',
+        ];
+        $baseValidated = $request->validate($baseRules);
+        $status = $baseValidated['status'];
+
+        // 💡 步骤 2：仅当创建“新租约 (New)”时，才进行套餐限额拦截！Renew、Check Out、End 顺畅放行！
+        if ($status === 'New') {
+            /** @var \App\Models\UserManagement|null $management */
+            $management = $user->user_management;
+
+            // 检查套餐是否存在
+            if (!$management || !$management->package) {
+                return back()->with('error', 'You do not have an active subscription package.');
+            }
+
+            $package = $management->package;
+            $baseLeaseLimit = $package->base_lease; 
+
+            // 计算当前活跃的主租约数量
+            $currentLeaseCount = Lease::whereNull('parent_lease_id')
+                ->whereIn('status', ['New', 'Renew']) // 只计算生效中的
+                ->when($user->role !== 'admin', function ($query) use ($user) {
+                    return $query->whereHas('tenant', function ($q) use ($user) {
+                        $q->where('created_by', $user->id);
+                    });
+                })
+                ->count();
+
+            // 达到上限，拒绝创建新租约
+            if ($user->role !== 'admin' && $currentLeaseCount >= $baseLeaseLimit) {
+                return back()->with('error', "Limit Reached: Your current package ({$package->name}) only allows {$baseLeaseLimit} leases. You cannot create a NEW lease, but you can still Renew or Check Out existing ones.");
+            }
+        }
+
         // 1. 验证数据 (修复了逻辑冲突，确保选 room 时不要求 property_id)
         $validated = $request->validate([
             'status' => 'required|string|in:New,Renew,Check Out,End Agreement',
@@ -229,10 +236,10 @@ class LeaseController extends Controller
             'end_date' => 'required_if:status,New,Renew|nullable|date|after:start_date',
             'checked_out_at' => 'required_if:status,Check Out|nullable|date',
             'agreement_ended_at' => 'required_if:status,End Agreement|nullable|date',
-            'rent_price' => 'required_if:status,New,Renew|nullable|numeric|min:0',
+            'rent_price' => 'required_if:status,New,Renew|nullable|numeric|min:1',
             'term_type' => 'required_if:status,New,Renew|nullable|string',
-            'security_deposit' => 'nullable|numeric|min:0',
-            'utilities_deposit' => 'nullable|numeric|min:0',
+            'security_deposit' => 'nullable|numeric|min:1',
+            'utilities_deposit' => 'nullable|numeric|min:1',
             'agreement_id' => 'required',
         ]);
 

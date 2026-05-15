@@ -81,7 +81,7 @@
                                         {{-- start_date & end_date --}}
                                         <td class="px-6 py-4">
                                             <div class="text-sm text-slate-900">
-                                                {{ $lease->start_date_formatted }} - {{ $lease->end_date_formatted }}
+                                                {{ $lease->start_date_formatted }} to {{ $lease->end_date_formatted }}
                                                 @if ($lease->agreement_ended_at)
                                                     <span class="text-xs text-gray-500 block">End Date:</span>
                                                     <div class="text-sm text-slate-900">{{ $lease->agreement_ended_at_formatted }}</div>
@@ -112,7 +112,11 @@
                                             </span>
                                         </td>
                                         {{-- action --}}
-                                        <td class="px-6 py-4" x-data="{ openUpload: false, shake: false }" @click.stop>
+                                        <td class="px-6 py-4" x-data="{ 
+                                                openUpload: {{ $errors->any() ? 'true' : 'false' }}, 
+                                                shake: {{ $errors->any() ? 'true' : 'false' }},
+                                                activeLease: JSON.parse(sessionStorage.getItem('lastActiveLease') || '{}')
+                                            }" @click.stop>
                                             <div class="flex flex-col gap-3"> {{-- 使用垂直容器包裹所有内容 --}}
                                                 
                                                 {{-- 第一部分：Stamping 状态区 --}}
@@ -209,7 +213,7 @@
 
                                             {{-- Modal 只有在需要时渲染 --}}
                                             @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
-                                                <x-lease-stamping-modal :lease="$lease" />
+                                                <x-modals.lease-stamping-modal :lease="$lease" />
                                             @endif
                                         </td>
                                     </tr>

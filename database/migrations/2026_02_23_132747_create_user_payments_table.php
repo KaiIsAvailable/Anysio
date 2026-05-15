@@ -27,7 +27,8 @@ return new class extends Migration
             $table->string('status')->default('pending')->index(); // pending, paid, rejected, cancelled
             $table->date('payment_date')->nullable();
             $table->string('payment_method')->nullable();  // bank_transfer, duitnow, credit_card
-            $table->string('transaction_ref')->nullable(); // 银行流水 Reference No.
+            $table->string('transaction_ref')->nullable(); // user自己银行流水 Reference No.
+            $table->string('approve_transaction_ref')->nullable(); // approve的时候写银行流水 Reference No.
             $table->string('received_via')->nullable();    // 你的收款银行 (e.g. Maybank-Anysio-Account)
             
             // 文件处理

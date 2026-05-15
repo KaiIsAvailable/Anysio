@@ -111,7 +111,7 @@ class RoomController extends Controller
                 }
             } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
                 // Owner 需要检查该 Unit 是否属于他自己
-                if ($unit->owner_id !== $user->owner?->id) {
+                if ($unit->created_by !== $user->owner?->id) {
                     abort(403, 'Unauthorized action.');
                 }
             }

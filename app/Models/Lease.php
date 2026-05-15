@@ -87,6 +87,10 @@ class Lease extends Model
         return $this->morphTo();
     }
 
+    public function user_management() {
+        return $this->hasOne(UserManagement::class, 'user_id');
+    }
+
     protected function leasableName(): Attribute
     {
         return Attribute::make(

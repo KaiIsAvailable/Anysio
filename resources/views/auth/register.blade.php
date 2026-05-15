@@ -2,7 +2,7 @@
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
-    <form method="POST" action="{{ route('register') }}">
+    <form method="POST" action="{{ route('register') }}" x-data="{ loading: false }" @submit="loading = true">
         @csrf
 
         <!-- Name -->
@@ -176,7 +176,7 @@
                         </div>
 
                         <div class="bg-gray-50 px-6 py-4 flex justify-between items-center">
-                            <span class="text-xs text-gray-400 italic">Effective Date: {{ date('Y-m-d') }}</span>
+                            <span class="text-xs text-gray-400 italic"></span>
                             <button type="button" @click="openTnc = false" 
                                     class="px-6 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 shadow-md">
                                 CLOSE
@@ -192,7 +192,7 @@
                 {{ __('Already registered?') }}
             </a>
 
-            <x-primary-button class="ms-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800">
+            <x-primary-button class="ms-4" loading="loading">
                 {{ __('Register') }}
             </x-primary-button>
         </div>

@@ -137,6 +137,8 @@ class RegisteredUserController extends Controller
                     ? $startDate->copy()->addMonth() 
                     : $startDate->copy()->addYear();
 
+                $subscriptionStatus = (isset($packageDetails) && $packageDetails->price > 0) ? 'pending' : 'active';
+
                 // 同时也要在 UserManagement 创建记录
                 UserManagement::create([
                     'user_id' => $user->id,
@@ -144,24 +146,36 @@ class RegisteredUserController extends Controller
                     'role' => $finalRole,
                     'start_date' => $startDate,
                     'end_date' => $endDate,
-                    'subscription_status' => 'pending', // 这些人是要付钱的
+                    'subscription_status' => $subscriptionStatus, // 这些人是要付钱的
                 ]);
+
+                if ($finalRole === 'ownerAdmin'){
+                    Owners::create([
+                        'user_id' => $user->id,
+                        'ic_number' => 'null',
+                        'phone' => 'null',
+                        'gender' => 'null',
+                    ]);
+                }
             }
 
             // 3. 生成订阅账单 (套用你的 Payment 逻辑)
-            $subscriptionType = 'SUBSCRIPTION'; // 对应你的 payment_type
-            $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType);
+            if (isset($packageDetails) && $packageDetails->price > 0) {
+    
+                $subscriptionType = 'SUBSCRIPTION';
+                $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType, UserPayment::class);
 
-            UserPayment::create([
-                'id'           => (string) Str::ulid(),
-                'user_id'      => $user->id, // 确保你的 payment 表有 user_id 字段
-                'ref_code'     => $request->ref_code,
-                'invoice_no'   => $newInvoiceNo,
-                'payment_type' => strtolower($subscriptionType),
-                'amount_due'   => $packageDetails->price,
-                'amount_paid'  => 0,
-                'status'       => 'unpaid',
-            ]);
+                UserPayment::create([
+                    'id'           => (string) Str::ulid(),
+                    'user_id'      => $user->id,
+                    'ref_code'     => $request->ref_code,
+                    'invoice_no'   => $newInvoiceNo,
+                    'payment_type' => strtolower($subscriptionType),
+                    'amount_due'   => $packageDetails->price,
+                    'amount_paid'  => 0,
+                    'status'       => 'unpaid',
+                ]);
+            }
 
             event(new Registered($user));
             Auth::login($user);

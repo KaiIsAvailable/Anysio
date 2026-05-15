@@ -2,7 +2,7 @@
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
-    <form method="POST" action="{{ route('login') }}">
+    <form method="POST" action="{{ route('login') }}" x-data="{ loading: false }" @submit="loading = true">
         @csrf
 
         <!-- Email Address -->
@@ -40,7 +40,7 @@
                 </a>
             @endif
 
-            <x-primary-button class="ms-3 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800">
+            <x-primary-button class="ms-3" loading="loading">
                 {{ __('Log in') }}
             </x-primary-button>
         </div>

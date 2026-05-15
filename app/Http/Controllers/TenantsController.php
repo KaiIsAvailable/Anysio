@@ -299,8 +299,11 @@ class TenantsController extends Controller
                 abort(404);
             }
         }
+        // 获取磁盘上文件的完整物理路径
+        $fullPath = Storage::disk('local')->path($path);
 
-        return Storage::disk('local')->response($path);
+        // 直接使用 Laravel 的 response helper
+        return response()->file($fullPath);
     }
 
     /**

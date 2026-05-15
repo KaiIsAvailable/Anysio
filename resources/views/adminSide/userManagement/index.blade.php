@@ -1,8 +1,26 @@
 <x-app-layout>
-    <div class="py-12 bg-gray-50 min-h-screen font-sans">
+    <div class="py-12 bg-gray-50 min-h-screen font-sans"
+         x-data="{ 
+            openPayment: {{ $errors->any() ? 'true' : 'false' }}, 
+            shakePayment: {{ $errors->any() ? 'true' : 'false' }},
+            loading: false,
+            paymentData: {
+                invoiceNo: '{{ old('invoice_no', '') }}',
+                amountDue: '{{ old('amount_paid', '0.00') }}',
+                actionUrl: '{{ old('action_url', '') }}',
+                transactionRef: '{{ old('transaction_ref', '') }}', // Add this
+                method: '{{ old('received_via', 'Cash') }}' // Add this to remember the select dropdown
+            }
+        }"
+         @click.stop
+         @open-payment-record.window="
+            paymentData = $event.detail; 
+            openPayment = true;
+         ">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
- 
-            <x-approve-payment :payment="$pendingPayment" />
+
+            <x-modals.approve-payment :payments="$pendingPayments" />
+            <x-modals.payment-modal /> 
 
             {{-- Header Section --}}
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">

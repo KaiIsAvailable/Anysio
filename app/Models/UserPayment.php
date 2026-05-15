@@ -28,6 +28,7 @@ class UserPayment extends Model
         'payment_date',
         'payment_method',
         'transaction_ref',
+        'approve_transaction_ref',
         'received_via',
         'attachment',
         'receipt_path',

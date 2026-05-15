@@ -20,7 +20,8 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (TokenMismatchException $e, Request $request) {
             // 如果是 AJAX 请求，返回状态码让前端知道 Session 挂了
             if ($request->expectsJson()) {
-                return response()->json(['message' => 'Session expired.'], 419);
+                //return response()->json(['message' => 'Session expired.'], 419);
+                return redirect()->route('login')->with('message', 'Session expired, please login again.');
             }
 
             // 如果是普通页面请求，跳转回登录页

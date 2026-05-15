@@ -42,14 +42,14 @@
                     
                     // 如果不是 Admin 且状态不是 active，则必须支付
                     $mustPay = false;
-                    if ($userMgmt && auth()->user()->role !== 'admin') {
-                        $isNotActive = $userMgmt->subscription_status !== 'active';
-                        $hasPrice = $userMgmt->package && (int)$userMgmt->package->price > 0;
-
-                        if ($isNotActive && $hasPrice) {
-                            $mustPay = true;
-                        }
-                    }
+                    $mustPay = (
+                        $userMgmt &&                                // 记录存在
+                        auth()->user()->role !== 'admin' &&         // 不是管理员
+                        $userMgmt->subscription_status !== 'active' && // 还没激活
+                        $latestPayment && 
+                        $latestPayment->amount_due > 0 &&
+                        $latestPayment->amount_paid != 0
+                    );
                 @endphp
             @endauth
 
@@ -63,15 +63,10 @@
                 </header>
             @endisset
 
-            <main x-data="{ openPayment: @json($mustPay ?? false) }">
+            <main x-data="{ openPayment: @js((bool)($mustPay ?? false)) }">
                 @auth
-                    @if($mustPay)
-                        {{-- 强制显示 Modal --}}
-                        <div x-init="openPayment = true"></div>
+                    @if(isset($mustPay) && $mustPay)
                         @include('components.make_payment', ['latestPayment' => $latestPayment])
-
-                        {{-- 背景遮罩层：防止用户点击主界面内容 --}}
-                        <div class="fixed inset-0 bg-gray-600 bg-opacity-50 z-[40] backdrop-blur-sm"></div>
                     @endif
                 @endauth
 

@@ -20,6 +20,7 @@ use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Log;
 
 class LeaseController extends Controller
 {
@@ -97,7 +98,40 @@ class LeaseController extends Controller
 
     public function create(Request $request)
     {
+        /** @var \App\Models\User $user */
         $user = Auth::user();
+
+        /** @var \App\Models\UserManagement|null $management */
+        $management = $user->user_management;
+
+        // 2. Check if the management record AND the package exist
+        if (!$management || !$management->package) {
+            return back()->with('error', 'You do not have an active subscription package.');
+        }
+
+        // 3. Now define the package and limit
+        $package = $management->package;
+        $baseLeaseLimit = $package->base_lease; 
+
+        // 4. Count leases
+        $currentLeaseCount = Lease::when($user->role !== 'admin', function ($query) use ($user) {
+                return $query->whereHas('tenant', function ($q) use ($user) {
+                    $q->where('created_by', $user->id);
+                });
+            })
+            ->count();
+
+        // DEBUGGING: Move DD here, BEFORE the limit check
+        // dd([
+        //    'package_name' => $package->name,
+        //    'limit' => $baseLeaseLimit,
+        //    'current' => $currentLeaseCount
+        // ]);
+
+        // 5. Block if limit reached
+        if ($user->role !== 'admin' && $currentLeaseCount >= $baseLeaseLimit) {
+            return back()->with('error', "Limit Reached: Your current package ({$package->name}) only allows {$baseLeaseLimit} leases.");
+        }
 
         $authFilter = function ($query) use ($user) {
             if ($user->role === 'ownerAdmin' || $user->role === 'agentAdmin') {
@@ -216,10 +250,10 @@ class LeaseController extends Controller
                 'start_date' => [
                     'required',
                     'date',
-                    'after_or_equal:' . $oldLease->end_date->format('Y-m-d'),
+                    'after_or_equal:' . sysDateFormat($oldLease->end_date),
                 ],
             ], [
-                'start_date.after_or_equal' => 'Your start date must be after or equal (' . $oldLease->end_date->format('d/m/Y') . ')',
+                'start_date.after_or_equal' => 'Your start date must be after or equal (' . dateFormat($oldLease->end_date) . ')',
             ]);
         }
 
@@ -619,29 +653,37 @@ class LeaseController extends Controller
 
     public function uploadStamping(Request $request, Lease $lease)
     {
-        $request->validate([
+        // 1. 验证数据（验证失败会自动 back() 并带上 errors 和 input，不需要手动 catch）
+        $validated = $request->validate([
             'stamping_reference_no' => 'required|string|max:100',
-            'stamping_cert' => 'required|mimes:pdf|max:2048',
+            'stamping_cert' => 'required|mimes:pdf|max:2048', 
         ]);
 
-        if ($request->hasFile('stamping_cert')) {
-            // --- 优化点：删除旧文件 ---
-            if ($lease->stamping_cert_path && Storage::disk('local')->exists($lease->stamping_cert_path)) {
-                Storage::disk('local')->delete($lease->stamping_cert_path);
+        try {
+            if ($request->hasFile('stamping_cert')) {
+                // 2. 删除旧文件 (建议增加一个 check，确保路径存在)
+                if ($lease->stamping_cert_path && Storage::disk('local')->exists($lease->stamping_cert_path)) {
+                    Storage::disk('local')->delete($lease->stamping_cert_path);
+                }
+
+                // 3. 存储新文件
+                $path = $request->file('stamping_cert')->store('stamping_certs', 'local');
+
+                // 4. 更新数据库
+                $lease->update([
+                    'stamping_status' => true,
+                    'stamping_cert_path' => $path,
+                    'stamping_reference_no' => $validated['stamping_reference_no'], // 使用验证过的数据
+                    'stamped_at' => now(),
+                ]);
             }
 
-            $path = $request->file('stamping_cert')->store('stamping_certs', 'local');
+            return back()->with('success', 'Stamping certificate uploaded successfully!');
 
-            $lease->update([
-                'stamping_status' => true,
-                'stamping_cert_path' => $path,
-                'stamping_reference_no' => $request->stamping_reference_no,
-                'stamped_at' => now(),
-            ]);
-            $lease->save(['validate' => false]);
+        } catch (\Exception $e) {
+            // 这里只捕获数据库或文件系统的意外错误
+            return back()->with('error', 'Something went wrong: ' . $e->getMessage())->withInput();
         }
-
-        return back()->with('success', 'Stamping uploaded successfully!');
     }
 
     public function viewCert(Lease $lease)

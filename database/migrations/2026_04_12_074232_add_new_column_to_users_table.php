@@ -45,6 +45,10 @@ return new class extends Migration
                 if (!Schema::hasColumn('users', 'agreed_at')) {
                     $table->timestamp('agreed_at')->nullable()->after('privacy_id');
                 }
+
+                if (!Schema::hasColumn('users', 'status')) {
+                    $table->string('status')->default('active')->index()->after('agreed_at');
+                }
             });
         }
     }

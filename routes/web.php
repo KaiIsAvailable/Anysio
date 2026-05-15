@@ -14,9 +14,10 @@ Route::get('/', function () {
 // 2. 登录后的基础路由
 Route::middleware(['auth', 'verified'])->group(function () {
     
-    Route::get('/dashboard', function () {
-        return view('dashboard');
-    })->name('dashboard');
+    //Route::get('/dashboard', function () {
+    //    return view('dashboard');
+    //})->name('dashboard');
+    require __DIR__.'/dashboardRoute.php';
 
     Route::get('/email/verify/status', function (Request $request) {
         return response()->json([

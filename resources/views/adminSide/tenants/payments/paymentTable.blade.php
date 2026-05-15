@@ -1,4 +1,4 @@
-@include('components.payment-modal')
+@include('components.modals.payment-modal')
 @forelse($payments as $payment)
     <tr class="hover:bg-gray-50 transition-colors">
         <td class="px-6 py-4 whitespace-nowrap">

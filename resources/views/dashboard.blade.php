@@ -27,9 +27,19 @@
                 <div x-init="openPayment = true"></div>
 
                 {{-- 引入你刚才那个高颜值的 Payment Modal Component --}}
-                @include('components.make_payment', ['latestPayment' => $latestPayment])
+                @include('components.modals.make_payment', ['latestPayment' => $latestPayment])
 
             @else
+                {{-- 只要 Controller 说是 true，这里就直接显示，省时省力 --}}
+                @if(isset($isProfileIncomplete) && $isProfileIncomplete)
+                    <x-notification-banner 
+                        type="warning" 
+                        message="Your owner details is incomplete! Please update your Company Name, IC, Phone Number, and Gender to unlock full features." 
+                        actionLabel="Complete Owner Details" 
+                        :actionUrl="route('admin.owners.edit', auth()->user()->owner->id ?? 0)" 
+                    />
+                @endif
+
                 {{-- 情况 B：已经 Active，显示正常功能 --}}
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">
                     <div class="p-6 text-gray-900">

@@ -49,8 +49,14 @@
     {{-- 1. 初始化数据，注意 activeId 加了单引号 --}}
     <div class="py-12 bg-gray-50 min-h-screen font-sans" 
         x-data="{ 
-            activeId: '{{ $lease->id }}',
+            activeId: '{{ old('active_id', $lease->id) }}',
             source: {{ $historyJson->isNotEmpty() ? $historyJson->toJson() : '{}' }},
+            
+            // --- 新增：初始化 loading 状态 ---
+            loading: false, 
+
+            openUpload: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }},
+            shake: {{ $errors->any() ? 'true' : 'false' }},
             
             get activeLease() { 
                 return (this.source && this.activeId) ? (this.source[this.activeId] || {}) : {} 
@@ -69,9 +75,13 @@
                 return `{{ url('admin/payments/store-manual') }}/${this.activeId}`;
             },
 
-            // 修复点：将异步逻辑包装在一个普通函数里调用，或者使用 .then 链式调用
             refreshTable() {
-                if (!this.activeId) return;
+                if (!this.activeId || this.loading) return; // 防止重复点击
+                
+                // --- 修改：开始加载 ---
+                this.loading = true;
+                console.log('Fetching data for:', this.activeId);
+
                 const url = `{{ url('/') }}/admin/leases/${this.activeId}/refresh-payments`;
 
                 fetch(url, {
@@ -87,7 +97,13 @@
                     if (rentEl) rentEl.innerHTML = data.rentHtml;
                     if (otherEl) otherEl.innerHTML = data.otherHtml;
                 })
-                .catch(e => console.error('Table refresh failed:', e));
+                .catch(e => {
+                    console.error('Table refresh failed:', e);
+                })
+                .finally(() => {
+                    // --- 修改：无论成功或失败，停止加载 ---
+                    this.loading = false; 
+                });
             },
 
             init() {
@@ -96,6 +112,7 @@
                 });
             }
         }"
+        @click.stop
         @open-payment.window="paymentData = $event.detail; openPayment = true;"
         @open-manual-modal.window="openManual = true; manualActionUrl = $event.detail.action;"
     >
@@ -117,7 +134,7 @@
                     </div>
                     
                     <div class="p-6">
-                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full z-[101]">
                             @foreach($leaseHistory as $history)
                                 @php
                                     $hStatus = strtolower((string)$history->status);
@@ -165,8 +182,12 @@
             <div class="mt-8">
                 {{-- 使用 x-cloak 防止闪烁 (如果你的 CSS 里有定义的话) --}}
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6" 
-                     x-show="activeId" 
-                    x-data="{ openUpload: false, shake: false }"
+                    x-show="activeId" 
+                    x-data="{ 
+                        {{-- 如果有特定字段的错误，初始化为 true --}}
+                        openUpload: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }}, 
+                        shake: {{ $errors->any() ? 'true' : 'false' }} 
+                    }"
                     x-transition:enter="transition ease-out duration-300">
                                     
                     <div class="flex items-center justify-between mb-8 pb-4 border-b border-gray-100">
@@ -278,7 +299,7 @@
                             
                             {{-- 3. 关键：将 $lease 替换为页面上定义的变量 --}}
                             {{-- 这里假设你的后端已经通过路由或初始化传了一个总的 $lease 对象 --}}
-                            <x-lease-stamping-modal ::lease-id="activeId" />
+                            <x-modals.lease-stamping-modal ::lease-id="activeId" />
                             <x-preview-agreement-modal ::lease-id="activeId"  />
                         </div>
                     </div>
@@ -347,7 +368,7 @@
                             <button type="button" 
                                 {{-- 关键：确保 $lease->tenant 存在再生成路由，否则传 null --}}
                                 @click="$dispatch('open-manual-modal', { 
-                                    action: '{{ route('admin.payments.storeManualInvoice', $lease->tenant_id) }}' 
+                                    action: '{{ route('admin.payments.storeManualInvoice', $lease->tenant_id) }}'
                                 })"
                                 class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

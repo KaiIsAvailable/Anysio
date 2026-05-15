@@ -246,7 +246,7 @@ class PaymentsController extends Controller
                         'remarks' => $nextPayment->remarks . " | Deducted RM" . ($overPaidCents / 100)
                     ]);
                 }
-    }
+            }
 
             // 4. 更新当前账单
             $payment->update([
@@ -256,7 +256,7 @@ class PaymentsController extends Controller
                 'status' => 'paid',
                 'payment_date' => $payload['payment_date'],
                 'received_via' => $payload['received_via'],
-                'transaction_ref' => $payload['transaction_ref'],
+                'transaction_ref' => $payload['transaction_ref'] ?? 'CASH',
                 'remarks' => $payload['remarks'],
                 'approved_by' => Auth::id(),
                 'approved_at' => now(),
@@ -276,7 +276,7 @@ class PaymentsController extends Controller
         return back()->with('success', 'Payment marked as void. Original amount preserved for audit.');
     }
 
-    public static function generateSequenceInvoiceNo($payment_type)
+    public static function generateSequenceInvoiceNo($payment_type, $modelClass = Payment::class)
     {
         $type = strtoupper($payment_type);
         $currentYear = now()->format('Y'); // 获取当前年份，如 2026
@@ -286,7 +286,7 @@ class PaymentsController extends Controller
         // 搜索格式类似于：INV-RENT-2026%
         $searchPrefix = "INV-{$type}-{$currentYear}";
         
-        $lastInvoice = Payment::where('invoice_no', 'like', $searchPrefix . '%')
+        $lastInvoice = $modelClass::where('invoice_no', 'like', $searchPrefix . '%')
             ->orderBy('invoice_no', 'desc')
             ->first();
 
@@ -330,7 +330,7 @@ class PaymentsController extends Controller
             // 4. 更新支付表记录
             $payment->update([
                 'attachment' => $path,
-                'transaction_ref' => $request->transaction_ref ?? 'N/A',
+                'transaction_ref' => $request->transaction_ref,
                 'status' => 'pending', // 支付记录设为待审核
             ]);
 

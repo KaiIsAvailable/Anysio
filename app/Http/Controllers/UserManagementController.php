@@ -25,7 +25,7 @@ class UserManagementController extends Controller
             // 这里的关键：确保 'ref_code_packages.id' 是该表的主键
             // 如果你的包表主键不叫 id，请改为实际的名字
             ->leftJoin('ref_code_packages', function($join) {
-                $join->on('user_management.referred_by', '=', 'ref_code_packages.id');
+                $join->on('user_management.package_id', '=', 'ref_code_packages.id');
             })
             
             ->select(
@@ -35,11 +35,12 @@ class UserManagementController extends Controller
                 'ref_code_packages.ref_code as applied_ref_code', // 确保这个字段名在表里存在
             );
 
-        $pendingPayment = UserPayment::with('user') // 假设有关联
-            ->where('status', 'pending')
+        $pendingPayments = UserPayment::with('user')
+            ->where('status', 'pending') 
             ->whereNotNull('attachment')
             ->latest()
-            ->first();
+            ->get();
+        //dd($pendingPayments->toArray());
 
         if ($request->filled('search')) {
             $search = $request->get('search');
@@ -53,7 +54,7 @@ class UserManagementController extends Controller
         // 注意：latest() 里的字段要写全表名
         $userManagement = $query->orderBy('user_management.created_at', 'desc')->paginate(5);
         //dd($userManagement->toArray());
-        return view('adminSide.userManagement.index', compact('userManagement', 'pendingPayment'));
+        return view('adminSide.userManagement.index', compact('userManagement', 'pendingPayments'));
     }
 
     /**
@@ -184,7 +185,7 @@ class UserManagementController extends Controller
         // 复用 index 的关联逻辑，确保 details 页面能拿到 name, email 和 ref_code
         $user = UserManagement::query()
             ->join('users', 'user_management.user_id', '=', 'users.id')
-            ->leftJoin('ref_code_packages', 'user_management.referred_by', '=', 'ref_code_packages.id')
+            ->leftJoin('ref_code_packages', 'user_management.package_id', '=', 'ref_code_packages.id')
             
             ->select(
                 'user_management.*',
@@ -293,28 +294,74 @@ class UserManagementController extends Controller
     }
 
     // Approve 处理
-    public function approve(UserPayment $payment)
+    public function approve(Request $request, UserPayment $payment)
     {
-        DB::transaction(function () use ($payment) {
-            // 1. 更新支付记录
+        // 1. 验证输入（假设审批时管理员可以修正或确认实际收到多少钱）
+        $payload = $request->validate([
+            'amount_paid' => ['required', 'numeric', 'min:0'],
+            'payment_date' => ['required', 'date'],
+            'received_via' => ['required', 'string'], // MATCHES HTML <select name="received_via">
+            'transaction_ref' => ['nullable', 'string'], // 接收 Modal 里的单号
+            'remarks' => ['nullable', 'string'],
+        ]);
+
+        return DB::transaction(function () use ($payload, $payment) {
+            // 2. 转换金额为“分”(Cent)，避免浮点运算错误
+            $totalInputCents = (int) round($payload['amount_paid'] * 100);
+            $dueCents = $payment->getRawOriginal('amount_due'); // 拿到数据库存的原始金额
+
+            $underPaidCents = 0;
+            $overPaidCents = 0;
+            $actualAppliedCents = $totalInputCents;
+
+            // 3. 处理：给少了 (Underpaid)
+            if ($totalInputCents < $dueCents) {
+                $underPaidCents = $dueCents - $totalInputCents;
+                $subscriptionType = 'SUBSCRIPTION';
+                $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType, UserPayment::class);
+                
+                // 自动创建一个新的账单补齐差额
+                UserPayment::create([
+                    'user_id'     => $payment->user_id,
+                    'ref_code'    => $payment->ref_code,
+                    'invoice_no'  => $newInvoiceNo, // 标记为原单的余额
+                    'amount_due'  => $underPaidCents,
+                    'amount_paid' => 0,
+                    'status'      => 'unpaid', // 设为未付，等待用户下次支付
+                    'attachment'  => null,
+                    'remarks'     => $payment->remarks,
+                ]);
+            } 
+
+            elseif ($totalInputCents > $dueCents) {
+                $overPaidCents = $totalInputCents - $dueCents;
+                $actualAppliedCents = $dueCents; // 只扣除应付的部分，剩下的存入 over_paid 字段
+            }
+            
+            // 4. 更新当前这条支付记录
             $payment->update([
+                'amount_paid' => $actualAppliedCents,
+                'amount_under_paid' => $underPaidCents,
+                'amount_over_paid' => $overPaidCents,
+                'payment_date' => $payload['payment_date'],
+                'received_via' => $payload['received_via'], // Use received_via from payload
+                'approve_transaction_ref' => $payload['transaction_ref'] ?? 'CASH',
                 'status' => 'approved',
                 'approved_at' => now(),
                 'approved_by' => Auth::id(),
+                'remarks' => $payload['remarks'],
             ]);
 
-            // 2. 更新用户的订阅状态
+            // 5. 更新用户的订阅状态
+            // 逻辑建议：如果给够了才设为 active，如果给少了，你可能需要根据业务决定是否激活
             if ($payment->user->user_management) {
                 $payment->user->user_management->update([
-                    'subscription_status' => 'active',
-                    // 如果需要记录审批时间，也可以在这里加
+                    'subscription_status' => ($underPaidCents > 0) ? 'pending' : 'active',
                 ]);
             }
-        });
 
-        // 这里可以触发发放订阅、发送通知给 User 的逻辑
-        
-        return back()->with('success', 'Payment for ' . $payment->user->name . ' approved successfully!');
+            return back()->with('success', 'Payment processed. ' . ($underPaidCents > 0 ? 'New balance invoice created.' : ''));
+        });
     }
 
     // Reject 处理
@@ -334,6 +381,6 @@ class UserManagementController extends Controller
             }
         });
 
-        return back()->with('info', 'Payment proof has been rejected.');
+        return back()->with('success', 'Payment proof has been rejected.');
     }
 }

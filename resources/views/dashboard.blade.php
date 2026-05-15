@@ -30,7 +30,7 @@
                 @include('components.modals.make_payment', ['latestPayment' => $latestPayment])
 
             @else
-                {{-- 只要 Controller 说是 true，这里就直接显示，省时省力 --}}
+                {{-- 只要 Controller 说是 true，这里就直接显示，省时省力 
                 @if(isset($isProfileIncomplete) && $isProfileIncomplete)
                     <x-notification-banner 
                         type="warning" 
@@ -38,7 +38,7 @@
                         actionLabel="Complete Owner Details" 
                         :actionUrl="route('admin.owners.edit', auth()->user()->owner->id ?? 0)" 
                     />
-                @endif
+                @endif--}}
 
                 {{-- 情况 B：已经 Active，显示正常功能 --}}
                 <div class="bg-white overflow-hidden shadow-sm sm:rounded-lg">

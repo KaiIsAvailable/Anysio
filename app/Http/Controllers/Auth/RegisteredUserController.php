@@ -149,14 +149,14 @@ class RegisteredUserController extends Controller
                     'subscription_status' => $subscriptionStatus, // 这些人是要付钱的
                 ]);
 
-                if ($finalRole === 'ownerAdmin'){
-                    Owners::create([
-                        'user_id' => $user->id,
-                        'ic_number' => 'null',
-                        'phone' => 'null',
-                        'gender' => 'null',
-                    ]);
-                }
+                //if ($finalRole === 'ownerAdmin'){
+                //    Owners::create([
+                //        'user_id' => $user->id,
+                //        'ic_number' => 'null',
+                //        'phone' => 'null',
+                //        'gender' => 'null',
+                //    ]);
+                //}
             }
 
             // 3. 生成订阅账单 (套用你的 Payment 逻辑)

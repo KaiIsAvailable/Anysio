@@ -18,7 +18,6 @@ class RefCodePackage extends Model
         'commission_rate',
         'base_lease',  
         'max_lease_limit',  
-        'allow_extra_lease',
         'extra_lease_price',
         'status',     
     ];

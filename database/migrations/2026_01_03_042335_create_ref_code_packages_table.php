@@ -17,7 +17,6 @@ return new class extends Migration
             $table->integer('commission_rate')->default(0); 
             $table->integer('base_lease')->default(0); 
             $table->integer('max_lease_limit')->default(0); 
-            $table->boolean('allow_extra_lease')->default(true); 
             $table->integer('extra_lease_price')->default(0);
             $table->string('status')->default('active')->index();
             $table->timestamps();

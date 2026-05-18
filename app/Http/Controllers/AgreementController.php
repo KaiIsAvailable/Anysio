@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 use App\Models\Owners;
+use App\Models\User;
 use App\Models\Agreements;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -14,7 +15,7 @@ class AgreementController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $query = Agreements::with(['owner.user', 'historyVersions']) // 关键：关联历史版本
+        $query = Agreements::with(['user', 'historyVersions']) // 关键：关联历史版本
                 ->where('status', 'active');
 
         if ($search) {
@@ -41,7 +42,13 @@ class AgreementController extends Controller
         // 1. 抓取所有房东数据，只需要 ID 和 Name 即可
         $user = Auth::user();
         $isOwnerAgentAdmin = false;
-        $owners = Owners::with('user:id,name')->get(['id', 'user_id']);
+        $isOwnerAdmin = false;
+        $owners = User::select('id', 'name')->get();
+        $ownerAdmin = $user->name;
+
+        if ($user->role === 'ownerAdmin'){
+            $isOwnerAdmin = true;
+        }
 
         if ($user->role === 'ownerAdmin' || $user->role === 'agentAdmin'){
             $isOwnerAgentAdmin = true;
@@ -55,7 +62,7 @@ class AgreementController extends Controller
         }
 
         // 2. 用 compact 把变量传给视图
-        return view('adminSide.setting.agreement.create', compact('owners', 'isOwnerAgentAdmin', 'placeholders', 'sourceAgreement'));
+        return view('adminSide.setting.agreement.create', compact('owners', 'isOwnerAgentAdmin', 'placeholders', 'sourceAgreement', 'isOwnerAdmin', 'ownerAdmin'));
     }
 
     public function store(Request $request)
@@ -64,7 +71,7 @@ class AgreementController extends Controller
         $validated = $request->validate([
             'parent_agreement_id' => 'nullable|string',
             'type' => 'required|string',
-            'owner_id' => 'nullable|exists:owners,id',
+            'user_id' => 'nullable|exists:users,id',
             'title' => 'required|string|max:255',
             'version' => 'required|string',
             'content' => 'required|string',
@@ -91,14 +98,14 @@ class AgreementController extends Controller
         $validated['version'] = strtoupper($validated['version']);
 
         if ($validated['type'] !== 'rental_lease') {
-            $validated['owner_id'] = null;
+            $validated['user_id'] = null;
         }
 
         // 4. 【核心修正】状态联动与 ID 继承处理
         if ($validated['status'] === 'active') {
             // 先找出那个目前还是 active 的“老前辈”
             $oldActive = Agreements::where('type', $validated['type'])
-                ->where('owner_id', $validated['owner_id'])
+                ->where('user_id', $validated['user_id'])
                 ->where('status', 'active')
                 ->first();
 

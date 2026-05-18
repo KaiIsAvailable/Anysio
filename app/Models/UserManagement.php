@@ -19,6 +19,8 @@ class UserManagement extends Model
         'subscription_status',
         'start_date',
         'end_date',
+        'extra_lease',
+        'tot_price',
         'discount_rate',
         'usage_count',
         'role',

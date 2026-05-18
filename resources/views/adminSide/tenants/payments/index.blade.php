@@ -146,5 +146,6 @@
                 @endif
             </div>
         </div>
+        @include('components.modals.payment-modal')
     </div>
 </x-app-layout>

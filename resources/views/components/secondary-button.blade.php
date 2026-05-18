@@ -13,7 +13,7 @@
 {{-- 兼容 Alpine 和原生 Blade 的 disabled 绑定 --}}
 @if($isAlpine)
     :disabled="{{ $loading }}"
-    :class="{ 'opacity-50 cursor-not-allowed': {{ $loading }} }"
+    @pageshow.window="if ($event.persisted || window.performance?.getEntriesByType('navigation')[0]?.type === 'back_forward') { {{ $loading }} = false; }"
 @else
     {{ $loading ? 'disabled' : '' }}
 @endif

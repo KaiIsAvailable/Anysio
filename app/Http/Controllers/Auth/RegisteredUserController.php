@@ -134,7 +134,7 @@ class RegisteredUserController extends Controller
                 $startDate = now(); 
 
                 $endDate = ($packageDetails->price_mode === 'monthly') 
-                    ? $startDate->copy()->addMonth() 
+                    ? $startDate->copy()->addMonth()
                     : $startDate->copy()->addYear();
 
                 $subscriptionStatus = (isset($packageDetails) && $packageDetails->price > 0) ? 'pending' : 'active';
@@ -146,6 +146,8 @@ class RegisteredUserController extends Controller
                     'role' => $finalRole,
                     'start_date' => $startDate,
                     'end_date' => $endDate,
+                    'extra_lease' => 0,
+                    'tot_price' => $packageDetails->price,
                     'subscription_status' => $subscriptionStatus, // 这些人是要付钱的
                 ]);
 

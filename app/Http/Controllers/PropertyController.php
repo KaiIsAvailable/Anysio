@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use App\Models\Property;
 use App\Models\Owners;
+use App\Models\User;
 use App\Models\UserManagement;
 use App\Models\Room;
 use App\Models\Unit;
@@ -34,7 +35,7 @@ class PropertyController extends Controller
             $accessiblePropertyIds = Unit::where('owner_id', $user->owner?->id)
                 ->pluck('property_id')
                 ->unique();
-        } elseif ($user->role === 'agent' || $user->role === 'agentAdmin') {
+        } elseif ($user->role === 'agentAdmin') {
             $managedOwnerIds = Owners::where('agent_id', $user->id)->pluck('id');
             $accessiblePropertyIds = Unit::whereIn('owner_id', $managedOwnerIds)
                 ->pluck('property_id')
@@ -93,21 +94,21 @@ class PropertyController extends Controller
     public function create()
     {
         $user = Auth::user();
-        
-        // 1. 判断身份
-        $isOwnerAdmin = ($user->role === 'ownerAdmin');
 
+        $isOwnerAdmin = $user->role === 'ownerAdmin';
+        $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get(['id', 'name']);
+
+        $currentOwner = null;
         if ($isOwnerAdmin) {
-            $owners = UserManagement::where('user_id', $user->id)->with('user')->get();
-            if ($owners->isEmpty()) {
-                return redirect()->back()->with('error', 'Owner profile not found. Please contact admin.');
-            }
-        } else {
-            $owners = Owners::with('user')->get();
+            $currentOwner = $user;
+        }
+
+        if ($owners->isEmpty()) {
+            return redirect()->back()->with('error', 'Owner profile not found. Please contact admin.');
         }
 
         // 将 $isOwnerAdmin 传给 Blade
-        return view('adminSide.rooms.property.create', compact('owners', 'isOwnerAdmin')); 
+        return view('adminSide.rooms.property.create', compact('owners', 'isOwnerAdmin', 'currentOwner')); 
     }
 
     /**
@@ -121,14 +122,18 @@ class PropertyController extends Controller
             'city'     => 'required|string|max:100',
             'postcode' => 'required|digits:5',
             'state'    => 'required|string|max:100',
-            'type'     => 'required|in:Condo,Landed,Commercial', // 根据你的需求定义
-            'owner_id'  => 'nullable|required_if:has_owner,1|exists:owners,id'
+            'type'     => 'required', // 根据你的需求定义
+            'owner_id'  => 'nullable|required_if:has_owner,1|exists:users,id'
         ]);
 
         if ($request->has_owner == 0) {
             $validated['owner_id'] = null;
         }
         $validated['created_by'] = Auth::id();
+        $validated['name'] = toupper($validated['name']);
+        $validated['address'] = toupper($validated['address']);
+        $validated['city'] = toupper($validated['city']);
+        $validated['state'] = toupper($validated['state']);
 
         Property::create($validated);
 

@@ -27,8 +27,7 @@
             @endif
 
             {{-- 注意这里的 Action 和 Method --}}
-            <form method="POST" action="{{ route('admin.properties.update', $property) }}">
-                @csrf
+            <x-form action="{{ route('admin.properties.update', $property) }}">
                 @method('PUT') {{-- 必须加这个，否则 Laravel 不认 --}}
 
                 <div class="bg-white shadow-lg rounded-xl p-6 space-y-6">
@@ -74,7 +73,8 @@
                                 <div>
                                     <label class="block text-sm font-medium text-slate-900 mb-1">Postcode</label>
                                      <input type="text" name="postcode" value="{{ old('postcode', $property->postcode) }}"
-                                         class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" pattern="\d{5}" maxlength="5" minlength="5" inputmode="numeric" title="請輸入5位數字">
+                                         class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" pattern="\d{5}" maxlength="5" minlength="5" inputmode="numeric"
+                                         oninput="this.value = this.value.replace(/[^0-9]/g, '')">
                                 </div>
                             </div>
 
@@ -97,14 +97,14 @@
                             Cancel
                         </a>
 
-                        <button type="submit"
+                        <x-primary-button type="submit" loading="loading"
                                 class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow transition duration-150 ease-in-out">
                             Update Property
-                        </button>
+                        </x-primary-button>
                     </div>
 
                 </div>
-            </form>
+            </x-form>
         </div>
     </div>
 </x-app-layout>

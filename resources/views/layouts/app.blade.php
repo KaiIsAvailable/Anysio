@@ -66,7 +66,7 @@
             <main x-data="{ openPayment: @js((bool)($mustPay ?? false)) }">
                 @auth
                     @if(isset($mustPay) && $mustPay)
-                        @include('components.make_payment', ['latestPayment' => $latestPayment])
+                        @include('components.modals.make_payment', ['latestPayment' => $latestPayment])
                     @endif
                 @endauth
 

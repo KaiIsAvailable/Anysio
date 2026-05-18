@@ -36,7 +36,7 @@
                     </div>
                     
                     {{-- ### 关键修改：在这里添加 x-data ### --}}
-                    <form :action="paymentData.actionUrl" method="POST" x-data="{ method: '01' loading: false }" @submit="loading = true">
+                    <form :action="paymentData.actionUrl" method="POST" x-data="{ method: 'Cash', loading: false }" @submit="loading = true">
                         @csrf
                         @method('PATCH')
                         

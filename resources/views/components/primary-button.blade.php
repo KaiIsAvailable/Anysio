@@ -7,12 +7,13 @@
 @endphp
 
 <button {{ $attributes->merge([
-    'type' => 'submit', 
+    'type' => 'submit',
     'class' => 'inline-flex items-center justify-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150 disabled:opacity-50 disabled:cursor-not-allowed'
 ]) }} 
 {{-- 兼容 Alpine 和原生 Blade 的 disabled 绑定 --}}
 @if($isAlpine)
     :disabled="{{ $loading }}"
+    @pageshow.window="{{ $loading }} = false"
 @else
     {{ $loading ? 'disabled' : '' }}
 @endif
@@ -38,5 +39,7 @@
     @endif
 
     {{-- 按钮原本的文字/内容 --}}
-    <span>{{ $slot }}</span>
+    <span class="flex items-center justify-center inline-flex">
+        {{ $slot }}
+    </span>
 </button>

@@ -183,7 +183,6 @@ class DatabaseSeeder extends Seeder
                 'price'             => 0,
                 'commission_rate'   => 100,
                 'max_lease_limit'   => 5,
-                'allow_extra_lease' => true,
                 'extra_lease_price' => 500,
             ]
         );
@@ -196,7 +195,6 @@ class DatabaseSeeder extends Seeder
                 'price'             => 49900,
                 'commission_rate'   => 0,
                 'max_lease_limit'   => 50,
-                'allow_extra_lease' => true,
                 'extra_lease_price' => 500,
             ]
         );

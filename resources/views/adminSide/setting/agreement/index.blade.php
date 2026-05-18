@@ -20,13 +20,19 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Agreement Templates</h1>
                     <p class="mt-2 text-sm text-gray-500">View and manage your active service agreements and lease templates.</p>
                 </div>
-                <div class="flex gap-3">
+                <div class="flex-shrink-0" x-data="{loading: false}">
                     @can('owner-admin')
-                    <a href="{{ route('admin.agreements.create') }}" 
-                       class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-lg font-medium text-sm text-white hover:bg-indigo-700 shadow-sm transition-all">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-                        New Version
-                    </a>
+                        <x-primary-button
+                            type="button"
+                            loading="loading"
+                            @click="loading = true; window.location.href = '{{ route('admin.agreements.create') }}'"
+                            >
+
+                            <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            New Version
+                        </x-primary-button>
                     @endcan
                 </div>
             </div>

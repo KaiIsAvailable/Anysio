@@ -78,6 +78,13 @@ x-cloak>
                             </div>
                         </div>
 
+                        <form method="POST" action="{{ route('logout') }}" x-data="{ loading: false }" @submit="loading = true" class="w-full md:w-auto text-center md:text-right">
+                            @csrf
+                            <x-secondary-button loading="loading" type="submit" class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
+                                {{ __('Log Out') }}
+                            </x-secondary-button>
+                        </form>
+
                         <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                             Usually approved within 1 - 2 hours
                         </p>
@@ -142,10 +149,16 @@ x-cloak>
                         </div>
 
                         {{-- Footer 按钮 --}}
-                        <div class="p-6 bg-gray-50/80 border-t border-gray-100">
+                        <div class="p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <form method="POST" action="{{ route('logout') }}" x-data="{ loading: false }" @submit="loading = true" class="w-full md:w-auto text-center md:text-right">
+                                @csrf
+                                <x-secondary-button loading="loading" type="submit" class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
+                                    {{ __('Log Out') }}
+                                </x-secondary-button>
+                            </form>
                             <x-primary-button type="submit" 
                                     loading="loading"
-                                    class="w-full px-6 py-5 bg-rose-600 text-white rounded-2xl font-black text-base hover:bg-rose-700 shadow-xl shadow-rose-200 transition-all active:scale-[0.98] disabled:opacity-70 flex items-center justify-center">
+                                    class="w-full px-4 py-3 bg-rose-600 text-white rounded-2xl font-black text-base hover:bg-rose-700 shadow-xl shadow-rose-200 transition-all active:scale-[0.98] disabled:opacity-70 flex items-center justify-center">
                                 <span x-show="!isUploading">Update & Resubmit Proof</span>
                             </x-primary-button>
                         </div>
@@ -196,10 +209,16 @@ x-cloak>
                         </div>
 
                         {{-- Footer --}}
-                        <div class="p-6 bg-gray-50/80 border-t border-gray-100">
+                        <div class="p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            <form method="POST" action="{{ route('logout') }}" x-data="{ loading: false }" @submit="loading = true" class="w-full md:w-auto text-center md:text-right">
+                                @csrf
+                                <x-secondary-button loading="loading" type="submit" class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
+                                    {{ __('Log Out') }}
+                                </x-secondary-button>
+                            </form>
                             <x-primary-button type="submit" 
                                     loading="loading"
-                                    class="w-full px-6 py-5 items-center justify-center">
+                                    class="w-full px-4 py-3 items-center justify-center">
                                 <span>Confirm & Submit Receipt</span>
                             </x-primary-button>
                         </div>

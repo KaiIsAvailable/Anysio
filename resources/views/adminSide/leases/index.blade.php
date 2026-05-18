@@ -8,15 +8,21 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Leases</h1>
                     <p class="mt-2 text-sm text-gray-500">Manage and review tenant leases.</p>
                 </div>
-                <div class="flex-shrink-0">
-                    <a href="{{ route('admin.agreements.index') }}"
-                       class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
+                <div class="flex-shrink-0" x-data="{ loading: false, loadings: false }">
+                    <x-primary-button
+                        type="button"
+                        loading="loading"
+                        @click="loading = true; window.location.href = '{{ route('admin.agreements.index') }}'"
+                        >
                         Agreement Templates
-                    </a>
-                    <a href="{{ route('admin.leases.create') }}"
-                       class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
+                    </x-primary-button>
+                    <x-primary-button
+                        type="button"
+                        loading="loadings"
+                        @click="loadings = true; window.location.href = '{{ route('admin.leases.create') }}'"
+                        >
                         Lease Controller
-                    </a>
+                    </x-primary-button>
                 </div>
             </div>
 

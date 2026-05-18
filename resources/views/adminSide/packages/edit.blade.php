@@ -14,9 +14,8 @@
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                {{-- 注意：这里使用 PUT 方法 --}}
-                <form action="{{ route('admin.packages.update', $package->id) }}" method="POST" class="p-8">
-                    @csrf
+                {{-- 💡 修复 1：将 loading 提到标准的 Alpine 提交流程，避免锁死 submit --}}
+                <x-form action="{{ route('admin.packages.update', $package->id) }}" class="p-8">
                     @method('PUT')
                     
                     <div class="space-y-8">
@@ -54,7 +53,6 @@
 
                             {{-- 2. 模式切换 --}}
                             @php
-                                // 逻辑判断当前是百分比还是固定价格
                                 $isFixed = $package->price > 0;
                             @endphp
                             <div class="mb-6">
@@ -73,13 +71,15 @@
 
                             {{-- 3. 动态输入框 --}}
                             <div class="grid grid-cols-1 md:grid-cols-1 gap-6">
+                                {{-- 💡 修复：初始化时根据 $isFixed 动态赋予 disabled 属性 --}}
                                 <div id="section_percentage" class="{{ $isFixed ? 'hidden' : '' }} animate-fadeIn">
                                     <label class="block text-sm font-semibold text-gray-700">Billing Rate (%)</label>
                                     <div class="mt-1 relative w-full">
                                         <input type="number" name="commission_display" id="commission_display" 
-                                               value="{{ old('commission_display', $package->commission_rate / 100) }}"
-                                               min="1" max="100" step="0.01" class="block w-full rounded-lg border-gray-300 pr-10 focus:ring-indigo-500"
-                                               onwheel="this.blur()">
+                                            value="{{ old('commission_display', $package->commission_rate / 100) }}"
+                                            {{ $isFixed ? 'disabled' : '' }}
+                                            min="1" max="100" step="0.01" class="block w-full rounded-lg border-gray-300 pr-10 focus:ring-indigo-500"
+                                            onwheel="this.blur()">
                                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                             <span class="text-gray-500 text-sm">%</span>
                                         </div>
@@ -90,9 +90,10 @@
                                     <label class="block text-sm font-semibold text-gray-700">Fixed Price (RM)</label>
                                     <div class="mt-1 relative w-full">
                                         <input type="number" step="0.01" name="price_display" id="price_display" 
-                                               value="{{ old('price_display', $package->price / 100) }}"
-                                               class="block w-full rounded-lg border-gray-300 pl-4 focus:ring-indigo-500"
-                                               onwheel="this.blur()">
+                                            value="{{ old('price_display', $package->price / 100) }}"
+                                            {{ !$isFixed ? 'disabled' : '' }}
+                                            class="block w-full rounded-lg border-gray-300 pl-4 focus:ring-indigo-500"
+                                            onwheel="this.blur()">
                                     </div>
                                 </div>
                             </div>
@@ -128,10 +129,16 @@
 
                         <div class="pt-6 border-t border-gray-100 flex justify-end gap-3">
                             <a href="{{ route('admin.packages.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</a>
-                            <button type="submit" class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md">Update Package</button>
+                            
+                            {{-- 💡 修复 3：直接使用原生按钮或者解除动态冲突，绑定 x-bind:disabled 防止重复提交，确保 type="submit" 绝对有效 --}}
+                            <x-primary-button type="submit" 
+                                    loading="loading"
+                                    class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
+                                Update Package
+                            </x-primary-button>
                         </div>
                     </div>
-                </form>
+                </x-form>
             </div>
         </div>
     </div>
@@ -142,7 +149,6 @@
                 if (this.value === 'percentage') {
                     document.getElementById('section_percentage').classList.remove('hidden');
                     document.getElementById('section_fixed').classList.add('hidden');
-                    // 可选：清空另一个值，避免干扰
                     document.getElementById('price_display').value = '';
                 } else {
                     document.getElementById('section_fixed').classList.remove('hidden');

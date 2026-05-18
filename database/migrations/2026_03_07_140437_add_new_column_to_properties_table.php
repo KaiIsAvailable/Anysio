@@ -25,7 +25,7 @@ return new class extends Migration
             $table->foreignUlid('owner_id')
                 ->nullable()
                 ->after('type')
-                ->constrained('owners') // 明确指向 owners 表
+                ->constrained('users') // 明确指向 owners 表
                 ->onDelete('set null');
 
             // 3. 顺便加上 status 字段

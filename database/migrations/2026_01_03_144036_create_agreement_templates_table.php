@@ -16,8 +16,8 @@ return new class extends Migration
             $table->foreign('parent_agreement_id')->references('id')->on('agreements')->onDelete('set null');
             
             // 房东 ID (可为空，为空代表是系统全局协议)
-            $table->ulid('owner_id')->nullable()->index();
-            $table->foreign('owner_id')->references('id')->on('owners')->onDelete('cascade');
+            $table->ulid('user_id')->nullable()->index();
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
             
             // 协议类型：'tos', 'privacy', 'rental_lease'
             $table->string('type')->index(); 

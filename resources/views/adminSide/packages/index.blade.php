@@ -9,14 +9,18 @@
                     <p class="mt-2 text-sm text-gray-500">Define your P1-P4 billing plans and revenue models.</p>
                 </div>
                 {{-- 只有管理员能新增方案 --}}
-                <div class="flex-shrink-0">
-                    <a href="{{ route('admin.packages.create') }}" 
-                       class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex-shrink-0" x-data="{loading: false}">
+                    <x-primary-button
+                        type="button"
+                        loading="loading"
+                        @click="loading = true; window.location.href = '{{ route('admin.packages.create') }}'"
+                        >
+
+                        <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                         Create New Package
-                    </a>
+                    </x-primary-button>
                 </div>
             </div>
 
@@ -69,12 +73,39 @@
                                         {{-- 1. Plan Details --}}
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center">
+                                                {{-- 左侧头像/缩写 --}}
                                                 <div class="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shadow-sm">
                                                     {{ strtoupper(substr($package->ref_code, 0, 2)) }}
                                                 </div>
+                                                
+                                                {{-- 右侧文字与复制按钮 --}}
                                                 <div class="ml-4">
                                                     <div class="text-sm font-bold text-slate-900">{{ $package->name }}</div>
-                                                    <div class="text-xs text-gray-500 font-mono uppercase">{{ $package->ref_code }}</div>
+                                                    
+                                                    {{-- 💡 使用 Alpine.js 初始化一个局部复制状态 --}}
+                                                    <div class="flex items-center gap-1.5 mt-0.5" x-data="{ copied: false }">
+                                                        {{-- Ref Code 文本 --}}
+                                                        <span class="text-xs text-gray-500 font-mono uppercase">{{ $package->ref_code }}</span>
+                                                        
+                                                        {{-- 💡 复制按钮 --}}
+                                                        <button type="button" 
+                                                            {{-- 点击时调用浏览器原生剪贴板 API，并切换状态 --}}
+                                                            @click="navigator.clipboard.writeText('{{ $package->ref_code }}'); copied = true; setTimeout(() => copied = false, 2000)"
+                                                            class="text-gray-400 hover:text-indigo-600 p-0.5 rounded transition-colors focus:outline-none"
+                                                            title="Copy Reference Code">
+                                                            
+                                                            {{-- 默认显示的复制图标（Lucide Copy 风格） --}}
+                                                            <svg x-show="!copied" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                                                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2"/>
+                                                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>
+                                                            </svg>
+
+                                                            {{-- 复制成功后显示的绿色打勾图标 --}}
+                                                            <svg x-show="copied" class="w-3.5 h-3.5 text-green-600" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24" x-cloak>
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>

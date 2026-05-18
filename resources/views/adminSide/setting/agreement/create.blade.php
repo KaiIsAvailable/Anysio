@@ -41,8 +41,9 @@
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 <form action="{{ route('admin.agreements.store') }}" method="POST" class="p-8" id="agreementForm"
                     x-data="{ 
-                        agreementType: '{{ old('type', $sourceAgreement->type ?? 'rental_lease') }}' 
-                    }">
+                        agreementType: '{{ old('type', $sourceAgreement->type ?? 'rental_lease') }}', loading: false
+                    }" @submit="loading = true">
+                    
                     @csrf
                     
                     <div class="space-y-6">
@@ -74,21 +75,45 @@
 
                         <!-- Assign to Owner 容器 -->
                         <div x-show="agreementType === 'rental_lease'" class="pb-4 border-b border-gray-100">
-                            <label for="owner_id" class="block text-sm font-semibold text-gray-700">
+                            <label for="user_id" class="block text-sm font-semibold text-gray-700">
                                 Assign to Owner {!! $sourceAgreement ? '<span class="text-xs font-normal text-gray-400">(Locked)</span>' : '' !!}
                             </label>
-                            <select name="{{ $sourceAgreement ? 'owner_id_disabled' : 'owner_id' }}" id="owner_id" 
-                                    {{ $sourceAgreement ? 'disabled' : '' }}
-                                    :required="agreementType === 'rental_lease'"
-                                    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $sourceAgreement ? 'bg-gray-100 cursor-not-allowed' : '' }}">
-                                <option value="">-- Select Owner --</option>
-                                @foreach($owners as $owner)
-                                    <option value="{{ $owner->id }}" 
-                                        {{ old('owner_id', $sourceAgreement->owner_id ?? '') == $owner->id ? 'selected' : '' }}>
-                                        {{ $owner->user->name }}
-                                    </option>
-                                @endforeach
-                            </select>
+                            @if ($isOwnerAgentAdmin === false)
+                                {{-- 💡 修复点 1：如果下拉框被禁用了，额外放一个 hidden input 把 owner_id 传给后端 --}}
+                                @if ($sourceAgreement)
+                                    <input type="hidden" name="user_id" value="{{ $sourceAgreement->user_id }}">
+                                @endif
+
+                                <select name="{{ $sourceAgreement ? 'user_id_disabled' : 'user_id' }}" id="user_id" 
+                                        {{ $sourceAgreement ? 'disabled' : '' }}
+                                        :required="agreementType === 'rental_lease'"
+                                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $sourceAgreement ? 'bg-gray-100 cursor-not-allowed' : '' }}">
+                                    <option value="">-- Select Owner --</option>
+                                    @foreach($owners as $owner)
+                                        <option value="{{ $owner->user->id }}" 
+                                            {{ old('user_id', $sourceAgreement->user_id ?? '') == $owner->user->id ? 'selected' : '' }}>
+                                            {{ $owner->user->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+
+                            @else                                
+                                {{-- 💡 修复点 2：当是 Owner/Agent/Admin 纯文本显示时，必须用 hidden input 提交当前登录的 user id --}}
+                                {{-- 这里的 $userId 变量需要你在 Controller 传过来，比如 auth()->id() --}}
+                                <input type="hidden" name="user_id" value="{{ auth()->id() }}">
+
+                                <div class="flex items-center p-4 bg-gray-50 border border-gray-200 rounded-2xl">
+                                    <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3 text-indigo-600">
+                                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        {{-- 💡 移除无用的 value 属性 --}}
+                                        <p class="text-sm font-black text-slate-800">{{ $ownerAdmin }}</p>
+                                    </div>
+                                </div>
+                            @endif
 
                             @if($sourceAgreement)
                                 {{-- 如果是 edit，通过 hidden 传值 --}}
@@ -179,9 +204,9 @@
                             <a href="{{ route('admin.agreements.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                                 Cancel
                             </a>
-                            <button type="submit" class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all">
+                            <x-primary-button loading="loading" type="submit" class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all">
                                 Save Agreement Template
-                            </button>
+                            </x-primary-button>
                         </div>
                     </div>
                 </form>

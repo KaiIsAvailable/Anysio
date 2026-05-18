@@ -259,7 +259,7 @@
                                 @foreach($templates as $template)
                                     {{-- 将 content 存入 data-content 属性 --}}
                                     <option value="{{ $template->id }}" data-content="{{ $template->content }}" data-title="{{ $template->title }}" {{ old('agreement_id') == $template->id ? 'selected' : '' }}>
-                                        {{ $template->title }} (v{{ $template->version }}) - {{ $template->owner->user->name }}
+                                        {{ $template->title }} (v{{ $template->version }}) - {{ $template->user->name }}
                                     </option>
                                 @endforeach
                             </select>

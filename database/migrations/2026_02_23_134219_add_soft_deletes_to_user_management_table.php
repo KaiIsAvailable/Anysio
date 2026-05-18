@@ -12,13 +12,18 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('user_management', function (Blueprint $table) {
-            // 在 subscription_status 后面增加 start_date 和 end_date
-            // 使用 nullable() 是因为新用户可能还没开始订阅
-            $table->timestamp('start_date')->nullable()->after('subscription_status');
-            $table->timestamp('end_date')->nullable()->after('start_date');
-            
-            // 如果你之前没跑过这个 softDeletes，可以保留在这里
-            // 如果已经跑过了，就把下面这行删掉
+            if (!Schema::hasColumn('user_management', 'start_date')) {
+                $table->timestamp('start_date')->nullable()->after('subscription_status');
+            }
+            if (!Schema::hasColumn('user_management', 'end_date')) {
+                $table->timestamp('end_date')->nullable()->after('start_date');
+            }
+            if (!Schema::hasColumn('user_management', 'extra_lease')) {
+                $table->integer('extra_lease')->nullable()->after('end_date');
+            }
+            if (!Schema::hasColumn('user_management', 'tot_price')) {
+                $table->integer('tot_price')->nullable()->after('extra_lease');
+            }
             if (!Schema::hasColumn('user_management', 'deleted_at')) {
                 $table->softDeletes();
             }
@@ -31,8 +36,15 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('user_management', function (Blueprint $table) {
-            $table->dropColumn(['start_date', 'end_date']);
-            $table->dropSoftDeletes();
+            if (Schema::hasColumn('user_management', 'start_date')) {
+                $table->dropColumn('start_date');
+            }
+            if (Schema::hasColumn('user_management', 'end_date')) {
+                $table->dropColumn('end_date');
+            }
+            if (Schema::hasColumn('user_management', 'deleted_at')) {
+                $table->dropSoftDeletes(); // 注意：软删除有专用的删除方法
+            }
         });
     }
 };

@@ -11,7 +11,6 @@
             @php
                 // 1. 检查 User Management 状态
                 $userMgmt = \App\Models\UserManagement::where('user_id', auth()->id())->first();
-                
                 // 2. 获取支付记录（用于拿到金额和 Invoice No）
                 $latestPayment = \App\Models\UserPayment::where('user_id', auth()->id())
                                     ->where('payment_type', 'subscription')

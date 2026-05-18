@@ -13,7 +13,7 @@ class Agreements extends Model
     protected $table = 'agreements';
     protected $fillable = [
         'parent_agreement_id',
-        'owner_id',
+        'user_id',
         'type',
         'title',
         'version',
@@ -27,13 +27,13 @@ class Agreements extends Model
                     ->where('id', '!=', $this->id);
 
         // 如果当前记录有 owner_id，则匹配相同的 owner_id
-        if ($this->owner_id) {
-            return $query->where('owner_id', $this->owner_id)
+        if ($this->user_id) {
+            return $query->where('user_id', $this->user_id)
                         ->orderBy('version', 'desc');
         }
 
         // 如果没有 owner_id (如 TOS/Privacy)，则匹配同样没有 owner_id 的记录
-        return $query->whereNull('owner_id')
+        return $query->whereNull('user_id')
                     ->orderBy('version', 'desc');
     }
 
@@ -50,8 +50,8 @@ class Agreements extends Model
         return $this->belongsTo(Agreements::class, 'parent_agreement_id', 'id');
     }
 
-    public function owner(): BelongsTo
+    public function user(): BelongsTo
     {
-        return $this->belongsTo(Owners::class);
+        return $this->belongsTo(User::class);
     }
 }

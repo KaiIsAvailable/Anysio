@@ -14,7 +14,7 @@
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <form action="{{ route('admin.packages.store') }}" method="POST" class="p-8">
+                <x-form action="{{ route('admin.packages.store') }}" class="p-8">
                     @csrf
                     
                     <div class="space-y-8">
@@ -37,7 +37,8 @@
                             </div>
                         </div>
 
-                        <div class="bg-gray-50 p-6 rounded-xl border border-gray-200">
+                        {{-- 在这里用 x-data 初始化当前计费模式，默认为百分比 percentage --}}
+                        <div class="bg-gray-50 p-6 rounded-xl border border-gray-200" x-data="{ commType: 'percentage' }">
                             <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4">Billing Configuration</h3>
                             
                             {{-- 1. 周期选择 --}}
@@ -50,16 +51,20 @@
                                 </select>
                             </div>
 
-                            {{-- 2. 模式切换：决定是按 % 还是按固定 Price --}}
+                            {{-- 2. 模式切换：通过 x-model 双向绑定 commType 状态 --}}
                             <div class="mb-6">
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">Revenue Model</label>
                                 <div class="flex gap-4">
                                     <label class="inline-flex items-center cursor-pointer">
-                                        <input type="radio" name="comm_type" value="percentage" checked class="text-indigo-600 focus:ring-indigo-500">
+                                        <input type="radio" name="comm_type" value="percentage" 
+                                            x-model="commType" {{-- 👈 绑定 Alpine 状态 --}}
+                                            class="text-indigo-600 focus:ring-indigo-500">
                                         <span class="ml-2 text-sm text-gray-600 font-medium">Percentage of Rental (%)</span>
                                     </label>
                                     <label class="inline-flex items-center cursor-pointer">
-                                        <input type="radio" name="comm_type" value="fixed" class="text-indigo-600 focus:ring-indigo-500">
+                                        <input type="radio" name="comm_type" value="fixed" 
+                                            x-model="commType" {{-- 👈 绑定 Alpine 状态 --}}
+                                            class="text-indigo-600 focus:ring-indigo-500">
                                         <span class="ml-2 text-sm text-gray-600 font-medium">Fixed Subscription Fee (RM)</span>
                                     </label>
                                 </div>
@@ -67,15 +72,17 @@
 
                             {{-- 3. 动态输入框 --}}
                             <div class="grid grid-cols-1 md:grid-cols-1 gap-6">
-                                {{-- 百分比输入 --}}
-                                <div id="section_percentage" class="animate-fadeIn">
+                                
+                                {{-- 百分比输入：使用 x-show 控制显示，并且当不显示时自动 :disabled 掉 --}}
+                                <div x-show="commType === 'percentage'" x-transition class="animate-fadeIn">
                                     <label class="block text-sm font-semibold text-gray-700">Billing Rate (%)</label>
-                                    <div class="mt-1 relative w-full"> {{-- 改为 w-full 配合外部 grid --}}
+                                    <div class="mt-1 relative w-full">
                                         <input type="number" 
                                             name="commission_display" 
                                             id="commission_display"
+                                            :disabled="commType !== 'percentage'" {{-- 👈 关键：不显示时必须 disable，这样核心组件的 querySelector 就会自动跳过它！ --}}
                                             value="{{ old('commission_display') }}"
-                                            min="1" {{-- 物理最小值 --}}
+                                            min="1" 
                                             max="100" 
                                             step="0.01" 
                                             placeholder="0" 
@@ -90,15 +97,23 @@
                                 </div>
 
                                 {{-- 固定价格输入 --}}
-                                <div id="section_fixed" class="hidden animate-fadeIn">
+                                <div x-show="commType === 'fixed'" x-transition class="animate-fadeIn">
                                     <label class="block text-sm font-semibold text-gray-700">Fixed Price (RM)</label>
-                                    <div class="mt-1 relative w-100">
-                                        <input type="number" step="0.01" name="price_display" id="price_display" value="{{ old('price_display') }}"
-                                            placeholder="0.00" class="block w-full rounded-lg border-gray-300 pl-12 focus:ring-indigo-500"
-                                            onwheel="this.blur()"                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46">
+                                    <div class="mt-1 relative w-full"> {{-- 修正了 w-100 错误 --}}
+                                        <input type="number" 
+                                            step="0.01" 
+                                            name="price_display" 
+                                            id="price_display" 
+                                            :disabled="commType !== 'fixed'" {{-- 👈 关键：不显示时自动 disable 避开回车排队 --}}
+                                            value="{{ old('price_display') }}"
+                                            placeholder="0.00" 
+                                            class="block w-full rounded-lg border-gray-300 focus:ring-indigo-500"
+                                            onwheel="this.blur()" 
+                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46">
                                     </div>
                                     <p class="mt-1 text-[10px] text-gray-400 italic">Example: Fixed RM 100 per billing cycle.</p>
                                 </div>
+                                
                             </div>
                         </div>
 
@@ -135,7 +150,7 @@
                                             value="{{ old('add_on_price_display') }}"
                                             placeholder="0.00" 
                                             required
-                                            class="pl-12 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                                            class="block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
                                             onwheel="this.blur()"
                                             onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46">
                                     </div>
@@ -175,12 +190,12 @@
                             <a href="{{ route('admin.packages.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                                 Cancel
                             </a>
-                            <button type="submit" class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all">
+                            <x-primary-button type="submit" loading="loading" class="px-6">
                                 Create Package
-                            </button>
+                            </x-primary-button>
                         </div>
                     </div>
-                </form>
+                </x-form>
             </div>
         </div>
     </div>

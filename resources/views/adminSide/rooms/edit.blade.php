@@ -44,6 +44,7 @@
                                     <label class="block text-sm font-medium text-slate-900 mb-1">Room Number</label>
                                     <input name="room_no"
                                         value="{{ old('room_no', $room->room_no) }}"
+                                        oninput="this.value = this.value.toUpperCase()"
                                         class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
                                         required>
                                     @error('room_no') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
@@ -54,6 +55,7 @@
                                     <label class="block text-sm font-medium text-slate-900 mb-1">Room Type</label>
                                     <input name="room_type"
                                         value="{{ old('room_type', $room->room_type) }}"
+                                        oninput="this.value = this.value.toUpperCase()"
                                         class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
                                         required>
                                     @error('room_type') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
@@ -63,8 +65,8 @@
                                 <div>
                                     <label class="block text-sm font-medium text-slate-900 mb-1">Status</label>
                                     <select name="status" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                                        @foreach(['Vacant','Occupied','Maintenance'] as $s)
-                                            <option value="{{ $s }}" @selected(old('status', $room->status) == $s)>{{ $s }}</option>
+                                        @foreach(['VACANT','OCCUPIED','MAINTENANCE'] as $s)
+                                            <option value="{{ $s }}" @selected(strtoupper(old('status', $room->status)) == $s)>{{ $s }}</option>
                                         @endforeach
                                     </select>
                                     @error('status') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror

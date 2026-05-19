@@ -137,7 +137,7 @@ class RoomController extends Controller
             'unit_id'   => 'required|exists:units,id',
             'room_no'   => 'required|string|max:255',
             'room_type' => 'required|string|max:255',
-            'status'    => 'required|in:Vacant,Occupied,Maintenance',
+            'status'    => 'required|in:VACANT,OCCUPIED,MAINTENANCE',
             'address'   => 'nullable|string',
             
             // 匹配前端的 assets[index][id] 和 assets[index][qty]
@@ -161,6 +161,11 @@ class RoomController extends Controller
         }
 
         // 2. 数据库事务处理
+        // Normalize to uppercase to ensure consistent storage
+        $data['room_no'] = mb_strtoupper($data['room_no'], 'UTF-8');
+        $data['room_type'] = mb_strtoupper($data['room_type'], 'UTF-8');
+        $data['status'] = mb_strtoupper($data['status'], 'UTF-8');
+
         DB::transaction(function () use ($data) {
             // 创建 Room
             $room = Room::create([
@@ -276,7 +281,7 @@ class RoomController extends Controller
         $data = $request->validate([
             'room_no'   => 'required|string|max:255',
             'room_type' => 'required|string|max:255',
-            'status'    => 'required|in:Vacant,Occupied,Maintenance',
+            'status'    => 'required|in:VACANT,OCCUPIED,MAINTENANCE',
             
             // 资产验证逻辑与 store 一致
             'assets'       => 'nullable|array',
@@ -285,6 +290,11 @@ class RoomController extends Controller
         ]);
 
         // 3. 数据库事务
+        // Normalize to uppercase before saving
+        $data['room_no'] = mb_strtoupper($data['room_no'], 'UTF-8');
+        $data['room_type'] = mb_strtoupper($data['room_type'], 'UTF-8');
+        $data['status'] = mb_strtoupper($data['status'], 'UTF-8');
+
         DB::transaction(function () use ($data, $room) {
             // 更新 Room 基础信息
             $room->update([
@@ -468,7 +478,7 @@ class RoomController extends Controller
         return $request->validate([
             'room_no'   => ['required', 'string', 'max:50', $roomNoRule],
             'room_type' => ['required', 'string', 'max:100'],
-            'status'    => ['required', Rule::in(['Occupied', 'Vacant', 'Maintenance', 'Available'])],
+            'status'    => ['required', Rule::in(['OCCUPIED', 'VACANT', 'MAINTENANCE', 'AVAILABLE'])],
             'address'   => ['required', 'string', 'max:255'],
 
             'assets'                        => ['nullable', 'array'],

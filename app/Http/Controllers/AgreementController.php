@@ -84,7 +84,7 @@ class AgreementController extends Controller
                     $query->where('parent_agreement_id', $parentIdFromRequest)
                         ->orWhere('id', $parentIdFromRequest);
                 })
-                ->where('version', strtoupper($request->version))
+                ->where('version', $request->version)
                 ->exists();
 
             if ($versionExists) {
@@ -94,8 +94,6 @@ class AgreementController extends Controller
 
         // 3. 数据规范化处理
         $validated['status'] = 'active';
-        $validated['title']  = strtoupper($validated['title']);
-        $validated['version'] = strtoupper($validated['version']);
 
         if ($validated['type'] !== 'rental_lease') {
             $validated['user_id'] = null;

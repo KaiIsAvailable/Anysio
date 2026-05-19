@@ -125,7 +125,7 @@ class RegisteredUserController extends Controller
                         ->first();
                 
                 $user = User::create(array_merge([
-                    'name' => toupper($request->name),
+                    'name' => $request->name,
                     'email' => $request->email,
                     'password' => Hash::make($request->password),
                     'role' => $finalRole,

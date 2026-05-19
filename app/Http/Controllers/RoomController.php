@@ -160,12 +160,6 @@ class RoomController extends Controller
             }
         }
 
-        // 2. 数据库事务处理
-        // Normalize to uppercase to ensure consistent storage
-        $data['room_no'] = mb_strtoupper($data['room_no'], 'UTF-8');
-        $data['room_type'] = mb_strtoupper($data['room_type'], 'UTF-8');
-        $data['status'] = mb_strtoupper($data['status'], 'UTF-8');
-
         DB::transaction(function () use ($data) {
             // 创建 Room
             $room = Room::create([
@@ -288,12 +282,6 @@ class RoomController extends Controller
             'assets.*.id'  => 'required_with:assets|exists:assets,id',
             'assets.*.qty' => 'required_with:assets|integer|min:0',
         ]);
-
-        // 3. 数据库事务
-        // Normalize to uppercase before saving
-        $data['room_no'] = mb_strtoupper($data['room_no'], 'UTF-8');
-        $data['room_type'] = mb_strtoupper($data['room_type'], 'UTF-8');
-        $data['status'] = mb_strtoupper($data['status'], 'UTF-8');
 
         DB::transaction(function () use ($data, $room) {
             // 更新 Room 基础信息

@@ -100,7 +100,7 @@ class TenantsController extends Controller
 
             // 4. 创建租客 User 账号
             $user = User::create([
-                'name' => strtoupper($request->name),
+                'name' => $request->name,
                 'email' => $request->email,
                 'password' => Hash::make(Str::random(10)),
                 'role' => 'tenant',
@@ -108,9 +108,9 @@ class TenantsController extends Controller
 
             // 5. 准备 Tenant 详细数据
             $data = $request->only(['phone', 'ic_number', 'passport', 'nationality', 'gender', 'occupation']);
-            $data['gender'] = strtoupper($request->gender);
-            $data['occupation'] = strtoupper($request->occupation);
-            $data['nationality'] = strtoupper($request->nationality);
+            $data['gender'] = $request->gender;
+            $data['occupation'] = $request->occupation;
+            $data['nationality'] = $request->nationality;
 
             // 身份类型清理
             if ($request->identity_type === 'ic') {
@@ -135,9 +135,9 @@ class TenantsController extends Controller
                     if (empty($contact['name']) || empty($contact['phone']))
                         continue;
                     $tenant->emergencyContacts()->create([
-                        'name' => strtoupper($contact['name']),
+                        'name' => $contact['name'],
                         'phone' => $contact['phone'],
-                        'relationship' => strtoupper($contact['relationship']) ?? '',
+                        'relationship' => $contact['relationship'] ?? '',
                     ]);
                 }
             }
@@ -169,15 +169,15 @@ class TenantsController extends Controller
 
             // 2. 更新关联的 User 账号
             $tenant->user->update([
-                'name' => strtoupper($request->name),
+                'name' => $request->name,
                 'email' => $request->email,
             ]);
 
             // 3. 准备 Tenant 数据
             $data = $request->only(['phone', 'nationality', 'gender', 'occupation']);
-            $data['gender'] = strtoupper($request->gender);
-            $data['occupation'] = strtoupper($request->occupation);
-            $data['nationality'] = strtoupper($request->nationality);
+            $data['gender'] = $request->gender;
+            $data['occupation'] = $request->occupation;
+            $data['nationality'] = $request->nationality;
 
             // 身份类型与号码清理
             $data['ic_number'] = $request->identity_type === 'ic' ? $request->ic_number : null;
@@ -207,9 +207,9 @@ class TenantsController extends Controller
                     // 过滤掉被标记删除或名字为空的行
                     if ($name !== '' && ($contact['delete'] ?? '0') !== '1') {
                         $tenant->emergencyContacts()->create([
-                            'name' => strtoupper($name),
+                            'name' => $name,
                             'phone' => $contact['phone'] ?? '',
-                            'relationship' => strtoupper($contact['relationship']) ?? '',
+                            'relationship' => $contact['relationship'] ?? '',
                         ]);
                     }
                 }

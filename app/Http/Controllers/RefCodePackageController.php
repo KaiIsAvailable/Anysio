@@ -45,8 +45,8 @@ class RefCodePackageController extends Controller
 
         // 2. 准备入库数据
         $data = [
-            'name' => toupper($request->name),
-            'ref_code' => toupper($request->ref_code),
+            'name' => $request->name,
+            'ref_code' => $request->ref_code,
             'price_mode' => $request->price_mode,
             'base_lease' => $request->base_lease,
             'max_lease_limit' => $request->add_on_limit,
@@ -101,7 +101,7 @@ class RefCodePackageController extends Controller
 
         // 2. 准备更新数据 (保持和 store 一样的倍增逻辑)
         $data = [
-            'name' => strtoupper($request->name),
+            'name' => $request->name,
             'price_mode' => $request->price_mode,
             'base_lease' => $request->base_lease,
             'max_lease_limit' => $request->add_on_limit,

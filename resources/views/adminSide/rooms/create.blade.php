@@ -58,7 +58,7 @@
                                     <input name="room_no"
                                         value="{{ old('room_no') }}"
                                         placeholder="exp: Master Room / Room A"
-                                        oninput="this.value = this.value.toUpperCase()"
+                                        oninput="this.value"
                                         class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
                                         required>
                                     @error('room_no') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
@@ -70,7 +70,7 @@
                                     <input name="room_type"
                                         value="{{ old('room_type') }}"
                                         placeholder="exp: Single / Master / Balcony"
-                                        oninput="this.value = this.value.toUpperCase()"
+                                        oninput="this.value"
                                         class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
                                         required>
                                     @error('room_type') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror

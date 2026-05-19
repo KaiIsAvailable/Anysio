@@ -24,7 +24,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="mb-4">
                                 <label for="name" class="block text-sm font-medium text-slate-900 mb-1">Full Name</label>
-                                <input type="text" name="name" id="name" value="{{ old('name', $tenant->user->name) }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                                <input type="text" name="name" id="name" value="{{ old('name', $tenant->user->name) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
                                 @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                             </div>
 
@@ -82,7 +82,7 @@
                         <!-- Nationality -->
                         <div class="mb-4">
                             <label for="nationality" class="block text-sm font-medium text-slate-900 mb-1">Nationality</label>
-                            <input type="text" name="nationality" id="nationality" value="{{ old('nationality', $tenant->nationality) }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                            <input type="text" name="nationality" id="nationality" value="{{ old('nationality', $tenant->nationality) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
                             @error('nationality') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
@@ -99,7 +99,7 @@
 
                         <div class="col-span-1 md:col-span-2">
                             <label for="occupation" class="block text-sm font-medium text-slate-900 mb-1">Occupation</label>
-                            <input type="text" name="occupation" id="occupation" value="{{ old('occupation', $tenant->occupation) }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                            <input type="text" name="occupation" id="occupation" value="{{ old('occupation', $tenant->occupation) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                             @error('occupation') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -132,13 +132,13 @@
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Name</label>
                                             <input type="text" name="emergency_contacts[{{ $index }}][name]" 
                                                 value="{{ is_array($contact) ? ($contact['name'] ?? '') : $contact->name }}" 
-                                                class="uppercase w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
+                                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Relationship</label>
                                             <input type="text" name="emergency_contacts[{{ $index }}][relationship]" 
                                                 value="{{ is_array($contact) ? ($contact['relationship'] ?? '') : $contact->relationship }}" 
-                                                class="uppercase w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                                class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
@@ -234,11 +234,11 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                                <input type="text" name="emergency_contacts[${idx}][name]" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Contact Name" required>
+                                <input type="text" name="emergency_contacts[${idx}][name]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Contact Name" required>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Relationship</label>
-                                <input type="text" name="emergency_contacts[${idx}][relationship]" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="e.g. Spouse, Parent">
+                                <input type="text" name="emergency_contacts[${idx}][relationship]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="e.g. Spouse, Parent">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>

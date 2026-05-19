@@ -278,7 +278,7 @@ class PaymentsController extends Controller
 
     public static function generateSequenceInvoiceNo($payment_type, $modelClass = Payment::class)
     {
-        $type = strtoupper($payment_type);
+        $type = $payment_type;
         $currentYear = now()->format('Y'); // 获取当前年份，如 2026
         $today = now()->format('Ymd');     // 完整日期用于显示
         

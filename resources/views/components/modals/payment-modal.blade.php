@@ -151,11 +151,11 @@
                                     class="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-bold text-sm hover:bg-white transition-colors">
                                 Cancel
                             </button>
-                            <x-primary-button type="submit" 
+                            <x-form.primary-button type="submit" 
                                 loading="loading"
                                 class="flex-1 px-4 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">
                                 <span>Confirm Payment</span>
-                            </x-primary-button>
+                            </x-form.primary-button>
                         </div>
                     </form>
                 </div>

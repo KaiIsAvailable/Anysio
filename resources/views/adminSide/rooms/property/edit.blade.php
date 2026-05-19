@@ -27,7 +27,7 @@
             @endif
 
             {{-- 注意这里的 Action 和 Method --}}
-            <x-form action="{{ route('admin.properties.update', $property) }}">
+            <x-form.form action="{{ route('admin.properties.update', $property) }}">
                 @method('PUT') {{-- 必须加这个，否则 Laravel 不认 --}}
 
                 <div class="bg-white shadow-lg rounded-xl p-6 space-y-6">
@@ -97,14 +97,14 @@
                             Cancel
                         </a>
 
-                        <x-primary-button type="submit" loading="loading"
+                        <x-form.primary-button type="submit" loading="loading"
                                 class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow transition duration-150 ease-in-out">
                             Update Property
-                        </x-primary-button>
+                        </x-form.primary-button>
                     </div>
 
                 </div>
-            </x-form>
+            </x-form.form>
         </div>
     </div>
 </x-app-layout>

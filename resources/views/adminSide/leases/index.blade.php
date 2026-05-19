@@ -9,20 +9,20 @@
                     <p class="mt-2 text-sm text-gray-500">Manage and review tenant leases.</p>
                 </div>
                 <div class="flex-shrink-0" x-data="{ loading: false, loadings: false }">
-                    <x-primary-button
+                    <x-form.primary-button
                         type="button"
                         loading="loading"
                         @click="loading = true; window.location.href = '{{ route('admin.agreements.index') }}'"
                         >
                         Agreement Templates
-                    </x-primary-button>
-                    <x-primary-button
+                    </x-form.primary-button>
+                    <x-form.primary-button
                         type="button"
                         loading="loadings"
                         @click="loadings = true; window.location.href = '{{ route('admin.leases.create') }}'"
                         >
                         Lease Controller
-                    </x-primary-button>
+                    </x-form.primary-button>
                 </div>
             </div>
 

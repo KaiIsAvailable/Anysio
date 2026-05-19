@@ -15,7 +15,7 @@
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
                 {{-- 💡 修复 1：将 loading 提到标准的 Alpine 提交流程，避免锁死 submit --}}
-                <x-form action="{{ route('admin.packages.update', $package->id) }}" class="p-8">
+                <x-form.form action="{{ route('admin.packages.update', $package->id) }}" class="p-8">
                     @method('PUT')
                     
                     <div class="space-y-8">
@@ -131,14 +131,14 @@
                             <a href="{{ route('admin.packages.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</a>
                             
                             {{-- 💡 修复 3：直接使用原生按钮或者解除动态冲突，绑定 x-bind:disabled 防止重复提交，确保 type="submit" 绝对有效 --}}
-                            <x-primary-button type="submit" 
+                            <x-form.primary-button
                                     loading="loading"
                                     class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md disabled:opacity-50 disabled:cursor-not-allowed">
                                 Update Package
-                            </x-primary-button>
+                            </x-form.primary-button>
                         </div>
                     </div>
-                </x-form>
+                </x-form.form>
             </div>
         </div>
     </div>

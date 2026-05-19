@@ -13,7 +13,7 @@
                 <h1 class="text-2xl font-bold text-slate-900 mt-2">Add Property</h1>
             </div>
 
-            <x-form action="{{ route('admin.properties.store') }}">
+            <x-form.form action="{{ route('admin.properties.store') }}">
 
                 {{-- Card Wrapper --}}
                 <div class="bg-white shadow-lg rounded-xl p-6 space-y-6">
@@ -38,22 +38,22 @@
                                 <input type="hidden" name="owner_id" value="{{ $currentOwner->id }}">
                             @else
                                 <div>
-                                    <x-input-label value="Does this property has an owner?" class="mb-1" />
-                                    <x-input-select 
+                                    <x-form.input-label value="Does this property has an owner?" class="mb-1" />
+                                    <x-form.input-select 
                                         name="has_owner" 
                                         id="has_owner" 
                                         onchange="toggleOwnerInput()" 
                                         :options="['0' => 'No', '1' => 'Yes']"
                                         class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm"
                                     >
-                                    </x-input-select>
+                                    </x-form.input-select>
                                 </div>
                             @endif
 
                             {{-- 2. Owner 选择器 (增加了一个 id="owner_input_wrapper") --}}
                             <div id="owner_input_wrapper" style="{{ old('has_owner') == 1 ? '' : 'display:none;' }}">
-                                <x-input-label value="Owner" class="mb-1" />
-                                <x-input-select 
+                                <x-form.input-label value="Owner" class="mb-1" />
+                                <x-form.input-select 
                                     name="owner_id" 
                                     id="owner_selector" 
                                     :options="$owners->pluck('name', 'id')->toArray()"
@@ -63,31 +63,31 @@
 
                             {{-- Property Name --}}
                             <div>
-                                <x-input-label value="Property Name" class="mb-1" />
-                                <x-text-input 
+                                <x-form.input-label value="Property Name" class="mb-1" />
+                                <x-form.text-input 
                                     name="name" 
                                     value="{{ old('name') }}" 
                                     placeholder="E.G. ANYSIO HQ"
                                     class="w-full uppercase"
                                     required 
                                 />
-                                <x-input-error :messages="$errors->get('name')" class="mt-1" />
+                                <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                             </div>
 
                             {{-- Type --}}
                             <div>
-                                <x-input-label value="Property Type" class="mb-1" />
-                                <x-input-select 
+                                <x-form.input-label value="Property Type" class="mb-1" />
+                                <x-form.input-select 
                                     name="type"
                                     class="uppercase w-full"
                                     :options="['Condo' => 'Condo / Apartment', 'Landed' => 'Landed House', 'Commercial' => 'Commercial Building', 'Shop Lot' => 'Shop Lot']"
                                     placeholder="Select a Property Type">
-                                </x-inputselect>
+                                </x-form.input-select>
                             </div>
 
                             {{-- Address --}}
                             <div>
-                                <x-input-label value="Address" class="mb-1" />
+                                <x-form.input-label value="Address" class="mb-1" />
                                 <textarea name="address" rows="3" placeholder="Full street address..."
                                           class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">{{ old('address') }}</textarea>
                                 @error('address') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
@@ -96,8 +96,8 @@
                             {{-- City & Postcode (Grid) --}}
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <x-input-label value="Postcode" class="mb-1" />
-                                    <x-text-input 
+                                    <x-form.input-label value="Postcode" class="mb-1" />
+                                    <x-form.text-input 
                                         type="text" 
                                         name="postcode"
                                         value="{{ old('postcode') }}"
@@ -109,26 +109,26 @@
                                         inputmode="numeric"
                                         oninput="this.value = this.value.replace(/[^0-9]/g, '')"
                                     />
-                                    <x-input-error :messages="$errors->get('postcode')" class="mt-1" />
+                                    <x-form.input-error :messages="$errors->get('postcode')" class="mt-1" />
                                 </div>
 
                                 <div>
-                                    <x-input-label value="City" class="mb-1" />
-                                    <x-text-input 
+                                    <x-form.input-label value="City" class="mb-1" />
+                                    <x-form.text-input 
                                         name="city" 
                                         value="{{ old('city') }}" 
                                         placeholder="e.g. KAMPAR "
                                         class="w-full uppercase"
                                         required 
                                     />
-                                    <x-input-error :messages="$errors->get('city')" class="mt-1" />
+                                    <x-form.input-error :messages="$errors->get('city')" class="mt-1" />
                                 </div>
                             </div>
 
                             {{-- State --}}
                             <div>
-                                <x-input-label value="State" class="mb-1" />
-                                <x-input-select 
+                                <x-form.input-label value="State" class="mb-1" />
+                                <x-form.input-select 
                                     name="state" 
                                     :options="['Johor', 'Kedah', 'Kelantan', 'Melaka', 'Negeri Sembilan', 'Pahang', 'Perak', 'Perlis', 'Pulau Pinang', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu', 'W.P. Kuala Lumpur', 'W.P. Labuan', 'W.P. Putrajaya']" 
                                     placeholder="Select a State"
@@ -144,13 +144,13 @@
                             Cancel
                         </a>
 
-                        <x-primary-button loading="loading" class="py-2 px-6">
+                        <x-form.primary-button loading="loading" class="py-2 px-6">
                             Save Property
-                        </x-primary-button>
+                        </x-form.primary-button>
                     </div>
 
                 </div>
-            </x-form>
+            </x-form.form>
         </div>
     </div>
     <script>

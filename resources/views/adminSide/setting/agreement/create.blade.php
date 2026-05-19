@@ -204,9 +204,9 @@
                             <a href="{{ route('admin.agreements.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                                 Cancel
                             </a>
-                            <x-primary-button loading="loading" type="submit" class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all">
+                            <x-form.primary-button loading="loading" class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all">
                                 Save Agreement Template
-                            </x-primary-button>
+                            </x-form.primary-button>
                         </div>
                     </div>
                 </form>

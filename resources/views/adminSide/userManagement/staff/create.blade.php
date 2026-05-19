@@ -54,9 +54,9 @@
 
                         <div class="pt-4 border-t border-gray-100 flex justify-end gap-3">
                             <a href="{{ route('admin.staff.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</a>
-                            <x-primary-button class="px-6 py-2.5 text-sm font-medium shadow-md transition-all">
+                            <x-form.primary-button class="px-6 py-2.5 text-sm font-medium shadow-md transition-all">
                                 Create Staff
-                            </x-primary-button>
+                            </x-form.primary-button>
                         </div>
                     </div>
                 </form>

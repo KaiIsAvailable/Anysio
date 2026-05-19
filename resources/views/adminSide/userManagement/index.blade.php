@@ -56,7 +56,7 @@
                                 </div>
                                 
                                 {{-- 使用你的 x-text-input 组件 (修改点) --}}
-                                <x-text-input 
+                                <x-form.text-input 
                                     name="search" 
                                     value="{{ request('search') }}"
                                     class="w-72 sm:w-80 !rounded-r-none"

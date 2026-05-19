@@ -10,7 +10,7 @@
                 </div>
                 {{-- 只有管理员能新增方案 --}}
                 <div class="flex-shrink-0" x-data="{loading: false}">
-                    <x-primary-button
+                    <x-form.primary-button
                         type="button"
                         loading="loading"
                         @click="loading = true; window.location.href = '{{ route('admin.packages.create') }}'"
@@ -20,7 +20,7 @@
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                         Create New Package
-                    </x-primary-button>
+                    </x-form.primary-button>
                 </div>
             </div>
 

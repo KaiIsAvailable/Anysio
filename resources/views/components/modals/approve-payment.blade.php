@@ -47,15 +47,15 @@
                         <form action="{{ route('admin.payments.reject', $payment->id) }}" method="POST" x-data="{ loading: false }" @submit="loading = true" class="flex-1 md:w-full">
                             @csrf
                             @method('PATCH')
-                            <x-secondary-button type="submit" 
+                            <x-form.secondary-button type="submit" 
                                     loading="loading"
                                     onclick="return confirm('Reject this transaction?')"
                                     class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
                                 Reject
-                            </x-secondary-button>
+                            </x-form.secondary-button>
                         </form>
 
-                        <x-primary-button type="button" 
+                        <x-form.primary-button type="button" 
                             @click="$dispatch('open-payment-record', { 
                                 invoiceNo: '{{ $payment->invoice_no }}', 
                                 amountDue: '{{ number_format($payment->amount_due / 100, 2) }}',
@@ -69,7 +69,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M14 5l7 7m0 0l-7 7m7-7H3"/>
                                 </svg>
                             </span>
-                        </x-primary-button>
+                        </x-form.primary-button>
                     </div>
                 </div>
             </div>

@@ -7,16 +7,16 @@
 
         <!-- Name -->
         <div>
-            <x-input-label for="name" :value="__('Name')" />
-            <x-text-input id="name" class="block mt-1 w-full uppercase" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
-            <x-input-error :messages="$errors->get('name')" class="mt-2" />
+            <x-form.input-label for="name" :value="__('Name')" />
+            <x-form.text-input id="name" class="block mt-1 w-full uppercase" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
+            <x-form.input-error :messages="$errors->get('name')" class="mt-2" />
         </div>
 
         <!-- Email Address -->
         <div class="mt-4">
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+            <x-form.input-label for="email" :value="__('Email')" />
+            <x-form.text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email')" required autocomplete="username" />
+            <x-form.input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
 
         <!-- Role Selection -->
@@ -24,7 +24,7 @@
             role: '{{ old('role', '') }}', 
             hasAgent: '{{ old('has_agent', '') }}' 
         }">
-            <x-input-label :value="__('I am a...')" />
+            <x-form.input-label :value="__('I am a...')" />
             <div class="flex gap-4 mt-2">
                 <label class="flex items-center">
                     <input type="radio" name="role" value="owner" x-model="role" 
@@ -44,7 +44,7 @@
             </div>
 
             <div x-show="role === 'owner'" x-cloak class="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
-                <x-input-label :value="__('Do you have an agent managing for you?')" />
+                <x-form.input-label :value="__('Do you have an agent managing for you?')" />
                 <div class="flex gap-4 mt-2">
                     <label class="flex items-center">
                         <input type="radio" name="has_agent" value="yes" x-model="hasAgent" :required="role === 'owner'">
@@ -57,24 +57,24 @@
                 </div>
             </div>
             
-            <x-input-error :messages="$errors->get('role')" class="mt-2" />
-            <x-input-error :messages="$errors->get('has_agent')" class="mt-2" />
-            <x-input-error :messages="$errors->get('ic')" class="mt-2" />
-            <x-input-error :messages="$errors->get('tenant_ic')" class="mt-2" />
+            <x-form.input-error :messages="$errors->get('role')" class="mt-2" />
+            <x-form.input-error :messages="$errors->get('has_agent')" class="mt-2" />
+            <x-form.input-error :messages="$errors->get('ic')" class="mt-2" />
+            <x-form.input-error :messages="$errors->get('tenant_ic')" class="mt-2" />
 
             <div x-show="(role === 'owner' && hasAgent === 'no') || role === 'agent'" 
                 x-transition 
                 x-cloak
                 class="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
-                <x-input-label for="ref_code" :value="__('Reference Code')" />
-                <x-text-input id="ref_code" class="block mt-1 w-full border-indigo-200" type="text" name="ref_code" :value="old('ref_code')" placeholder="e.g. ANYSIO-REF" />
+                <x-form.input-label for="ref_code" :value="__('Reference Code')" />
+                <x-form.text-input id="ref_code" class="block mt-1 w-full border-indigo-200" type="text" name="ref_code" :value="old('ref_code')" placeholder="e.g. ANYSIO-REF" />
                 <p class="mt-1 text-xs text-indigo-600 italic">If you have a referral code from our partners, enter it here.</p>
-                <x-input-error :messages="$errors->get('ref_code')" class="mt-2" />
+                <x-form.input-error :messages="$errors->get('ref_code')" class="mt-2" />
             </div>
 
             <div x-show="role === 'owner' && hasAgent === 'yes'" x-transition class="mt-4">
-                <x-input-label for="ic" :value="__('IC Number')" />
-                <x-text-input id="ic" class="block mt-1 w-full" type="text" name="ic" 
+                <x-form.input-label for="ic" :value="__('IC Number')" />
+                <x-form.text-input id="ic" class="block mt-1 w-full" type="text" name="ic" 
                             :value="old('ic')" 
                             ::required="role === 'owner' && hasAgent === 'yes'" />
                 <p class="mt-1 text-xs text-gray-500 italic">We need this to link you with your registered agent.</p>
@@ -82,8 +82,8 @@
             </div>
 
             <div x-show="role === 'tenant'" x-transition class="mt-4">
-                <x-input-label for="tenant_ic" :value="__('IC Number')" />
-                <x-text-input id="tenant_ic" class="block mt-1 w-full" type="text" name="tenant_ic" 
+                <x-form.input-label for="tenant_ic" :value="__('IC Number')" />
+                <x-form.text-input id="tenant_ic" class="block mt-1 w-full" type="text" name="tenant_ic" 
                             :value="old('tenant_ic')" 
                             ::required="role === 'tenant'" />
                 <p class="mt-1 text-xs text-gray-500 italic">We need this to link you with your registered owner.</p>
@@ -93,16 +93,16 @@
 
         <!-- Password -->
         <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
-            <x-password-input id="password" class="block mt-1 w-full" name="password" required autocomplete="new-password" />
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+            <x-form.input-label for="password" :value="__('Password')" />
+            <x-form.password-input id="password" class="block mt-1 w-full" name="password" required autocomplete="new-password" />
+            <x-form.input-error :messages="$errors->get('password')" class="mt-2" />
         </div>
 
         <!-- Confirm Password -->
         <div class="mt-4">
-            <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
-            <x-password-input id="password_confirmation" class="block mt-1 w-full" name="password_confirmation" required autocomplete="new-password" />
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
+            <x-form.input-label for="password_confirmation" :value="__('Confirm Password')" />
+            <x-form.password-input id="password_confirmation" class="block mt-1 w-full" name="password_confirmation" required autocomplete="new-password" />
+            <x-form.input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
         </div>
 
         <div class="mt-4" x-data="{ openTnc: false, activeTab: 'tos' }">
@@ -118,7 +118,7 @@
                     <button type="button" @click="openTnc = true; activeTab = 'privacy'" class="text-indigo-600 hover:underline font-medium">Privacy Policy</button>.
                 </div>
             </label>
-            <x-input-error :messages="$errors->get('terms')" class="mt-2" />
+            <x-form.input-error :messages="$errors->get('terms')" class="mt-2" />
 
             <div x-show="openTnc" class="fixed inset-0 z-50 overflow-y-auto" x-cloak>
                 <div class="flex items-center justify-center min-h-screen px-4">
@@ -192,9 +192,9 @@
                 {{ __('Already registered?') }}
             </a>
 
-            <x-primary-button class="ms-4" loading="loading">
+            <x-form.primary-button class="ms-4" loading="loading">
                 {{ __('Register') }}
-            </x-primary-button>
+            </x-form.primary-button>
         </div>
     </form>
 </x-guest-layout>

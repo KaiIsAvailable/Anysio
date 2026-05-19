@@ -17,7 +17,7 @@
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
                     @can('owner-admin')
-                        <x-primary-button
+                        <x-form.primary-button
                             type="button"
                             loading="loading"
                             @click="loading = true; window.location.href = '{{ route('admin.units.create', ['property_id' => $property->id]) }}'"
@@ -27,7 +27,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
                             Add New Unit
-                        </x-primary-button>
+                        </x-form.primary-button>
                     @endcan
                 </div>
             </div>

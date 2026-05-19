@@ -16,8 +16,8 @@
                     
                     <div class="space-y-6">
                         <div>
-                            <x-input-label for="name" value="Full Name" class="text-sm font-semibold text-gray-700" />
-                            <x-text-input id="name" name="name" type="text" placeholder="Enter user's full name" required
+                            <x-form.input-label for="name" value="Full Name" class="text-sm font-semibold text-gray-700" />
+                            <x-form.text-input id="name" name="name" type="text" placeholder="Enter user's full name" required
                                         class="mt-1 block w-full rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
                         </div>
 
@@ -29,8 +29,9 @@
                                     <span class="ml-2 text-xs font-medium text-indigo-600 uppercase tracking-wider">Generate Random</span>
                                 </label>
                             </div>
-                            <input type="email" name="email" id="email_input" placeholder="example@mail.com"
+                            <x-form.text-input type="email" name="email" id="email_input" placeholder="example@mail.com"
                                    class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-all">
+                            </x-form.text-input>
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">If random is selected, a temporary password will also be generated.</p>
                         </div>
 
@@ -75,9 +76,9 @@
 
                         <div class="pt-4 border-t border-gray-100 flex justify-end gap-3">
                             <a href="{{ route('admin.userManagement.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</a>
-                            <x-primary-button class="px-6 py-2.5 text-sm font-medium shadow-md transition-all">
+                            <x-form.primary-button class="px-6 py-2.5 text-sm font-medium shadow-md transition-all">
                                 Create Account
-                            </x-primary-button>
+                            </x-form.primary-button>
                         </div>
                     </div>
                 </form>

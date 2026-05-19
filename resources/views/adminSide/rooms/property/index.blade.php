@@ -9,7 +9,7 @@
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
                     @can('owner-admin')
-                        <x-primary-button
+                        <x-form.primary-button
                             type="button"
                             loading="loading"
                             @click="loading = true; window.location.href = '{{ route('admin.properties.create') }}'"
@@ -19,7 +19,7 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
                             Add New Property
-                        </x-primary-button>
+                        </x-form.primary-button>
                     @endcan
                 </div>
             </div>
@@ -27,7 +27,7 @@
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
-                        <form method="GET" action="{{ route('admin.properties.index') }}" class="flex items-stretch gap-2">
+                        <x-form.form method="GET" action="{{ route('admin.properties.index') }}" class="flex items-stretch gap-2">
                             <div class="flex items-stretch justify-between">
                                 <a href="{{ route('admin.roomAsset.index') }}" 
                                 class="inline-flex items-center px-5 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors mr-4">
@@ -42,24 +42,19 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                                         </svg>
                                     </div>
-                                    <input type="text"
-                                           name="search"
-                                           value="{{ request('search') }}"
-                                           style="padding-left: 45px;"
-                                           class="block w-72 sm:w-80 pr-4 py-2.5 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder-gray-400"
-                                           placeholder="Search property name...">
+                                    <x-form.text-input 
+                                        name="search" 
+                                        value="{{ request('search') }}"
+                                        placeholder="Search property name..."
+                                        class="block w-72 sm:w-80 pr-4 py-2.5 uppercase"
+                                        style="padding-left: 45px;" 
+                                    />
                                 </div>
-                                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
+                                <x-form.primary-button loading="loading" class="inline-flex items-center px-4 py-2 text-sm font-medium">
                                     Search
-                                </button>
-                                @if(request('search'))
-                                    <a href="{{ route('admin.properties.index', array_merge(request()->except('search','page'))) }}"
-                                       class="ml-2 inline-flex items-center px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-slate-900 border border-gray-200 text-sm">
-                                        Clear
-                                    </a>
-                                @endif
+                                </x-form.primary-button>
                             </div>
-                        </form>
+                        </x-form.form>
                     </div>
                 </div>
 

@@ -52,7 +52,14 @@
     {{-- 💡 页面加载时：只聚焦，不乱弹 --}}
     x-init="$nextTick(() => {
         const first = $el.querySelector('input:not([type=hidden]):not([disabled]):not([type=submit]), select:not([disabled]), textarea:not([disabled])');
-        if (first) first.focus();
+        if (first){
+            first.focus();
+
+            if (first.value) {
+                const len = first.value.length;
+                first.setSelectionRange(len, len); // 将光标定位在末尾
+            }
+        } 
     })"
     
     @keydown.enter="handleEnter($event)"

@@ -14,7 +14,7 @@
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <x-form action="{{ route('admin.packages.store') }}" class="p-8">
+                <x-form.form action="{{ route('admin.packages.store') }}" class="p-8">
                     @csrf
                     
                     <div class="space-y-8">
@@ -190,12 +190,12 @@
                             <a href="{{ route('admin.packages.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
                                 Cancel
                             </a>
-                            <x-primary-button type="submit" loading="loading" class="px-6">
+                            <x-form.primary-button loading="loading" class="px-6">
                                 Create Package
-                            </x-primary-button>
+                            </x-form.primary-button>
                         </div>
                     </div>
-                </x-form>
+                </x-form.form>
             </div>
         </div>
     </div>

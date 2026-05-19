@@ -33,7 +33,19 @@ class Property extends Model
 
     public function owner(): BelongsTo
     {
-        return $this->belongsTo(Owners::class, 'owner_id');
+        return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function scopeWithSortedRelations($query)
+    {
+        return $query->leftJoin('users as owners', 'properties.owner_id', '=', 'owners.id')
+                    ->leftJoin('users as creators', 'properties.created_by', '=', 'creators.id')
+                    ->select('properties.*', 'owners.name as owner_name', 'creators.name as creator_name');
     }
 
     public function getFullAddressAttribute()

@@ -11,86 +11,65 @@ use App\Models\User;
 use App\Models\UserManagement;
 use App\Models\Room;
 use App\Models\Unit;
+use Faker\Guesser\Name;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class PropertyController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $sort   = $request->input('sort');
-        $user   = Auth::user();
-        $query = Property::query(); 
-        $accessiblePropertyIds = [];
-        
-        $accessiblePropertyIds = Unit::where('owner_id', $user->owner?->id)
-            ->select('property_id') // 明确只选这一列
-            ->pluck('property_id')
-            ->unique();
+        $sort = $request->input('sort');
+        $user = Auth::user();
+        $query = Property::query()->withSortedRelations();
 
-        if ($user->role === 'owner') {
-            $accessiblePropertyIds = Unit::where('owner_id', $user->owner?->id)
-                ->pluck('property_id')
-                ->unique();
-        } elseif ($user->role === 'agentAdmin') {
-            $managedOwnerIds = Owners::where('agent_id', $user->id)->pluck('id');
-            $accessiblePropertyIds = Unit::whereIn('owner_id', $managedOwnerIds)
-                ->pluck('property_id')
-                ->unique();
-        } elseif ($user->role === 'ownerAdmin' || $user->role === 'agentAdmin') {
-            // 逻辑：查找 Property 表中所有由我创建的房产 ID
-            $accessiblePropertyIds = Property::where('created_by', Auth::id()) // 注意字段名是 create_by 还是 created_by
-                ->pluck('id'); // 这里拿主键 id
-        }
-        if (!Gate::allows('super-admin')) {
-            $query->whereIn('id', $accessiblePropertyIds);
-        }
-
-        $query->withCount('units');
+        $sortMapping = [
+            'n'   => trim('properties.name'),
+            'a'   => trim('properties.address'),
+            'c'   => trim('properties.city'),
+            'p'   => trim('properties.postcode'),
+            's'   => trim('properties.state'),
+            't'   => trim('properties.type'),
+            'cr'  => trim('properties.created_at'), 
+            'st'  => trim('properties.status'),
+            'o'   => trim('owner_name'), 
+            'cre' => trim('creator_name'),       
+        ];
 
         // 3. 搜索和排序 (保持不变)
         if ($search) {
             $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                ->orWhere('address', 'like', "%{$search}%")
-                ->orWhere('city', 'like', "%{$search}%");
+                $q->where('properties.name', 'like', "%{$search}%")
+                ->orWhere('properties.address', 'like', "%{$search}%")
+                ->orWhere('properties.city', 'like', "%{$search}%")
+                ->orWhere('properties.postcode', 'like', "%{$search}%")
+                ->orWhere('properties.state', 'like', "%{$search}%")
+                ->orWhere('properties.type', 'like', "%{$search}%")
+                ->orWhere('owners.name', 'like', "%{$search}%");
+                //->orWhere('creators.name', 'like', "%{$search}%");
             });
         }
 
-        $sortData = [
-            'name' => [
-                'isActive' => str_contains($sort, 'property_no'),
-                'isAsc'    => $sort === 'property_no_asc',
-                'next'     => ($sort === 'property_no_asc') ? 'property_no_desc' : 'property_no_asc'
-            ],
-            'date' => [
-                'isActive' => is_null($sort) || $sort === 'newest' || $sort === 'oldest',
-                'isAsc'    => is_null($sort) || $sort === 'oldest', // 默认 oldest 为 asc
-                'next'     => ($sort === 'newest') ? 'oldest' : 'newest'
-            ]
-        ];
+        $sortParam = $request->query('sort'); // 例如 'o_asc'
+    
+        // 2. 拆分参数
+        $field = Str::beforeLast($sortParam, '_'); 
+        $direction = Str::afterLast($sortParam, '_');
 
-        // 处理你的排序逻辑
-        $sortField = match($sort) {
-            'property_no_asc' => 'name',
-            'property_no_desc' => 'name',
-            'newest' => 'created_at',
-            default => 'created_at'
-        };
-        $sortOrder = ($sort === 'property_no_desc' || $sort === 'newest') ? 'desc' : 'asc';
-        $query->orderBy($sortField, $sortOrder);
+        // 3. 核心安全判断：只有在白名单内的字段才允许执行 orderBy
+        if (array_key_exists($field, $sortMapping) && in_array($direction, ['asc', 'desc'])) {
+            $query->orderBy($sortMapping[$field], $direction);
+        } else {
+            // 如果用户随意乱改 URL，默认按 ID 降序，保证系统运行且安全
+            $query->orderBy('properties.id', 'desc');
+        }
 
         $properties = $query->paginate(10)->appends($request->query());
 
-        return view('adminSide.rooms.property.index', compact('properties', 'sortData'));
+        return view('adminSide.rooms.property.index', compact('properties'));
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
     public function create()
     {
         $user = Auth::user();
@@ -111,9 +90,6 @@ class PropertyController extends Controller
         return view('adminSide.rooms.property.create', compact('owners', 'isOwnerAdmin', 'currentOwner')); 
     }
 
-    /**
-     * Store a newly created resource in storage.
-     */
     public function store(Request $request)
     {
         $validated = $request->validate([
@@ -130,10 +106,6 @@ class PropertyController extends Controller
             $validated['owner_id'] = null;
         }
         $validated['created_by'] = Auth::id();
-        $validated['name'] = toupper($validated['name']);
-        $validated['address'] = toupper($validated['address']);
-        $validated['city'] = toupper($validated['city']);
-        $validated['state'] = toupper($validated['state']);
 
         Property::create($validated);
 
@@ -141,9 +113,6 @@ class PropertyController extends Controller
                         ->with('success', 'Property created successfully!');
     }
 
-    /**
-     * Display the specified resource.
-     */
     public function show(Property $property)
     {
 
@@ -158,7 +127,20 @@ class PropertyController extends Controller
     public function edit(Property $property)
     {
         // $property 会根据 URL 中的 ID 自动查询（Route Model Binding）
-        return view('adminSide.rooms.property.edit', compact('property'));
+        $user = Auth::user();
+        $isOwnerAdmin = $user->role === 'ownerAdmin';
+        $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get(['id', 'name']);
+
+        $currentOwner = null;
+        if ($isOwnerAdmin) {
+            $currentOwner = $user;
+        }
+
+        if ($owners->isEmpty()) {
+            return redirect()->back()->with('error', 'Owner profile not found. Please contact admin.');
+        }
+
+        return view('adminSide.rooms.property.edit', compact('property', 'isOwnerAdmin', 'currentOwner', 'owners'));
     }
 
     /**
@@ -168,12 +150,18 @@ class PropertyController extends Controller
     {
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
-            'type'     => 'required|string',
             'address'  => 'required|string',
-            'city'     => 'required|string',
-            'postcode' => 'required|string',
-            'state'    => 'required|string',
+            'city'     => 'required|string|max:100',
+            'postcode' => 'required|digits:5',
+            'state'    => 'required|string|max:100',
+            'type'     => 'required', // 根据你的需求定义
+            'owner_id'  => 'nullable|required_if:has_owner,1|exists:users,id'
         ]);
+
+        if ($request->has_owner == 0) {
+            $validated['owner_id'] = null;
+        }
+        $validated['created_by'] = Auth::id();
 
         $property->update($validated);
 

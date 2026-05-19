@@ -45,18 +45,18 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Unit Owner</label>
                                 @if(isset($targetOwner))
-                                    <div class="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-700 font-medium flex items-center shadow-sm">
-                                        {{ $targetOwner->user->name }}
+                                    <div class=" w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-700 font-medium flex items-center shadow-sm">
+                                        {{ $targetOwner->name }}
                                     </div>
                                     <input type="hidden" name="owner_id" value="{{ $targetOwner->id }}">
                                 @else
-                                    <select name="owner_id" id="owner_selector" onchange="filterAssetsByOwner()" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                    <select name="owner_id" id="owner_selector" onchange="filterAssetsByOwner()" class="  w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         @foreach($owners as $owner)
                                             {{-- 统一使用 $owner->id --}}
                                             <option value="{{ $owner->id }}" 
-                                                data-user-id="{{ $owner->user_id }}" 
+                                                data-user-id="{{ $owner->id }}" 
                                                 @selected(old('owner_id') == $owner->id)>
-                                                {{ $owner->user->name }} {{ $owner->company_name ? "({$owner->company_name})" : '' }}
+                                                {{ $owner->name }} {{ $owner->company_name ? "({$owner->company_name})" : '' }}
                                             </option>
                                         @endforeach
                                     </select>
@@ -72,7 +72,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Unit No.</label>
                                 <input type="text" name="unit_no" value="{{ old('unit_no') }}" 
-                                    class="w-full rounded-lg @error('unit_no') border-red-500 @enderror border-gray-300 focus:ring-indigo-500 shadow-sm" required>
+                                    class=" w-full rounded-lg @error('unit_no') border-red-500 @enderror border-gray-300 focus:ring-indigo-500 shadow-sm" required>
                                 @error('unit_no')
                                     <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
                                 @enderror
@@ -80,7 +80,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Block / Tower</label>
                                 <input type="text" name="block" value="{{ old('block') }}" placeholder="e.g. Block A" 
-                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" required>
+                                       class=" w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" required>
                             </div>
                         </div>
 
@@ -118,7 +118,7 @@
 
                         <div class="mt-4">
                             <label class="block text-sm font-medium text-slate-900 mb-1">Status</label>
-                            <select name="status" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                            <select name="status" class=" w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                 <option value="Vacant" @selected(old('status') == 'Vacant')>Vacant</option>
                                 <option value="Occupied" @selected(old('status') == 'Occupied')>Occupied</option>
                                 <option value="Under Maintenance" @selected(old('status') == 'Under Maintenance')>Under Maintenance</option>
@@ -133,7 +133,7 @@
                             <div>
                                 <label class="block text-sm font-bold text-indigo-900 mb-1">Any Rooms inside Unit?</label>
                                 <select name="has_rooms" id="has_rooms" onchange="toggleRoomInput()" 
-                                        class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                        class=" w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                     <option value="0" @selected(old('has_rooms') == 0)>No</option>
                                     <option value="1" @selected(old('has_rooms') == 1)>Yes</option>
                                 </select>
@@ -142,7 +142,7 @@
                             <div>
                                 <label class="block text-sm font-bold text-indigo-900 mb-1">Add Assets for this Unit?</label>
                                 <select name="has_unit_assets" id="has_unit_assets" onchange="toggleUnitAssetInput()" 
-                                        class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                        class=" w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                     <option value="0" @selected(old('has_unit_assets') == 0)>No</option>
                                     <option value="1" @selected(old('has_unit_assets') == 1)>Yes</option>
                                 </select>
@@ -439,7 +439,7 @@
                                                     value="${oldRoomNo}" 
                                                     placeholder="e.g. A-01-02"
                                                     required
-                                                    class="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                                    class=" w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                                                 >
                                             </div>
                                             <div>
@@ -449,7 +449,7 @@
                                                     value="${oldRoomType}" 
                                                     placeholder="e.g. Master Bedroom"
                                                     required
-                                                    class="w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
+                                                    class=" w-full px-4 py-2.5 text-sm border border-gray-300 rounded-lg shadow-sm focus:ring-2 focus:ring-indigo-500 outline-none transition-all"
                                                 >
                                             </div>
                                         </div>

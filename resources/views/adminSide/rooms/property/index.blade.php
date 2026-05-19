@@ -60,46 +60,15 @@
 
                 <div class="overflow-x-auto">
                     @if($properties->count() > 0)
-                        @php
-                            $sort = request('sort');
-                            $noDesc = $sort === 'property_no_desc';
-                            $noAsc  = $sort === 'property_no_asc';
-                            $nextNoSort = $noAsc ? 'property_no_desc' : 'property_no_asc';
-
-                            $dateDesc = $sort === 'newest';
-                            $dateAsc  = is_null($sort) || $sort === 'oldest';
-                            $nextDateSort = $dateAsc ? 'newest' : 'oldest';
-                        @endphp
-
                         <table class="table-auto w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase min-w-[250px]">
-                                        <a href="{{ route('admin.properties.index', array_merge(request()->query(), ['sort' => $nextNoSort])) }}"
-                                        class="inline-flex items-center space-x-1 text-gray-700 hover:text-indigo-600">
-                                            <span>Property Name</span>
-                                            @if($noAsc)
-                                                <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                                            @elseif($noDesc)
-                                                <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                            @endif
-                                        </a>
-                                    </th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Type</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Owner</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase min-w-[200px]">Address</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
-                                        <a href="{{ route('admin.properties.index', array_merge(request()->query(), ['sort' => $nextDateSort])) }}"
-                                        class="inline-flex items-center space-x-1 text-gray-700 hover:text-indigo-600">
-                                            <span>Created</span>
-                                            @if($dateAsc)
-                                                <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                                            @elseif($dateDesc)
-                                                <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                            @endif
-                                        </a>
-                                    </th>
+                                    <x-table.th name="Property Name" sortField="n" />
+                                    <x-table.th name="Type" sortField="t" />
+                                    <x-table.th name="Status" sortField="st" />
+                                    <x-table.th name="Owner" sortField="o" />
+                                    <x-table.th name="Address" sortField="a" />
+                                    <x-table.th name="Created" sortField="cr" />
                                     @can('owner-admin')
                                         <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                     @endcan
@@ -149,18 +118,19 @@
                                     </td>
 
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-slate-900">{{ $property->owner->user->name ?? '-' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $property->owner->user->email ?? '-' }}</div>
+                                        <div class="text-sm font-medium text-slate-900">{{ $property->owner->name ?? 'No Owner' }}</div>
+                                        <div class="text-xs text-gray-500">{{ $property->owner->email ?? "No Owner's Gmail" }}</div>
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">
                                         <div class="line-clamp-2 max-w-xs">{{ $property->address ?? '-' }}</div>
                                         <div class="line-clamp-2 max-w-xs">{{ $property->postcode ?? '-' }}</div>
                                         <div class="line-clamp-2 max-w-xs">{{ $property->city ?? '-' }}</div>
+                                        <div class="line-clamp-2 max-w-xs">{{ $property->state ?? '-' }}</div>
                                     </td>
 
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
-                                        {{ optional($property->created_at)->format('d M Y') }}
+                                        {{ dateFormat($property->created_at) }}
                                     </td>
 
                                     @can('owner-admin')

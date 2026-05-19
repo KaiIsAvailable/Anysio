@@ -43,7 +43,17 @@
             // 3. 不是最后一个，执行跳转
             if (index > -1) {
                 e.preventDefault();
-                inputs[index + 1].focus();
+                const nextEl = inputs[index + 1];
+                nextEl.focus();
+
+                // 核心逻辑：如果是输入框，定位到末尾
+                if (nextEl.tagName === 'INPUT' || nextEl.tagName === 'TEXTAREA') {
+                    const len = nextEl.value.length;
+                    // 使用 setTimeout 确保在 focus 之后执行，兼容性更好
+                    setTimeout(() => {
+                        nextEl.setSelectionRange(len, len);
+                    }, 0);
+                }
             }
         }
     }" 

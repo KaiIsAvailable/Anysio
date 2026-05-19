@@ -15,7 +15,7 @@
                         {{ $property->address }}, {{ $property->postcode }} {{ $property->city }}
                     </div>
                 </div>
-                <div class="flex-shrink-0" x-data="{loading: false}">
+                <div class="flex-shrink-0">
                     @can('owner-admin')
                         <x-form.primary-button
                             type="button"

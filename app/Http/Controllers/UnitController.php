@@ -9,6 +9,7 @@ use App\Models\Asset;
 use App\Models\Room;
 use App\Models\Property;
 use App\Models\Owners;
+use App\Models\User;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -31,7 +32,7 @@ class UnitController extends Controller
     {
         // 1. 获取选中的 Property
         $selectedPropertyId = $request->query('property_id');
-        $targetProperty = $selectedPropertyId ? Property::with('owner.user')->find($selectedPropertyId) : null;
+        $targetProperty = $selectedPropertyId ? Property::with('owner')->find($selectedPropertyId) : null;
         $properties = $targetProperty ? collect([$targetProperty]) : Property::all();
 
         // 2. 确定 targetOwner (增加 Property 继承逻辑)
@@ -39,7 +40,7 @@ class UnitController extends Controller
         
         if ($selectedOwnerId) {
             // 如果 URL 明确传了 owner_id，直接查
-            $targetOwner = Owners::with('user')->find($selectedOwnerId);
+            $targetOwner = Owners::with('owner')->find($selectedOwnerId);
         } elseif ($targetProperty && $targetProperty->owner_id) {
             // 如果 URL 没传，但 Property 自己有业主，直接拿 Property 的
             $targetOwner = $targetProperty->owner;
@@ -48,7 +49,7 @@ class UnitController extends Controller
         }
 
         // 3. 其他数据加载
-        $owners = Owners::with('user')->get();
+        $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get();
         
         // 建议：资产库根据业主过滤 (如果 targetOwner 存在)
         $query = Asset::select('id', 'name', 'user_id', 'status');
@@ -133,7 +134,7 @@ class UnitController extends Controller
                             'unit_id'  => $unit->id,
                             'room_id'  => null,
                             'quantity' => $assetData['qty'],
-                            'condition' => 'Good',
+                            'condition' => 'GOOD',
                         ]);
                     }
                 }
@@ -148,7 +149,7 @@ class UnitController extends Controller
                     $room->unit_id = $unit->id;
                     $room->room_no = $roomData['room_no'];
                     $room->room_type = $roomData['room_type'];
-                    $room->status = 'Vacant';
+                    $room->status = 'VACANT';
                     $room->save();
 
                     // 存储该 Room 下的 Assets
@@ -162,7 +163,7 @@ class UnitController extends Controller
                                     'room_id'   => $room->id,
                                     'unit_id'   => null,
                                     'quantity'  => $assetData['qty'],
-                                    'condition' => 'Good',
+                                    'condition' => 'GOOD',
                                 ]);
                             }
                         }

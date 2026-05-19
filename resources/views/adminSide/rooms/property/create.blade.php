@@ -68,7 +68,7 @@
                                     name="name" 
                                     value="{{ old('name') }}" 
                                     placeholder="E.G. ANYSIO HQ"
-                                    class="w-full uppercase"
+                                    class="w-full "
                                     required 
                                 />
                                 <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
@@ -79,7 +79,7 @@
                                 <x-form.input-label value="Property Type" class="mb-1" />
                                 <x-form.input-select 
                                     name="type"
-                                    class="uppercase w-full"
+                                    class=" w-full"
                                     :options="['Condo' => 'Condo / Apartment', 'Landed' => 'Landed House', 'Commercial' => 'Commercial Building', 'Shop Lot' => 'Shop Lot']"
                                     placeholder="Select a Property Type">
                                 </x-form.input-select>
@@ -89,7 +89,7 @@
                             <div>
                                 <x-form.input-label value="Address" class="mb-1" />
                                 <textarea name="address" rows="3" placeholder="Full street address..."
-                                          class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">{{ old('address') }}</textarea>
+                                          class=" w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">{{ old('address') }}</textarea>
                                 @error('address') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
                             </div>
 
@@ -102,7 +102,7 @@
                                         name="postcode"
                                         value="{{ old('postcode') }}"
                                         placeholder="e.g. 31900"
-                                        class="uppercase w-full"
+                                        class=" w-full"
                                         {{-- 这些属性会被合并进组件内部的 <input> 标签中 --}}
                                         pattern="\d{5}" 
                                         maxlength="5" 
@@ -118,7 +118,7 @@
                                         name="city" 
                                         value="{{ old('city') }}" 
                                         placeholder="e.g. KAMPAR "
-                                        class="w-full uppercase"
+                                        class="w-full "
                                         required 
                                     />
                                     <x-form.input-error :messages="$errors->get('city')" class="mt-1" />
@@ -130,7 +130,24 @@
                                 <x-form.input-label value="State" class="mb-1" />
                                 <x-form.input-select 
                                     name="state" 
-                                    :options="['Johor', 'Kedah', 'Kelantan', 'Melaka', 'Negeri Sembilan', 'Pahang', 'Perak', 'Perlis', 'Pulau Pinang', 'Sabah', 'Sarawak', 'Selangor', 'Terengganu', 'W.P. Kuala Lumpur', 'W.P. Labuan', 'W.P. Putrajaya']" 
+                                    :options="[
+                                        'JOHOR' => 'Johor',
+                                        'KEDAH' => 'Kedah',
+                                        'KELANTAN' => 'Kelantan',
+                                        'MELAKA' => 'Melaka',
+                                        'NEGERI SEMBILAN' => 'Negeri Sembilan',
+                                        'PAHANG' => 'Pahang',
+                                        'PERAK' => 'Perak',
+                                        'PERLIS' => 'Perlis',
+                                        'PULAU PINANG' => 'Pulau Pinang',
+                                        'SABAH' => 'Sabah',
+                                        'SARAWAK' => 'Sarawak',
+                                        'SELANGOR' => 'Selangor',
+                                        'TERENGGANU' => 'Terengganu',
+                                        'W.P. KUALA LUMPUR' => 'W.P. Kuala Lumpur',
+                                        'W.P. LABUAN' => 'W.P. Labuan',
+                                        'W.P. PUTRAJAYA' => 'W.P. Putrajaya'
+                                    ]" 
                                     placeholder="Select a State"
                                 />
                             </div>

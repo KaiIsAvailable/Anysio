@@ -2,7 +2,8 @@
     'disabled' => false,
     'options' => [],
     'placeholder' => null,
-    'name' => null, // 明确接收 name
+    'name' => null,
+    'value' => null, // 增加这一行
 ])
 
 <select name="{{ $name }}" {{ $disabled ? 'disabled' : '' }} 
@@ -14,9 +15,9 @@
         <option value="">{{ $placeholder }}</option>
     @endif
     
-    @foreach($options as $value => $label)
-        {{-- 直接取 $value 为 value，判断逻辑更清晰 --}}
-        <option value="{{ $value }}" @selected(old($name) == $value)>
+    @foreach($options as $optionValue => $label)
+        <option value="{{ $optionValue }}" 
+            @selected((string)old($name, $value) === (string)$optionValue)>
             {{ $label }}
         </option>
     @endforeach

@@ -67,7 +67,7 @@
                                 <x-form.text-input 
                                     name="name" 
                                     value="{{ old('name') }}" 
-                                    placeholder="E.G. ANYSIO HQ"
+                                    placeholder="e.g. Anysio HQ"
                                     class="w-full "
                                     required 
                                 />
@@ -117,7 +117,7 @@
                                     <x-form.text-input 
                                         name="city" 
                                         value="{{ old('city') }}" 
-                                        placeholder="e.g. KAMPAR "
+                                        placeholder="e.g. Kampar "
                                         class="w-full "
                                         required 
                                     />
@@ -131,22 +131,22 @@
                                 <x-form.input-select 
                                     name="state" 
                                     :options="[
-                                        'JOHOR' => 'Johor',
-                                        'KEDAH' => 'Kedah',
-                                        'KELANTAN' => 'Kelantan',
-                                        'MELAKA' => 'Melaka',
-                                        'NEGERI SEMBILAN' => 'Negeri Sembilan',
-                                        'PAHANG' => 'Pahang',
-                                        'PERAK' => 'Perak',
-                                        'PERLIS' => 'Perlis',
-                                        'PULAU PINANG' => 'Pulau Pinang',
-                                        'SABAH' => 'Sabah',
-                                        'SARAWAK' => 'Sarawak',
-                                        'SELANGOR' => 'Selangor',
-                                        'TERENGGANU' => 'Terengganu',
-                                        'W.P. KUALA LUMPUR' => 'W.P. Kuala Lumpur',
-                                        'W.P. LABUAN' => 'W.P. Labuan',
-                                        'W.P. PUTRAJAYA' => 'W.P. Putrajaya'
+                                        'Johor' => 'Johor',
+                                        'Kedah' => 'Kedah',
+                                        'Kelantan' => 'Kelantan',
+                                        'Melaka' => 'Melaka',
+                                        'Negeri Sembilan' => 'Negeri Sembilan',
+                                        'Pahang' => 'Pahang',
+                                        'Perak' => 'Perak',
+                                        'Perlis' => 'Perlis',
+                                        'Pulau Pinang' => 'Pulau Pinang',
+                                        'Sabah' => 'Sabah',
+                                        'Sarawak' => 'Sarawak',
+                                        'Selangor' => 'Selangor',
+                                        'Terengganu' => 'Terengganu',
+                                        'W.P. Kuala Lumpur' => 'W.P. Kuala Lumpur',
+                                        'W.P. Labuan' => 'W.P. Labuan',
+                                        'W.P. Putrajaya' => 'W.P. Putrajaya'
                                     ]" 
                                     placeholder="Select a State"
                                 />

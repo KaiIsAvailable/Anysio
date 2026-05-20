@@ -34,7 +34,7 @@
 
                 {{-- Step 2: Assets List --}}
                 @if($selectedUserId)
-                    <form action="{{ route('admin.roomAsset.store') }}" method="POST">
+                    <x-form.form action="{{ route('admin.roomAsset.store') }}">
                         @csrf
                         <input type="hidden" name="target_user_id" value="{{ $selectedUserId }}">
 
@@ -44,7 +44,7 @@
                                     <h2 class="text-lg font-semibold text-slate-900">Assets to Add</h2>
                                 </div>
                                 <div class="flex space-x-2">
-                                    <button type="button" 
+                                    <x-form.primary-button type="button" 
                                             onclick="openAssetModal()" 
                                             class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-md transition transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1">
                                         {{-- SVG 图标 --}}
@@ -52,7 +52,7 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"></path>
                                         </svg>
                                         <span>Batch Select</span>
-                                    </button>
+                                    </x-form.primary-button>
                                     <button type="button" id="addAssetBtn" class="bg-gray-100 hover:bg-gray-200 text-slate-700 font-bold py-2 px-4 rounded-lg transition text-sm border border-gray-200">
                                         + Custom
                                     </button>
@@ -103,12 +103,12 @@
                             </div>
 
                             <div class="px-6 py-5 bg-gray-50 border-t border-gray-100 flex justify-end">
-                                <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-10 rounded-lg shadow-lg transition transform active:scale-95">
+                                <x-form.primary-button loading="loading" class="py-3 px-10">
                                     Save to User Library
-                                </button>
+                                </x-form.primary-button>
                             </div>
                         </div>
-                    </form>
+                    </x-form.form>
                 @endif
             </div>
         </div>

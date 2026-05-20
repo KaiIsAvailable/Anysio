@@ -51,12 +51,7 @@ class UnitController extends Controller
         // 3. 其他数据加载
         $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get();
         
-        // 建议：资产库根据业主过滤 (如果 targetOwner 存在)
-        $query = Asset::select('id', 'name', 'user_id', 'status');
-        if ($targetOwner) {
-            $query->where('user_id', $targetOwner->user_id);
-        }
-        $assetLibrary = $query->get();
+        $assetLibrary = Asset::select('id', 'name', 'user_id', 'status')->get();
         
         return view('adminSide.rooms.unit.create', compact(
             'properties', 
@@ -130,11 +125,12 @@ class UnitController extends Controller
                 foreach ($request->unit_assets as $assetData) {
                     if ($assetData['qty'] > 0) {
                         RoomAsset::create([
+                            'id'       => (string) Str::ulid(),
                             'asset_id' => $assetData['id'],
                             'unit_id'  => $unit->id,
                             'room_id'  => null,
                             'quantity' => $assetData['qty'],
-                            'condition' => 'GOOD',
+                            'condition' => 'Good',
                         ]);
                     }
                 }
@@ -149,7 +145,7 @@ class UnitController extends Controller
                     $room->unit_id = $unit->id;
                     $room->room_no = $roomData['room_no'];
                     $room->room_type = $roomData['room_type'];
-                    $room->status = 'VACANT';
+                    $room->status = 'Vacant';
                     $room->save();
 
                     // 存储该 Room 下的 Assets
@@ -163,7 +159,7 @@ class UnitController extends Controller
                                     'room_id'   => $room->id,
                                     'unit_id'   => null,
                                     'quantity'  => $assetData['qty'],
-                                    'condition' => 'GOOD',
+                                    'condition' => 'Good',
                                 ]);
                             }
                         }
@@ -279,7 +275,7 @@ class UnitController extends Controller
                     ->where(fn ($query) => $query->where('property_id', $request->property_id))
                     ->ignore($unit->id) // 排除当前 unit 自身
             ],
-            'owner_id'       => 'nullable|exists:owners,id',
+            'owner_id'       => 'nullable|exists:users,id',
             'management_fee' => 'nullable|numeric|min:0',
             'sqft'           => 'nullable|numeric|min:0',
             'has_rooms'      => 'required|Boolean',

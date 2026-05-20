@@ -98,7 +98,7 @@ class DatabaseSeeder extends Seeder
                 for ($u = 1; $u <= 2; $u++) {
                     $unit = Unit::create([
                         'property_id' => $property->id,
-                        'owner_id' => $ownerProfile->id, // 明确 Unit 属于哪个 Owner
+                        'owner_id' => $adminUser->id, // 明确 Unit 属于哪个 Owner
                         'unit_no' => ($property->type == 'Condo') ? 'A-' . ($index + 10) . '-0' . $u : 'No ' . ($u + 5),
                         'block' => ($property->type == 'Condo') ? 'Block A' : null,
                         'floor' => ($property->type == 'Condo') ? 10 + $index : 1,

@@ -10,7 +10,7 @@ return new class extends Migration
     {
         Schema::create('rooms', function (Blueprint $table) {
             $table->ulid('id')->primary();
-            $table->foreignUlid('owner_id')->constrained('owners')->cascadeOnDelete();
+            $table->foreignUlid('owner_id')->constrained('users')->cascadeOnDelete();
             $table->string('room_no')->index();
             $table->string('room_type')->index();
             $table->string('status')->default('Vacant')->index();

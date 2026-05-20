@@ -13,7 +13,7 @@
                 <h1 class="text-2xl font-bold text-slate-900 mt-2">Add New Unit</h1>
             </div>
 
-            <form method="POST" action="{{ route('admin.units.store') }}">
+            <x-form.form method="POST" action="{{ route('admin.units.store') }}">
                 @csrf
 
                 <div class="bg-white shadow-lg rounded-xl p-6 space-y-8">
@@ -48,7 +48,7 @@
                                     <div class=" w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-700 font-medium flex items-center shadow-sm">
                                         {{ $targetOwner->name }}
                                     </div>
-                                    <input type="hidden" name="owner_id" value="{{ $targetOwner->id }}">
+                                    <input type="hidden" name="owner_id" value="{{ $targetOwner->id }}" id="owner_selector" onchange="filterAssetsByOwner()" data-user-id="{{ $targetOwner->id }}">
                                 @else
                                     <select name="owner_id" id="owner_selector" onchange="filterAssetsByOwner()" class="  w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         @foreach($owners as $owner)
@@ -299,14 +299,25 @@
                             });
 
                             function filterAssetsByOwner() {
-                                const selector = document.getElementById('owner_selector');
+                                //const selector = document.getElementById('owner_selector');
+                                const selector = document.getElementById('owner_selector') || document.querySelector('select[name="owner_id"]');
                                 if (!selector) return;
 
-                                const selectedOption = selector.options[selector.selectedIndex];
-                                const selectedUserId = selectedOption.getAttribute('data-user-id') || "";
+                                let selectedUserId = "";
+                                if (selector.tagName === 'SELECT') {
+                                    // 下拉框方式：通过 selectedOptions 获取
+                                    const selectedOption = selector.options[selector.selectedIndex];
+                                    selectedUserId = selectedOption ? selectedOption.getAttribute('data-user-id') : "";
+                                } else {
+                                    // hidden input 方式：直接通过 value 获取
+                                    selectedUserId = selector.value;
+                                }
+
+                                console.log("当前业主ID:", selectedUserId);
                                 
                                 // 1. 拿到所有的 Room Card
                                 const allRoomCards = document.querySelectorAll('.room-card');
+                                console.log("当前页面找到的 Room Cards 数量:", allRoomCards.length);
 
                                 allRoomCards.forEach(roomCard => {
                                     let visibleCount = 0;
@@ -316,6 +327,10 @@
                                     const noAssetMsg = roomCard.querySelector('.no-asset-message');
                                     const selectOwnerMsg = roomCard.querySelector('.select-owner-message');
                                     const assetItems = roomCard.querySelectorAll('[data-asset-owner-id]');
+
+                                    console.log("noAssetMsg:", noAssetMsg);
+                                    console.log("selectOwnerMsg:", selectOwnerMsg);
+                                    console.log("assetItems:", assetItems);
 
                                     assetItems.forEach(item => {
                                         const itemOwnerId = item.getAttribute('data-asset-owner-id');
@@ -526,12 +541,12 @@
                     {{-- 操作按钮 --}}
                     <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">
                         <a href="{{ route('admin.properties.show', $targetProperty->id ) }}" class="px-6 py-2 text-slate-700 font-bold border rounded-lg hover:bg-gray-50">Cancel</a>
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-8 rounded-lg shadow-md transition">
+                        <x-form.primary-button loading="loading" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-8 rounded-lg shadow-md transition">
                             Create Unit
-                        </button>
+                        </x-form.primary-button>
                     </div>
                 </div>
-            </form>
+            </x-form.form>
         </div>
     </div>
 </x-app-layout>

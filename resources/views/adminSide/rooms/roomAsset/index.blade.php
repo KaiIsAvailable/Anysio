@@ -12,21 +12,26 @@
                     <p class="text-sm text-gray-500 mt-1">Manage standard asset templates used across properties.</p>
                 </div>
 
-                <div class="flex items-center space-x-3">
-                    {{-- 3. 创建路由改为 assets.create --}}
-                    <a href="{{ route('admin.roomAsset.create') }}" 
-                       class="inline-flex items-center px-4 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-lg shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-                        </svg>
-                        Create New Asset
-                    </a>
+                <div class="flex-shrink-0" x-data="{loading: false}">
+                    @can('owner-admin')
+                        <x-form.primary-button
+                            type="button"
+                            loading="loading"
+                            @click="loading = true; window.location.href = '{{ route('admin.roomAsset.create') }}'"
+                            >
+
+                            <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Create New Asset
+                        </x-form.primary-button>
+                    @endcan
                 </div>
             </div>
 
             {{-- 搜索框部分保持不变 --}}
             <div class="mb-6 flex flex-col md:flex-row justify-end">
-                <form action="{{ URL::current() }}" method="GET" class="flex items-center w-full max-w-md">
+                <x-form.form action="{{ URL::current() }}" method="GET" class="flex items-center w-full max-w-md">
                     <div class="relative flex-1">
                         <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                             <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -38,10 +43,10 @@
                             class="block w-full pl-11 pr-3 py-2 border border-gray-300 rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm" 
                             placeholder="Search asset name or category...">
                     </div>
-                    <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
+                    <x-form.primary-button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
                         Search
-                    </button>
-                </form>
+                    </x-form.primary-button>
+                </x-form.form>
             </div>
 
             <div class="bg-white shadow-sm rounded-xl overflow-hidden border border-gray-200">
@@ -106,7 +111,7 @@
                                         {{-- Delete 表单 --}}
                                         @if(strtolower($asset->status) === 'inactive')
                                             {{-- 恢复按钮 (Restore) --}}
-                                            <form action="{{ route('admin.roomAsset.restore', $asset->id) }}" method="POST"
+                                            <x-form.form action="{{ route('admin.roomAsset.restore', $asset->id) }}" method="POST"
                                                 onsubmit="return confirm('Restore asset {{ addslashes($asset->name) }}?');"
                                                 class="inline-block m-0">
                                                 @csrf
@@ -119,10 +124,10 @@
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
                                                     </svg>
                                                 </button>
-                                            </form>
+                                            </x-form.form>
                                         @else
                                             {{-- 删除按钮 (Delete) --}}
-                                            <form action="{{ route('admin.roomAsset.destroy', $asset->id) }}" method="POST"
+                                            <x-form.form action="{{ route('admin.roomAsset.destroy', $asset->id) }}" method="POST"
                                                 onsubmit="return confirm('Delete asset {{ addslashes($asset->name) }}?');"
                                                 class="inline-block m-0">
                                                 @csrf
@@ -135,7 +140,7 @@
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                                                     </svg>
                                                 </button>
-                                            </form>
+                                            </x-form.form>
                                         @endif
 
                                     </div> {{-- 2. 在这里闭合 div --}}

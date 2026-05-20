@@ -14,7 +14,7 @@
             </div>
 
             {{-- Edit Form --}}
-            <form action="{{ route('admin.roomAsset.update', $asset->id) }}" method="POST">
+            <x-form.form action="{{ route('admin.roomAsset.update', $asset->id) }}" method="POST">
                 @csrf
                 @method('PUT')
 
@@ -61,12 +61,12 @@
                     </div>
 
                     <div class="px-6 py-5 bg-gray-50 border-t border-gray-100 flex justify-end">
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-8 rounded-lg shadow-md transition transform active:scale-95 focus:outline-none">
+                        <x-form.primary-button loading="loading" class="py-2.5 px-8">
                             Save Changes
-                        </button>
+                        </x-form.primary-button>
                     </div>
                 </div>
-            </form>
+            </x-form.form>
         </div>
     </div>
 </x-app-layout>

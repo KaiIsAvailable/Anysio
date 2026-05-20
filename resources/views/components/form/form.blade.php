@@ -65,10 +65,9 @@
         if (first){
             first.focus();
 
-            if (first.value) {
-                const len = first.value.length;
-                first.setSelectionRange(len, len); // 将光标定位在末尾
-            }
+            if (first && typeof first.setSelectionRange === 'function') {
+                first.setSelectionRange(0, 0);
+            } else {}
         } 
     })"
     

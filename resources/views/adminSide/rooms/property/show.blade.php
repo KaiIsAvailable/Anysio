@@ -15,7 +15,7 @@
                         {{ $property->address }}, {{ $property->postcode }} {{ $property->city }}
                     </div>
                 </div>
-                <div class="flex-shrink-0">
+                <div class="flex-shrink-0" x-data="{loading: false}">
                     @can('owner-admin')
                         <x-form.primary-button
                             type="button"
@@ -69,13 +69,13 @@
                     <table class="table-auto w-full min-w-[1000px] divide-y divide-gray-200 text-left">
                         <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Unit No</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Owner</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Current Tenant</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Price</th>
+                                <x-table.th name="Unit No" sortField="u" />
+                                <x-table.th name="Owner" sortField="o" />
+                                <x-table.th name="Status" sortField="s" />
+                                <x-table.th name="Current Tenant" sortField="c" />
+                                <x-table.th name="Price" sortField="p" />
                                 @can('owner-admin')
-                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <x-table.th name="Action" />
                                 @endcan
                             </tr>
                         </thead>

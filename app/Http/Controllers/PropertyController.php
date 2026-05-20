@@ -20,8 +20,6 @@ class PropertyController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $sort = $request->input('sort');
-        $user = Auth::user();
         $query = Property::query()->withSortedRelations();
 
         $sortMapping = [

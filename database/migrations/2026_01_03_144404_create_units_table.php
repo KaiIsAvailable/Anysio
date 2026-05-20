@@ -19,7 +19,7 @@ return new class extends Migration
 
             // 关联到 Owner (业主) 
             // 理由：在 Condo 模式下，业主拥有的是这个 Unit 的 Title
-            $table->foreignUlid('owner_id')->constrained()->onDelete('cascade');
+            $table->foreignUlid('owner_id')->constrained('users')->cascadeOnDelete();
 
             // 核心字段
             $table->string('unit_no')->index();       // 例如: A-10-01

@@ -39,10 +39,8 @@ class UnitController extends Controller
         $selectedOwnerId = $request->query('owner_id');
         
         if ($selectedOwnerId) {
-            // 如果 URL 明确传了 owner_id，直接查
-            $targetOwner = Owners::with('owner')->find($selectedOwnerId);
+            $targetOwner = User::whereIn('role', ['owner', 'ownerAdmin'])->find($selectedOwnerId);
         } elseif ($targetProperty && $targetProperty->owner_id) {
-            // 如果 URL 没传，但 Property 自己有业主，直接拿 Property 的
             $targetOwner = $targetProperty->owner;
         } else {
             $targetOwner = null;
@@ -184,8 +182,7 @@ class UnitController extends Controller
     {
         $query = $unit->rooms()
             ->with([
-                'unit.owner:id,user_id,company_name', 
-                'unit.owner.user:id,name,email',
+                'unit.owner:id,name,email',
                 'assets'
             ]);
 
@@ -243,7 +240,7 @@ class UnitController extends Controller
         $targetProperty = Property::find($unit->property_id);
 
         // 获取业主资料
-        $owners = Owners::with('user')->get();
+        $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get(['id', 'name']);
         $hasRoomsCount = $unit->rooms()->count() > 0 ? 1 : 0;
 
         // 资产库
@@ -275,6 +272,7 @@ class UnitController extends Controller
                     ->where(fn ($query) => $query->where('property_id', $request->property_id))
                     ->ignore($unit->id) // 排除当前 unit 自身
             ],
+            'owner_id'       => 'nullable|exists:users,id',
             'owner_id'       => 'nullable|exists:users,id',
             'management_fee' => 'nullable|numeric|min:0',
             'sqft'           => 'nullable|numeric|min:0',

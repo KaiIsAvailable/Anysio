@@ -43,7 +43,7 @@ class AgreementController extends Controller
         $user = Auth::user();
         $isOwnerAgentAdmin = false;
         $isOwnerAdmin = false;
-        $owners = User::select('id', 'name')->get();
+        $owners = Owners::with('user')->get();
         $ownerAdmin = $user->name;
 
         if ($user->role === 'ownerAdmin'){

@@ -181,24 +181,58 @@
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                {{ __('Dashboard') }}
+            @can('owner-admin')
+                <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
+                    {{ __('Dashboard') }}
+                </x-responsive-nav-link>
+            @endcan
+
+            @can('is-owner')
+                <x-responsive-nav-link :href="route('admin.owners.dashboard')" :active="request()->routeIs('admin.owners.dashboard')">
+                    {{ __('Dashboard') }}
+                </x-responsive-nav-link>
+            @endcan
+
+            @can('is-tenant')
+                <x-responsive-nav-link :href="route('admin.tenants.dashboard')" :active="request()->routeIs('admin.tenants.dashboard')">
+                    {{ __('Dashboard') }}
+                </x-responsive-nav-link>
+            @endcan
+
+            @can('agent-admin')
+                <x-responsive-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*') && !request()->routeIs('admin.owners.dashboard')">
+                    {{ __('Owners') }}
+                </x-responsive-nav-link>
+            @endcan
+
+            @can('owner-admin')
+                <x-responsive-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*') && !request()->routeIs('admin.tenants.dashboard')">
+                    {{ __('Tenants') }}
+                </x-responsive-nav-link>
+
+                <x-responsive-nav-link :href="route('admin.properties.index')"
+                    :active="request()->routeIs('admin.properties.*') || request()->routeIs('admin.units.*') || request()->routeIs('admin.rooms.*') || request()->routeIs('admin.roomAsset.*')">
+                    {{ __('Properties') }}
+                </x-responsive-nav-link>
+            @endcan
+
+            <x-responsive-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*') || request()->routeIs('admin.agreements.*')">
+                {{ __('Leases') }}
             </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*')">
-                {{ __('Owners') }}
+
+            <x-responsive-nav-link :href="route('admin.payments.index')" :active="request()->routeIs('admin.payments.*')">
+                {{ __('Payments') }}
             </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*')">
-                {{ __('Tenants') }}
-            </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('admin.rooms.index')" :active="request()->routeIs('admin.rooms.*')">
-                {{ __('Rooms') }}
-            </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('admin.customerService.index')" :active="request()->routeIs('admin.customerService.*')">
-                {{ __('Contact Us') }}
-            </x-responsive-nav-link>
-            <x-responsive-nav-link :href="route('admin.userManagement.index')" :active="request()->routeIs('admin.userManagement.*')">
-                {{ __('Users') }}
-            </x-responsive-nav-link>
+
+            @can('super-admin')
+                <x-responsive-nav-link :href="route('admin.packages.index')" :active="request()->routeIs('admin.packages.*')">
+                    {{ __('Packages') }}
+                </x-responsive-nav-link>
+
+                <x-responsive-nav-link :href="route('admin.userManagement.index')" :active="request()->routeIs('admin.userManagement.*')">
+                    {{ __('Users') }}
+                </x-responsive-nav-link>
+            @endcan
         </div>
 
         <!-- Responsive Settings Options -->

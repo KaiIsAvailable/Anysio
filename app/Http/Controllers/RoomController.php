@@ -24,25 +24,17 @@ class RoomController extends Controller
         $sort   = $request->input('sort');
 
         $query = Room::query()
-            ->with(['unit.owner.user', 'assets'])
+            ->with(['unit.owner', 'assets'])
             ->withCount(['assets', 'leases']);
 
         if (!Gate::allows('super-admin')) {
             $user = Auth::user();
 
             if ($user->role === 'owner' || $user->role === 'ownerAdmin') {
-                // 如果是房东，只看自己的房
-                $ownerId = $user->owner?->id;
-                if ($ownerId) {
-                    $query->where('owner_id', $ownerId);
-                } else {
-                    $query->whereRaw('1 = 0');
-                }
+                $query->where('owner_id', $user->id);
             } elseif ($user->role === 'agent' || $user->role === 'agentAdmin') {
-                // 如果是 Agent，看他名下所有 Owner 的房
-                // 假设 Owners 表里有 agent_user_id 或者是通过关联获取
                 $managedOwnerIds = Owners::where('agent_id', $user->id)
-                                    ->pluck('id');
+                                    ->pluck('user_id');
 
                 if ($managedOwnerIds->isNotEmpty()) {
                     $query->whereIn('owner_id', $managedOwnerIds);
@@ -50,7 +42,6 @@ class RoomController extends Controller
                     $query->whereRaw('1 = 0');
                 }
             } else {
-                // 其他角色（如 Tenant）默认不给看，或者根据你的需求调整
                 $query->whereRaw('1 = 0');
             }
         }
@@ -64,7 +55,7 @@ class RoomController extends Controller
                     ->orWhereHas('assets', function ($aq) use ($search) {
                         $aq->where('name', 'like', "%{$search}%");
                     })
-                    ->orWhereHas('owner.user', function ($uq) use ($search) {
+                    ->orWhereHas('owner', function ($uq) use ($search) {
                         $uq->where('name', 'like', "%{$search}%")
                             ->orWhere('email', 'like', "%{$search}%");
                     });
@@ -100,18 +91,16 @@ class RoomController extends Controller
         // 1. 获取当前要关联的 Unit
         // 使用 failIf，确保如果 unit_id 不存在或不合法，直接报错
         $unitId = $request->query('unit_id');
-        $unit = Unit::with(['property', 'owner.user'])->findOrFail($unitId);
+        $unit = Unit::with(['property', 'owner'])->findOrFail($unitId);
 
         // 2. 安全检查：根据用户角色进行不同的验证
         if (!Gate::allows('super-admin')) {
             if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-                // Agent 需要检查该 Unit 是否属于他管理的 Owner
                 if ($unit->agent_id !== $user->id) {
                     abort(403, 'Unauthorized action.');
                 }
             } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                // Owner 需要检查该 Unit 是否属于他自己
-                if ($unit->created_by !== $user->id) {
+                if ($unit->owner_id !== $user->id) {
                     abort(403, 'Unauthorized action.');
                 }
             }
@@ -119,7 +108,7 @@ class RoomController extends Controller
 
         // 3. 获取资产库 (逻辑保持不变)
         // 根据该 Unit 所属的 Owner 过滤资产库，这样推荐更精准
-        $assetLibrary = Asset::where('user_id', $unit->owner->user_id)
+        $assetLibrary = Asset::where('user_id', $unit->owner->id)
             ->orderBy('name', 'asc')
             ->get();
 
@@ -154,16 +143,17 @@ class RoomController extends Controller
                     abort(403, 'Unauthorized action.');
                 }
             } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($unit->created_by !== $user->id) {
+                if ($unit->owner_id !== $user->id) {
                     abort(403, 'Unauthorized action.');
                 }
             }
         }
 
-        DB::transaction(function () use ($data) {
+        DB::transaction(function () use ($data, $unit) {
             // 创建 Room
             $room = Room::create([
                 'unit_id'   => $data['unit_id'],
+                'owner_id'  => $unit->owner_id,
                 'room_no'   => $data['room_no'],
                 'room_type' => $data['room_type'],
                 'status'    => $data['status'],
@@ -199,7 +189,7 @@ class RoomController extends Controller
     public function show(Room $room)
     {
         // 1. 加载关联 (只要 Room 模型改了 morphMany，这里就生效了)
-        $room->load(['unit.property', 'unit.owner.user', 'assets', 'leases.tenant.user']);
+        $room->load(['unit.property', 'unit.owner', 'assets', 'leases.tenant.user']);
 
         $property = $room->unit->property;
         $fullAddress = "{$property->address}, {$property->postcode} {$property->city}, {$property->state}";
@@ -220,7 +210,7 @@ class RoomController extends Controller
         $user = Auth::user();
 
         // 1. 加载 Unit 及其关联信息（用于页面展示）
-        $room->load(['unit.property', 'unit.owner.user']);
+        $room->load(['unit.property', 'unit.owner']);
         $unit = $room->unit;
 
         // 2. 安全检查：根据用户角色进行不同的验证
@@ -232,14 +222,14 @@ class RoomController extends Controller
                 }
             } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
                 // Owner 需要检查该 Unit 是否属于他自己
-                if ($unit->owner_id !== $user->owner?->id) {
+                if ($unit->owner_id !== $user->id) {
                     abort(403, 'Unauthorized action.');
                 }
             }
         }
 
         // 3. 获取该房东名下的资产库
-        $assetLibrary = Asset::where('user_id', $unit->owner->user_id)
+        $assetLibrary = Asset::where('user_id', $unit->owner->id)
             ->orderBy('name', 'asc')
             ->get();
 
@@ -265,7 +255,7 @@ class RoomController extends Controller
                     abort(403, 'Unauthorized action.');
                 }
             } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($room->unit->owner_id !== $user->owner?->id) {
+                if ($room->unit->owner_id !== $user->id) {
                     abort(403, 'Unauthorized action.');
                 }
             }
@@ -331,7 +321,7 @@ class RoomController extends Controller
                     abort(403, 'Unauthorized action.');
                 }
             } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($room->unit->owner_id !== $user->owner?->id) {
+                if ($room->unit->owner_id !== $user->id) {
                     abort(403, 'Unauthorized action.');
                 }
             }
@@ -359,7 +349,7 @@ class RoomController extends Controller
                     abort(403, 'Unauthorized action.');
                 }
             } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($room->unit->owner_id !== $user->owner?->id) {
+                if ($room->unit->owner_id !== $user->id) {
                     abort(403, 'Unauthorized action.');
                 }
             }
@@ -393,7 +383,7 @@ class RoomController extends Controller
                     abort(403, 'Unauthorized action.');
                 }
             } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($room->unit->owner_id !== $user->owner?->id) {
+                if ($room->unit->owner_id !== $user->id) {
                     abort(403, 'Unauthorized action.');
                 }
             }
@@ -423,7 +413,7 @@ class RoomController extends Controller
                     abort(403, 'Unauthorized action.');
                 }
             } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($room->unit->owner_id !== $user->owner?->id) {
+                if ($room->unit->owner_id !== $user->id) {
                     abort(403, 'Unauthorized action.');
                 }
             }

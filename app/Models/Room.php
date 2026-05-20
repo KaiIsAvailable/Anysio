@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use App\Models\User;
 
 class Room extends Model
 {
@@ -14,6 +15,7 @@ class Room extends Model
 
     protected $fillable = [
         'unit_id',
+        'owner_id',
         'room_no',
         'room_type',
         'status',
@@ -25,17 +27,9 @@ class Room extends Model
         return $this->belongsTo(Unit::class, 'unit_id');
     }
 
-    public function owner()
+    public function owner(): BelongsTo
     {
-        // 使用 HasOneThrough 建立从 Room 到 Owner 的“管道”
-        return $this->hasOneThrough(
-            Owners::class, 
-            Unit::class, 
-            'id',       // Unit 的主键
-            'id',       // Owner 的主键
-            'unit_id',  // Room 表里的外键
-            'owner_id'  // Unit 表里的外键
-        );
+        return $this->belongsTo(User::class, 'owner_id');
     }
 
     public function assets(): BelongsToMany

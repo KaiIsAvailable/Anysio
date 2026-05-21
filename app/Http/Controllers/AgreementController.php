@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Agreements;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Gate;
 
 use Illuminate\Http\Request;
 use Termwind\Components\Raw;
@@ -16,7 +17,13 @@ class AgreementController extends Controller
     {
         $search = $request->input('search');
         $query = Agreements::with(['user', 'historyVersions']) // 关键：关联历史版本
-                ->where('status', 'active');
+            ->where('status', 'active');
+
+        // 非 super-admin 只能看属于自己的协议
+        $user = Auth::user();
+        if (!Gate::allows('super-admin')) {
+            $query->where('user_id', $user->id);
+        }
 
         if ($search) {
             $query->where(function($q) use ($search) {

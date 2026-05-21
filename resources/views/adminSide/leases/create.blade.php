@@ -13,12 +13,11 @@
                         </a>
                     </nav>
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Lease Controller</h1>
-                    <p class="mt-2 text-sm text-gray-500">Set up a new tenant lease with utilities.</p>
                 </div>
             </div>
 
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
-                <form method="POST" action="{{ route('admin.leases.store') }}">
+                <x-form.form method="POST" action="{{ route('admin.leases.store') }}">
                     @csrf
                     <div class="p-8 space-y-8">
                         {{-- 1. Status 选择 --}}
@@ -96,7 +95,7 @@
                                     <select name="property_id" id="property_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Property --</option>
                                         @foreach($properties as $p)
-                                            <option value="{{ $p->id }}" data-owner="{{ $p->owner->user?->name ?? 'N/A' }}" data-owner-ic="{{ $p->owner?->ic_number ?? 'N/A' }}" data-address="{{ $p->full_address }}" {{ old('property_id') == $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
+                                            <option value="{{ $p->id }}" data-owner="{{ $p->owner->name ?? 'N/A' }}" data-owner-ic="{{ $p->owner?->ic_number ?? 'N/A' }}" data-address="{{ $p->full_address }}" {{ old('property_id') == $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
                                         @endforeach
                                     </select>
                                     @error('property_id')
@@ -110,7 +109,7 @@
                                     <select name="unit_id" id="unit_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Unit --</option>
                                         @foreach($units as $u)
-                                            <option value="{{ $u->id }}" data-owner="{{ $u->owner->user->name }}" data-owner-ic="{{ $u->owner->ic_number }}" data-address="{{ $u->full_address }}" {{ old('unit_id') == $u->id ? 'selected' : '' }}>{{ $u->unit_no }}</option>
+                                            <option value="{{ $u->id }}" data-owner="{{ $u->owner->name }}" data-owner-ic="{{ $u->owner->ic_number }}" data-address="{{ $u->full_address }}" {{ old('unit_id') == $u->id ? 'selected' : '' }}>{{ $u->unit_no }}</option>
                                         @endforeach
                                     </select>
                                     @error('unit_id')
@@ -125,7 +124,7 @@
                                     <select name="room_id" id="room_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Room --</option>
                                         @foreach($rooms as $r)
-                                            <option value="{{ $r->id }}" data-owner="{{ $r->unit->owner->user->name }}" data-owner-ic="{{ $r->unit->owner->ic_number }}" data-address="{{ $r->full_address }}" {{ old('room_id') == $r->id ? 'selected' : '' }}>{{ $r->room_no }}</option>
+                                            <option value="{{ $r->id }}" data-owner="{{ $r->unit->owner->name }}" data-owner-ic="{{ $r->unit->owner->ic_number }}" data-address="{{ $r->full_address }}" {{ old('room_id') == $r->id ? 'selected' : '' }}>{{ $r->room_no }}</option>
                                         @endforeach
                                     </select>
                                     @error('room_id')
@@ -322,12 +321,12 @@
                     </div>
 
                     <div class="px-8 py-5 bg-white border-t border-gray-100 flex items-center justify-end">
-                        <button type="submit"
-                                class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
+                        <x-form.primary-button type="submit" loading="loading"
+                                class="px-5 py-2.5">
                             Create Lease
-                        </button>
+                        </x-form.primary-button>
                     </div>
-                </form>
+                </x-form.form>
             </div>
         </div>
     </div>

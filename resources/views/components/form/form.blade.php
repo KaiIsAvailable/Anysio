@@ -61,14 +61,21 @@
     
     {{-- 💡 页面加载时：只聚焦，不乱弹 --}}
     x-init="$nextTick(() => {
-        const first = $el.querySelector('input:not([type=hidden]):not([disabled]):not([type=submit]), select:not([disabled]), textarea:not([disabled])');
-        if (first){
-            first.focus();
+        const first = Array.from($el.querySelectorAll('input, select, textarea'))
+            .find(el => 
+                el.type !== 'hidden' && 
+                !el.disabled && 
+                el.offsetWidth > 0 && 
+                el.offsetHeight > 0
+            );
 
-            if (first && typeof first.setSelectionRange === 'function') {
+        if (first) {
+            first.focus();
+            // 确保光标在开头
+            if (typeof first.setSelectionRange === 'function') {
                 first.setSelectionRange(0, 0);
-            } else {}
-        } 
+            }
+        }
     })"
     
     @keydown.enter="handleEnter($event)"

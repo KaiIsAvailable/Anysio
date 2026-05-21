@@ -12,6 +12,7 @@ use App\Models\UserManagement;
 use App\Models\Room;
 use App\Models\Unit;
 use Faker\Guesser\Name;
+use Illuminate\Foundation\Console\AboutCommand;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -20,7 +21,19 @@ class PropertyController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $query = Property::query()->withSortedRelations();
+        $user = Auth::user();
+
+        // 1. 构建基础查询，带上必要的 Join
+        $query = Property::query()
+            ->leftJoin('users as owners', 'properties.owner_id', '=', 'owners.id')
+            ->leftJoin('users as creators', 'properties.created_by', '=', 'creators.id')
+            ->select('properties.*', 'owners.name as owner_name', 'creators.name as creator_name');
+
+        // 2. 权限过滤：如果是 ownerAdmin 或 agentAdmin，限制为只能看到自己创建的房源
+        // 这里使用 when 逻辑，既清晰又符合 Laravel 链式调用习惯
+        $query->when(in_array($user->role, ['ownerAdmin', 'agentAdmin']), function ($q) use ($user) {
+            return $q->where('properties.created_by', $user->id);
+        });
 
         $sortMapping = [
             'n'   => trim('properties.name'),
@@ -68,28 +81,29 @@ class PropertyController extends Controller
         return view('adminSide.rooms.property.index', compact('properties'));
     }
 
-    public function create()
-    {
-        $user = Auth::user();
+        public function create()
+        {
+            $user = Auth::user();
 
-        $isOwnerAdmin = $user->role === 'ownerAdmin';
-        $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get(['id', 'name']);
+            $isOwnerAdmin = $user->role === 'ownerAdmin';
+            $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get(['id', 'name']);
 
-        $currentOwner = null;
-        if ($isOwnerAdmin) {
-            $currentOwner = $user;
+            $currentOwner = null;
+            if ($isOwnerAdmin) {
+                $currentOwner = $user;
+            }
+
+            if ($owners->isEmpty()) {
+                return redirect()->back()->with('error', 'Owner profile not found. Please contact admin.');
+            }
+
+            // 将 $isOwnerAdmin 传给 Blade
+            return view('adminSide.rooms.property.create', compact('owners', 'isOwnerAdmin', 'currentOwner')); 
         }
-
-        if ($owners->isEmpty()) {
-            return redirect()->back()->with('error', 'Owner profile not found. Please contact admin.');
-        }
-
-        // 将 $isOwnerAdmin 传给 Blade
-        return view('adminSide.rooms.property.create', compact('owners', 'isOwnerAdmin', 'currentOwner')); 
-    }
 
     public function store(Request $request)
     {
+        $user = Auth::id();
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
             'address'  => 'required|string',
@@ -97,12 +111,15 @@ class PropertyController extends Controller
             'postcode' => 'required|digits:5',
             'state'    => 'required|string|max:100',
             'type'     => 'required', // 根据你的需求定义
-            'owner_id'  => 'nullable|required_if:has_owner,1|exists:users,id'
+            'owner_id'  => 'nullable|exists:users,id'
         ]);
 
-        if ($request->has_owner == 0) {
+        if ($request->has_owner === '0') {
             $validated['owner_id'] = null;
+        } else {
+            $validated['owner_id'] = $request->owner_id ?? Auth::id();
         }
+
         $validated['created_by'] = Auth::id();
 
         Property::create($validated);
@@ -111,12 +128,44 @@ class PropertyController extends Controller
                         ->with('success', 'Property created successfully!');
     }
 
-    public function show(Property $property)
+    public function show(Request $request, Property $property)
     {
+        // 从当前 Property 下的单位开始查询
+        $query = Unit::query()
+            ->where('property_id', $property->id)
+            ->leftJoin('users as owners', 'units.owner_id', '=', 'owners.id')
+            ->select('units.*', 'owners.name as owner_name'); // 获取业主名用于排序
 
-        $property->load('units');
+        // 搜索逻辑
+        $search = $request->input('search');
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('units.unit_no', 'like', "%{$search}%")
+                ->orWhere('owners.name', 'like', "%{$search}%");
+            });
+        }
 
-        return view('adminSide.rooms.property.show', compact('property'));
+        // 排序白名单
+        $sortMapping = [
+            'u' => 'units.unit_no',
+            'o' => 'owner_name',    // 对应上面 join 进来的字段
+            's' => 'units.status',
+            'p' => 'units.management_fee', // 假设 Price 指的是管理费
+        ];
+
+        $sortParam = $request->query('sort'); 
+        $field = Str::beforeLast($sortParam, '_');
+        $direction = Str::afterLast($sortParam, '_');
+
+        if (array_key_exists($field, $sortMapping) && in_array($direction, ['asc', 'desc'])) {
+            $query->orderBy($sortMapping[$field], $direction);
+        } else {
+            $query->orderBy('units.unit_no', 'asc');
+        }
+
+        $units = $query->paginate(10)->appends($request->query());
+
+        return view('adminSide.rooms.property.show', compact('property', 'units'));
     }
 
     /**

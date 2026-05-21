@@ -18,7 +18,6 @@ class Unit extends Model
         'block',
         'floor',
         'sqft',
-        'management_fee',
         'electricity_acc_no',
         'water_acc_no',
         'status',

@@ -8,17 +8,21 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Tenants</h1>
                     <p class="mt-2 text-sm text-gray-500">Manage and organize your tenant directory.</p>
                 </div>
-                @can('owner-admin')
-                <div class="flex-shrink-0">
-                    <a href="{{ route('admin.tenants.create') }}" 
-                       class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 shadow-sm transition-all duration-200">
-                        <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                        </svg>
-                        Add New Tenant
-                    </a>
+                <div class="flex-shrink-0" x-data="{loading: false}">
+                    @can('owner-admin')
+                        <x-form.primary-button
+                            type="button"
+                            loading="loading"
+                            @click="loading = true; window.location.href = '{{ route('admin.tenants.create') }}'"
+                            >
+
+                            <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                            </svg>
+                            Add New Tenant
+                        </x-form.primary-button>
+                    @endcan
                 </div>
-                @endcan
             </div>
 
             <!-- Content Card -->
@@ -27,7 +31,7 @@
                 <!-- Search Section -->
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
-                        <form method="GET" action="{{ route('admin.tenants.index') }}" class="flex items-stretch gap-2">
+                        <x-form.form method="GET" action="{{ route('admin.tenants.index') }}" class="flex items-stretch gap-2">
                             <div class="flex items-stretch">
                                 <div class="relative flex-1">
                                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
@@ -40,16 +44,11 @@
                                            class="block w-72 sm:w-80 pr-4 py-2.5 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder-gray-400"
                                            placeholder="Search by tenant name...">
                                 </div>
-                                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
+                                <x-form.primary-button loading="loading" type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
                                     Search
-                                </button>
-                                @if(request('search'))
-                                    <a href="{{ route('admin.tenants.index') }}" class="ml-2 inline-flex items-center px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-slate-900 border border-gray-200 text-sm">
-                                        Clear
-                                    </a>
-                                @endif
+                                </x-form.primary-button>
                             </div>
-                        </form>
+                        </x-form.form>
                     </div>
                 </div>
 

@@ -8,6 +8,7 @@ use App\Models\Unit;
 use App\Models\Property;
 use App\Models\Tenants;
 use App\Models\Agreements;
+use App\Models\User;
 use App\Models\Owners;
 use App\Models\Utility;
 use App\Models\Payment;
@@ -44,9 +45,9 @@ class LeaseController extends Controller
                 // A: 基于多态资源的归属权 (你原有的逻辑)
                 $q->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($userId) {
                     if ($type === Room::class) {
-                        $mq->whereHas('unit.owner', fn($oq) => $oq->where('user_id', $userId));
+                        $mq->whereHas('unit.owner', fn($oq) => $oq->where('created_by', $userId));
                     } else {
-                        $mq->whereHas('owner', fn($oq) => $oq->where('user_id', $userId));
+                        $mq->whereHas('owner', fn($oq) => $oq->where('created_by', $userId));
                     }
                 })
                     // B: 或者基于租户的创建者 (你新要求的逻辑)
@@ -108,19 +109,19 @@ class LeaseController extends Controller
             }
         };
 
-        $properties = Property::with(['owner.user'])
+        $properties = Property::with(['owner'])
             ->where('status', 'Vacant')
             ->when($user->role !== 'admin', $authFilter)
             ->get();
 
-        $units = Unit::with(['owner.user'])
+        $units = Unit::with(['owner'])
             ->where('status', 'Vacant')
             ->when($user->role !== 'admin', function ($q) use ($authFilter) {
                 $q->whereHas('owner', $authFilter);
             })
             ->get();
 
-        $rooms = Room::with(['unit.owner.user'])
+        $rooms = Room::with(['unit.owner'])
             ->where('status', 'Vacant')
             ->when($user->role !== 'admin', function ($q) use ($authFilter) {
                 $q->whereHas('unit.owner', $authFilter);
@@ -179,45 +180,6 @@ class LeaseController extends Controller
 
     public function store(Request $request)
     {
-        /** @var \App\Models\User $user */
-       $user = Auth::user();
-
-        // 💡 步骤 1：先紧急验证最基础的状态，因为我们需要通过 status 来判断接下来的限额逻辑
-        $baseRules = [
-            'status' => 'required|string|in:New,Renew,Check Out,End Agreement',
-        ];
-        $baseValidated = $request->validate($baseRules);
-        $status = $baseValidated['status'];
-
-        // 💡 步骤 2：仅当创建“新租约 (New)”时，才进行套餐限额拦截！Renew、Check Out、End 顺畅放行！
-        if ($status === 'New') {
-            /** @var \App\Models\UserManagement|null $management */
-            $management = $user->user_management;
-
-            // 检查套餐是否存在
-            if (!$management || !$management->package) {
-                return back()->with('error', 'You do not have an active subscription package.');
-            }
-
-            $package = $management->package;
-            $baseLeaseLimit = $package->base_lease; 
-
-            // 计算当前活跃的主租约数量
-            $currentLeaseCount = Lease::whereNull('parent_lease_id')
-                ->whereIn('status', ['New', 'Renew']) // 只计算生效中的
-                ->when($user->role !== 'admin', function ($query) use ($user) {
-                    return $query->whereHas('tenant', function ($q) use ($user) {
-                        $q->where('created_by', $user->id);
-                    });
-                })
-                ->count();
-
-            // 达到上限，拒绝创建新租约
-            if ($user->role !== 'admin' && $currentLeaseCount >= $baseLeaseLimit) {
-                return back()->with('error', "Limit Reached: Your current package ({$package->name}) only allows {$baseLeaseLimit} leases. You cannot create a NEW lease, but you can still Renew or Check Out existing ones.");
-            }
-        }
-
         // 1. 验证数据 (修复了逻辑冲突，确保选 room 时不要求 property_id)
         $validated = $request->validate([
             'status' => 'required|string|in:New,Renew,Check Out,End Agreement',
@@ -242,6 +204,72 @@ class LeaseController extends Controller
             'utilities_deposit' => 'nullable|numeric|min:1',
             'agreement_id' => 'required',
         ]);
+
+        /** @var \App\Models\User $user */
+        $user = Auth::user();
+
+        // 💡 步骤 1：先紧急验证最基础的状态，因为我们需要通过 status 来判断接下来的限额逻辑
+        $baseRules = [
+            'status' => 'required|string|in:New,Renew,Check Out,End Agreement',
+        ];
+        $baseValidated = $request->validate($baseRules);
+        $status = $baseValidated['status'];
+
+        // 💡 步骤 2：仅当创建“新租约 (New)”时，才进行套餐限额拦截！Renew、Check Out、End 顺畅放行！
+        if ($status === 'New') {
+            $leasableId = $request->input($validated['lease_selection'] . '_id');
+        $leasableType = match ($validated['lease_selection']) {
+            'property' => Property::class,
+            'unit' => Unit::class,
+            'room' => Room::class,
+        };
+
+        // 2. 动态查询该房源的 owner_id
+        $leasable = $leasableType::find($leasableId);
+        if (!$leasable) {
+            return back()->withErrors(['error' => 'Property/Unit/Room not found.']);
+        }
+        
+        // 递归获取 owner (如果是 Room，找 Unit 的 owner；如果是 Property/Unit，直接找)
+        $ownerId = match ($validated['lease_selection']) {
+            'room' => $leasable->unit->owner_id,
+            'unit' => $leasable->owner_id,
+            'property' => $leasable->owner_id,
+        };
+
+        // 3. 获取该业主的套餐进行限额校验
+        $owner = User::find($ownerId);
+        
+            /** @var \App\Models\UserManagement|null $management */
+            if ($user->role === 'admin'){
+                $management = $owner->user_management;
+            }else{
+                $management = $user->user_management;
+            }
+            
+            // 检查套餐是否存在
+            if (!$management || !$management->package) {
+                return back()->with('error', 'You do not have an active subscription package.');
+            }
+
+            $package = $management->package;
+            $baseLeaseLimit = $package->base_lease; 
+
+            // 计算当前活跃的主租约数量
+            $currentLeaseCount = Lease::whereNull('parent_lease_id')
+                ->whereIn('status', ['New', 'Renew']) // 只计算生效中的
+                ->when($user->role !== 'admin', function ($query) use ($user) {
+                    return $query->whereHas('tenant', function ($q) use ($user) {
+                        $q->where('created_by', $user->id);
+                    });
+                })
+                ->count();
+
+            // 达到上限，拒绝创建新租约
+            if ($user->role !== 'admin' && $currentLeaseCount >= $baseLeaseLimit) {
+                return back()->with('error', "Limit Reached: Your current package ({$package->name}) only allows {$baseLeaseLimit} leases. You cannot create a NEW lease, but you can still Renew or Check Out existing ones.");
+            }
+        }
 
         // 2. 预提取旧租约 (仅 Renew/Check Out/End)
         $oldLease = null;

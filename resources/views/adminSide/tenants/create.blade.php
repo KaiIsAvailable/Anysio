@@ -12,7 +12,7 @@
             </div>
 
             <div class="bg-white shadow-lg rounded-xl p-6">
-                <form action="{{ route('admin.tenants.store') }}" method="POST" enctype="multipart/form-data">
+                <x-form.form action="{{ route('admin.tenants.store') }}" method="POST" enctype="multipart/form-data">
                     @csrf
 
                     <!-- Tenant Details -->
@@ -22,7 +22,7 @@
                             <!-- Name -->
                             <div>
                                 <label for="name" class="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                                <input type="text" name="name" id="name" value="{{ old('name') }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required tabindex="1">
+                                <input type="text" name="name" id="name" value="{{ old('name') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
                                 @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                             </div>
 
@@ -31,12 +31,12 @@
                                 <div class="flex items-center justify-between mb-2">
                                     <label class="block text-sm font-semibold text-gray-700">Email Address</label>
                                     <label class="inline-flex items-center cursor-pointer">
-                                        <input type="checkbox" name="random_email" id="random_email" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" value="1" {{ old('random_email') ? 'checked' : '' }} tabindex="2">
-                                        <span class="ml-2 text-xs font-medium text-indigo-600 uppercase tracking-wider">Generate Random</span>
+                                        <input type="checkbox" name="random_email" id="random_email" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" value="1" {{ old('random_email') ? 'checked' : '' }}>
+                                        <span class="ml-2 text-xs font-medium text-indigo-600 tracking-wider">Generate Random</span>
                                     </label>
                                 </div>
-                                <input type="email" name="email" id="email_input" value="{{ old('email') }}" placeholder="example@mail.com" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-all" tabindex="3">
-                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">If random is selected, a temporary password will also be generated.</p>
+                                <input type="email" name="email" id="email_input" value="{{ old('email') }}" placeholder="example@mail.com" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-all">
+                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Click generate random if you do not know user email.</p>
                                 @error('email') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                             </div>
                         </div>
@@ -46,7 +46,7 @@
                         <!-- Phone -->
                         <div>
                             <label for="phone" class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                            <input type="text" name="phone" id="phone" value="{{ old('phone') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" inputmode="numeric" maxlength="20" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required tabindex="4">
+                            <input type="text" name="phone" id="phone" value="{{ old('phone') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" inputmode="numeric" maxlength="20" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 01xxxxxxxxx</p>
                             @error('phone') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
@@ -56,11 +56,11 @@
                             <label class="block text-sm font-medium text-slate-700 mb-3">Identity Document</label>
                             <div class="flex gap-4">
                                 <label class="inline-flex items-center cursor-pointer">
-                                    <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" checked onchange="toggleIdentityInputs()" tabindex="5">
+                                    <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" checked onchange="toggleIdentityInputs()">
                                     <span class="ml-2 text-gray-700">IC (Malaysian)</span>
                                 </label>
                                 <label class="inline-flex items-center cursor-pointer">
-                                    <input type="radio" name="identity_type" value="passport" class="form-radio text-indigo-600" onchange="toggleIdentityInputs()" tabindex="6">
+                                    <input type="radio" name="identity_type" value="passport" class="form-radio text-indigo-600" onchange="toggleIdentityInputs()">
                                     <span class="ml-2 text-gray-700">Passport (Non-Malaysian)</span>
                                 </label>
                             </div>
@@ -69,7 +69,7 @@
                         <!-- IC Number -->
                         <div id="ic_container">
                             <label for="ic_number" class="block text-sm font-medium text-slate-700 mb-1">IC Number</label>
-                            <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" tabindex="7">
+                            <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
                             @error('ic_number') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
@@ -85,24 +85,24 @@
                         <!-- Nationality -->
                         <div>
                             <label for="nationality" class="block text-sm font-medium text-slate-700 mb-1">Nationality</label>
-                            <input type="text" name="nationality" id="nationality" value="{{ old('nationality', 'MALAYSIAN') }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm bg-gray-100" readonly required>
+                            <input type="text" name="nationality" id="nationality" value="{{ old('nationality', 'MALAYSIAN') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm bg-gray-100" readonly required>
                             @error('nationality') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <!-- Gender -->
                         <div>
                             <label for="gender" class="block text-sm font-medium text-slate-700 mb-1">Gender</label>
-                            <select name="gender" id="gender" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required tabindex="8">
+                            <select name="gender" id="gender" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
                                 <option value="">-- Select Gender --</option>
-                                <option value="Male" {{ old('gender') == 'Male' ? 'selected' : '' }}>MALE</option>
-                                <option value="Female" {{ old('gender') == 'Female' ? 'selected' : '' }}>FEMALE</option>
+                                <option value="Male" {{ old('gender') == 'Male' ? 'selected' : '' }}>Male</option>
+                                <option value="Female" {{ old('gender') == 'Female' ? 'selected' : '' }}>Female</option>
                             </select>
                             @error('gender') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
 
                         <div class="col-span-1 md:col-span-2">
                             <label for="occupation" class="block text-sm font-medium text-slate-700 mb-1">Occupation</label>
-                            <input type="text" name="occupation" id="occupation" value="{{ old('occupation') }}" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" tabindex="9">
+                            <input type="text" name="occupation" id="occupation" value="{{ old('occupation') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                             @error('occupation') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>
                     </div>
@@ -128,16 +128,16 @@
                             <img id="ic_preview" src="#" alt="IC Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
                         </div>
 
-                        <input type="file" name="ic_photo_path" id="ic_photo_path" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors" tabindex="13">
+                        <input type="file" name="ic_photo_path" id="ic_photo_path" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors">
                         @error('ic_photo_path') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                     </div>
 
                     <div class="flex justify-end pt-4 border-t border-gray-100">
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition duration-150 ease-in-out" tabindex="14">
+                        <x-form.primary-button type="submit" loading="loading" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition duration-150 ease-in-out">
                             Save Tenant
-                        </button>
+                        </x-form.primary-button>
                     </div>
-                </form>
+                </x-form.form>
             </div>
         </div>
     </div>
@@ -200,7 +200,7 @@
                 const html = `
                     <div class="contact-row rounded-lg border border-gray-200 bg-gray-50 p-4">
                         <div class="flex justify-between items-center mb-2">
-                            <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">NEW CONTACT</span>
+                            <span class="text-xs font-semibold text-gray-500 tracking-wider">NEW CONTACT</span>
                             <button type="button" class="remove-contact text-sm text-red-600 hover:text-red-800" onclick="this.closest('.contact-row').remove()">
                                 Remove
                             </button>
@@ -208,11 +208,11 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Name</label>
-                                <input type="text" name="emergency_contacts[${idx}][name]" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Contact Name" required>
+                                <input type="text" name="emergency_contacts[${idx}][name]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="Contact Name" required>
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Relationship</label>
-                                <input type="text" name="emergency_contacts[${idx}][relationship]" class="uppercase w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="e.g. Spouse, Parent">
+                                <input type="text" name="emergency_contacts[${idx}][relationship]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" placeholder="e.g. Spouse, Parent">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>

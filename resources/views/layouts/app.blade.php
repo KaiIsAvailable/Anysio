@@ -34,24 +34,26 @@
 
             @auth
                 @php
+                    // 1. 检查 User Management 状态
                     $userMgmt = \App\Models\UserManagement::where('user_id', auth()->id())->first();
+                    // 2. 获取支付记录（用于拿到金额和 Invoice No）
                     $latestPayment = \App\Models\UserPayment::where('user_id', auth()->id())
                                         ->where('payment_type', 'subscription')
                                         ->latest()
                                         ->first();
                     
-                    // 如果不是 Admin 且状态不是 active，则必须支付
-                    $mustPay = false;
-                    $mustPay = (
-                        $userMgmt &&                                // 记录存在
-                        auth()->user()->role !== 'admin' &&         // 不是管理员
-                        $userMgmt->subscription_status !== 'active' && // 还没激活
-                        $latestPayment && 
-                        $latestPayment->amount_due > 0 &&
-                        $latestPayment->amount_paid != 0
-                    );
+                    // 判断是否需要强制弹窗：状态是 pending 且不是 Admin (假设 Admin 角色叫 'admin')
+                    $mustPay = ($userMgmt && $userMgmt->subscription_status !== 'active' && auth()->user()->role !== 'admin');
                 @endphp
             @endauth
+
+            @if($mustPay)
+                {{-- 自动开启 Modal 的 Alpine 逻辑 --}}
+                <div x-init="openPayment = true"></div>
+
+                {{-- 引入你刚才那个高颜值的 Payment Modal Component --}}
+                @include('components.modals.make_payment', ['latestPayment' => $latestPayment])
+            @endif
 
             <x-auth-session-status class="mb-4" :status="session('status')" />
 

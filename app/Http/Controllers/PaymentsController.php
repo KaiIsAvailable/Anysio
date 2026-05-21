@@ -338,6 +338,8 @@ class PaymentsController extends Controller
             UserManagement::where('user_id', $payment->user_id)->update([
                 'subscription_status' => 'pending'
             ]);
+        }else{
+            return back()->with('error', 'Receipt uplaod fail! Please contact customer service');
         }
 
         return back()->with('success', 'Receipt uploaded! Please wait for admin approval.');

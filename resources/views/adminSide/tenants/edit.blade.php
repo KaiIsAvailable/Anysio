@@ -91,8 +91,8 @@
                             <label for="gender" class="block text-sm font-medium text-slate-900 mb-1">Gender</label>
                             <select name="gender" id="gender" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
                                 <option value="">-- Select Gender --</option>
-                                <option value="Male" {{ (old('gender') ?? $tenant->gender) == 'Male' || (old('gender') ?? $tenant->gender) == 'MALE' ? 'selected' : '' }}>MALE</option>
-                                <option value="Female" {{ (old('gender') ?? $tenant->gender) == 'Female' || (old('gender') ?? $tenant->gender) == 'FEMALE' ? 'selected' : '' }}>FEMALE</option>
+                                <option value="Male" {{ (old('gender') ?? $tenant->gender) == 'Male' || (old('gender') ?? $tenant->gender) == 'Male' ? 'selected' : '' }}>Male</option>
+                                <option value="Female" {{ (old('gender') ?? $tenant->gender) == 'Female' || (old('gender') ?? $tenant->gender) == 'Female' ? 'selected' : '' }}>Female</option>
                             </select>
                             @error('gender') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
                         </div>

@@ -8,7 +8,7 @@
         <!-- Name -->
         <div>
             <x-form.input-label for="name" :value="__('Name')" />
-            <x-form.text-input id="name" class="block mt-1 w-full uppercase" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
+            <x-form.text-input id="name" class="block mt-1 w-full" type="text" name="name" :value="old('name')" required autofocus autocomplete="name" />
             <x-form.input-error :messages="$errors->get('name')" class="mt-2" />
         </div>
 
@@ -129,13 +129,13 @@
                             <button type="button" 
                                 @click="activeTab = 'tos'"
                                 :class="activeTab === 'tos' ? 'border-indigo-600 text-indigo-600 border-b-2' : 'text-gray-500 hover:text-gray-700'"
-                                class="flex-1 py-4 text-sm font-bold uppercase tracking-wider transition">
+                                class="flex-1 py-4 text-sm font-bold tracking-wider transition">
                                 Terms of Service
                             </button>
                             <button type="button" 
                                 @click="activeTab = 'privacy'"
                                 :class="activeTab === 'privacy' ? 'border-indigo-600 text-indigo-600 border-b-2' : 'text-gray-500 hover:text-gray-700'"
-                                class="flex-1 py-4 text-sm font-bold uppercase tracking-wider transition">
+                                class="flex-1 py-4 text-sm font-bold tracking-wider transition">
                                 Privacy Policy
                             </button>
                             <button @click="openTnc = false" class="px-4 text-gray-400 hover:text-gray-600">

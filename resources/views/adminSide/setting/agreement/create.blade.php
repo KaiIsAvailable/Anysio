@@ -39,7 +39,7 @@
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <form action="{{ route('admin.agreements.store') }}" method="POST" class="p-8" id="agreementForm"
+                <x-form.form action="{{ route('admin.agreements.store') }}" method="POST" class="p-8" id="agreementForm"
                     x-data="{ 
                         agreementType: '{{ old('type', $sourceAgreement->type ?? 'rental_lease') }}', loading: false
                     }" @submit="loading = true">
@@ -129,14 +129,14 @@
                             <div class="md:col-span-2">
                                 <label for="title" class="block text-sm font-semibold text-gray-700">Agreement Title</label>
                                 <input type="text" name="title" id="title" value="{{ old('title', $sourceAgreement ? $sourceAgreement->title : '') }}" placeholder="e.g. Standard 1-Year Lease" required 
-                                       class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 uppercase">
+                                       class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('title') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
                             </div>
 
                             <div>
                                 <label for="version" class="block text-sm font-semibold text-gray-700">Version</label>
                                 <input type="text" name="version" id="version" value="{{ old('version', $sourceAgreement ? ($sourceAgreement->version) : '1.0') }}" placeholder="e.g. 1.0.0" 
-                                       class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 uppercase">
+                                       class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('version') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
                             </div>
                         </div>
@@ -146,7 +146,7 @@
 
                             <div x-show="agreementType === 'rental_lease'" class="space-y-6">
                                 <div class="bg-slate-50 border border-slate-200 p-5 rounded-xl">
-                                    <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 flex items-center">
+                                    <h3 class="text-sm font-bold text-slate-700 tracking-wider mb-4 flex items-center">
                                         Click to Insert Variables
                                     </h3>
 
@@ -154,7 +154,7 @@
                                         @foreach($placeholders as $category => $items)
                                             <div>
                                                 <!-- 分类标题 -->
-                                                <h4 class="text-[11px] font-semibold text-slate-400 uppercase mb-2 ml-1">
+                                                <h4 class="text-[11px] font-semibold text-slate-400 mb-2 ml-1">
                                                     {{ $category }}
                                                 </h4>
                                                 
@@ -181,7 +181,7 @@
                                 <!-- 将 for 指向 Quill 编辑器的容器 ID -->
                                 <label for="editor" class="block text-sm font-semibold text-gray-700">Core Content</label>
                                 
-                                <span class="text-[10px] font-bold text-indigo-500 uppercase tracking-widest bg-indigo-50 px-2 py-0.5 rounded">
+                                <span class="text-[10px] font-bold text-indigo-500 tracking-widest bg-indigo-50 px-2 py-0.5 rounded">
                                     Rich Text Editor
                                 </span>
                             </div>
@@ -211,7 +211,7 @@
                             </x-form.primary-button>
                         </div>
                     </div>
-                </form>
+                </x-form.form>
             </div>
         </div>
     </div>

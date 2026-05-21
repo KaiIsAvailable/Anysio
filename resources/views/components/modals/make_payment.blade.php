@@ -210,17 +210,20 @@ x-cloak>
 
                         {{-- Footer --}}
                         <div class="p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <x-form.form method="POST" action="{{ route('logout') }}" class="w-full md:w-auto text-center md:text-right">
+                            <!-- Logout 容器：添加 flex-1 -->
+                            <x-form.form method="POST" action="{{ route('logout') }}" class="w-full sm:flex-1">
                                 @csrf
                                 <x-form.secondary-button loading="loading" type="submit" class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
                                     {{ __('Log Out') }}
                                 </x-form.secondary-button>
                             </x-form.form>
-                            <x-form.primary-button type="submit" 
-                                    loading="loading"
-                                    class="w-full px-4 py-3 items-center justify-center">
-                                <span>Confirm & Submit Receipt</span>
-                            </x-form.primary-button>
+
+                            <!-- Confirm 容器：添加 flex-1 -->
+                            <div class="w-full sm:flex-1">
+                                <x-form.primary-button type="submit" loading="loading" class="w-full px-4 py-3 items-center justify-center">
+                                    <span>Confirm & Submit Receipt</span>
+                                </x-form.primary-button>
+                            </div>
                         </div>
                     </form>
                 @endif

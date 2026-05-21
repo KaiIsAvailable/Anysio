@@ -72,8 +72,7 @@
                                 <x-table.th name="Unit No" sortField="u" />
                                 <x-table.th name="Owner" sortField="o" />
                                 <x-table.th name="Status" sortField="s" />
-                                <x-table.th name="Current Tenant" sortField="c" />
-                                <x-table.th name="Price" sortField="p" />
+                                <x-table.th name="Current Tenant" sortField="c" />  
                                 @can('owner-admin')
                                     <x-table.th name="Action" />
                                 @endcan
@@ -105,8 +104,8 @@
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-600 italic">
-                                        <div class="text-sm font-medium text-slate-900">{{ $unit->owner->user->name ?? '-' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $unit->owner->user->email ?? '-' }}</div>
+                                        <div class="text-sm font-medium text-slate-900">{{ $unit->owner->name ?? '-' }}</div>
+                                        <div class="text-xs text-gray-500">{{ $unit->owner->email ?? '-' }}</div>
                                     </td>
                                     
 
@@ -118,10 +117,6 @@
 
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <div class="text-sm text-slate-900">{{ $unit->tenant->name ?? 'No Tenant' }}</div>
-                                    </td>
-
-                                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-900 font-medium">
-                                        RM {{ number_format($unit->price ?? 0, 2) }}
                                     </td>
 
                                     @can('owner-admin')

@@ -27,7 +27,8 @@ class PropertyController extends Controller
         $query = Property::query()
             ->leftJoin('users as owners', 'properties.owner_id', '=', 'owners.id')
             ->leftJoin('users as creators', 'properties.created_by', '=', 'creators.id')
-            ->select('properties.*', 'owners.name as owner_name', 'creators.name as creator_name');
+            ->select('properties.*', 'owners.name as owner_name', 'creators.name as creator_name')
+            ->withCount('units');
 
         // 2. 权限过滤：如果是 ownerAdmin 或 agentAdmin，限制为只能看到自己创建的房源
         // 这里使用 when 逻辑，既清晰又符合 Laravel 链式调用习惯
@@ -82,6 +83,7 @@ class PropertyController extends Controller
             $query->orderBy('properties.id', 'desc');
         }
 
+        
         $properties = $query->paginate(10)->appends($request->query());
 
         return view('adminSide.rooms.property.index', compact('properties'));

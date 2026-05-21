@@ -13,7 +13,7 @@
                 <h1 class="text-2xl font-bold text-slate-900 mt-2">Edit Unit</h1>
             </div>
 
-            <form method="POST" action="{{ route('admin.units.update', $unit->id) }}">
+            <x-form.form method="POST" action="{{ route('admin.units.update', $unit->id) }}">
                 @csrf
                 @method('PUT')
 
@@ -48,14 +48,21 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Unit Owner</label>
-                                <select name="owner_id" id="owner_selector" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                    @foreach($owners as $owner)
-                                        <option value="{{ $owner->id }}" 
-                                            @selected(old('owner_id', $unit->owner_id) == $owner->id)>
-                                            {{ $owner->user->name }}
-                                        </option>
-                                    @endforeach
-                                </select>
+                                @if(isset($isOwnerAdmin))
+                                    <div class=" w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-700 font-medium flex items-center shadow-sm">
+                                        {{ $currentOwner->name }}
+                                    </div>
+                                    <input type="hidden" name="owner_id" value="{{ $currentOwner->id }}" id="owner_selector" onchange="filterAssetsByOwner()" data-user-id="{{ $currentOwner->id }}">
+                                @else
+                                    <select name="owner_id" id="owner_selector" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
+                                        @foreach($owners as $owner)
+                                            <option value="{{ $owner->id }}" 
+                                                @selected(old('owner_id', $unit->owner_id) == $owner->id)>
+                                                {{ $owner->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                @endif
                             </div>
                         </div>
                     </section>
@@ -133,12 +140,12 @@
                     {{-- 操作按钮 --}}
                     <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">
                         <a href="{{ route('admin.properties.show', $targetProperty->id) }}" class="px-6 py-2 text-slate-700 font-bold border rounded-lg hover:bg-gray-50">Cancel</a>
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-8 rounded-lg shadow-md transition">
+                        <x-form.primary-button loading="loading" type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-8 rounded-lg shadow-md transition">
                             Update Unit
-                        </button>
+                        </x-form.primary-button>
                     </div>
                 </div>
-            </form>
+            </x-form.form>
         </div>
     </div>
 </x-app-layout>

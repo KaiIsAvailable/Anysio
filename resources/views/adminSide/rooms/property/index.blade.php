@@ -107,10 +107,7 @@
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">
-                                        <div class="line-clamp-2 max-w-xs">{{ $property->address ?? '-' }}</div>
-                                        <div class="line-clamp-2 max-w-xs">{{ $property->postcode ?? '-' }}</div>
-                                        <div class="line-clamp-2 max-w-xs">{{ $property->city ?? '-' }}</div>
-                                        <div class="line-clamp-2 max-w-xs">{{ $property->state ?? '-' }}</div>
+                                        <div class="line-clamp-2 max-w-xs">{{ $property->address ?? '' }}, {{ $property->postcode ?? '' }}, {{ $property->city ?? '' }}, {{ $property->state ?? '' }}</div>
                                     </td>
 
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-900">

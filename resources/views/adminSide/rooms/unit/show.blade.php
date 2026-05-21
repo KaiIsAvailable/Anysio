@@ -14,15 +14,19 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Unit {{ $unit->unit_no }} <span class="text-indigo-600">Rooms</span></h1>
                     <p class="mt-2 text-sm text-gray-500 italic">Manage and organize rooms within this unit.</p>
                 </div>
-                <div class="flex-shrink-0 flex gap-3">
+                <div class="flex-shrink-0" x-data="{loading: false}">
                     @can('owner-admin')
-                        <a href="{{ route('admin.rooms.create', ['unit_id' => $unit->id]) }}"
-                        class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
-                            <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <x-form.primary-button
+                            type="button"
+                            loading="loading"
+                            @click="loading = true; window.location.href = '{{ route('admin.rooms.create', ['unit_id' => $unit->id]) }}'"
+                            >
+
+                            <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
                             Add New Room
-                        </a>
+                        </x-form.primary-button>
                     @endcan
                 </div>
             </div>
@@ -32,7 +36,7 @@
                     <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                         <h2 class="text-lg font-semibold text-slate-800 italic">Listing Rooms</h2>
                         
-                        <form method="GET" action="{{ route('admin.units.show', $unit->id) }}" class="flex items-stretch gap-2">
+                        <x-form.form method="GET" action="{{ route('admin.units.show', $unit->id) }}" class="flex items-stretch gap-2">
                             <a href="{{ route('admin.roomAsset.index') }}" 
                             class="inline-flex items-center px-4 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
                                 <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -54,11 +58,11 @@
                                            class="block w-64 sm:w-72 pr-4 py-2.5 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder-gray-400"
                                            placeholder="Search room / asset...">
                                 </div>
-                                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
+                                <x-form.primary-button laoding="loading" type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
                                     Search
-                                </button>
+                                </x-form.primary-button>
                             </div>
-                        </form>
+                        </x-form.form>
                     </div>
                 </div>
 
@@ -161,8 +165,8 @@
                                     </td>
 
                                     <td class="px-6 py-4">
-                                        <div class="text-sm font-medium text-slate-900">{{ $room->unit->owner->user->name ?? '-' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $room->unit->owner->user->email ?? '-' }}</div>
+                                        <div class="text-sm font-medium text-slate-900">{{ $room->unit->owner->name ?? '-' }}</div>
+                                        <div class="text-xs text-gray-500">{{ $room->unit->owner->email ?? '-' }}</div>
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">

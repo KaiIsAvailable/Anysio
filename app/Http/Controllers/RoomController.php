@@ -126,7 +126,7 @@ class RoomController extends Controller
             'unit_id'   => 'required|exists:units,id',
             'room_no'   => 'required|string|max:255',
             'room_type' => 'required|string|max:255',
-            'status'    => 'required|in:VACANT,OCCUPIED,MAINTENANCE',
+            'status'    => 'required|',
             'address'   => 'nullable|string',
             
             // 匹配前端的 assets[index][id] 和 assets[index][qty]
@@ -153,7 +153,6 @@ class RoomController extends Controller
             // 创建 Room
             $room = Room::create([
                 'unit_id'   => $data['unit_id'],
-                'owner_id'  => $unit->owner_id,
                 'room_no'   => $data['room_no'],
                 'room_type' => $data['room_type'],
                 'status'    => $data['status'],

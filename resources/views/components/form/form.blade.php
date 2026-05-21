@@ -73,7 +73,8 @@
             first.focus();
             // 确保光标在开头
             if (typeof first.setSelectionRange === 'function') {
-                first.setSelectionRange(0, 0);
+                const len = first.value.length; // 获取当前输入框内文本的长度
+                first.setSelectionRange(len, len); // 定位到最后
             }
         }
     })"

@@ -12,7 +12,7 @@
                 <h1 class="text-2xl font-bold text-slate-900 mt-2">Add Room</h1>
             </div>
 
-            <form method="POST" action="{{ route('admin.rooms.store') }}">
+            <x-form.form method="POST" action="{{ route('admin.rooms.store') }}">
                 @csrf
 
                 {{-- Card wrapper (same as Owner create) --}}
@@ -82,7 +82,7 @@
                                     <select name="status"
                                             class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
                                             required>
-                                        @foreach(['VACANT','OCCUPIED','MAINTENANCE'] as $s)
+                                        @foreach(['Vacant','Occupied','Maitenance'] as $s)
                                             <option value="{{ $s }}" @selected(old('status') == $s)>{{ $s }}</option>
                                         @endforeach
                                     </select>
@@ -181,14 +181,14 @@
                             Cancel
                         </a>
 
-                        <button type="submit"
+                        <x-form.primary-button type="submit" loading="loading"
                                 class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow transition duration-150 ease-in-out">
                             Save
-                        </button>
+                        </x-form.primary-button>
                     </div>
 
                 </div>
-            </form>
+            </x-form.form>
         </div>
     </div>
     <script>

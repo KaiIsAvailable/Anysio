@@ -243,6 +243,11 @@ class UnitController extends Controller
         $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get(['id', 'name']);
         $hasRoomsCount = $unit->rooms()->count() > 0 ? 1 : 0;
 
+        $isOwnerAdmin = (Auth::id() == $targetProperty->owner_id) && 
+                    (Auth::user()->role === 'ownerAdmin');
+
+        $currentOwner = User::find($targetProperty->owner_id);
+
         // 资产库
         $assetLibrary = Asset::select('id', 'name', 'user_id', 'status')->get();
 
@@ -252,7 +257,9 @@ class UnitController extends Controller
             'owners', 
             'targetProperty', 
             'assetLibrary',
-            'hasRoomsCount'
+            'hasRoomsCount',
+            'isOwnerAdmin',
+            'currentOwner'
         ));
     }
     /**

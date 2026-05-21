@@ -43,10 +43,12 @@ class LeaseController extends Controller
             $query->where(function ($q) use ($userId) {
                 // A: 基于多态资源的归属权 (你原有的逻辑)
                 $q->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($userId) {
+                    // the `owner` relation on Unit/Property points to the `users` table,
+                    // so compare against `users.id` (->where('id', ...)) instead of `user_id`.
                     if ($type === Room::class) {
-                        $mq->whereHas('unit.owner', fn($oq) => $oq->where('user_id', $userId));
+                        $mq->whereHas('unit.owner', fn($oq) => $oq->where('id', $userId));
                     } else {
-                        $mq->whereHas('owner', fn($oq) => $oq->where('user_id', $userId));
+                        $mq->whereHas('owner', fn($oq) => $oq->where('id', $userId));
                     }
                 })
                     // B: 或者基于租户的创建者 (你新要求的逻辑)

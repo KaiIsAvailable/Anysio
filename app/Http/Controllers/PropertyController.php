@@ -21,6 +21,18 @@ class PropertyController extends Controller
     {
         $search = $request->input('search');
         $query = Property::query()->withSortedRelations();
+        $user = Auth::user();
+
+        if (!Gate::allows('super-admin')) {
+            if (Gate::allows('agent-admin')) {
+                $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
+                $query->whereIn('properties.owner_id', $ownerIds);
+            } elseif (Gate::allows('owner-admin')) {
+                $query->where('properties.created_by', $user->id);
+            } else {
+                $query->whereRaw('1 = 0'); 
+            }
+        }
 
         $sortMapping = [
             'n'   => trim('properties.name'),
@@ -35,7 +47,6 @@ class PropertyController extends Controller
             'cre' => trim('creator_name'),       
         ];
 
-        // 3. 搜索和排序 (保持不变)
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('properties.name', 'like', "%{$search}%")
@@ -45,21 +56,17 @@ class PropertyController extends Controller
                 ->orWhere('properties.state', 'like', "%{$search}%")
                 ->orWhere('properties.type', 'like', "%{$search}%")
                 ->orWhere('owners.name', 'like', "%{$search}%");
-                //->orWhere('creators.name', 'like', "%{$search}%");
             });
         }
 
-        $sortParam = $request->query('sort'); // 例如 'o_asc'
+        $sortParam = $request->query('sort'); 
     
-        // 2. 拆分参数
         $field = Str::beforeLast($sortParam, '_'); 
         $direction = Str::afterLast($sortParam, '_');
 
-        // 3. 核心安全判断：只有在白名单内的字段才允许执行 orderBy
         if (array_key_exists($field, $sortMapping) && in_array($direction, ['asc', 'desc'])) {
             $query->orderBy($sortMapping[$field], $direction);
         } else {
-            // 如果用户随意乱改 URL，默认按 ID 降序，保证系统运行且安全
             $query->orderBy('properties.id', 'desc');
         }
 
@@ -73,19 +80,31 @@ class PropertyController extends Controller
         $user = Auth::user();
 
         $isOwnerAdmin = $user->role === 'ownerAdmin';
-        $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get(['id', 'name']);
+        $isAgentAdmin = $user->role === 'agentAdmin';
+        $isSuperAdmin = Gate::allows('super-admin');
 
+        $owners = collect();
         $currentOwner = null;
+
         if ($isOwnerAdmin) {
             $currentOwner = $user;
+        } elseif ($isAgentAdmin) {
+            $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
+            $owners = User::whereIn('id', $ownerIds)
+                ->where('role', 'owner')
+                ->get(['id', 'name']);
+        } elseif ($isSuperAdmin) {
+            $owners = User::whereIn('role', ['owner', 'ownerAdmin', 'agentAdmin', 'admin'])
+                ->get(['id', 'name']);
         }
 
-        if ($owners->isEmpty()) {
-            return redirect()->back()->with('error', 'Owner profile not found. Please contact admin.');
-        }
-
-        // 将 $isOwnerAdmin 传给 Blade
-        return view('adminSide.rooms.property.create', compact('owners', 'isOwnerAdmin', 'currentOwner')); 
+        return view('adminSide.rooms.property.create', compact(
+            'owners',
+            'isOwnerAdmin',
+            'isAgentAdmin',
+            'isSuperAdmin',
+            'currentOwner'
+        )); 
     }
 
     public function store(Request $request)
@@ -96,7 +115,7 @@ class PropertyController extends Controller
             'city'     => 'required|string|max:100',
             'postcode' => 'required|digits:5',
             'state'    => 'required|string|max:100',
-            'type'     => 'required', // 根据你的需求定义
+            'type'     => 'required', 
             'owner_id'  => 'nullable|required_if:has_owner,1|exists:users,id'
         ]);
 
@@ -113,19 +132,59 @@ class PropertyController extends Controller
 
     public function show(Property $property)
     {
+        $user = Auth::user();
 
-        $property->load('units');
+        if (!Gate::allows('super-admin')) {
+            if (Gate::allows('owner-admin')) {
+                if ($property->created_by !== $user->id) {
+                    return redirect()->route('admin.properties.index')
+                        ->with('error', 'You are not authorized to view that property.');
+                }
+            } elseif (Gate::allows('agent-admin')) {
+                $allowedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
+                if (!$allowedOwnerIds->contains($property->owner_id)) {
+                    return redirect()->route('admin.properties.index')
+                        ->with('error', 'You are not authorized to view that property.');
+                }
+            } else {
+                return redirect()->route('admin.properties.index')
+                    ->with('error', 'You are not authorized to view that property.');
+            }
+        }
+
+        $property->load(['units' => function ($query) use ($user) {
+            if (!Gate::allows('super-admin')) {
+                if (Gate::allows('agent-admin')) {
+                    $allowedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
+                    $query->whereIn('owner_id', $allowedOwnerIds);
+                } elseif (Gate::allows('owner-admin')) {
+                    $query->where('owner_id', $user->id);
+                }
+            }
+        }]);
 
         return view('adminSide.rooms.property.show', compact('property'));
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
     public function edit(Property $property)
     {
-        // $property 会根据 URL 中的 ID 自动查询（Route Model Binding）
         $user = Auth::user();
+        
+        if (!Gate::allows('super-admin')) {
+            if (Gate::allows('owner-admin')) {
+                if ($property->created_by !== $user->id) {
+                    return redirect()->route('admin.properties.index')->with('error', 'Unauthorized.');
+                }
+            } elseif (Gate::allows('agent-admin')) {
+                $allowedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
+                if (!$allowedOwnerIds->contains($property->owner_id)) {
+                    return redirect()->route('admin.properties.index')->with('error', 'Unauthorized.');
+                }
+            } else {
+                return redirect()->route('admin.properties.index')->with('error', 'Unauthorized.');
+            }
+        }
+
         $isOwnerAdmin = $user->role === 'ownerAdmin';
         $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get(['id', 'name']);
 
@@ -141,9 +200,6 @@ class PropertyController extends Controller
         return view('adminSide.rooms.property.edit', compact('property', 'isOwnerAdmin', 'currentOwner', 'owners'));
     }
 
-    /**
-     * Update the specified resource in storage.
-     */
     public function update(Request $request, Property $property)
     {
         $validated = $request->validate([
@@ -152,14 +208,13 @@ class PropertyController extends Controller
             'city'     => 'required|string|max:100',
             'postcode' => 'required|digits:5',
             'state'    => 'required|string|max:100',
-            'type'     => 'required', // 根据你的需求定义
+            'type'     => 'required',
             'owner_id'  => 'nullable|required_if:has_owner,1|exists:users,id'
         ]);
 
         if ($request->has_owner == 0) {
             $validated['owner_id'] = null;
         }
-        $validated['created_by'] = Auth::id();
 
         $property->update($validated);
 
@@ -167,27 +222,15 @@ class PropertyController extends Controller
                         ->with('success', 'Property updated successfully!');
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy($id)
     {
         try {
             DB::beginTransaction();
 
-            // 1. 查找 Property (确保它存在)
             $property = Property::findOrFail($id);
 
-            // 2. 更新 Property 状态
-            // 直接在 Query Builder 上调用 update，不依赖对象实例
             Property::where('id', $id)->update(['status' => 'Removed']);
-
-            // 3. 批量更新该 Property 下所有的 Units
-            // 这行代码不会产生 stdClass 错误，因为它直接操作数据库表
             Unit::where('property_id', $id)->update(['status' => 'Removed']);
-
-            // 4. 批量更新该 Property 下所有 Unit 拥有的 Rooms
-            // 使用子查询：更新所有 unit_id 属于该 property 的房间
             Room::whereIn('unit_id', function($query) use ($id) {
                 $query->select('id')->from('units')->where('property_id', $id);
             })->update(['status' => 'Removed']);
@@ -208,15 +251,12 @@ class PropertyController extends Controller
         try {
             DB::beginTransaction();
 
-            // 1. 恢复 Property 状态
             Property::where('id', $id)->update(['status' => 'Vacant']);
 
-            // 2. 恢复该 Property 下所有 Units 的状态
             Unit::where('property_id', $id)
-                ->where('status', 'removed') // 只恢复那些被标记为 removed 的
+                ->where('status', 'removed')
                 ->update(['status' => 'Vacant']);
 
-            // 3. 恢复所有相关的 Rooms
             Room::whereIn('unit_id', function($query) use ($id) {
                 $query->select('id')->from('units')->where('property_id', $id);
             })

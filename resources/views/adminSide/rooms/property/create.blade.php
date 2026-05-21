@@ -32,6 +32,7 @@
                                     </div>
                                     <div>
                                         <p class="text-sm font-black text-slate-800">{{ $currentOwner->name }}</p>
+                                        <p class="text-xs text-slate-500">Owner Admin is automatically assigned as owner.</p>
                                     </div>
                                 </div>
 
@@ -48,18 +49,21 @@
                                     >
                                     </x-form.input-select>
                                 </div>
-                            @endif
 
-                            {{-- 2. Owner 选择器 (增加了一个 id="owner_input_wrapper") --}}
-                            <div id="owner_input_wrapper" style="{{ old('has_owner') == 1 ? '' : 'display:none;' }}">
-                                <x-form.input-label value="Owner" class="mb-1" />
-                                <x-form.input-select 
-                                    name="owner_id" 
-                                    id="owner_selector" 
-                                    :options="$owners->pluck('name', 'id')->toArray()"
-                                    placeholder="Select Owner (Optional)"
-                                />
-                            </div>
+                                {{-- 2. Owner 选择器 (增加了一个 id="owner_input_wrapper") --}}
+                                <div id="owner_input_wrapper" style="{{ old('has_owner') == 1 ? '' : 'display:none;' }}">
+                                    <x-form.input-label value="Owner" class="mb-1" />
+                                    <x-form.input-select 
+                                        name="owner_id" 
+                                        id="owner_selector" 
+                                        :options="$owners->pluck('name', 'id')->toArray()"
+                                        placeholder="Select Owner (Optional)"
+                                    />
+                                    @if($owners->isEmpty())
+                                        <p class="text-sm text-red-500 mt-2">No owner options available for your account.</p>
+                                    @endif
+                                </div>
+                            @endif
 
                             {{-- Property Name --}}
                             <div>

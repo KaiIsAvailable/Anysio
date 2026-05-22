@@ -178,49 +178,56 @@ class UnitController extends Controller
     /**
      * Display the specified resource.
      */
-    public function show(Request $request, Unit $unit)
+public function show(Request $request, Unit $unit)
     {
+        // 1. 建立查詢關聯
         $query = $unit->rooms()
-            ->with([
-                'unit.owner:id,name,email',
-                'assets'
-            ]);
+            ->with(['unit.owner:id,name,email', 'assets']);
 
-        // 1. 处理搜索逻辑 (参考你之前的 room index)
-        if ($request->has('search')) {
-            $search = $request->get('search');
+        // 2. 處理搜尋 (Searching)
+        if ($request->filled('search')) {
+            $search = $request->input('search');
             $query->where(function($q) use ($search) {
                 $q->where('room_no', 'like', "%{$search}%")
-                ->orWhereHas('assets', function($aq) use ($search) {
-                    $aq->where('name', 'like', "%{$search}%");
-                });
+                  ->orWhereHas('assets', function($aq) use ($search) {
+                      $aq->where('name', 'like', "%{$search}%");
+                  });
             });
         }
 
-        // 2. 处理排序逻辑
-        $sort = $request->get('sort');
-        switch ($sort) {
-            case 'room_no_asc':
-                $query->orderBy('room_no', 'asc');
-                break;
-            case 'room_no_desc':
-                $query->orderBy('room_no', 'desc');
-                break;
-            case 'newest':
-                $query->orderBy('created_at', 'desc');
-                break;
-            case 'oldest':
-                $query->orderBy('created_at', 'asc');
-                break;
-            default:
-                $query->orderBy('room_no', 'asc');
-                break;
+        // 3. 處理排序 (Sorting) - 完美適配領導的組件邏輯
+        // 組件傳過來的值會是像 'room_no_asc', 'status_desc', 'created_at_asc' 這樣
+        $sortParam = $request->input('sort');
+
+        if ($sortParam) {
+            // 解析結尾是 _asc 還是 _desc，並分離出真正的欄位名稱
+            if (str_ends_with($sortParam, '_desc')) {
+                $sortField = str_replace('_desc', '', $sortParam);
+                $direction = 'desc';
+            } elseif (str_ends_with($sortParam, '_asc')) {
+                $sortField = str_replace('_asc', '', $sortParam);
+                $direction = 'asc';
+            } else {
+                $sortField = $sortParam;
+                $direction = 'asc';
+            }
+
+            // 白名單校驗：只允許這些欄位進行排序，防止報錯
+            $validSortFields = ['room_no', 'status', 'created_at'];
+            
+            if (in_array($sortField, $validSortFields)) {
+                $query->orderBy($sortField, $direction);
+            } else {
+                $query->orderBy('room_no', 'asc'); // 預設排序
+            }
+        } else {
+            $query->orderBy('room_no', 'asc'); // 預設排序
         }
 
-        // 3. 获取处理后的房间列表
-        // 注意：这里为了保持你的页面逻辑，我们直接通过 $unit->setRelation 加载过滤后的结果
-        // 这样在 Blade 里调用 $unit->rooms 就会是过滤后的数据
-        $rooms = $query->get();
+        // 4. 分頁並保留 URL 參數 (withQueryString 會自動帶上 ?sort=...&search=...)
+        $rooms = $query->paginate(10)->withQueryString();
+        
+        // 將結果綁定回 $unit
         $unit->setRelation('rooms', $rooms);
 
         return view('adminSide.rooms.unit.show', compact('unit'));

@@ -3,31 +3,40 @@
         /* 1. 让字体大小下拉框显示具体的像素值 */
         .ql-snow .ql-picker.ql-size .ql-picker-label::before,
         .ql-snow .ql-picker.ql-size .ql-picker-item::before {
-        content: attr(data-value) !important;
+            content: attr(data-value) !important;
         }
 
         /* 2. 让字体系列下拉框显示对应的名称 */
         .ql-snow .ql-picker.ql-font .ql-picker-label[data-value='serif']::before,
         .ql-snow .ql-picker.ql-font .ql-picker-item[data-value='serif']::before {
-        content: 'Serif' !important;
+            content: 'Serif' !important;
         }
+
         .ql-snow .ql-picker.ql-font .ql-picker-label[data-value='sans-serif']::before,
         .ql-snow .ql-picker.ql-font .ql-picker-item[data-value='sans-serif']::before {
-        content: 'Sans Serif' !important;
+            content: 'Sans Serif' !important;
         }
+
         .ql-snow .ql-picker.ql-font .ql-picker-label[data-value='monospace']::before,
         .ql-snow .ql-picker.ql-font .ql-picker-item[data-value='monospace']::before {
-        content: 'Monospace' !important;
+            content: 'Monospace' !important;
         }
+
         .ql-snow .ql-picker.ql-font .ql-picker-label[data-value='roboto']::before,
         .ql-snow .ql-picker.ql-font .ql-picker-item[data-value='roboto']::before {
-        content: 'Roboto' !important;
-        font-family: 'Roboto', sans-serif;
+            content: 'Roboto' !important;
+            font-family: 'Roboto', sans-serif;
         }
     </style>
-    <div class="py-12 bg-gray-50 min-h-screen" x-data="{ agreementType: 'tos' }">
+    
+    {{-- 💡 终极修复：x-data 放在了原生的外层 div 上 --}}
+    <div class="py-12 bg-gray-50 min-h-screen"
+         x-data="{ 
+             agreementType: '{{ old('type', $sourceAgreement->type ?? (in_array($user->role, ['admin', 'superadmin']) ? 'tos' : 'rental_lease')) }}', 
+             loading: false 
+         }">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            
+
             <div class="mb-6">
                 <a href="{{ route('admin.agreements.index') }}" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center transition-colors">
                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -39,26 +48,23 @@
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <x-form.form action="{{ route('admin.agreements.store') }}" method="POST" class="p-8" id="agreementForm"
-                    x-data="{ 
-                        agreementType: '{{ old('type', $sourceAgreement->type ?? 'rental_lease') }}', loading: false
-                    }" @submit="loading = true">
-                    
+                {{-- 💡 移除了这里导致 bug 的 x-data，仅保留 loading 状态 --}}
+                <x-form.form action="{{ route('admin.agreements.store') }}" method="POST" class="p-8" id="agreementForm" @submit="loading = true">
+
                     @csrf
-                    
+
                     <div class="space-y-6">
-                        <!-- Agreement Type 容器 -->
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 {{ $sourceAgreement ? 'bg-gray-100 opacity-75' : '' }}">
                             <label for="type" class="block text-sm font-semibold text-gray-700">
                                 Agreement Type {!! $sourceAgreement ? '<span class="text-xs font-normal text-gray-400">(Locked for new version)</span>' : '' !!}
                             </label>
-                            
-                            <select name="{{ $sourceAgreement ? 'type_disabled' : 'type' }}" id="type" 
-                                    x-model="agreementType" 
-                                    {{ $sourceAgreement ? 'disabled' : 'required' }}
-                                    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $sourceAgreement ? 'cursor-not-allowed' : '' }}">
-                                
-                                @if ($isOwnerAgentAdmin === false)
+
+                            <select name="{{ $sourceAgreement ? 'type_disabled' : 'type' }}" id="type"
+                                x-model="agreementType"
+                                {{ $sourceAgreement ? 'disabled' : 'required' }}
+                                class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $sourceAgreement ? 'cursor-not-allowed' : '' }}">
+
+                                @if (in_array($user->role, ['admin', 'superadmin']))
                                     <option value="tos" @selected(old('type', $sourceAgreement->type ?? '') == 'tos')>Register T&C</option>
                                     <option value="privacy" @selected(old('type', $sourceAgreement->type ?? '') == 'privacy')>Register Privacy Policy</option>
                                     <option value="rental_lease" @selected(old('type', $sourceAgreement->type ?? '') == 'rental_lease')>Lease Agreement</option>
@@ -68,30 +74,29 @@
                             </select>
 
                             @if($sourceAgreement)
-                                {{-- 如果是 edit，通过 hidden 传值 --}}
                                 <input type="hidden" name="type" value="{{ $sourceAgreement->type }}">
                             @endif
                         </div>
 
-                        <!-- Assign to Owner 容器 -->
                         <div x-show="agreementType === 'rental_lease'" class="pb-4 border-b border-gray-100">
                             <label for="user_id" class="block text-sm font-semibold text-gray-700">
                                 Assign to Owner {!! $sourceAgreement ? '<span class="text-xs font-normal text-gray-400">(Locked)</span>' : '' !!}
                             </label>
-                            @if ($isOwnerAgentAdmin === false)
-                                {{-- 💡 修复点 1：如果下拉框被禁用了，额外放一个 hidden input 把 owner_id 传给后端 --}}
+
+                            @if (in_array($user->role, ['admin', 'superadmin']) || $user->role === 'agentAdmin')
+
                                 @if ($sourceAgreement)
                                     <input type="hidden" name="user_id" value="{{ $sourceAgreement->user_id }}">
                                 @endif
 
-                                <select name="{{ $sourceAgreement ? 'user_id_disabled' : 'user_id' }}" id="user_id" 
-                                        {{ $sourceAgreement ? 'disabled' : '' }}
-                                        :required="agreementType === 'rental_lease'"
-                                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $sourceAgreement ? 'bg-gray-100 cursor-not-allowed' : '' }}">
+                                <select name="{{ $sourceAgreement ? 'user_id_disabled' : 'user_id' }}" id="user_id"
+                                    {{ $sourceAgreement ? 'disabled' : '' }}
+                                    :required="agreementType === 'rental_lease'"
+                                    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $sourceAgreement ? 'bg-gray-100 cursor-not-allowed' : '' }}">
                                     <option value="">-- Select Owner --</option>
                                     @foreach($owners as $owner)
                                         @if($owner->user)
-                                            <option value="{{ $owner->user->id }}" 
+                                            <option value="{{ $owner->user->id }}"
                                                 {{ old('user_id', $sourceAgreement->user_id ?? '') == $owner->user->id ? 'selected' : '' }}>
                                                 {{ $owner->user->name }}
                                             </option>
@@ -99,26 +104,23 @@
                                     @endforeach
                                 </select>
 
-                            @else                                
-                                {{-- 💡 修复点 2：当是 Owner/Agent/Admin 纯文本显示时，必须用 hidden input 提交当前登录的 user id --}}
-                                {{-- 这里的 $userId 变量需要你在 Controller 传过来，比如 auth()->id() --}}
+                            @elseif ($user->role === 'ownerAdmin')
+
                                 <input type="hidden" name="user_id" value="{{ auth()->id() }}">
 
-                                <div class="flex items-center p-4 bg-gray-50 border border-gray-200 rounded-2xl">
+                                <div class="flex items-center p-4 mt-1 bg-gray-50 border border-gray-200 rounded-lg">
                                     <div class="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center mr-3 text-indigo-600">
                                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
                                         </svg>
                                     </div>
                                     <div>
-                                        {{-- 💡 移除无用的 value 属性 --}}
                                         <p class="text-sm font-black text-slate-800">{{ $ownerAdmin }}</p>
                                     </div>
                                 </div>
                             @endif
 
                             @if($sourceAgreement)
-                                {{-- 如果是 edit，通过 hidden 传值 --}}
                                 <input type="hidden" name="owner_id" value="{{ $sourceAgreement->owner_id }}">
                             @endif
                         </div>
@@ -128,15 +130,15 @@
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div class="md:col-span-2">
                                 <label for="title" class="block text-sm font-semibold text-gray-700">Agreement Title</label>
-                                <input type="text" name="title" id="title" value="{{ old('title', $sourceAgreement ? $sourceAgreement->title : '') }}" placeholder="e.g. Standard 1-Year Lease" required 
-                                       class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <input type="text" name="title" id="title" value="{{ old('title', $sourceAgreement ? $sourceAgreement->title : '') }}" placeholder="e.g. Standard 1-Year Lease" required
+                                    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('title') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
                             </div>
 
                             <div>
                                 <label for="version" class="block text-sm font-semibold text-gray-700">Version</label>
-                                <input type="text" name="version" id="version" value="{{ old('version', $sourceAgreement ? ($sourceAgreement->version) : '1.0') }}" placeholder="e.g. 1.0.0" 
-                                       class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                                <input type="text" name="version" id="version" value="{{ old('version', $sourceAgreement ? ($sourceAgreement->version) : '1.0') }}" placeholder="e.g. 1.0.0"
+                                    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('version') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
                             </div>
                         </div>
@@ -153,17 +155,15 @@
                                     <div class="space-y-5">
                                         @foreach($placeholders as $category => $items)
                                             <div>
-                                                <!-- 分类标题 -->
                                                 <h4 class="text-[11px] font-semibold text-slate-400 mb-2 ml-1">
                                                     {{ $category }}
                                                 </h4>
-                                                
-                                                <!-- 按钮容器 -->
+
                                                 <div class="flex flex-wrap gap-2">
                                                     @foreach($items as $item)
-                                                        <button type="button" 
-                                                                onclick="insertVariable('{{ $item['value'] }}')" 
-                                                                class="group px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:border-indigo-400 hover:text-indigo-600 hover:shadow-sm transition-all flex items-center">
+                                                        <button type="button"
+                                                            onclick="insertVariable('{{ $item['value'] }}')"
+                                                            class="group px-3 py-1.5 bg-white border border-slate-200 text-slate-600 text-xs font-medium rounded-lg hover:border-indigo-400 hover:text-indigo-600 hover:shadow-sm transition-all flex items-center">
                                                             <span class="text-slate-300 group-hover:text-indigo-400 mr-1.5">+</span>
                                                             {{ $item['label'] }}
                                                         </button>
@@ -178,9 +178,8 @@
                             <br>
 
                             <div class="flex items-center justify-between mb-2">
-                                <!-- 将 for 指向 Quill 编辑器的容器 ID -->
                                 <label for="editor" class="block text-sm font-semibold text-gray-700">Core Content</label>
-                                
+
                                 <span class="text-[10px] font-bold text-indigo-500 tracking-widest bg-indigo-50 px-2 py-0.5 rounded">
                                     Rich Text Editor
                                 </span>
@@ -218,72 +217,66 @@
 
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-        // 1. Quill 配置 (保持不变...)
-        const Size = Quill.import('attributors/style/size');
-        Size.whitelist = ['12px', '14px', '16px', '18px', '20px', '24px', '32px'];
-        Quill.register(Size, true);
+            // 1. Quill 配置
+            const Size = Quill.import('attributors/style/size');
+            Size.whitelist = ['12px', '14px', '16px', '18px', '20px', '24px', '32px'];
+            Quill.register(Size, true);
 
-        const Font = Quill.import('attributors/style/font');
-        Font.whitelist = ['serif', 'sans-serif', 'monospace', 'roboto', 'mirza'];
-        Quill.register(Font, true);
+            const Font = Quill.import('attributors/style/font');
+            Font.whitelist = ['serif', 'sans-serif', 'monospace', 'roboto', 'mirza'];
+            Quill.register(Font, true);
 
-        // 2. 初始化
-        quill = new Quill('#editor', {
-            theme: 'snow',
-            modules: {
-                toolbar: [
-                    [{ 'font': Font.whitelist }, { 'size': Size.whitelist }], 
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'header': [1, 2, 3, false] }],
-                    [{ 'color': [] }, { 'background': [] }],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    [{ 'align': [] }],
-                    ['clean']
-                ]
+            // 2. 初始化
+            quill = new Quill('#editor', {
+                theme: 'snow',
+                modules: {
+                    toolbar: [
+                        [{ 'font': Font.whitelist }, { 'size': Size.whitelist }],
+                        ['bold', 'italic', 'underline', 'strike'],
+                        [{ 'header': [1, 2, 3, false] }],
+                        [{ 'color': [] }, { 'background': [] }],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        [{ 'align': [] }],
+                        ['clean']
+                    ]
+                }
+            });
+
+            const contentInput = document.getElementById('content_input');
+            const form = document.getElementById('agreementForm');
+
+            // 3. 定义同步函数
+            function syncQuillToInput() {
+                const html = quill.root.innerHTML;
+                // Quill 默认空行是 <p><br></p>，我们要把它转为空字符串以便触发后端验证
+                if (html === '<p><br></p>' || quill.getText().trim().length === 0) {
+                    contentInput.value = '';
+                } else {
+                    contentInput.value = html;
+                }
+            }
+
+            // 监听：文字改变时实时同步
+            quill.on('text-change', syncQuillToInput);
+
+            // 关键：拦截表单提交事件
+            if (form) {
+                form.addEventListener('submit', function(e) {
+                    syncQuillToInput(); // 提交前最后强制同步一次
+                    console.log('Final content check:', contentInput.value);
+                });
             }
         });
 
-        const contentInput = document.getElementById('content_input');
-        const form = document.getElementById('agreementForm'); // 确保 HTML 里有这个 ID
-
-        // 3. 定义同步函数
-        function syncQuillToInput() {
-            const html = quill.root.innerHTML;
-            // Quill 默认空行是 <p><br></p>，我们要把它转为空字符串以便触发后端验证
-            if (html === '<p><br></p>' || quill.getText().trim().length === 0) {
-                contentInput.value = '';
-            } else {
-                contentInput.value = html;
+        // 插入变量函数
+        function insertVariable(variable) {
+            const range = quill.getSelection(true);
+            if (range) {
+                quill.insertText(range.index, variable);
+                quill.setSelection(range.index + variable.length);
+                // 触发一下同步
+                document.getElementById('content_input').value = quill.root.innerHTML;
             }
         }
-
-        // 监听：文字改变时实时同步
-        quill.on('text-change', syncQuillToInput);
-
-        // 关键：拦截表单提交事件
-        if (form) {
-            form.addEventListener('submit', function(e) {
-                syncQuillToInput(); // 提交前最后强制同步一次
-                console.log('Final content check:', contentInput.value);
-                
-                // 如果 content 还是空的，可以阻止提交并提醒（可选）
-                if (!contentInput.value) {
-                    // alert('Please enter content');
-                    // e.preventDefault();
-                }
-            });
-        }
-    });
-
-    // 插入变量函数保持不变
-    function insertVariable(variable) {
-        const range = quill.getSelection(true);
-        if (range) {
-            quill.insertText(range.index, variable); 
-            quill.setSelection(range.index + variable.length);
-            // 触发一下同步
-            document.getElementById('content_input').value = quill.root.innerHTML;
-        }
-    }
     </script>
 </x-app-layout>

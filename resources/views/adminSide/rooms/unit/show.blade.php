@@ -16,17 +16,16 @@
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
                     @can('owner-admin')
-                        <x-form.primary-button
-                            type="button"
-                            loading="loading"
-                            @click="loading = true; window.location.href = '{{ route('admin.rooms.create', ['unit_id' => $unit->id]) }}'"
-                            >
+                    <x-form.primary-button
+                        type="button"
+                        loading="loading"
+                        @click="loading = true; window.location.href = '{{ route('admin.rooms.create', ['unit_id' => $unit->id]) }}'">
 
-                            <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            Add New Room
-                        </x-form.primary-button>
+                        <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Add New Room
+                    </x-form.primary-button>
                     @endcan
                 </div>
             </div>
@@ -35,32 +34,11 @@
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                         <h2 class="text-lg font-semibold text-slate-800 italic">Listing Rooms</h2>
-                        
-                        <x-form.form method="GET" action="{{ route('admin.units.show', $unit->id) }}" class="flex items-stretch gap-2">
-                            <a href="{{ route('admin.roomAsset.index') }}" 
-                            class="inline-flex items-center px-4 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
-                                <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                                </svg>
-                                View Room Assets
-                            </a>
-                            <div class="flex items-stretch">
-                                <div class="relative flex-1">
-                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                        </svg>
-                                    </div>
-                                    <input type="text"
-                                           name="search"
-                                           value="{{ request('search') }}"
-                                           style="padding-left: 45px;"
-                                           class="block w-64 sm:w-72 pr-4 py-2.5 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder-gray-400"
-                                           placeholder="Search room / asset...">
-                                </div>
-                                <x-form.primary-button laoding="loading" type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
-                                    Search
-                                </x-form.primary-button>
+
+                        {{-- 💡 使用領導的 Search Component --}}
+                        <x-form.form method="GET" action="{{ route('admin.units.show', $unit->id) }}" class="flex flex-wrap items-center gap-4">
+                            <div class="flex items-stretch justify-between">
+                                <x-table.search placeholder="Search room or asset..." />
                             </div>
                         </x-form.form>
                     </div>
@@ -68,175 +46,128 @@
 
                 <div class="overflow-x-auto">
                     @if($unit->rooms->count() > 0)
-                        @php
-                            $sort = request('sort');
-                            $noDesc = $sort === 'room_no_desc';
-                            $noAsc  = $sort === 'room_no_asc';
-                            $nextNoSort = $noAsc ? 'room_no_desc' : 'room_no_asc';
-
-                            $dateDesc = $sort === 'newest';
-                            $dateAsc  = is_null($sort) || $sort === 'oldest';
-                            $nextDateSort = $dateAsc ? 'newest' : 'oldest';
-                        @endphp
-
-                        <table class="table-fixed w-full min-w-[1200px] divide-y divide-gray-200 text-left">
-                            <thead class="bg-gray-50">
+                    <table class="table-fixed w-full min-w-[1200px] divide-y divide-gray-200 text-left">
+                        <thead class="bg-gray-50">
                             <tr>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
-                                    <div class="flex items-center">
-                                        @if($unit->has_rooms == 1)
-                                            {{-- 情况 A: 有房间，显示链接 --}}
-                                            <a href="{{ route('admin.units.show', array_merge(['unit' => $unit->id], request()->query(), ['sort' => $nextNoSort])) }}"
-                                            class="inline-flex items-center space-x-1 text-indigo-600 hover:text-indigo-900 font-bold">
-                                                <span>Room No</span>
-                                                @if($noAsc)
-                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                                                @elseif($noDesc)
-                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                                @endif
-                                            </a>
-                                        @else
-                                            {{-- 情况 B: has_rooms 为 0，显示纯文本，不给 href --}}
-                                            <div class="inline-flex items-center space-x-1 text-gray-400 cursor-default">
-                                                <span class="font-medium">Unit Only</span>
-                                                <svg class="h-4 w-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                                </svg>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Type</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Owner</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Assets</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
-                                    <a href="{{ route('admin.units.show', array_merge(['unit' => $unit->id], request()->query(), ['sort' => $nextDateSort])) }}"
-                                       class="inline-flex items-center space-x-1 text-gray-700 hover:text-indigo-600">
-                                        <span>Created</span>
-                                        @if($dateAsc)
-                                            <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                                        @elseif($dateDesc)
-                                            <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                        @endif
-                                    </a>
-                                </th>
+                                {{-- 💡 使用領導的 Table TH Component，並精準綁定 sortField --}}
+                                <x-table.th name="Room No" sortField="room_no" />
+                                <x-table.th name="Type" /> 
+                                <x-table.th name="Status" sortField="status" />
+                                <x-table.th name="Owner" />
+                                <x-table.th name="Assets" />
+                                <x-table.th name="Created" sortField="created_at" />
+                                
                                 @can('owner-admin')
-                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <x-table.th name="Actions" />
                                 @endcan
                             </tr>
-                            </thead>
+                        </thead>
 
-                            <tbody class="bg-white divide-y divide-gray-200">
+                        <tbody class="bg-white divide-y divide-gray-200">
                             @foreach($unit->rooms as $room)
-                                @php
-                                    $status = strtolower((string) $room->status);
-                                    $badge = match ($status) {
-                                        'vacant','available' => 'bg-green-100 text-green-800',
-                                        'occupied'  => 'bg-amber-100 text-amber-800',
-                                        'maintenance' => 'bg-blue-100 text-blue-800',
-                                        default     => 'bg-gray-100 text-gray-800',
-                                    };
-                                    $assetNames = $room->assets->pluck('name')->filter()->unique()->values();
-                                @endphp
-                                <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                                    data-href="{{ route('admin.rooms.show', $room->id) }}"
-                                    onclick="window.location=this.dataset.href">
-
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="flex items-center">
-                                            <div class="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shadow-sm">
-                                                {{ strtoupper(substr($room->room_no ?? 'R', 0, 1)) }}
-                                            </div>
-                                            <div class="ml-4">
-                                                <div class="ml-3 text-sm font-medium text-gray-900">
-                                                    {{ $room->room_no ?? '-' }}
-                                                </div>
-                                            </div>
+                            @php
+                                $status = strtolower((string) $room->status);
+                                $badge = match ($status) {
+                                    'vacant','available' => 'bg-green-100 text-green-800',
+                                    'occupied' => 'bg-amber-100 text-amber-800',
+                                    'maintenance' => 'bg-blue-100 text-blue-800',
+                                    default => 'bg-gray-100 text-gray-800',
+                                };
+                                $assetNames = $room->assets->pluck('name')->filter()->unique()->values();
+                            @endphp
+                            <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group"
+                                onclick="window.location='{{ route('admin.rooms.show', $room->id) }}'">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">
+                                            {{ strtoupper(substr($room->room_no ?? 'R', 0, 1)) }}
                                         </div>
-                                    </td>
-
-                                    <td class="px-6 py-4 text-sm text-slate-900">{{ $room->room_type ?? '-' }}</td>
-
-                                    <td class="px-6 py-4 text-sm">
-                                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
-                                            {{ ucfirst($room->status ?? '-') }}
-                                        </span>
-                                    </td>
-
-                                    <td class="px-6 py-4">
-                                        <div class="text-sm font-medium text-slate-900">{{ $room->unit->owner->name ?? '-' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $room->unit->owner->email ?? '-' }}</div>
-                                    </td>
-
-                                    <td class="px-6 py-4 text-sm text-slate-900">
-                                        @if($assetNames->count())
-                                            <div class="flex flex-wrap gap-1">
-                                                @foreach($assetNames->take(3) as $n)
-                                                    <span class="px-2 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-700 border border-gray-200">{{ $n }}</span>
-                                                @endforeach
-                                                @if($assetNames->count() > 3)
-                                                    <span class="text-[10px] text-gray-400 font-medium">+{{ $assetNames->count() - 3 }} more</span>
-                                                @endif
-                                            </div>
+                                        <div class="ml-4 text-sm font-medium text-gray-900">{{ $room->room_no }}</div>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-slate-900">{{ $room->room_type }}</td>
+                                <td class="px-6 py-4">
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">{{ ucfirst($room->status) }}</span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-slate-900">{{ $room->unit->owner->name ?? '-' }}</td>
+                                <td class="px-6 py-4 text-sm text-slate-900">
+                                    @if($assetNames->count())
+                                        <div class="flex flex-wrap gap-1">
+                                            @foreach($assetNames->take(3) as $n)
+                                                <span class="px-2 py-0.5 rounded-full text-[10px] bg-gray-100 text-gray-700 border border-gray-200">{{ $n }}</span>
+                                            @endforeach
+                                            @if($assetNames->count() > 3)
+                                                <span class="text-[10px] text-gray-400 font-medium">+{{ $assetNames->count() - 3 }} more</span>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <span class="text-gray-300 italic text-xs">No assets</span>
+                                    @endif
+                                </td>
+                                <td class="px-6 py-4 text-sm text-slate-900">{{ optional($room->created_at)->format('d M Y') }}</td>
+                                
+                                {{-- 💡 完美還原：操作按鈕與 SVG 圖標 --}}
+                                @can('owner-admin')
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                    <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
+                                        @if($status !== 'inactive' && $status !== 'removed')
+                                            {{-- Active 狀態：顯示 Edit 和 Delete --}}
+                                            <a href="{{ route('admin.rooms.edit', $room->id) }}"
+                                                class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                                                title="Edit">
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                                </svg>
+                                            </a>
+                                            <form action="{{ route('admin.rooms.destroy', $room->id) }}" method="POST"
+                                                onsubmit="return confirm('Delete room {{ addslashes($room->room_no ?? $room->id) }}? This will mark the room and its assets inactive.');"
+                                                class="inline-block">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit"
+                                                    class="p-2 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                                    title="Delete">
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                    </svg>
+                                                </button>
+                                            </form>
                                         @else
-                                            <span class="text-gray-300 italic text-xs">No assets</span>
+                                            {{-- Inactive/Removed 狀態：顯示 Restore --}}
+                                            <form action="{{ route('admin.rooms.restore', $room->id) }}" method="POST"
+                                                onsubmit="return confirm('Restore room {{ addslashes($room->room_no ?? $room->id) }}?');"
+                                                class="inline-block">
+                                                @csrf
+                                                @method('PATCH')
+                                                <button type="submit"
+                                                    class="p-2 text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                                                    title="Restore">
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                                                    </svg>
+                                                </button>
+                                            </form>
                                         @endif
-                                    </td>
-
-                                    <td class="px-6 py-4 text-sm text-slate-900">{{ optional($room->created_at)->format('d M Y') }}</td>
-                                    
-                                    @can('owner-admin')
-                                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                            <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
-                                                @if(strtolower($room->status ?? '') !== 'inactive')
-                                                    {{-- Active 房间：显示编辑和删除按钮 --}}
-                                                    <a href="{{ route('admin.rooms.edit', $room->id) }}"
-                                                    class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                                                    title="Edit">
-                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                                    </a>
-                                                    <form action="{{ route('admin.rooms.destroy', $room->id) }}" method="POST"
-                                                        onsubmit="return confirm('Delete room {{ addslashes($room->room_no ?? $room->id) }}? This will mark the room and its assets inactive.');"
-                                                        class="inline-block">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit"
-                                                                class="p-2 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
-                                                                title="Delete">
-                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-                                                        </button>
-                                                    </form>
-                                                @else
-                                                    {{-- Inactive 房间：只显示恢复按钮 --}}
-                                                    <form action="{{ route('admin.rooms.restore', $room->id) }}" method="POST"
-                                                        onsubmit="return confirm('Restore room {{ addslashes($room->room_no ?? $room->id) }}?');"
-                                                        class="inline-block">
-                                                        @csrf
-                                                        @method('PATCH')
-                                                        <button type="submit"
-                                                                class="p-2 text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
-                                                                title="Restore">
-                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path></svg>
-                                                        </button>
-                                                    </form>
-                                                @endif
-                                            </div>
-                                        </td>
-                                    @endcan
-                                </tr>
+                                    </div>
+                                </td>
+                                @endcan
+                            </tr>
                             @endforeach
-                            </tbody>
-                        </table>
+                        </tbody>
+                    </table>
+                    
+                    {{-- 分頁 --}}
+                    <div class="px-6 py-4 border-t border-gray-100">
+                        {{ $unit->rooms->links() }}
+                    </div>
                     @else
-                        <div class="text-center py-20 bg-white">
-                            <h3 class="text-lg font-medium text-slate-900">No rooms assigned to this unit</h3>
-                            <p class="mt-1 text-gray-500">Add the first room to get started.</p>
-                        </div>
+                    <div class="text-center py-20 bg-white">
+                        <h3 class="text-lg font-medium text-slate-900">No rooms assigned to this unit</h3>
+                        <p class="mt-1 text-gray-500">Add the first room to get started.</p>
+                    </div>
                     @endif
                 </div>
             </div>
-
         </div>
     </div>
 </x-app-layout>

@@ -16,7 +16,7 @@ use App\Models\Owners;
 
 class RoomAssetController extends Controller
 {
-    public function index(Request $request) // 记得注入 Request
+    public function index(Request $request) 
     {
         $user = Auth::user();
         $search = $request->input('search');
@@ -44,9 +44,36 @@ class RoomAssetController extends Controller
             });
         }
 
-        // 4. 排序并分页
-        $assets = $query->latest()->paginate(10)->withQueryString(); 
-        // withQueryString() 确保翻页时搜索关键词不丢失
+        // 4. 处理排序 (Sorting) - 适配前端的 Component 逻辑
+        $sortParam = $request->input('sort');
+
+        if ($sortParam) {
+            // 解析结尾是 _asc 还是 _desc，并分离出真正的字段名称
+            if (str_ends_with($sortParam, '_desc')) {
+                $sortField = str_replace('_desc', '', $sortParam);
+                $direction = 'desc';
+            } elseif (str_ends_with($sortParam, '_asc')) {
+                $sortField = str_replace('_asc', '', $sortParam);
+                $direction = 'asc';
+            } else {
+                $sortField = $sortParam;
+                $direction = 'asc';
+            }
+
+            // 白名单校验：确保只能对前端指定的这几个字段排序，防止报错
+            $validSortFields = ['name', 'category', 'status', 'created_at'];
+            
+            if (in_array($sortField, $validSortFields)) {
+                $query->orderBy($sortField, $direction);
+            } else {
+                $query->latest(); // 如果有未知的排序参数，默认使用 latest()
+            }
+        } else {
+            $query->latest(); // 默认没有任何点击时，使用 latest()
+        }
+
+        // 5. 分页并保留 URL 参数 (withQueryString() 确保翻页时搜索和排序不丢失)
+        $assets = $query->paginate(10)->withQueryString(); 
 
         return view('adminSide.rooms.roomAsset.index', compact('assets'));
     }
@@ -200,4 +227,4 @@ class RoomAssetController extends Controller
             return redirect()->back()->with('error', 'Restore failed: ' . $e->getMessage());
         }
     }
-}
+}   

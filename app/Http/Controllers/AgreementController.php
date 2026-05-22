@@ -1,6 +1,7 @@
 <?php
 
 namespace App\Http\Controllers;
+
 use App\Models\Owners;
 use App\Models\User;
 use App\Models\Agreements;
@@ -19,16 +20,28 @@ class AgreementController extends Controller
         $query = Agreements::with(['user', 'historyVersions']) // 关键：关联历史版本
             ->where('status', 'active');
 
-        // 非 super-admin 只能看属于自己的协议
+        // 权限判断逻辑
         $user = Auth::user();
         if (!Gate::allows('super-admin')) {
-            $query->where('user_id', $user->id);
+            if ($user->role === 'agentAdmin') {
+                // 如果是 Agent，先去 Owners 表里找出他代理的所有 Owner 的 user_id
+                $managedOwnerUserIds = \App\Models\Owners::where('agent_id', $user->id)->pluck('user_id');
+                
+                // Agent 可以看到：自己的协议 OR 他代理的 Owner 的协议
+                $query->where(function($q) use ($user, $managedOwnerUserIds) {
+                    $q->where('user_id', $user->id)
+                      ->orWhereIn('user_id', $managedOwnerUserIds);
+                });
+            } else {
+                // 其他普通角色 (Owner, OwnerAdmin 等) 只能看属于自己的协议
+                $query->where('user_id', $user->id);
+            }
         }
 
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                ->orWhere('version', 'like', "%{$search}%");
+                    ->orWhere('version', 'like', "%{$search}%");
             });
         }
 
@@ -46,30 +59,44 @@ class AgreementController extends Controller
 
     public function create(Request $request)
     {
-        // 1. 抓取所有房东数据，只需要 ID 和 Name 即可
         $user = Auth::user();
-        $isOwnerAgentAdmin = false;
-        $isOwnerAdmin = false;
-        $owners = Owners::with('user')->get();
+
+        // 权限布尔值判断
+        $isOwnerAdmin = $user->role === 'ownerAdmin';
+        $isOwnerAgentAdmin = in_array($user->role, ['ownerAdmin', 'agentAdmin']);
         $ownerAdmin = $user->name;
 
-        if ($user->role === 'ownerAdmin'){
-            $isOwnerAdmin = true;
+        // 💡 核心修复：根据不同角色拉取不同的 Owners 数据
+        if ($user->role === 'agentAdmin') {
+            // AgentAdmin: 通过 agent_id 关联查找该 Agent 负责的所有 Owners
+            $owners = Owners::with('user')->where('agent_id', $user->id)->get();
+        } elseif ($user->role === 'admin' || $user->role === 'superadmin') {
+            // Admin / Superadmin: 可以看到所有的 owner
+            $owners = Owners::with('user')->get();
+        } else {
+            // OwnerAdmin (或其他没有权限查看下拉框的角色): 传个空的集合过去节省数据库性能
+            $owners = collect();
         }
 
-        if ($user->role === 'ownerAdmin' || $user->role === 'agentAdmin'){
-            $isOwnerAgentAdmin = true;
-        }
-
+        // 获取动态变量占位符
         $placeholders = self::getAvailablePlaceholders();
 
+        // 处理继承/编辑逻辑
         $sourceAgreement = null;
         if ($request->has('from_id')) {
             $sourceAgreement = Agreements::findOrFail($request->from_id);
         }
 
-        // 2. 用 compact 把变量传给视图
-        return view('adminSide.setting.agreement.create', compact('owners', 'isOwnerAgentAdmin', 'placeholders', 'sourceAgreement', 'isOwnerAdmin', 'ownerAdmin'));
+        // 将所有变量（包括 $user 实例本身）传递给前端 Blade 视图
+        return view('adminSide.setting.agreement.create', compact(
+            'owners',
+            'isOwnerAgentAdmin',
+            'placeholders',
+            'sourceAgreement',
+            'isOwnerAdmin',
+            'ownerAdmin',
+            'user' // 把 $user 传给前端，前端就可以通过 $user->role 来判断显示逻辑了
+        ));
     }
 
     public function store(Request $request)
@@ -87,10 +114,10 @@ class AgreementController extends Controller
         // 2. 版本冲突检查（保持你原有的逻辑）
         $parentIdFromRequest = $request->input('parent_agreement_id');
         if ($parentIdFromRequest) {
-            $versionExists = Agreements::where(function($query) use ($parentIdFromRequest) {
-                    $query->where('parent_agreement_id', $parentIdFromRequest)
-                        ->orWhere('id', $parentIdFromRequest);
-                })
+            $versionExists = Agreements::where(function ($query) use ($parentIdFromRequest) {
+                $query->where('parent_agreement_id', $parentIdFromRequest)
+                    ->orWhere('id', $parentIdFromRequest);
+            })
                 ->where('version', $request->version)
                 ->exists();
 
@@ -158,7 +185,7 @@ class AgreementController extends Controller
                 ['label' => 'Start Date',        'value' => '{start_date}'],
                 ['label' => 'End Date',          'value' => '{end_date}'],
                 ['label' => 'Check Out Date',    'value' => '{check_out_date}'],
-                ['label' => 'End Agreement Date','value' => '{end_agreement_date}'],
+                ['label' => 'End Agreement Date', 'value' => '{end_agreement_date}'],
             ],
         ];
     }

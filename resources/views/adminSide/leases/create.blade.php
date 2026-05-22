@@ -37,7 +37,7 @@
                             </div>
                         </div>
 
-                        {{-- 2. Select Lease (初始状态设为 hidden) --}}
+                        {{-- 2. Select Lease --}}
                         <div id="lease_select_container" class="grid grid-cols-1 md:grid-cols-1 gap-6 hidden">
                             <div class="relative">
                                 <label class="block text-sm font-medium text-gray-700">Select Existing Lease</label>
@@ -46,13 +46,8 @@
                                     <option value="">-- Choose Lease --</option>
                                     @foreach($leases as $lease)
                                         <option value="{{ $lease->id }}" @selected(old('lease_id') == $lease->id)>
-                                            {{-- 1. 租客名字 --}}
                                             {{ $lease->tenant->user->name ?? 'Tenant' }} 
-                                            
-                                            {{-- 2. 租客 IC --}}
                                             ({{ $lease->tenant->ic_number ?? 'IC' }}) - 
-
-                                            {{-- 3. 动态显示资产名称 --}}
                                             @if($lease->leasable instanceof \App\Models\Property)
                                                 {{ $lease->leasable->name }} (Entire)
                                             @elseif($lease->leasable instanceof \App\Models\Unit)
@@ -62,7 +57,6 @@
                                             @else
                                                 N/A
                                             @endif
-
                                             {{ dateFormat($lease->start_date) . ' - ' . dateFormat($lease->end_date) ?? '' }}
                                         </option>
                                     @endforeach
@@ -88,10 +82,8 @@
 
                             {{-- 2. 右边：动态切换的 Select Fields --}}
                             <div>
-                                {{-- Property --}}
                                 <div id="property_field" class="lease-field">
                                     <label class="block text-sm font-medium text-gray-700">Select Property</label>
-                                    {{-- 加上 id="property_select_input" --}}
                                     <select name="property_id" id="property_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Property --</option>
                                         @foreach($properties as $p)
@@ -103,7 +95,6 @@
                                     @enderror
                                 </div>
 
-                                {{-- Unit (你原本就有了，保持一致即可) --}}
                                 <div id="unit_field" class="lease-field hidden">
                                     <label class="block text-sm font-medium text-gray-700">Select Unit</label>
                                     <select name="unit_id" id="unit_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
@@ -117,10 +108,8 @@
                                     @enderror
                                 </div>
 
-                                {{-- Room --}}
                                 <div id="room_field" class="lease-field hidden">
                                     <label class="block text-sm font-medium text-gray-700">Select Room</label>
-                                    {{-- 加上 id="room_select_input" --}}
                                     <select name="room_id" id="room_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Room --</option>
                                         @foreach($rooms as $r)
@@ -157,7 +146,8 @@
                         <div id="date_section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Start Date</label>
-                                <input type="date" id="start-date" name="start_date" value="{{ old('start_date') }}" data-preview="{start_date}"
+                                {{-- 💡 修复点 3: 增加 onchange 触发计算函数 --}}
+                                <input type="date" id="start-date" name="start_date" value="{{ old('start_date') }}" data-preview="{start_date}" onchange="calculateAvailableFeeTypes()"
                                        class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('start_date')
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -166,7 +156,8 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">End Date</label>
-                                <input type="date" id="end-date" name="end_date" value="{{ old('end_date') }}" data-preview="{end_date}"
+                                {{-- 💡 修复点 4: 增加 onchange 触发计算函数 --}}
+                                <input type="date" id="end-date" name="end_date" value="{{ old('end_date') }}" data-preview="{end_date}" onchange="calculateAvailableFeeTypes()"
                                        class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
                                 @error('end_date')
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -193,11 +184,15 @@
                                 <label class="block text-sm font-medium text-gray-700">Select Fee Type</label>
                                 <select name="term_type" id="term_type" onchange="toggleLeaseInput()" data-preview="{rent_mode}"
                                         class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                    <option value="monthly" @selected(old('term_type') == 'monthly')>Monthly Fee</option>
                                     <option value="daily" @selected(old('term_type') == 'daily')>Daily Fee</option>
                                     <option value="weekly" @selected(old('term_type') == 'weekly')>Weekly Fee</option>
+                                    <option value="monthly" @selected(old('term_type', 'monthly') == 'monthly')>Monthly Fee</option>
                                     <option value="yearly" @selected(old('term_type') == 'yearly')>Yearly Fee</option>
                                 </select>
+                                <p class="mt-1 text-xs text-gray-400 italic">Options auto-update based on date range.</p>
+                                @error('term_type')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
                             </div>
 
                             <div>
@@ -215,13 +210,12 @@
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Deposit Collection Mode</label>
                                 <select id="deposit_mode" name="deposit_mode" onchange="toggleDepositVisibility()" data-preview="{deposit_mode}"
                                         class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm text-sm">
-                                        <option value="security_only" selected>Security Deposit Only</option> {{-- Default Security --}}
+                                        <option value="security_only" selected>Security Deposit Only</option>
                                         <option value="utilities_only">Utilities Deposit Only</option>
                                         <option value="both">Both (Security & Utilities)</option>
                                 </select>
                             </div>
 
-                            {{-- Security 容器 --}}
                             <div id="security_container">
                                 <label class="block text-sm font-medium text-gray-700">Security Deposit (RM)</label>
                                 <input type="text" id="security-deposit" name="security_deposit" value="{{ old('security_deposit') }}" data-preview="{security_deposit}"
@@ -231,7 +225,6 @@
                                 @enderror
                             </div>
 
-                            {{-- Utilities 容器 --}}
                             <div id="utilities_container">
                                 <label class="block text-sm font-medium text-gray-700">Utilities Deposit (RM)</label>
                                 <input type="text" id="utilities-deposit" name="utilities_deposit" value="{{ old('utilities_deposit') }}" data-preview="{utilities_deposit}"
@@ -247,7 +240,6 @@
                                 <label for="agreement_id" class="block text-sm font-medium text-gray-700">
                                     Agreements Template
                                 </label>
-                                {{-- Preview 按钮 --}}
                                 <button type="button" id="preview-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
                                     Preview Template
                                 </button>
@@ -256,7 +248,6 @@
                                 class="block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                                 <option value="">-- Select Template --</option>
                                 @foreach($templates as $template)
-                                    {{-- 将 content 存入 data-content 属性 --}}
                                     <option value="{{ $template->id }}" data-content="{{ $template->content }}" data-title="{{ $template->title }}" {{ old('agreement_id') == $template->id ? 'selected' : '' }}>
                                         {{ $template->title }} (v{{ $template->version }}) - {{ $template->user->name }}
                                     </option>
@@ -330,10 +321,102 @@
             </div>
         </div>
     </div>
+    
     <script>
+        // ==========================================
+        // 💡 修复点 5: 全新的日期 & Fee Type 计算逻辑
+        // ==========================================
+        function calculateAvailableFeeTypes() {
+            const startInput = document.getElementById('start-date');
+            const endInput = document.getElementById('end-date');
+            const termSelect = document.getElementById('term_type');
+
+            if (!startInput || !endInput || !termSelect) return;
+
+            const startVal = startInput.value;
+            const endVal = endInput.value;
+
+            // 动态设置 End Date 的最小值为 Start Date (防止前端选错)
+            if (startVal) {
+                endInput.min = startVal;
+            }
+
+            if (!startVal || !endVal) return;
+
+            const start = new Date(startVal);
+            const end = new Date(endVal);
+
+            // 前端拦截：如果 End Date 小于 Start Date，强制只给 daily 并退出
+            if (end < start) {
+                updateTermOptions(['daily']);
+                return;
+            }
+
+            // 计算差值
+            const diffTime = Math.abs(end - start);
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+            if (end.getDate() < start.getDate()) {
+                months--; // 天数没到，不算满一个月
+            }
+
+            let years = end.getFullYear() - start.getFullYear();
+            if (end.getMonth() < start.getMonth() || (end.getMonth() === start.getMonth() && end.getDate() < start.getDate())) {
+                years--; // 月份或天数没到，不算满一年
+            }
+
+            // 根据你领导的业务逻辑推断可用选项
+            let allowed = ['daily']; // 任何情况都可以选 daily
+
+            if (diffDays >= 7 && months < 1) {
+                allowed.push('weekly');
+            } else if (months >= 1 && years < 1) {
+                allowed.push('weekly', 'monthly');
+            } else if (years >= 1) {
+                allowed.push('weekly', 'monthly', 'yearly');
+            }
+
+            updateTermOptions(allowed);
+        }
+
+        function updateTermOptions(allowedTypes) {
+            const termSelect = document.getElementById('term_type');
+            const options = Array.from(termSelect.options);
+            let selectedStillValid = false;
+
+            options.forEach(opt => {
+                if (allowedTypes.includes(opt.value)) {
+                    opt.style.display = '';    // 显示选项
+                    opt.disabled = false;      // 启用选项
+                    if (opt.selected) selectedStillValid = true;
+                } else {
+                    opt.style.display = 'none'; // 隐藏选项
+                    opt.disabled = true;        // 禁用选项 (防止部分浏览器不支持 display:none)
+                    if (opt.selected) opt.selected = false;
+                }
+            });
+
+            // 如果当前选中的值被禁用了，自动帮你选一个目前能用的最高级选项
+            if (!selectedStillValid) {
+                if (allowedTypes.includes('monthly')) termSelect.value = 'monthly';
+                else if (allowedTypes.includes('weekly')) termSelect.value = 'weekly';
+                else termSelect.value = 'daily';
+                
+                // 触发已有联动（如果有的话）
+                if(typeof toggleLeaseInput === 'function') toggleLeaseInput();
+            }
+        }
+
+        // ==========================================
+        // 以下为你原本已有的完整代码逻辑
+        // ==========================================
         const allLeases = @json($leases->keyBy('id'));
 
         document.addEventListener('DOMContentLoaded', function() {
+            // 初始化检查一次 Fee Type
+            calculateAvailableFeeTypes();
+
             const leaseSelect = document.getElementById('lease_id');
 
             leaseSelect.addEventListener('change', function() {
@@ -342,7 +425,6 @@
 
                 const lease = allLeases[leaseId];
 
-                // 1. 设置类型并切换显示
                 let type = '';
                 if (lease.leasable_type.includes('Property')) type = 'property';
                 else if (lease.leasable_type.includes('Unit')) type = 'unit';
@@ -351,25 +433,23 @@
                 const selection = document.getElementById('lease_selection');
                 if (selection) {
                     selection.value = type;
-                    toggleLeaseInput(); // 这一步会把正确的 field 显示出来，并取消 disabled
+                    toggleLeaseInput(); 
                 }
 
-                // 2. 精准填充 ID (使用 ID 选择器更稳定)
                 const targetSelect = document.getElementById(type + '_id_select');
                 if (targetSelect) {
                     targetSelect.value = lease.leasable_id;
                 }
 
-                // 4. 自动填入价格和周期
                 document.getElementById('term_type').value = lease.term_type || 'monthly';
                 document.getElementById('monthly-rent').value = lease.rent_price;
 
-                // 5. 自动填入日期 (Renew 建议：Start Date = 旧租约的 End Date)
                 if (lease.end_date) {
                     document.getElementById('start-date').value = lease.end_date;
+                    // 旧租约拉过来后，也顺便计算一下新开放的 Fee Types
+                    calculateAvailableFeeTypes();
                 }
 
-                // 6. 自动处理押金模式
                 const depositMode = document.getElementById('deposit_mode');
                 const sDep = parseFloat(lease.security_deposit) || 0;
                 const uDep = parseFloat(lease.utilities_deposit) || 0;
@@ -380,10 +460,8 @@
 
                 document.getElementById('security-deposit').value = sDep;
                 document.getElementById('utilities-deposit').value = uDep;
-                toggleDepositVisibility(); // 调用你原本的函数来显示/隐藏押金输入框
+                toggleDepositVisibility(); 
 
-                // 7. 自动填入水电费 Previous (拿旧租约的 Current 当作新租约的 Previous)
-                // 假设你数据库里存的是 JSON
                 let utils = lease.utilities;
                 if (typeof utils === 'string') utils = JSON.parse(utils);
                 
@@ -399,70 +477,52 @@
             const fields = document.querySelectorAll('.lease-field');
             
             fields.forEach(field => {
-                // 找到该 div 下的 select 元素
                 const select = field.querySelector('select');
                 
                 if (field.id === selection + '_field') {
-                    // 显示并启用当前选中的字段
                     field.classList.remove('hidden');
                     if (select) select.disabled = false;
                 } else {
-                    // 隐藏并禁用不相关的字段
                     field.classList.add('hidden');
                     if (select) {
                         select.disabled = true;
-                        select.value = ""; // 建议清空隐藏字段的值，防止干扰
+                        select.value = ""; 
                     }
                 }
             });
         }
-
-        document.addEventListener('DOMContentLoaded', function() {
-            toggleLeaseInput();
-        });
 
         function toggleDepositVisibility() {
             const mode = document.getElementById('deposit_mode').value;
             const securityDiv = document.getElementById('security_container');
             const utilitiesDiv = document.getElementById('utilities_container');
 
-            // 先全部隐藏，再根据逻辑显示
             if (mode === 'both') {
                 securityDiv.classList.remove('hidden');
                 utilitiesDiv.classList.remove('hidden');
             } else if (mode === 'security_only') {
                 securityDiv.classList.remove('hidden');
                 utilitiesDiv.classList.add('hidden');
-                document.getElementById('utilities-deposit').value = ''; // 隐藏时清空
+                document.getElementById('utilities-deposit').value = ''; 
             } else if (mode === 'utilities_only') {
                 securityDiv.classList.add('hidden');
                 utilitiesDiv.classList.remove('hidden');
-                document.getElementById('security-deposit').value = ''; // 隐藏时清空
+                document.getElementById('security-deposit').value = ''; 
             }
         }
 
-        // 页面初始化
-        document.addEventListener('DOMContentLoaded', function() {
-            toggleDepositVisibility();
-        });
-
-        // --- 修改后的 toggleLeaseSelect 函数 ---
         function toggleLeaseSelect() {
             const statusSelect = document.getElementById('lease-status');
             const newStatus = statusSelect.value;
             
-            // 获取当前 URL 中的 status 参数
             const urlParams = new URLSearchParams(window.location.search);
             const currentStatusInUrl = urlParams.get('status');
 
-            // 关键点：只有当选中的 status 和 URL 里的不一样时，才跳转
-            // 这样页面刷新回来后，因为 newStatus == currentStatusInUrl，就不会再跳转了
             if (newStatus !== currentStatusInUrl) {
                 window.location.href = `{{ route('admin.leases.create') }}?status=${newStatus}`;
-                return; // 既然要跳转了，后面的代码不需要执行
+                return; 
             }
 
-            // --- 以下是原本控制 UI 显示/隐藏的逻辑 (保留) ---
             const leaseContainer = document.getElementById('lease_select_container');
             const propertyContainer = document.getElementById('property_select_type');
             const tenantContainer = document.getElementById('tenant_field');
@@ -474,7 +534,7 @@
             const agreementEndSection = document.getElementById('agreement_end_section');
 
             if (newStatus === 'New' || !newStatus) {
-                if(leaseContainer) leaseContainer.classList.add('hidden'); // New 的时候不需要选旧租约
+                if(leaseContainer) leaseContainer.classList.add('hidden'); 
                 propertyContainer.classList.remove('hidden');
                 tenantContainer.classList.remove('hidden');
                 dateSection.classList.remove('hidden');
@@ -499,7 +559,7 @@
                 if(leaseContainer) leaseContainer.classList.remove('hidden');
                 propertyContainer.classList.add('hidden');
                 tenantContainer.classList.add('hidden');
-                dateSection.classList.add('hidden'); // 隐藏标准的 Start/End Date
+                dateSection.classList.add('hidden'); 
                 feeSection.classList.add('hidden');
                 depositSection.classList.add('hidden');
                 utilitiesSection.classList.add('hidden');
@@ -515,18 +575,13 @@
                 depositSection.classList.add('hidden');
                 utilitiesSection.classList.add('hidden');
                 checkOutSection.classList.add('hidden');
-                agreementEndSection.classList.remove('hidden'); // 仅显示 End Agreement 日期
+                agreementEndSection.classList.remove('hidden'); 
             }
         }
 
-        // 页面加载时的初始化逻辑
         document.addEventListener('DOMContentLoaded', function() {
-            // 运行一次逻辑来正确显示/隐藏字段，但不会触发跳转
-            toggleLeaseSelect();
-        });
-
-        // 页面加载时运行一次，处理 validation error 后的回显情况
-        document.addEventListener('DOMContentLoaded', function() {
+            toggleLeaseInput();
+            toggleDepositVisibility();
             toggleLeaseSelect();
         });
 
@@ -537,30 +592,24 @@
             const modalTitle = document.getElementById('modal-title');
             const agreementSelect = document.getElementById('agreement_id');
 
-            // 关闭 Modal 的元素
             const closeElements = ['close-modal-btn', 'close-modal-bg', 'close-modal-footer'];
 
-            // 点击 Preview 按钮
             previewBtn.addEventListener('click', function() {
                 const selectedOption = agreementSelect.options[agreementSelect.selectedIndex];
                 const content = selectedOption.getAttribute('data-content');
                 const title = selectedOption.getAttribute('data-title');
-
-                //console.log("Selected Content:", content);
 
                 if (!content || agreementSelect.value === "") {
                     alert("Please select a template first.");
                     return;
                 }
 
-                // 注入内容并显示 Modal
                 modalTitle.innerText = "Preview: " + title;
-                modalContent.innerHTML = content; // 这里会解析 HTML
+                modalContent.innerHTML = content; 
                 modal.classList.remove('hidden');
-                document.body.style.overflow = 'hidden'; // 防止背景滚动
+                document.body.style.overflow = 'hidden'; 
             });
 
-            // 统一关闭逻辑
             closeElements.forEach(id => {
                 document.getElementById(id).addEventListener('click', () => {
                     modal.classList.add('hidden');
@@ -568,7 +617,6 @@
                 });
             });
 
-            // ESC 键关闭
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
                     modal.classList.add('hidden');
@@ -578,12 +626,9 @@
         });
 
         document.addEventListener('DOMContentLoaded', function() {
-            // --- 1. 元素获取 ---
             const previewBtn = document.getElementById('preview-btn');
             const agreementSelect = document.getElementById('agreement_id');
-            // 注意：不再需要获取 modal 元素，因为 Alpine 会处理显示
 
-            // --- 2. 核心逻辑：保持不变，只需确保返回值 ---
             function generatePreviewContent() {
                 if (!agreementSelect || !agreementSelect.value) {
                     alert("Please select a template first.");
@@ -598,13 +643,11 @@
 
                 const replacements = {};
                 
-                // A. 自动抓取 data-preview
                 document.querySelectorAll('[data-preview]').forEach(el => {
                     const placeholder = el.getAttribute('data-preview');
                     replacements[placeholder] = el.value || '';
                 });
 
-                // B. Tenant 逻辑
                 const tenantSelect = document.getElementById('tenant_id');
                 if (tenantSelect && tenantSelect.value) {
                     const fullText = tenantSelect.options[tenantSelect.selectedIndex].text;
@@ -613,7 +656,6 @@
                     replacements['{tenant_ic}'] = match ? match[2].trim() : '';
                 }
 
-                // C. Property/Owner 逻辑
                 const leaseSelectionEl = document.getElementById('lease_selection');
                 if (leaseSelectionEl) {
                     const leaseType = leaseSelectionEl.value;
@@ -628,7 +670,6 @@
                     }
                 }
                 
-                // 默认值填充
                 const defaults = ['{utilities_deposit}', '{security_deposit}', '{rent_price}'];
                 defaults.forEach(key => {
                     if (!replacements[key]) replacements[key] = '0.00';
@@ -639,7 +680,6 @@
                     if (!replacements[key]) replacements[key] = 'N/A';
                 });
 
-                // 执行替换
                 Object.keys(replacements).forEach(placeholder => {
                     const val = replacements[placeholder];
                     const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
@@ -649,45 +689,14 @@
                 return { content, title };
             }
 
-            // --- 3. 事件监听 (关键修改点) ---
-
             if (previewBtn) {
                 previewBtn.addEventListener('click', function() {
                     const result = generatePreviewContent();
                     
                     if (result) {
-                        // 1. 注入内容到 Component 里的 ID
                         const modalContent = document.getElementById('modal-content');
                         if (modalContent) {
                             modalContent.innerHTML = result.content;
-                        }
-
-                        // 2. 发送自定义事件给 Alpine.js
-                        // 这对应了组件里的 @open-preview-modal.window="openPreview = true"
-                        window.dispatchEvent(new CustomEvent('open-preview-modal'));
-                    }
-                });
-            }
-
-            // 移除旧的 closeElements 监听逻辑，因为 Alpine 的 @click="openPreview = false" 已经接管了关闭功能
-        });
-
-        document.addEventListener('DOMContentLoaded', function() {
-            const previewBtn = document.getElementById('preview-btn');
-            
-            if (previewBtn) {
-                previewBtn.addEventListener('click', function() {
-                    // 1. 执行你原本的数据替换逻辑
-                    const result = generatePreviewContent(); // 调用你那个复杂的替换函数
-                    
-                    if (result) {
-                        // 2. 注入内容
-                        const modalContent = document.getElementById('modal-content');
-                        if (modalContent) {
-                            modalContent.innerHTML = result.content;
-                            
-                            // 3. 核心修复：直接派发事件
-                            // 确保 CustomEvent 的名字和组件里的 @... 一致
                             window.dispatchEvent(new CustomEvent('open-preview-modal'));
                         } else {
                             console.error("找不到 ID 为 modal-content 的元素，请检查组件文件。");

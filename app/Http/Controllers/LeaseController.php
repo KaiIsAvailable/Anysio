@@ -50,7 +50,6 @@ class LeaseController extends Controller
                         $mq->whereHas('unit.owner', fn($oq) => $oq->where('created_by', $userId));
                     } else {
                         $mq->whereHas('owner', fn($oq) => $oq->where('created_by', $userId));
-
                     }
                 })
                     // B: 或者基于租户的创建者 (你新要求的逻辑)
@@ -157,10 +156,26 @@ class LeaseController extends Controller
             })
             ->get();
 
-        $templates = Agreements::withTrashed() // 关键：包含已删除的数据
+        $templates = Agreements::withTrashed()
             ->where('type', 'rental_lease')
             ->where('status', 'active')
+            ->when($user->role !== 'admin', function ($query) use ($user) {
+                // 1. 如果是 OwnerAdmin：只能看到自己创建的协议
+                if ($user->role === 'ownerAdmin') {
+                    $query->where('user_id', $user->id);
+                }
+                // 2. 如果是 AgentAdmin：可以看到自己负责的所有 Owner 创建的协议 + 自己创建的
+                elseif ($user->role === 'agentAdmin') {
+                    // 先找到此 Agent 负责的所有 Owner 的 user_id
+                    $managedOwnerUserIds = \App\Models\Owners::where('agent_id', $user->id)
+                        ->pluck('user_id');
 
+                    $query->where(function ($q) use ($user, $managedOwnerUserIds) {
+                        $q->where('user_id', $user->id)
+                            ->orWhereIn('user_id', $managedOwnerUserIds);
+                    });
+                }
+            })
             ->get();
 
         // 初始变量
@@ -183,22 +198,18 @@ class LeaseController extends Controller
 
     public function store(Request $request)
     {
-        // 1. 验证数据 (修复了逻辑冲突，确保选 room 时不要求 property_id)
+        // 1. 验证数据
         $validated = $request->validate([
             'status' => 'required|string|in:New,Renew,Check Out,End Agreement',
             'lease_id' => 'required_unless:status,New|nullable|exists:leases,id',
 
-            // 关键修复：去掉 required_if:status,New，改用更精准的依赖关系
             'lease_selection' => 'required_if:status,New|nullable|in:property,unit,room',
-            //'property_id' => 'required_if:lease_selection,property|nullable',
-            //'unit_id'     => 'required_if:lease_selection,unit|nullable',
-            //'room_id'     => 'required_if:lease_selection,room|nullable',
 
-            // 别忘了验证租客 ID
             'tenant_id' => 'required_if:status,New|nullable|exists:tenants,id',
 
             'start_date' => 'required_if:status,New,Renew|nullable|date',
-            'end_date' => 'required_if:status,New,Renew|nullable|date|after:start_date',
+            // 💡 修复点 1: 改为 after_or_equal，允许 start 和 end 是同一天（1天）
+            'end_date' => 'required_if:status,New,Renew|nullable|date|after_or_equal:start_date',
             'checked_out_at' => 'required_if:status,Check Out|nullable|date',
             'agreement_ended_at' => 'required_if:status,End Agreement|nullable|date',
             'rent_price' => 'required_if:status,New,Renew|nullable|numeric|min:1',
@@ -208,59 +219,84 @@ class LeaseController extends Controller
             'agreement_id' => 'required',
         ]);
 
+        // 💡 修复点 2: 后端二次校验 Fee Type 是否合法，防止恶意绕过前端
+        if (in_array($validated['status'], ['New', 'Renew']) && !empty($validated['start_date']) && !empty($validated['end_date'])) {
+            $start = Carbon::parse($validated['start_date']);
+            $end = Carbon::parse($validated['end_date']);
+
+            $diffDays = $start->diffInDays($end);
+            $diffMonths = $start->diffInMonths($end);
+            $diffYears = $start->diffInYears($end);
+
+            $allowedFeeTypes = ['daily']; // 永远可以选择 daily
+
+            if ($diffDays >= 7 && $diffMonths < 1) {
+                $allowedFeeTypes[] = 'weekly';
+            } elseif ($diffMonths >= 1 && $diffYears < 1) {
+                $allowedFeeTypes[] = 'weekly';
+                $allowedFeeTypes[] = 'monthly';
+            } elseif ($diffYears >= 1) {
+                $allowedFeeTypes = ['daily', 'weekly', 'monthly', 'yearly'];
+            }
+
+            if (!in_array($validated['term_type'], $allowedFeeTypes)) {
+                return back()->withErrors(['term_type' => 'The selected Fee Type is not valid for the chosen date range.'])->withInput();
+            }
+        }
+
         /** @var \App\Models\User $user */
         $user = Auth::user();
 
-        // 💡 步骤 1：先紧急验证最基础的状态，因为我们需要通过 status 来判断接下来的限额逻辑
+        // 步骤 1：先紧急验证最基础的状态
         $baseRules = [
             'status' => 'required|string|in:New,Renew,Check Out,End Agreement',
         ];
         $baseValidated = $request->validate($baseRules);
         $status = $baseValidated['status'];
 
-        // 💡 步骤 2：仅当创建“新租约 (New)”时，才进行套餐限额拦截！Renew、Check Out、End 顺畅放行！
+        // 步骤 2：仅当创建“新租约 (New)”时，才进行套餐限额拦截！
         if ($status === 'New') {
             $leasableId = $request->input($validated['lease_selection'] . '_id');
-        $leasableType = match ($validated['lease_selection']) {
-            'property' => Property::class,
-            'unit' => Unit::class,
-            'room' => Room::class,
-        };
+            $leasableType = match ($validated['lease_selection']) {
+                'property' => Property::class,
+                'unit' => Unit::class,
+                'room' => Room::class,
+            };
 
-        // 2. 动态查询该房源的 owner_id
-        $leasable = $leasableType::find($leasableId);
-        if (!$leasable) {
-            return back()->withErrors(['error' => 'Property/Unit/Room not found.']);
-        }
-        
-        // 递归获取 owner (如果是 Room，找 Unit 的 owner；如果是 Property/Unit，直接找)
-        $ownerId = match ($validated['lease_selection']) {
-            'room' => $leasable->unit->owner_id,
-            'unit' => $leasable->owner_id,
-            'property' => $leasable->owner_id,
-        };
+            // 动态查询该房源的 owner_id
+            $leasable = $leasableType::find($leasableId);
+            if (!$leasable) {
+                return back()->withErrors(['error' => 'Property/Unit/Room not found.']);
+            }
 
-        // 3. 获取该业主的套餐进行限额校验
-        $owner = User::find($ownerId);
-        
+            // 递归获取 owner
+            $ownerId = match ($validated['lease_selection']) {
+                'room' => $leasable->unit->owner_id,
+                'unit' => $leasable->owner_id,
+                'property' => $leasable->owner_id,
+            };
+
+            // 获取该业主的套餐进行限额校验
+            $owner = User::find($ownerId);
+
             /** @var \App\Models\UserManagement|null $management */
-            if ($user->role === 'admin'){
+            if ($user->role === 'admin') {
                 $management = $owner->user_management;
-            }else{
+            } else {
                 $management = $user->user_management;
             }
-            
+
             // 检查套餐是否存在
             if (!$management || !$management->package) {
                 return back()->with('error', 'You do not have an active subscription package.');
             }
 
             $package = $management->package;
-            $baseLeaseLimit = $package->base_lease; 
+            $baseLeaseLimit = $package->base_lease;
 
             // 计算当前活跃的主租约数量
             $currentLeaseCount = Lease::whereNull('parent_lease_id')
-                ->whereIn('status', ['New', 'Renew']) // 只计算生效中的
+                ->whereIn('status', ['New', 'Renew'])
                 ->when($user->role !== 'admin', function ($query) use ($user) {
                     return $query->whereHas('tenant', function ($q) use ($user) {
                         $q->where('created_by', $user->id);
@@ -274,7 +310,7 @@ class LeaseController extends Controller
             }
         }
 
-        // 2. 预提取旧租约 (仅 Renew/Check Out/End)
+        // 预提取旧租约 (仅 Renew/Check Out/End)
         $oldLease = null;
         if ($validated['status'] !== 'New') {
             $oldLease = Lease::findOrFail($validated['lease_id']);
@@ -282,29 +318,24 @@ class LeaseController extends Controller
 
         if ($validated['status'] === 'Renew' && $oldLease) {
             $request->validate([
-                // 这里的 start_date 必须在旧租约的 end_date 之后（或者当天，取决于你的业务）
-                // 如果要求必须是之后的一天，用 after
-                // 如果允许衔接当天，用 after_or_equal
                 'start_date' => [
                     'required',
                     'date',
-                    'after_or_equal:' . sysDateFormat($oldLease->end_date),
+                    'after_or_equal:' . Carbon::parse($oldLease->end_date)->toDateString(),
                 ],
             ], [
-                'start_date.after_or_equal' => 'Your start date must be after or equal (' . dateFormat($oldLease->end_date) . ')',
+                'start_date.after_or_equal' => 'Your start date must be after or equal to the previous end date.',
             ]);
         }
 
-        // 3. 确定物理属性 (房产信息和租客)
+        // 确定物理属性 (房产信息和租客)
         if ($validated['status'] === 'New') {
-            // 使用 request() 配合 ?? null，可以防止 "Undefined array key" 报错
             $leasableId = match ($validated['lease_selection']) {
                 'property' => $request->property_id ?? null,
                 'unit' => $request->unit_id ?? null,
                 'room' => $request->room_id ?? null,
             };
 
-            // 严谨起见，检查一下是否真的拿到了 ID
             if (!$leasableId) {
                 return back()->withErrors(['lease_selection' => 'Please select a valid property/unit/room.'])->withInput();
             }
@@ -323,9 +354,7 @@ class LeaseController extends Controller
             $tenantId = $oldLease->tenant_id;
         }
 
-
-
-        // 4. 金额计算 (转为 Cents)
+        // 金额计算 (转为 Cents)
         $sDep = $validated['security_deposit'] ?? 0;
         $uDep = $validated['utilities_deposit'] ?? 0;
 
@@ -337,7 +366,7 @@ class LeaseController extends Controller
         elseif ($uDep > 0)
             $depositMode = 'utilities_only';
 
-        // 5. 执行数据库事务
+        // 执行数据库事务
         DB::transaction(function () use ($validated, $oldLease, $leasableType, $leasableId, $tenantId, $sDep, $uDep, $depositMode) {
 
             if ($oldLease) {
@@ -369,7 +398,6 @@ class LeaseController extends Controller
                 'checked_out_at' => $validated['status'] === 'Check Out' ? $validated['checked_out_at'] : null,
                 'agreement_ended_at' => $validated['status'] === 'End Agreement' ? $validated['agreement_ended_at'] : null,
                 'term_type' => $validated['term_type'] ?? $oldLease?->term_type,
-                // 注意：rent_price 如果是 New/Renew 应该用输入的，如果是 CheckOut 建议保留旧的
                 'rent_price' => ($validated['status'] === 'New' || $validated['status'] === 'Renew')
                     ? ($validated['rent_price'] ?? 0)
                     : ($oldLease?->rent_price ?? 0),
@@ -382,198 +410,6 @@ class LeaseController extends Controller
 
         return redirect()->route('admin.leases.index')->with('success', 'Operation completed successfully.');
     }
-
-    /*public function store(Request $request)
-    {
-        $statusInput = $request->input('status');
-        $isFinal = in_array($statusInput, ['Check out', 'End'], true);
-        $utilitiesRule = $isFinal ? ['nullable', 'array'] : ['required', 'array'];
-        $utilityFieldRule = $isFinal ? ['nullable', 'numeric', 'min:0'] : ['required', 'numeric', 'min:0'];
-
-        $dateRule = $isFinal ? ['nullable', 'date'] : ['required', 'date', 'after_or_equal:today'];
-        $endDateRule = $isFinal ? ['nullable', 'date'] : ['required', 'date', 'after_or_equal:start_date'];
-        $moneyRule = $isFinal ? ['nullable', 'numeric', 'min:0'] : ['required', 'numeric', 'min:0'];
-
-        $payload = $request->validate([
-            'room_id' => ['required', 'exists:rooms,id'],
-            'tenant_id' => ['required', 'exists:tenants,id'],
-            'start_date' => $dateRule,
-            'end_date' => $endDateRule,
-            'monthly_rent' => $moneyRule,
-            'security_deposit' => $moneyRule,
-            'utilities_deposit' => $moneyRule,
-            'status' => ['nullable', Rule::in(['New', 'Renew', 'Check out', 'End'])],
-            'renew' => ['nullable', 'boolean'],
-            'utilities' => $utilitiesRule,
-            'utilities.water.prev' => $utilityFieldRule,
-            'utilities.water.curr' => $utilityFieldRule,
-            'utilities.electric.prev' => $utilityFieldRule,
-            'utilities.electric.curr' => $utilityFieldRule,
-        ]);
-
-        $roomId = $payload['room_id'];
-        $tenantId = $payload['tenant_id'];
-
-        $hasActive = Lease::where('room_id', $roomId)
-            ->where('tenant_id', $tenantId)
-            ->where('status', '!=', 'End')
-            ->exists();
-
-        $forceRenew = (bool) ($payload['renew'] ?? false);
-        $latestStatus = Lease::where('room_id', $roomId)
-            ->where('tenant_id', $tenantId)
-            ->orderBy('created_at', 'desc')
-            ->value('status');
-        if ($hasActive && !$forceRenew) {
-            return back()
-                ->withErrors(['tenant_id' => 'This tenant already has an active lease for this room.'])
-                ->withInput();
-        }
-
-        $hasPrevious = Lease::where('room_id', $roomId)
-            ->where('tenant_id', $tenantId)
-            ->exists();
-
-        if ($forceRenew) {
-            $status = $payload['status'] ?? 'Renew';
-            if ($status === 'New') {
-                return back()
-                    ->withErrors(['status' => 'Status cannot be New for renew.'])
-                    ->withInput();
-            }
-            if (strtolower((string) $latestStatus) === 'check out' && $status !== 'End') {
-                return back()
-                    ->withErrors(['status' => 'Status must be End after checkout.'])
-                    ->withInput();
-            }
-        } else {
-            $status = $hasPrevious ? 'Renew' : 'New';
-        }
-
-        if (in_array($status, ['Check out', 'End'], true)) {
-            $today = now()->toDateString();
-            $payload['start_date'] = $today;
-            $payload['end_date'] = $today;
-            $payload['monthly_rent'] = 0;
-            $payload['security_deposit'] = 0;
-            $payload['utilities_deposit'] = 0;
-            $payload['utilities'] = [
-                'water' => ['prev' => 0, 'curr' => 0],
-                'electric' => ['prev' => 0, 'curr' => 0],
-            ];
-        }
-
-        $waterPrev = $this->toCents($payload['utilities']['water']['prev']);
-        $waterCurr = $this->toCents($payload['utilities']['water']['curr']);
-        $electricPrev = $this->toCents($payload['utilities']['electric']['prev']);
-        $electricCurr = $this->toCents($payload['utilities']['electric']['curr']);
-
-        if ($waterCurr < $waterPrev) {
-            return back()
-                ->withErrors(['utilities.water.curr' => 'Water current amount must be greater than or equal to previous.'])
-                ->withInput();
-        }
-
-        if ($electricCurr < $electricPrev) {
-            return back()
-                ->withErrors(['utilities.electric.curr' => 'Electric current amount must be greater than or equal to previous.'])
-                ->withInput();
-        }
-
-        $tenantId = $payload['tenant_id'];
-
-        DB::transaction(function () use ($payload, $status, $waterPrev, $waterCurr, $electricPrev, $electricCurr, $tenantId) {
-            $lease = Lease::create([
-                'room_id' => $payload['room_id'],
-                'tenant_id' => $payload['tenant_id'],
-                'start_date' => $payload['start_date'],
-                'end_date' => $payload['end_date'],
-                'monthly_rent' => $this->toCents($payload['monthly_rent']),
-                'security_deposit' => $this->toCents($payload['security_deposit']),
-                'utilities_depost' => $this->toCents($payload['utilities_deposit']),
-                'status' => $status,
-            ]);
-
-            Utility::create([
-                'lease_id' => $lease->id,
-                'type' => 'water',
-                'prev_reading' => $waterPrev,
-                'curr_reading' => $waterCurr,
-                'amount' => $waterCurr - $waterPrev,
-            ]);
-
-            Utility::create([
-                'lease_id' => $lease->id,
-                'type' => 'electric',
-                'prev_reading' => $electricPrev,
-                'curr_reading' => $electricCurr,
-                'amount' => $electricCurr - $electricPrev,
-            ]);
-
-            // --- 3. 生成初始支付账单 (Payments) ---
-
-            // 准备通用的账单数据
-            $basePaymentData = [
-                'id' => (string) Str::ulid(), // 既然你模型用了 HasUlids，最好手动生成或确保模型处理了
-                'tenant_id' => $tenantId,
-                'lease_id' => $lease->id,
-                'period' => $payload['start_date'],
-                'status' => 'unpaid',
-                'amount_paid' => 0,
-            ];
-
-            // A. 房租账单 (Rent)
-            if ($payload['monthly_rent'] > 0) {
-                Payment::create(array_merge($basePaymentData, [
-                    'payment_type' => 'rent',
-                    'amount_due' => $this->toCents($payload['monthly_rent']),
-                    'invoice_no' => PaymentsController::generateSequenceInvoiceNo('RENT'), 
-                ]));
-            }
-
-            // B. 抵押金账单 (Security Deposit)
-            if ($payload['security_deposit'] > 0) {
-                Payment::create(array_merge($basePaymentData, [
-                    'payment_type' => 'deposit_security',
-                    'amount_due' => $this->toCents($payload['security_deposit']),
-                    'invoice_no' => PaymentsController::generateSequenceInvoiceNo('SD'), 
-                ]));
-            }
-
-            // C. 水电押金账单 (Utilities Deposit)
-            if ($payload['utilities_deposit'] > 0) {
-                Payment::create(array_merge($basePaymentData, [
-                    'payment_type' => 'deposit_utilities',
-                    'amount_due' => $this->toCents($payload['utilities_deposit']),
-                    'invoice_no' => PaymentsController::generateSequenceInvoiceNo('UD'), 
-                ]));
-            }
-
-            // D. 水费 (如有金额)
-            $waterAmount = $waterCurr - $waterPrev;
-            if ($waterAmount > 0) {
-                Payment::create(array_merge($basePaymentData, [
-                    'payment_type' => 'utility_water',
-                    'amount_due' => $waterAmount,
-                    'invoice_no' => PaymentsController::generateSequenceInvoiceNo('WAT'), 
-                ]));
-            }
-
-            // E. 电费 (如有金额)
-            $electricAmount = $electricCurr - $electricPrev;
-            if ($electricAmount > 0) {
-                Payment::create(array_merge($basePaymentData, [
-                    'payment_type' => 'utility_electric',
-                    'amount_due' => $electricAmount,
-                    'invoice_no' => PaymentsController::generateSequenceInvoiceNo('ELE'), 
-                ]));
-            }
-        });
-
-        return redirect()
-            ->route('admin.leases.index')
-            ->with('success', 'Lease created successfully.');
-    }*/
 
     public function show(Request $request, Lease $lease)
     {
@@ -678,12 +514,8 @@ class LeaseController extends Controller
         return (int) round(((float) $sanitized) * 100);
     }
 
-    // LeaseController.php
-
     public function getDetailsJson(Lease $lease)
     {
-        // 获取历史记录（为了保持逻辑一致，虽然详情页可能只用 $lease）
-        // 这里建议只返回详情部分的 HTML
         return view('admin.leases.partials.details-content', [
             'lease' => $lease
         ])->render();
@@ -691,79 +523,64 @@ class LeaseController extends Controller
 
     public function uploadStamping(Request $request, Lease $lease)
     {
-        // 1. 验证数据（验证失败会自动 back() 并带上 errors 和 input，不需要手动 catch）
         $validated = $request->validate([
             'stamping_reference_no' => 'required|string|max:100',
-            'stamping_cert' => 'required|mimes:pdf|max:2048', 
+            'stamping_cert' => 'required|mimes:pdf|max:2048',
         ]);
 
         try {
             if ($request->hasFile('stamping_cert')) {
-                // 2. 删除旧文件 (建议增加一个 check，确保路径存在)
                 if ($lease->stamping_cert_path && Storage::disk('local')->exists($lease->stamping_cert_path)) {
                     Storage::disk('local')->delete($lease->stamping_cert_path);
                 }
 
-                // 3. 存储新文件
                 $path = $request->file('stamping_cert')->store('stamping_certs', 'local');
 
-                // 4. 更新数据库
                 $lease->update([
                     'stamping_status' => true,
                     'stamping_cert_path' => $path,
-                    'stamping_reference_no' => $validated['stamping_reference_no'], // 使用验证过的数据
+                    'stamping_reference_no' => $validated['stamping_reference_no'],
                     'stamped_at' => now(),
                 ]);
             }
 
             return back()->with('success', 'Stamping certificate uploaded successfully!');
-
         } catch (\Exception $e) {
-            // 这里只捕获数据库或文件系统的意外错误
             return back()->with('error', 'Something went wrong: ' . $e->getMessage())->withInput();
         }
     }
 
     public function viewCert(Lease $lease)
     {
-        // 1. 确保数据库有路径记录
         if (empty($lease->stamping_cert_path)) {
             abort(404, 'No certificate path record.');
         }
 
-        // 2. 获取文件的物理路径 (注意检查你的 store() 是存放在哪个目录)
-        // 如果你 store 时没指定 disk，默认在 storage/app/
         $path = storage_path('app/private/' . $lease->stamping_cert_path);
 
         if (!file_exists($path)) {
             abort(404, 'File not found on server.');
         }
 
-        // 3. 读取文件并转为 Base64
         $fileContent = file_get_contents($path);
         $base64 = base64_encode($fileContent);
         $pdfData = 'data:application/pdf;base64,' . $base64;
 
-        // 4. 返回视图，并传入 pdfData 和 lease 对象
         return view('adminSide.leases.view-cert', compact('pdfData', 'lease'));
     }
 
     public function getPaymentsTableOnly(Lease $lease)
     {
-        // 重新获取这个 Lease 的支付记录
         $payments = $lease->payments()->latest()->get();
 
-        // 渲染你那个不可改动的 table 文件
         return view('your.table.path', [
             'payments' => $payments,
             'emptyMessage' => 'No records for this lease.'
-        ])->render(); // 使用 render() 转成字符串返回给前端
+        ])->render();
     }
 
     public function refreshPaymentsTable(Lease $lease)
     {
-        // 1. 获取该 Lease 下的所有支付记录，并按类型分类
-        // 这里的逻辑最好和你原本 show 方法里的逻辑保持一致
         $allPayments = $lease->payments()
             ->where('status', '!=', 'void')
             ->latest()->get();
@@ -771,7 +588,6 @@ class LeaseController extends Controller
         $rentPayments = $allPayments->filter(fn($p) => in_array($p->payment_type, ['rent']));
         $otherPayments = $allPayments->filter(fn($p) => !in_array($p->payment_type, ['rent']));
 
-        // 2. 渲染 Table 模板为 HTML 字符串
         $rentHtml = view('adminSide.tenants.payments.paymentTable', [
             'payments' => $rentPayments,
             'emptyMessage' => 'No outstanding rent found.'
@@ -782,7 +598,6 @@ class LeaseController extends Controller
             'emptyMessage' => 'No miscellaneous records found.'
         ])->render();
 
-        // 3. 以 JSON 格式返回给前端
         return response()->json([
             'rentHtml' => $rentHtml,
             'otherHtml' => $otherHtml

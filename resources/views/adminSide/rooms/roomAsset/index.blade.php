@@ -29,39 +29,29 @@
                 </div>
             </div>
 
-            {{-- 搜索框部分保持不变 --}}
+            {{-- 💡 应用领导的搜索组件 (Search Component) --}}
             <div class="mb-6 flex flex-col md:flex-row justify-end">
-                <x-form.form action="{{ URL::current() }}" method="GET" class="flex items-center w-full max-w-md">
-                    <div class="relative flex-1">
-                        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                            <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                            </svg>
-                        </div>
-                        <input type="text" name="search" value="{{ request('search') }}"
-                            style="padding-left: 45px;"
-                            class="block w-full pl-11 pr-3 py-2 border border-gray-300 rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 text-sm" 
-                            placeholder="Search asset name or category...">
-                    </div>
-                    <x-form.primary-button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
-                        Search
-                    </x-form.primary-button>
+                <x-form.form action="{{ URL::current() }}" method="GET" class="flex items-center w-full max-w-md justify-end">
+                    <x-table.search placeholder="Search asset name or category..." />
                 </x-form.form>
             </div>
 
             <div class="bg-white shadow-sm rounded-xl overflow-hidden border border-gray-200">
-                <table class="min-w-full divide-y divide-gray-200">
+                <table class="min-w-full divide-y divide-gray-200 ">
                     <thead class="bg-gray-50">
                         <tr>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Asset Name</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date Created</th>
-                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                            {{-- 💡 应用领导的表头排序组件 (Table TH Component) --}}
+                            <x-table.th name="Asset Name" sortField="name" />
+                            <x-table.th name="Created By" /> {{-- 不传 sortField 变为普通表头 --}}
+                            <x-table.th name="Category" sortField="category" />
+                            <x-table.th name="Status" sortField="status" />
+                            <x-table.th name="Date Created" sortField="created_at" />
+                            <x-table.th name="Action" class="text-center"/>
+                            
                         </tr>
                     </thead>
                     <tbody class="bg-white divide-y divide-gray-200">
+                        {{-- 下方的所有 tr, td, 状态 badge 和 SVG 按钮 100% 原封不动保留 --}}
                         @forelse($assets as $asset) 
                             <tr class="hover:bg-gray-50 transition-colors">
                                 <td class="px-6 py-4 whitespace-nowrap">
@@ -95,8 +85,7 @@
                                     {{ $asset->created_at ? $asset->created_at->format('d M Y') : '-' }}
                                 </td>
 
-                                <td class="px-6 py-4 whitespace-nowrap text-center">
-                                    {{-- 1. 确保 flex 容器包裹了所有的按钮和表单 --}}
+                                <td class="px-6 py-4 whitespace-nowrap text-left">
                                     <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
                                         
                                         {{-- Edit 按钮 --}}
@@ -108,7 +97,7 @@
                                             </svg>
                                         </a>
 
-                                        {{-- Delete 表单 --}}
+                                        {{-- Delete / Restore 表单 --}}
                                         @if(strtolower($asset->status) === 'inactive')
                                             {{-- 恢复按钮 (Restore) --}}
                                             <x-form.form action="{{ route('admin.roomAsset.restore', $asset->id) }}" method="POST"
@@ -143,11 +132,15 @@
                                             </x-form.form>
                                         @endif
 
-                                    </div> {{-- 2. 在这里闭合 div --}}
+                                    </div>
                                 </td>
                             </tr>
                         @empty
-                            {{-- 空状态部分保持不变 --}}
+                            <tr>
+                                <td colspan="6" class="px-6 py-10 text-center text-gray-500">
+                                    <p class="text-base font-medium">No assets found</p>
+                                </td>
+                            </tr>
                         @endforelse
                     </tbody>
                 </table>

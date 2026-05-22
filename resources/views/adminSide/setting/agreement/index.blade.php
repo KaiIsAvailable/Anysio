@@ -147,7 +147,7 @@
 
                             <!-- 底部栏：一直显示 -->
                             <div class="px-8 py-3 bg-gray-50 border-t border-gray-100 flex justify-between items-center text-[11px] text-gray-400 font-medium italic">
-                                <span>{{ $agreement->owner ? $agreement->owner->user->name : 'Global System' }}</span>
+                                <span>{{ $agreement->user->name ?? 'Global System' }}</span>
                                 <span>Last Modified: {{ $agreement->updated_at->format('Y-m-d H:i') }}</span>
                             </div>
                         </div>

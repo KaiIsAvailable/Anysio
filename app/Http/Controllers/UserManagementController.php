@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
+use Carbon\Carbon;
 
 class UserManagementController extends Controller
 {
@@ -350,6 +351,28 @@ class UserManagementController extends Controller
                 'approved_at' => now(),
                 'approved_by' => Auth::id(),
                 'remarks' => $payload['remarks'],
+            ]);
+
+            $mgmt = $payment->user->user_management;
+            $packageDetails = DB::table('ref_code_packages')->where('ref_code', $payment->ref_code)->first();
+
+            $now = now();
+            $currentEndDate = $mgmt->end_date ? Carbon::parse($mgmt->end_date) : null;
+
+            $newStartDate = ($currentEndDate && $currentEndDate->isFuture()) 
+                ? $currentEndDate->copy()->addDay() 
+                : $now;
+
+            // 计算 End Date
+            $newEndDate = ($packageDetails->price_mode === 'monthly') 
+                            ? $newStartDate->copy()->addMonth() 
+                            : $newStartDate->copy()->addYear();
+
+            // 更新 UserManagement
+            $mgmt->update([
+                'start_date' => $newStartDate,
+                'end_date'   => $newEndDate,
+                'subscription_status' => ($underPaidCents > 0) ? 'pending' : 'active',
             ]);
 
             // 5. 更新用户的订阅状态

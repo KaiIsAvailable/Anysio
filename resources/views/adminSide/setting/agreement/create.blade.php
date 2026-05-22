@@ -95,10 +95,10 @@
                                     class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $sourceAgreement ? 'bg-gray-100 cursor-not-allowed' : '' }}">
                                     <option value="">-- Select Owner --</option>
                                     @foreach($owners as $owner)
-                                        @if($owner->user)
-                                            <option value="{{ $owner->user->id }}"
-                                                {{ old('user_id', $sourceAgreement->user_id ?? '') == $owner->user->id ? 'selected' : '' }}>
-                                                {{ $owner->user->name }}
+                                        @if($owner)
+                                            <option value="{{ $owner->id }}"
+                                                {{ old('user_id', $sourceAgreement->user_id ?? '') == $owner->id ? 'selected' : '' }}>
+                                                {{ $owner->name }}
                                             </option>
                                         @endif
                                     @endforeach

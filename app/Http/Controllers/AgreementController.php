@@ -25,7 +25,7 @@ class AgreementController extends Controller
         if (!Gate::allows('super-admin')) {
             if ($user->role === 'agentAdmin') {
                 // 如果是 Agent，先去 Owners 表里找出他代理的所有 Owner 的 user_id
-                $managedOwnerUserIds = \App\Models\Owners::where('agent_id', $user->id)->pluck('user_id');
+                $managedOwnerUserIds = Owners::where('agent_id', $user->id)->pluck('user_id');
                 
                 // Agent 可以看到：自己的协议 OR 他代理的 Owner 的协议
                 $query->where(function($q) use ($user, $managedOwnerUserIds) {
@@ -72,7 +72,7 @@ class AgreementController extends Controller
             $owners = Owners::with('user')->where('agent_id', $user->id)->get();
         } elseif ($user->role === 'admin' || $user->role === 'superadmin') {
             // Admin / Superadmin: 可以看到所有的 owner
-            $owners = Owners::with('user')->get();
+            $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get();
         } else {
             // OwnerAdmin (或其他没有权限查看下拉框的角色): 传个空的集合过去节省数据库性能
             $owners = collect();

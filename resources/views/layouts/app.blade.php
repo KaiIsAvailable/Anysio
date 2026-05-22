@@ -39,11 +39,12 @@
                     // 2. 获取支付记录（用于拿到金额和 Invoice No）
                     $latestPayment = \App\Models\UserPayment::where('user_id', auth()->id())
                                         ->where('payment_type', 'subscription')
+                                        ->whereNot('status', 'approved')
                                         ->latest()
                                         ->first();
                     
                     // 判断是否需要强制弹窗：状态是 pending 且不是 Admin (假设 Admin 角色叫 'admin')
-                    $mustPay = ($userMgmt && $userMgmt->subscription_status !== 'active' && auth()->user()->role !== 'admin');
+                    $mustPay = ($userMgmt && $userMgmt->subscription_status !== 'active' && $latestPayment && auth()->user()->role !== 'admin');
                 @endphp
             @endauth
 

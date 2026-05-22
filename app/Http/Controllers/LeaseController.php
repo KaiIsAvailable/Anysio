@@ -167,7 +167,7 @@ class LeaseController extends Controller
                 // 2. 如果是 AgentAdmin：可以看到自己负责的所有 Owner 创建的协议 + 自己创建的
                 elseif ($user->role === 'agentAdmin') {
                     // 先找到此 Agent 负责的所有 Owner 的 user_id
-                    $managedOwnerUserIds = \App\Models\Owners::where('agent_id', $user->id)
+                    $managedOwnerUserIds = Owners::where('agent_id', $user->id)
                         ->pluck('user_id');
 
                     $query->where(function ($q) use ($user, $managedOwnerUserIds) {

@@ -131,13 +131,23 @@ class RegisteredUserController extends Controller
                     'role' => $finalRole,
                 ], $complianceData));
 
-                $startDate = now(); 
+                $commissionRate = $packageDetails->commission_rate ?? 0;
+                $price = $packageDetails->price ?? 0;
+                $startDate = null;
+                $endDate = null;
 
-                $endDate = ($packageDetails->price_mode === 'monthly') 
-                    ? $startDate->copy()->addMonth()
-                    : $startDate->copy()->addYear();
+                if($price > 0){
+                    
+                }
 
-                $subscriptionStatus = (isset($packageDetails) && $packageDetails->price > 0) ? 'pending' : 'active';
+                if ($commissionRate > 0) {
+                    $startDate = now();
+                    $endDate = ($packageDetails->price_mode === 'monthly') 
+                                ? $startDate->copy()->addMonth() 
+                                : $startDate->copy()->addYear();
+                }
+
+                $subscriptionStatus = (isset($packageDetails) && $price > 0) ? 'pending' : 'active';
 
                 // 同时也要在 UserManagement 创建记录
                 UserManagement::create([
@@ -162,7 +172,7 @@ class RegisteredUserController extends Controller
             }
 
             // 3. 生成订阅账单 (套用你的 Payment 逻辑)
-            if (isset($packageDetails) && $packageDetails->price > 0) {
+            if (isset($packageDetails) && $price > 0) {
     
                 $subscriptionType = 'SUBSCRIPTION';
                 $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType, UserPayment::class);

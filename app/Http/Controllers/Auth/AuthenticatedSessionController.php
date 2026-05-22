@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\PaymentsController;
+use App\Models\UserPayment;
 use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -10,6 +12,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use \Illuminate\Support\Str;
 use App\Providers\AppServiceProvider;
 
 class AuthenticatedSessionController extends Controller
@@ -40,23 +44,40 @@ class AuthenticatedSessionController extends Controller
         // 1. 支付状态优先拦截 (仅限 Admin)
         if (in_array($user->role, ['ownerAdmin', 'agentAdmin'])) {
             $mgmt = $user->user_management;
+            $package = $mgmt->package;
 
             // 获取各项判断因子
             $status = $mgmt ? $mgmt->subscription_status : 'no_record';
             $endDate = $mgmt ? $mgmt->end_date : null;
             
-            $isActive = $mgmt && ($status === 'active');
             $isNotExpired = $mgmt && $endDate && Carbon::parse($endDate)->isFuture();
 
             if ($mgmt && !$isNotExpired && $status === 'active') {
                 $mgmt->update(['subscription_status' => 'pending']);
                 $status = 'pending';
-                $isActive = false;  
-            }
 
-            if (!$isActive || !$isNotExpired) {
-                return redirect()->route('dashboard');
+                $packageDetails = DB::table('ref_code_packages')
+                    ->where('ref_code', $package->ref_code)
+                    ->first(); 
+
+                // 3. 生成订阅账单 (套用你的 Payment 逻辑)
+                if (isset($packageDetails) && $packageDetails->price > 0 || $packageDetails->commission_rate > 0){        
+                    $subscriptionType = 'SUBSCRIPTION';
+                    $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType, UserPayment::class);
+
+                    UserPayment::create([
+                        'id'           => (string) Str::ulid(),
+                        'user_id'      => Auth::id(),
+                        'ref_code'     => $package->ref_code,
+                        'invoice_no'   => $newInvoiceNo,
+                        'payment_type' => strtolower($subscriptionType),
+                        'amount_due'   => $packageDetails->price,
+                        'amount_paid'  => 0,
+                        'status'       => 'unpaid',
+                    ]);
+                }
             }
+            return redirect()->route('dashboard');
         }
 
         // 2. 角色分流 (确保每个角色去正确的地方)
@@ -72,7 +93,6 @@ class AuthenticatedSessionController extends Controller
             case 'ownerAdmin':
             case 'agentAdmin':
             case 'admin':
-                // 已经过上面 if 检查，说明是 active，去总后台
                 return redirect()->route('dashboard');
 
             default:

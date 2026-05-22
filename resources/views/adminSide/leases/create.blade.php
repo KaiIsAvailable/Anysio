@@ -87,7 +87,7 @@
                                     <select name="property_id" id="property_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Property --</option>
                                         @foreach($properties as $p)
-                                            <option value="{{ $p->id }}" data-owner="{{ $p->owner->name ?? 'N/A' }}" data-owner-ic="{{ $p->owner?->ic_number ?? 'N/A' }}" data-address="{{ $p->full_address }}" {{ old('property_id') == $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
+                                            <option value="{{ $p->id }}" data-owner="{{ $p->owner->name ?? 'N/A' }}" data-owner-id="{{$p->owner?->id}}" data-owner-ic="{{ $p->owner?->ic_number ?? 'N/A' }}" data-address="{{ $p->full_address }}" {{ old('property_id') == $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
                                         @endforeach
                                     </select>
                                     @error('property_id')
@@ -100,7 +100,7 @@
                                     <select name="unit_id" id="unit_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Unit --</option>
                                         @foreach($units as $u)
-                                            <option value="{{ $u->id }}" data-owner="{{ $u->owner->name }}" data-owner-ic="{{ $u->owner->ic_number }}" data-address="{{ $u->full_address }}" {{ old('unit_id') == $u->id ? 'selected' : '' }}>{{ $u->unit_no }}</option>
+                                            <option value="{{ $u->id }}" data-owner="{{ $u->owner->name }}" data-owner-id="{{$u->owner?->id}}" data-owner-ic="{{ $u->owner->ic_number }}" data-address="{{ $u->full_address }}" {{ old('unit_id') == $u->id ? 'selected' : '' }}>{{ $u->unit_no }}</option>
                                         @endforeach
                                     </select>
                                     @error('unit_id')
@@ -113,7 +113,7 @@
                                     <select name="room_id" id="room_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Room --</option>
                                         @foreach($rooms as $r)
-                                            <option value="{{ $r->id }}" data-owner="{{ $r->unit->owner->name }}" data-owner-ic="{{ $r->unit->owner->ic_number }}" data-address="{{ $r->full_address }}" {{ old('room_id') == $r->id ? 'selected' : '' }}>{{ $r->room_no }}</option>
+                                            <option value="{{ $r->id }}" data-owner="{{ $r->unit->owner->name }}" data-owner-id="{{$r->unit->owner?->id}}" data-owner-ic="{{ $r->unit->owner->ic_number }}" data-address="{{ $r->full_address }}" {{ old('room_id') == $r->id ? 'selected' : '' }}>{{ $r->room_no }}</option>
                                         @endforeach
                                     </select>
                                     @error('room_id')
@@ -248,7 +248,7 @@
                                 class="block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                                 <option value="">-- Select Template --</option>
                                 @foreach($templates as $template)
-                                    <option value="{{ $template->id }}" data-content="{{ $template->content }}" data-title="{{ $template->title }}" {{ old('agreement_id') == $template->id ? 'selected' : '' }}>
+                                    <option value="{{ $template->id }}" data-agreement-user-id="{{$template->user->id}}" data-content="{{ $template->content }}" data-title="{{ $template->title }}" {{ old('agreement_id') == $template->id ? 'selected' : '' }}>
                                         {{ $template->title }} (v{{ $template->version }}) - {{ $template->user->name }}
                                     </option>
                                 @endforeach
@@ -704,6 +704,49 @@
                     }
                 });
             }
+        });
+
+        function filterTemplates() {
+            // 1. 获取当前选中的租赁类型 (property/unit/room)
+            const type = document.getElementById('lease_selection').value;
+            const activeSelect = document.getElementById(type + '_select_input');
+            
+            // 2. 获取当前选中房产的 owner_id
+            // 确保你的 property_select_input, unit_select_input, room_select_input 的 option 里都存了 data-owner-id
+            const selectedOption = activeSelect.options[activeSelect.selectedIndex];
+            const ownerId = selectedOption.getAttribute('data-owner-id'); 
+
+            console.log("--- 模板过滤调试 ---");
+            console.log("选中的房产 Owner ID:", ownerId);
+
+            // 3. 过滤模板
+            const agreementSelect = document.getElementById('agreement_id');
+            
+            Array.from(agreementSelect.options).forEach(option => {
+                if (option.value === "") return; // 跳过默认提示选项
+                
+                // 使用你在 HTML 中定义的 data-agreement-user-id
+                const templateUserId = option.getAttribute('data-agreement-user-id');
+                
+                console.log(`对比: 模板用户(${templateUserId}) vs 房产Owner(${ownerId})`);
+
+                // 强转为字符串比较，防止类型不匹配
+                if (ownerId && String(templateUserId) === String(ownerId)) {
+                    option.style.display = 'block'; // 显示匹配的
+                } else {
+                    option.style.display = 'none';  // 隐藏不匹配的
+                }
+            });
+            
+            // 重置选择（如果当前选中的模板被隐藏了，则重置）
+            if (agreementSelect.selectedIndex > 0 && agreementSelect.options[agreementSelect.selectedIndex].style.display === 'none') {
+                agreementSelect.value = "";
+            }
+        }
+
+        // 绑定事件：当房产选择改变时触发
+        ['property_select_input', 'unit_select_input', 'room_select_input'].forEach(id => {
+            document.getElementById(id).addEventListener('change', filterTemplates);
         });
     </script>
 </x-app-layout>

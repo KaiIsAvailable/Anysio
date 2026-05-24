@@ -20,22 +20,26 @@
                         <h2 class="text-lg font-semibold text-slate-900">Select Owner / Agent</h2>
                     </div>
                     
-                    <select name="target_user_id" 
-                            onchange="if(this.value) window.location.href = '{{ route('admin.roomAsset.create') }}?user_id=' + this.value"
-                            class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm transition">
-                        <option value="">-- Choose who this asset belongs to --</option>
-                        @foreach($users as $user)
-                            <option value="{{ $user->id }}" {{ $selectedUserId == $user->id ? 'selected' : '' }}>
-                                {{ $user->name }} ({{ ucfirst($user->role) }})
-                            </option>
-                        @endforeach
-                    </select>
+                    @php
+                        // 將 users 轉換成 key => value 格式供 x-form.input-select 使用
+                        $userOptions = [];
+                        foreach($users as $user) {
+                            $userOptions[$user->id] = $user->name . ' (' . ucfirst($user->role) . ')';
+                        }
+                    @endphp
+
+                    <x-form.input-select 
+                        name="target_user_id" 
+                        :options="$userOptions"
+                        :value="$selectedUserId"
+                        placeholder="-- Choose who this asset belongs to --"
+                        onchange="if(this.value) window.location.href = '{{ route('admin.roomAsset.create') }}?user_id=' + this.value"
+                        class="w-full transition" />
                 </section>
 
                 {{-- Step 2: Assets List --}}
                 @if($selectedUserId)
                     <x-form.form action="{{ route('admin.roomAsset.store') }}">
-                        @csrf
                         <input type="hidden" name="target_user_id" value="{{ $selectedUserId }}">
 
                         <div class="bg-white shadow-lg rounded-xl overflow-hidden border border-gray-100">
@@ -62,39 +66,33 @@
                             <div id="assetList" class="p-6 space-y-4">
                                 @if(old('assets'))
                                     @foreach(old('assets') as $i => $asset)
-                                        {{-- 外层 DIV 保持原样，去掉错误背景色判断 --}}
                                         <div class="asset-row rounded-xl border border-gray-200 bg-gray-50 p-4 relative group animate-fadeIn transition-all hover:border-indigo-300">
                                             <div class="flex items-center justify-between mb-3">
                                                 <div class="text-xs font-bold text-indigo-600 uppercase tracking-wider">
                                                     Asset Entry #{{ $i + 1 }}
                                                 </div>
-                                                {{-- 确保这里的 class 有 remove-asset，方便 JS 绑定删除事件 --}}
                                                 <button type="button" class="remove-asset text-xs text-red-500 hover:text-red-700 font-bold transition">Remove</button>
                                             </div>
 
                                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                                 <div>
-                                                    <label class="block text-sm font-medium text-slate-700 mb-1">Asset Name</label>
-                                                    {{-- 只有这里的 Border 会变红 --}}
-                                                    <input type="text" name="assets[{{ $i }}][name]" 
-                                                        value="{{ $asset['name'] ?? '' }}"
-                                                        class="w-full rounded-lg {{ $errors->has("assets.$i.name") ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500' }} shadow-sm" 
-                                                        placeholder="e.g. Fridge" required>
+                                                    <x-form.input-label value="Asset Name" class="mb-1" />
+                                                    <x-form.text-input 
+                                                        name="assets[{{ $i }}][name]" 
+                                                        value="{{ $asset['name'] ?? '' }}" 
+                                                        class="w-full {{ $errors->has("assets.$i.name") ? 'border-red-500 focus:ring-red-500' : '' }}" 
+                                                        placeholder="e.g. Fridge" 
+                                                        required />
                                                     
-                                                    {{-- 错误文字提示 --}}
-                                                    @error("assets.$i.name")
-                                                        <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                                    @enderror
+                                                    <x-form.input-error :messages="$errors->get(\"assets.$i.name\")" class="mt-1" />
                                                 </div>
                                                 <div>
-                                                    <label class="block text-sm font-medium text-slate-700 mb-1">Category</label>
-                                                    <select name="assets[{{ $i }}][category]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                                        @foreach(['General', 'Furniture', 'Appliances', 'Electronics'] as $cat)
-                                                            <option value="{{ $cat }}" {{ ($asset['category'] ?? '') == $cat ? 'selected' : '' }}>
-                                                                {{ $cat }}
-                                                            </option>
-                                                        @endforeach
-                                                    </select>
+                                                    <x-form.input-label value="Category" class="mb-1" />
+                                                    <x-form.input-select 
+                                                        name="assets[{{ $i }}][category]" 
+                                                        :options="['General' => 'General', 'Furniture' => 'Furniture', 'Appliances' => 'Appliances', 'Electronics' => 'Electronics']"
+                                                        :value="$asset['category'] ?? ''"
+                                                        class="w-full" />
                                                 </div>
                                             </div>
                                         </div>
@@ -123,25 +121,22 @@
             </div>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Asset Name</label>
-                    <input type="text" name="assets[__i__][name]" 
-                           class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" 
-                           placeholder="e.g. Fridge" required>
+                    <x-form.input-label value="Asset Name" class="mb-1" />
+                    {{-- 這裡我們同樣使用組件生成範本，__i__ 會被 JS 替換 --}}
+                    <x-form.text-input name="assets[__i__][name]" class="w-full" placeholder="e.g. Fridge" required />
                 </div>
                 <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-1">Category</label>
-                    <select name="assets[__i__][category]" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                        <option value="General">General</option>
-                        <option value="Furniture">Furniture</option>
-                        <option value="Appliances">Appliances</option>
-                        <option value="Electronics">Electronics</option>
-                    </select>
+                    <x-form.input-label value="Category" class="mb-1" />
+                    <x-form.input-select 
+                        name="assets[__i__][category]" 
+                        :options="['General' => 'General', 'Furniture' => 'Furniture', 'Appliances' => 'Appliances', 'Electronics' => 'Electronics']"
+                        class="w-full" />
                 </div>
             </div>
         </div>
     </template>
 
-    {{-- Asset Modal --}}
+    {{-- Asset Modal 保持原樣以確保 JS 操作 Checkbox 正常 --}}
     <div id="assetModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="fixed inset-0 bg-slate-900 bg-opacity-60 backdrop-blur-sm transition-opacity" onclick="closeAssetModal()"></div>

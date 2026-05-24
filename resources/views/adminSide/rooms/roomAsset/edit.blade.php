@@ -26,31 +26,25 @@
                     <div class="p-6 space-y-5">
                         {{-- Asset Name --}}
                         <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Asset Name</label>
-                            <input type="text" 
-                                   name="name" 
-                                   value="{{ old('name', $asset->name) }}"
-                                   class="w-full rounded-lg {{ $errors->has('name') ? 'border-red-500 focus:ring-red-500' : 'border-gray-300 focus:ring-indigo-500 shadow-sm' }}" 
-                                   placeholder="e.g. Fridge" 
-                                   required>
-                            @error('name')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
+                            <x-form.input-label value="Asset Name" class="mb-1" />
+                            <x-form.text-input 
+                                name="name" 
+                                value="{{ old('name', $asset->name) }}"
+                                class="w-full {{ $errors->has('name') ? 'border-red-500 focus:ring-red-500' : '' }}" 
+                                placeholder="e.g. Fridge" 
+                                required />
+                            <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                         </div>
 
                         {{-- Category --}}
                         <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-1">Category</label>
-                            <select name="category" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                @foreach(['General', 'Furniture', 'Appliances', 'Electronics'] as $cat)
-                                    <option value="{{ $cat }}" {{ old('category', $asset->category) == $cat ? 'selected' : '' }}>
-                                        {{ $cat }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('category')
-                                <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                            @enderror
+                            <x-form.input-label value="Category" class="mb-1" />
+                            <x-form.input-select 
+                                name="category" 
+                                :options="['General' => 'General', 'Furniture' => 'Furniture', 'Appliances' => 'Appliances', 'Electronics' => 'Electronics']"
+                                :value="old('category', $asset->category)"
+                                class="w-full" />
+                            <x-form.input-error :messages="$errors->get('category')" class="mt-1" />
                         </div>
 
                         {{-- Optional: Show who this belongs to (Read Only) --}}

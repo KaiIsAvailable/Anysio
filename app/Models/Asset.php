@@ -28,4 +28,10 @@ class Asset extends Model
         // 假设你的 asset 表里的外键字段名是 user_id
         return $this->belongsTo(User::class, 'user_id');
     }
+
+    public function owner()
+    {
+        // 假设你的 asset 表里的外键字段名是 user_id
+        return $this->belongsTo(Owners::class, 'user_id');
+    }
 }

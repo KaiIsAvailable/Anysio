@@ -19,14 +19,6 @@
                     <div class="flex items-center mb-4">
                         <h2 class="text-lg font-semibold text-slate-900">Select Owner / Agent</h2>
                     </div>
-                    
-                    @php
-                        // 將 users 轉換成 key => value 格式供 x-form.input-select 使用
-                        $userOptions = [];
-                        foreach($users as $user) {
-                            $userOptions[$user->id] = $user->name . ' (' . ucfirst($user->role) . ')';
-                        }
-                    @endphp
 
                     <x-form.input-select 
                         name="target_user_id" 

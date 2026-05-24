@@ -63,15 +63,21 @@ class AuthenticatedSessionController extends Controller
                         if ($packageDetails && $packageDetails->price > 0) {
                             $amountDue = $packageDetails->price;
                         } elseif ($packageDetails && $packageDetails->commission_rate > 0) {
+                            $startDate = Carbon::parse($mgmt->start_date)->format('Y-m-d');
+                            $endDate = Carbon::parse($mgmt->end_date)->format('Y-m-d');
+
                             $totalPaidRent = Payment::where('status', 'paid')
-                                ->whereBetween('payment_date', [$mgmt->start_date, $mgmt->end_date])
+                                ->whereBetween('payment_date', [$startDate, $endDate])
                                 ->whereHas('tenant', function ($query) {
                                     $query->where('created_by', Auth::id());
                                 })
                                 ->sum('amount_paid');
 
-                            $amountDue = $totalPaidRent * ($packageDetails->commission_rate / 100);
+                            $amountDue = (int) ($totalPaidRent * ($packageDetails->commission_rate / 100) / 100);
+                            //dd($mgmt->start_date, $mgmt->end_date, $totalPaidRent, $amountDue, $packageDetails->commission_rate / 100);
                         }
+
+                        
 
                         // 3. 生成账单
                         if ($packageDetails) {

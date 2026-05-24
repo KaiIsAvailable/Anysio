@@ -7,7 +7,7 @@
 class="flex flex-wrap items-center">
 
     {{-- 2. 真正的提交逻辑放在一个独立的 form 里，或者如果这是唯一表单，确保闭合正确 --}}
-    <form action="{{ url()->current() }}" method="GET" 
+    <x-form.form action="{{ url()->current() }}" method="GET" 
         x-data="{ query: @js(request('search')) }" 
         class="flex items-stretch"> {{-- 1. 使用 items-stretch 强制拉伸对齐 --}}
         
@@ -23,7 +23,7 @@ class="flex flex-wrap items-center">
             <input type="text" 
                 name="search" 
                 x-model="query"
-                placeholder="Search Unit No..."
+                placeholder="{{ $placeholder }}"
                 class="block w-64 sm:w-72 h-10 pl-11 pr-10 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder-gray-400 outline-none">
 
             <!-- X 清除按钮 -->
@@ -38,9 +38,9 @@ class="flex flex-wrap items-center">
         </div>
 
         <!-- 3. 这里同样使用 h-10 并用 -ml-px 盖住边框，实现完美合体 -->
-        <button type="submit" 
+        <x-form.primary-button type="submit" loading="loading"
                 class="inline-flex items-center px-4 h-10 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors border border-indigo-600 -ml-px">
             Search
-        </button>
-    </form>
+        </x-form.primary-button>
+    </x-form.form>
 </div>

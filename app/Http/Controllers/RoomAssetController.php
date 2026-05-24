@@ -26,9 +26,11 @@ class RoomAssetController extends Controller
 
         // 2. 权限过滤逻辑
         if ($user->role === 'agentAdmin') {
-            $query->whereHas('user', function ($q) use ($user) {
-                $q->where('agent_id', $user->id);
-            });
+            // 1. 先从 Owner 表中找出所有归该 Agent 管理的 user_id
+            $allowedUserIds = Owners::where('agent_id', $user->id)
+                                            ->pluck('user_id');
+            // 2. 限制 query 只包含这些找到的 user_id
+            $query->whereIn('user_id', $allowedUserIds);
         } else if ($user->role === 'ownerAdmin') {
             $query->where('user_id', $user->id);
         }
@@ -82,20 +84,43 @@ class RoomAssetController extends Controller
     {
         Gate::authorize('owner-admin');
 
-        $users = User::whereIn('role', ['ownerAdmin', 'owner', 'agentAdmin'])->get();
+        $authUser = Auth::user();
+        
+        // 1. 根据角色过滤用户池
+        $usersQuery = User::whereIn('role', ['ownerAdmin', 'owner', 'agentAdmin']);
+
+        if ($authUser->role === 'agentAdmin') {
+            // AgentAdmin 只能看到属于自己 Agent 下的 Owner (通过 Owner 表关联)
+            $usersQuery->whereHas('owner', function ($q) use ($authUser) {
+                $q->where('agent_id', $authUser->id);
+            });
+        } elseif ($authUser->role === 'ownerAdmin') {
+            // OwnerAdmin 可能只能看到自己（或者按照你的业务需求调整）
+            $usersQuery->where('id', $authUser->id);
+        }
+        
+        $users = $usersQuery->get();
+
+        // 2. 转换成 select 所需的格式
+        $userOptions = $users->mapWithKeys(function ($user) {
+            return [$user->id => $user->name . ' (' . ucfirst($user->role) . ')'];
+        });
+
         $assetLibrary = Asset::select('name', 'category', 'status')
             ->distinct()
             ->get();
+            
         $selectedUserId = $request->query('user_id');
 
-        if (!$selectedUserId && Auth::user()->role === 'ownerAdmin') {
+        if (!$selectedUserId && $authUser->role === 'ownerAdmin') {
             $selectedUserId = Auth::id();
         }
 
         return view('adminSide.rooms.roomAsset.create', compact(
             'users', 
             'assetLibrary', 
-            'selectedUserId' 
+            'selectedUserId',
+            'userOptions'
         ));
     }
 

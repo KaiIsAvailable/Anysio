@@ -94,17 +94,17 @@ class RoomController extends Controller
         $unit = Unit::with(['property', 'owner'])->findOrFail($unitId);
 
         // 2. 安全检查：根据用户角色进行不同的验证
-        if (!Gate::allows('super-admin')) {
-            if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-                if ($unit->agent_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($unit->owner_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            }
-        }
+        //if (!Gate::allows('super-admin')) {
+        //    if ($user->role === 'agentAdmin' || $user->role === 'agent') {
+        //        if ($unit->agent_id !== $user->id) {
+        //            abort(403, 'Unauthorized action.');
+        //        }
+        //    } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
+        //        if ($unit->owner_id !== $user->id) {
+        //            abort(403, 'Unauthorized action.');
+        //        }
+        //    }
+        //}
 
         // 3. 获取资产库 (逻辑保持不变)
         // 根据该 Unit 所属的 Owner 过滤资产库，这样推荐更精准
@@ -136,20 +136,20 @@ class RoomController extends Controller
         ]);
 
         // 1.5 权限检查：验证当前用户是否有权创建这个 Unit 的 Room
-        $unit = Unit::findOrFail($data['unit_id']);
-        if (!Gate::allows('super-admin')) {
-            if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-                if ($unit->agent_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($unit->owner_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            }
-        }
+        //$unit = Unit::findOrFail($data['unit_id']);
+        //if (!Gate::allows('super-admin')) {
+        //    if ($user->role === 'agentAdmin' || $user->role === 'agent') {
+        //        if ($unit->agent_id !== $user->id) {
+        //            abort(403, 'Unauthorized action.');
+        //        }
+        //    } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
+        //        if ($unit->owner_id !== $user->id) {
+        //            abort(403, 'Unauthorized action.');
+        //        }
+        //    }
+        //}
 
-        DB::transaction(function () use ($data, $unit) {
+        DB::transaction(function () use ($data, /*$unit*/) {
             // 创建 Room
             $room = Room::create([
                 'unit_id'   => $data['unit_id'],

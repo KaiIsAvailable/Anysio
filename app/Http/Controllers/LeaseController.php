@@ -47,9 +47,19 @@ class LeaseController extends Controller
                     // the `owner` relation on Unit/Property points to the `users` table,
                     // so compare against `users.id` (->where('id', ...)) instead of `user_id`.
                     if ($type === Room::class) {
-                        $mq->whereHas('unit.owner', fn($oq) => $oq->where('created_by', $userId));
+                        $mq->whereHas('unit.owner', function ($oq) use ($userId) {
+                            $oq->where(function ($q) use ($userId) {
+                                $q->where('created_by', $userId)
+                                ->orWhere('owner_id', $userId);
+                            });
+                        });
                     } else {
-                        $mq->whereHas('owner', fn($oq) => $oq->where('created_by', $userId));
+                        $mq->whereHas('owner', function ($oq) use ($userId) {
+                            $oq->where(function ($q) use ($userId) {
+                                $q->where('created_by', $userId)
+                                ->orWhere('owner_id', $userId);
+                            });
+                        });
                     }
                 })
                     // B: 或者基于租户的创建者 (你新要求的逻辑)
@@ -65,21 +75,34 @@ class LeaseController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->where('status', 'like', '%' . $search . '%')
                     // 搜索多态关联的数据
-                    ->orWhereHasMorph('leasable', ['Room', 'Unit', 'Property'], function ($mq, $type) use ($search) {
-                        if ($type === 'Room') {
-                            $mq->where('room_no', 'like', '%' . $search . '%');
-                        } elseif ($type === 'Unit') {
-                            $mq->where('unit_no', 'like', '%' . $search . '%');
-                        } elseif ($type === 'Property') {
-                            $mq->where('name', 'like', '%' . $search . '%');
-                        }
+                    ->orWhereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($search) {
+                        // 1. 先进行“房产属性”的搜索
+                        $mq->where(function ($query) use ($search, $type) {
+                            if ($type === Room::class) {
+                                $query->where('room_no', 'like', '%' . $search . '%');
+                            } elseif ($type === Unit::class) {
+                                $query->where('unit_no', 'like', '%' . $search . '%');
+                            } elseif ($type === Property::class) {
+                                $query->where('name', 'like', '%' . $search . '%');
+                            }
+                        })
+                        // 2. 使用 orWhereHas 在同一个 Morph 闭包里加上“业主姓名”的搜索
+                        ->orWhere(function ($query) use ($search, $type) {
+                            if ($type === Room::class) {
+                                // Room -> Unit -> Owner
+                                $query->whereHas('unit.owner', function ($oq) use ($search) {
+                                    $oq->where('name', 'like', '%' . $search . '%');
+                                });
+                            } else {
+                                // Property 或 Unit -> Owner
+                                $query->whereHas('owner', function ($oq) use ($search) {
+                                    $oq->where('name', 'like', '%' . $search . '%');
+                                });
+                            }
+                        });
                     })
-                    ->orWhereHas('tenant', function ($tq) use ($search) {
-                        $tq->where('ic_number', 'like', '%' . $search . '%')
-                            ->orWhereHas('user', function ($uq) use ($search) {
-                                $uq->where('name', 'like', '%' . $search . '%')
-                                    ->orWhere('email', 'like', '%' . $search . '%');
-                            });
+                    ->orWhereHas('tenant.user', function ($tq) use ($search) {
+                        $tq->where('name', 'like', '%' . $search . '%');
                     });
             });
         }
@@ -447,9 +470,9 @@ class LeaseController extends Controller
             'agreement', // 别忘了加载合同模板
             'leasable' => function ($morphTo) {
                 $morphTo->morphWith([
-                    Room::class => ['owner.user', 'assets'],
-                    Unit::class => ['owner.user'],
-                    Property::class => ['owner.user'],
+                    Room::class => ['owner', 'assets'],
+                    Unit::class => ['owner'],
+                    Property::class => ['owner'],
                 ]);
             }
         ]);

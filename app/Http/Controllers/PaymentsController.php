@@ -305,43 +305,115 @@ class PaymentsController extends Controller
         return "INV-{$type}-{$today}-{$nextNum}";
     }
 
+    //public function uploadProof(Request $request, $id)
+    //{
+    //    // 1. 验证上传的文件
+    //    $request->validate([
+    //        'attachment' => 'required|image|mimes:jpg,jpeg,png|max:2048', // 最大 2MB
+    //        'transaction_ref' => 'nullable|string|max:255',
+    //    ]);
+
+    //    // 2. 找到对应的支付记录
+    //    $payment = UserPayment::findOrFail($id);
+
+    //    // 3. 处理文件上传
+    //    if ($request->hasFile('attachment')) {
+    //        // 如果之前有旧图，可以先删掉（选做）
+    //        if ($payment->attachment) {
+    //            // 如果之前存的是 local，这里也要指定 local
+    //            Storage::disk('local')->delete($payment->attachment);
+    //        }
+
+    //        // 存入 storage/app/receipts (不可直接外网访问)
+    //        $path = $request->file('attachment')->store('receipts', 'local');
+
+    //        // 4. 更新支付表记录
+    //        $payment->update([
+    //            'attachment' => $path,
+    //            'transaction_ref' => $request->transaction_ref,
+    //            'status' => 'pending', // 支付记录设为待审核
+    //        ]);
+
+    //        // 5. 确保 UserManagement 表也是 pending 状态（触发 Dashboard 的弹窗）
+    //        UserManagement::where('user_id', $payment->user_id)->update([
+    //            'subscription_status' => 'pending'
+    //        ]);
+    //    }else{
+    //        return back()->with('error', 'Receipt uplaod fail! Please contact customer service');
+    //    }
+
+    //    return back()->with('success', 'Receipt uploaded! Please wait for admin approval.');
+    //}
+
     public function uploadProof(Request $request, $id)
     {
-        // 1. 验证上传的文件
-        $request->validate([
-            'attachment' => 'required|image|mimes:jpg,jpeg,png|max:2048', // 最大 2MB
-            'transaction_ref' => 'nullable|string|max:255',
-        ]);
-
-        // 2. 找到对应的支付记录
+        // 1. 找到支付记录
         $payment = UserPayment::findOrFail($id);
+        
+        // 2. 检查是否为 0 元账单
+        $isZeroAmount = ($payment->amount_due <= 0);
 
-        // 3. 处理文件上传
-        if ($request->hasFile('attachment')) {
-            // 如果之前有旧图，可以先删掉（选做）
-            if ($payment->attachment) {
-                // 如果之前存的是 local，这里也要指定 local
-                Storage::disk('local')->delete($payment->attachment);
-            }
-
-            // 存入 storage/app/receipts (不可直接外网访问)
-            $path = $request->file('attachment')->store('receipts', 'local');
-
-            // 4. 更新支付表记录
-            $payment->update([
-                'attachment' => $path,
-                'transaction_ref' => $request->transaction_ref,
-                'status' => 'pending', // 支付记录设为待审核
-            ]);
-
-            // 5. 确保 UserManagement 表也是 pending 状态（触发 Dashboard 的弹窗）
-            UserManagement::where('user_id', $payment->user_id)->update([
-                'subscription_status' => 'pending'
-            ]);
-        }else{
-            return back()->with('error', 'Receipt uplaod fail! Please contact customer service');
+        // 3. 如果不是 0 元，则强制验证文件；如果是 0 元，则文件可选
+        $rules = [
+            'transaction_ref' => 'nullable|string|max:255',
+        ];
+        
+        if (!$isZeroAmount) {
+            $rules['attachment'] = 'required|image|mimes:jpg,jpeg,png|max:2048';
+        } else {
+            $rules['attachment'] = 'nullable|image|mimes:jpg,jpeg,png|max:2048';
         }
 
-        return back()->with('success', 'Receipt uploaded! Please wait for admin approval.');
+        $request->validate($rules);
+
+        // 4. 处理文件逻辑
+        $path = $payment->attachment; // 默认为原有的路径（如果有）
+
+        if ($request->hasFile('attachment')) {
+            if ($payment->attachment) {
+                Storage::disk('local')->delete($payment->attachment);
+            }
+            $path = $request->file('attachment')->store('receipts', 'local');
+        } elseif ($isZeroAmount && !$payment->attachment) {
+            // 如果是 0 元且用户没上传，给一个特殊标识或留空
+            $path = 'system/zero_amount_auto_approved'; 
+        }
+
+        // 5. 更新状态
+        // 如果是 0 元，状态直接设为 'paid'，否则设为 'pending'
+        $newStatus = $isZeroAmount ? 'paid' : 'pending';
+
+        $packageDetails = DB::table('ref_code_packages')
+            ->where('ref_code', $payment->ref_code)
+            ->first();
+
+        $startDate = null;
+        $endDate = null;
+
+        $startDate = now();
+        $endDate = ($packageDetails->price_mode === 'monthly') 
+                    ? $startDate->copy()->addMonth()
+                    : $startDate->copy()->addYear();
+
+        $userManagement = UserManagement::where('user_id', $payment->user_id)->first();
+
+        $userManagement->update([
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+        ]);
+
+        $payment->update([
+            'attachment' => $path,
+            'transaction_ref' => $request->transaction_ref,
+            'status' => $newStatus,
+        ]);
+
+        // 更新管理状态
+        UserManagement::where('user_id', $payment->user_id)->update([
+            'subscription_status' => ($newStatus === 'paid') ? 'active' : 'pending'
+        ]);
+
+        $message = $isZeroAmount ? 'Subscription activated successfully!' : 'Receipt uploaded! Please wait for admin approval.';
+        return back()->with('success', $message);
     }
 }

@@ -98,7 +98,7 @@
                                         @if($owner)
                                             <option value="{{ $owner->id }}"
                                                 {{ old('user_id', $sourceAgreement->user_id ?? '') == $owner->id ? 'selected' : '' }}>
-                                                {{ $owner->name }}
+                                                {{ $owner->name ?? $owner->user->name }}
                                             </option>
                                         @endif
                                     @endforeach

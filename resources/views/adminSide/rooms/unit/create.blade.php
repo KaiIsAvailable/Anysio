@@ -438,7 +438,7 @@
                                                 @endif
                                                 @endforeach
                                                 <div class="no-asset-message hidden col-span-3 flex flex-col items-center justify-center h-[160px] bg-gray-50/50">
-                                                    <span class="text-[13px] text-slate-400 font-medium">Please Add Asset</span>
+                                                    <span class="text-[13px] text-slate-400 font-medium">No assets found for this owner</span>
                                                 </div>
                                                 <div class="select-owner-message hidden col-span-3 flex flex-col items-center justify-center h-[160px] bg-gray-50/50">
                                                     <span class="text-[13px] text-slate-400 font-medium">Please Select Owner</span>

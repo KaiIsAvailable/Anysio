@@ -33,7 +33,7 @@
                 'agreement_id' => $item->agreement_id,
                 'tenant_name' => $item->tenant?->user->name ?? 'N/A',
                 'tenant_ic' => $item->tenant?->ic_number ?? 'N/A',
-                'owner_name' => $item->leasable?->owner?->user->name ?? 'N/A',
+                'owner_name' => $item->leasable?->owner?->name ?? $item->leasable?->owner?->unit->name ?? 'N/A',
                 'owner_ic' => $item->leasable?->owner?->ic_number ?? 'N/A',
                 'property_address' => $item->leasable?->full_address ?? 'N/A',
                 'property_type' => $item->leasableTypeLabel ?? 'N/A',
@@ -304,7 +304,14 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <p class="text-xs text-gray-500 uppercase font-bold">Owner Name</p>
+                            <p class="text-lg font-semibold" x-text="activeLease.owner_name"></p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
                         <div class="p-4 bg-gray-50 rounded-lg">
                             <p class="text-xs text-gray-500 uppercase font-bold">Start Date</p>
                             <p class="text-lg font-semibold" x-text="activeLease.start_date"></p>
@@ -334,8 +341,7 @@
                             <p class="text-xs text-gray-500 uppercase font-bold">Utilities Deposit</p>
                             <p class="text-lg font-semibold" x-text="activeLease.utilities_deposit"></p>
                         </div>
-                        <div></div>
-                    </div> <br>
+                    </div>
 
                     <div x-show="activeLease.checked_out_at" class="mb-6">
                         <div class="p-4 bg-amber-50 rounded-lg border border-amber-100">

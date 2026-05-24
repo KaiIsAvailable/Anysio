@@ -28,3 +28,18 @@
 /* 处理表格样式 (如果 Quill 里有表格) */
 .quill-content table { border-collapse: collapse; width: 100%; margin-bottom: 1em; }
 .quill-content table td, .quill-content table th { border: 1px solid #ddd; padding: 8px; }
+
+/* 隐藏 Edge/Chrome 原生的密码显示眼睛 */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+    display: none;
+}
+
+/* 如果是 Chromium 内核（Edge, Chrome），使用下面这个伪元素 */
+input[type="password"]::-webkit-credentials-auto-fill-button {
+    visibility: hidden;
+    display: none !important;
+    pointer-events: none;
+    position: absolute;
+    right: 0;
+}

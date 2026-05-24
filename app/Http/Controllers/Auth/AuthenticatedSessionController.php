@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\PaymentsController;
 use App\Models\UserPayment;
+use App\Models\Payment;
 use App\Http\Requests\Auth\LoginRequest;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -35,12 +36,6 @@ class AuthenticatedSessionController extends Controller
         $request->session()->regenerate();
         $user = Auth::user();
 
-        Log::info("User Login Attempt", [
-            'user_id' => $user->id,
-            'email' => $user->email,
-            'role' => $user->role
-        ]);
-
         // 1. 支付状态优先拦截 (仅限 Admin)
         if (in_array($user->role, ['ownerAdmin', 'agentAdmin'])) {
             $mgmt = $user->user_management;
@@ -52,28 +47,54 @@ class AuthenticatedSessionController extends Controller
             
             $isNotExpired = $mgmt && $endDate && Carbon::parse($endDate)->isFuture();
 
+            $packageDetails = DB::table('ref_code_packages')
+                                ->where('ref_code', $package->ref_code)
+                                ->first(); 
+
             if ($mgmt && !$isNotExpired && $status === 'active') {
-                $mgmt->update(['subscription_status' => 'pending']);
-                $status = 'pending';
+                try {
+                    // 使用事务包裹所有操作
+                    DB::transaction(function () use ($mgmt, $package, $packageDetails) {
+                        // 1. 先修改状态
+                        $mgmt->update(['subscription_status' => 'pending']);
 
-                $packageDetails = DB::table('ref_code_packages')
-                    ->where('ref_code', $package->ref_code)
-                    ->first(); 
+                        // 2. 计算金额 (之前的逻辑)
+                        $amountDue = 0;
+                        if ($packageDetails && $packageDetails->price > 0) {
+                            $amountDue = $packageDetails->price;
+                        } elseif ($packageDetails && $packageDetails->commission_rate > 0) {
+                            $totalPaidRent = Payment::where('status', 'paid')
+                                ->whereBetween('payment_date', [$mgmt->start_date, $mgmt->end_date])
+                                ->whereHas('tenant', function ($query) {
+                                    $query->where('created_by', Auth::id());
+                                })
+                                ->sum('amount_paid');
 
-                // 3. 生成订阅账单 (套用你的 Payment 逻辑)
-                if (isset($packageDetails) && $packageDetails->price > 0 || $packageDetails->commission_rate > 0){        
-                    $subscriptionType = 'SUBSCRIPTION';
-                    $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType, UserPayment::class);
+                            $amountDue = $totalPaidRent * ($packageDetails->commission_rate / 100);
+                        }
 
-                    UserPayment::create([
-                        'id'           => (string) Str::ulid(),
-                        'user_id'      => Auth::id(),
-                        'ref_code'     => $package->ref_code,
-                        'invoice_no'   => $newInvoiceNo,
-                        'payment_type' => strtolower($subscriptionType),
-                        'amount_due'   => $packageDetails->price,
-                        'amount_paid'  => 0,
-                        'status'       => 'unpaid',
+                        // 3. 生成账单
+                        if ($packageDetails) {
+                            $subscriptionType = 'SUBSCRIPTION';
+                            $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType, UserPayment::class);
+
+                            UserPayment::create([
+                                'id'           => (string) Str::ulid(),
+                                'user_id'      => Auth::id(),
+                                'ref_code'     => $package->ref_code,
+                                'invoice_no'   => $newInvoiceNo,
+                                'payment_type' => strtolower($subscriptionType),
+                                'amount_due'   => $amountDue * 100, // 注意：如果这里失败，上面的 update 也会回滚
+                                'amount_paid'  => 0,
+                                'status'       => 'unpaid',
+                            ]);
+                        }
+                    });
+                } catch (\Exception $e) {
+                    // 如果上面任何一步失败，事务会自动回滚，这里记录日志
+                    Log::error("订阅账单生成失败，回滚操作", [
+                        'user_id' => Auth::id(),
+                        'error'   => $e->getMessage()
                     ]);
                 }
             }

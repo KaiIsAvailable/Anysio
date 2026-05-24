@@ -169,7 +169,8 @@ x-cloak>
                     <form action="{{ $actionUrl }}" 
                             method="POST" 
                             enctype="multipart/form-data"
-                            x-data="{ loading: false }" @submit="loading = true">
+                            x-data="{ loading: false }" @submit="loading = true"
+                            x-latest-amount-due="{{$latestPayment?->amount_due}}">
                         @csrf
                         
                         <div class="p-1 space-y-8">
@@ -191,19 +192,24 @@ x-cloak>
                             {{-- Input Section --}}
                             <div class="space-y-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">1. Upload Bank Receipt</label>
-                                    <input type="file" name="attachment" required class="block w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 border border-gray-200 rounded-2xl p-2 bg-gray-50/50 cursor-pointer transition-all"/>
-                                    @error('attachment')
-                                        <p class="mt-1 text-xs text-red-600 font-medium">{{ $message }}</p>
-                                    @enderror
+                                    <x-form.input-label value="1. Upload Bank Receipt" class="mb-3 ml-3"/>
+                                    <x-form.file-input 
+                                        name="attachment" 
+                                        :required="$latestPayment->amount_due > 0"
+                                    />
+                                    <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">If amount is 0 you can press "Confirm & Submit Receipt".</p>
+                                    <x-form.input-error :messages="$errors->get('attachment')" class="mt-1" />
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">2. Transaction Ref (Optional)</label>
-                                    <input type="text" name="transaction_ref" placeholder="e.g. 123456789" class="block w-full px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-medium">
-                                    @error('transaction_ref')
-                                        <p class="mt-1 text-xs text-red-600 font-medium">{{ $message }}</p>
-                                    @enderror
+                                    <x-form.input-label value="2. Transaction Ref (Optional)" class="mb-3 ml-3" />
+                                    <x-form.text-input 
+                                        name="transaction_ref" 
+                                        value="{{ old('transaction_ref') }}" 
+                                        placeholder="e.g. 123456789"
+                                        class="block w-full mb-3 px-5 py-4 bg-gray-50 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-indigo-500 text-sm font-medium" 
+                                    />
+                                    <x-form.input-error :messages="$errors->get('transaction_ref')" class="mt-1" />
                                 </div>
                             </div>
                         </div>

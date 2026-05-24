@@ -136,10 +136,6 @@ class RegisteredUserController extends Controller
                 $startDate = null;
                 $endDate = null;
 
-                if($price > 0){
-                    
-                }
-
                 if ($commissionRate > 0) {
                     $startDate = now();
                     $endDate = ($packageDetails->price_mode === 'monthly') 

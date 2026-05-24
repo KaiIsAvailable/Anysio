@@ -60,6 +60,11 @@ class Lease extends Model
         return $this->belongsTo(Tenants::class, 'tenant_id');
     }
 
+    public function owner(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'owner_id');
+    }
+
     public function utilities(): HasMany
     {
         return $this->hasMany(Utility::class);

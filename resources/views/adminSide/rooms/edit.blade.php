@@ -13,7 +13,7 @@
                 <h1 class="text-2xl font-bold text-slate-900 mt-2">Edit Room: {{ $room->room_no }}</h1>
             </div>
 
-            {{-- 注意：Action 改为 update，且必须有 @method('PUT') --}}
+            {{-- Action 改为 update，且必须有 @method('PUT') --}}
             <x-form.form method="POST" action="{{ route('admin.rooms.update', $room->id) }}">
                 @csrf
                 @method('PUT')
@@ -27,6 +27,8 @@
 
                             {{-- Unit 字段 (只读展示) --}}
                             <div>
+                                <x-form.input-label value="Unit" class="mb-1" />
+                                
                                 @if(isset($unit))
                                     {{-- 显示已选定的 Unit 信息 --}}
                                     <div class="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-700 font-medium flex items-center shadow-sm">
@@ -43,7 +45,7 @@
                                     {{-- 如果你的房间需要地址，可以从 Unit 自动带入 --}}
                                     <input type="hidden" name="address" value="{{ $unit->address ?? ($unit->property->address ?? '') }}">
                                 @else
-                                    {{-- 容错处理：如果没有带 unit_id 过来 (虽然你的逻辑里不应该发生) --}}
+                                    {{-- 容错处理：如果没有带 unit_id 过来 --}}
                                     <div class="p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-200">
                                         Error: No unit selected. 
                                         <a href="{{ route('admin.properties.index') }}" class="underline font-bold">Go back</a>
@@ -54,38 +56,33 @@
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {{-- Room Number --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-900 mb-1">Room Number</label>
-                                    <input name="room_no"
-                                        value="{{ old('room_no', $room->room_no) }}"
-                                        oninput="this.value"
-                                        class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                        required>
-                                    @error('room_no') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
+                                    <x-form.input-label value="Room Number" class="mb-1" />
+                                    <x-form.text-input name="room_no" value="{{ old('room_no', $room->room_no) }}" class="w-full" required />
+                                    <x-form.input-error :messages="$errors->get('room_no')" class="mt-1" />
                                 </div>
 
                                 {{-- Room Type --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-900 mb-1">Room Type</label>
-                                    <input name="room_type"
-                                        value="{{ old('room_type', $room->room_type) }}"
-                                        oninput="this.value"
-                                        class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                        required>
-                                    @error('room_type') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
+                                    <x-form.input-label value="Room Type" class="mb-1" />
+                                    <x-form.text-input name="room_type" value="{{ old('room_type', $room->room_type) }}" class="w-full" required />
+                                    <x-form.input-error :messages="$errors->get('room_type')" class="mt-1" />
                                 </div>
 
                                 {{-- Status --}}
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-900 mb-1">Status</label>
-                                    <select name="status" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                                        @foreach(['VACANT','OCCUPIED','MAINTENANCE'] as $s)
-                                            <option value="{{ $s }}" @selected(strtoupper(old('status', $room->status)) == $s)>{{ $s }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('status') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
+                                    <x-form.input-label value="Status" class="mb-1" />
+                                    <x-form.input-select 
+                                        name="status" 
+                                        :options="['VACANT' => 'VACANT', 'OCCUPIED' => 'OCCUPIED', 'MAINTENANCE' => 'MAINTENANCE']" 
+                                        :value="strtoupper(old('status', $room->status))" 
+                                        class="w-full" 
+                                        required />
+                                    <x-form.input-error :messages="$errors->get('status')" class="mt-1" />
                                 </div>
+
+                                {{-- Address --}}
                                 <div class="md:col-span-2">
-                                    <label class="block text-sm font-medium text-slate-900 mb-1">Address</label>
+                                    <x-form.input-label value="Address" class="mb-1" />
                                     
                                     {{-- 1. 视觉展示框：让用户看到 Property 的地址 --}}
                                     <div class="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-600 text-sm flex items-start shadow-sm">
@@ -109,7 +106,7 @@
 
                     <hr class="border-gray-100">
 
-                    {{-- Asset Selection (Library) --}}
+                    {{-- Asset Selection (Library) - 完全保持原样 --}}
                     <div class="mt-6">
                         <label class="block text-sm font-medium text-slate-900 mb-2">Room Assets (Update Quantities)</label>
                         
@@ -124,8 +121,6 @@
                                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-4 gap-y-2">
                                     @forelse($assetLibrary as $lib)
                                         @php
-                                            // 从现有的多对多关联中获取该 Asset 的数量
-                                            // 假设你在 Controller 里传了 $currentAssets = $room->assets->pluck('pivot.qty', 'id')->toArray();
                                             $existingQty = $currentAssets[$lib->id] ?? 0;
                                         @endphp
                                         <div class="flex items-center justify-between py-1.5 px-2 bg-white border {{ $existingQty > 0 ? 'border-indigo-200 ring-1 ring-indigo-50' : 'border-gray-100' }} rounded-md shadow-sm hover:border-indigo-200 transition-all asset-row">
@@ -167,8 +162,7 @@
                             Cancel
                         </a>
 
-                        <x-form.primary-button type="submit" loading="loading"
-                                class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow transition duration-150 ease-in-out text-sm">
+                        <x-form.primary-button type="submit" loading="loading" class="px-6 text-sm">
                             Update Room
                         </x-form.primary-button>
                     </div>
@@ -178,7 +172,7 @@
         </div>
     </div>
 
-    {{-- 脚本保持不变，但在逻辑上可以优化样式切换 --}}
+    {{-- 脚本保持不变 --}}
     <script>
         function adjustQty(btn, amount) {
             const input = btn.parentElement.querySelector('.qty-input');

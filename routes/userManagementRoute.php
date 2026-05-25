@@ -8,3 +8,4 @@ Route::get('display-receipt/{filename}', [UserManagementController::class, 'disp
     ->where('filename', '.*');
 Route::patch('payments/{payment}/approve', [UserManagementController::class, 'approve'])->name('payments.approve');
 Route::patch('payments/{payment}/reject', [UserManagementController::class, 'reject'])->name('payments.reject');
+Route::post('boost-lease', [UserManagementController::class, 'boostLease'])->name('boost.lease');

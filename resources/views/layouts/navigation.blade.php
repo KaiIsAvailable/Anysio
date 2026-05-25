@@ -105,65 +105,93 @@
             </div>
 
             <!-- Settings Dropdown -->
-            <div class="hidden sm:flex sm:items-center sm:ms-6">
+            <div x-data="{ 
+                openSetting: false, 
+                openBoost: false, 
+                open: false, 
+                boostData: { 
+                    packageName: '{{ Auth::user()->user_management->package->name ?? "N/A" }}', 
+                    maxLimit: {{ Auth::user()->user_management->package->max_lease_limit ?? 0 }}, 
+                    balanceLimit: {{ 
+                        (Auth::user()->user_management && Auth::user()->user_management->package) 
+                        ? (Auth::user()->user_management->package->max_lease_limit - Auth::user()->user_management->extra_lease) 
+                        : 0 
+                    }},
+                    extraPrice: {{ Auth::user()->user_management->package->extra_lease_price ?? 0 }} 
+                } 
+            }" class="hidden sm:flex sm:items-center sm:ms-6">
+
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
                         <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none transition ease-in-out duration-150">
                             <div>{{ Auth::user()->name }}</div>
-
-                            <div class="ms-1">
-                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            
+                            {{-- 
+                            这里有一个技巧：你可以通过 x-bind 监听组件内部的 open 状态。
+                            如果 Dropdown 提供了 Alpine 接口，你可以通过如下方式获取：
+                            --}}
+                            <div class="ms-1" x-data @click.stop="open = !open">
+                                <svg class="fill-current h-4 w-4 transition-transform duration-300 ease-in-out" 
+                                    :class="open ? 'rotate-90' : ''"
+                                    :class="$refs.dropdownContent.classList.contains('hidden')" 
+                                    viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
                                 </svg>
                             </div>
                         </button>
                     </x-slot>
 
                     <x-slot name="content">
-                        <x-dropdown-link :href="route('profile.edit')">
-                            {{ __('Profile') }}
-                        </x-dropdown-link>
+                        <x-dropdown-link :href="route('profile.edit')">{{ __('Profile') }}</x-dropdown-link>
 
                         @can('owner-admin')
                             <div class="border-t border-gray-100"></div>
 
-                            <div x-data="{ openSetting: false }" class="relative"> 
+                            {{-- 2. 直接使用父级的 openSetting 控制显示 --}}
+                            <div class="relative"> 
                                 <div @click.stop="openSetting = !openSetting" 
-                                    class="flex items-center justify-between w-full px-4 py-2 text-sm leading-5 text-gray-700 hover:bg-gray-100 focus:outline-none transition cursor-pointer">
+                                    class="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
                                     <span>{{ __('Settings') }}</span>
-                                    <svg class="w-4 h-4 ml-1 text-gray-400 transition-transform duration-200" 
-                                        :class="openSetting ? 'rotate-90' : ''" 
+                                    <svg class="w-4 h-4 ml-1 text-gray-400 transition-transform duration-200"
+                                        :class="openSetting ? 'rotate-90' : ''"
                                         fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
                                     </svg>
                                 </div>
 
+                                {{-- 3. 这里不再定义 x-data --}}
                                 <div x-show="openSetting" 
                                     x-cloak
-                                    x-transition:enter="transition ease-out duration-100"
-                                    x-transition:enter-start="opacity-0 transform scale-95"
-                                    x-transition:enter-end="opacity-100 transform scale-100"
+                                    x-transition 
                                     class="bg-gray-50 border-l-4 border-indigo-400">
                                     
                                     <x-dropdown-link :href="route('admin.agreements.create')" class="pl-8 py-2 text-xs">
                                         {{ __('+ Add Agreement') }}
                                     </x-dropdown-link>
+
+                                    {{-- 直接触发父级的 openBoost --}}
+                                    <button type="button" 
+                                            @click.prevent="openBoost = true; openSetting = false;" 
+                                            class="block w-full pl-8 py-2 text-xs text-left text-gray-700 hover:bg-gray-100">
+                                        {{ __('+ Boost Lease Capacity') }}
+                                    </button>
                                 </div>
                             </div>
                         @endcan
 
-                        <!-- Authentication -->
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
-
                             <x-dropdown-link :href="route('logout')"
                                     onclick="event.preventDefault();
-                                                this.closest('form').submit();">
+                                    this.closest('form').submit();">
                                 {{ __('Log Out') }}
                             </x-dropdown-link>
                         </form>
                     </x-slot>
                 </x-dropdown>
+
+                {{-- 4. 模态框放在这里，它能直接访问到父级的 boostData 和 openBoost --}}
+                @include('components.modals.boost-lease-modal')
             </div>
 
             <!-- Hamburger -->

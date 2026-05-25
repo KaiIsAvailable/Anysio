@@ -316,6 +316,8 @@ class LeaseController extends Controller
 
             $package = $management->package;
             $baseLeaseLimit = $package->base_lease;
+            $extraLeaseLimit = $management->extra_lease;
+            $totalLeaseLimit = $baseLeaseLimit + $extraLeaseLimit;
 
             // 计算当前活跃的主租约数量
             $currentLeaseCount = Lease::whereNull('parent_lease_id')
@@ -328,7 +330,7 @@ class LeaseController extends Controller
                 ->count();
 
             // 达到上限，拒绝创建新租约
-            if ($user->role !== 'admin' && $currentLeaseCount >= $baseLeaseLimit) {
+            if ($user->role !== 'admin' && $currentLeaseCount >= $totalLeaseLimit) {
                 return back()->with('error', "Limit Reached: Your current package ({$package->name}) only allows {$baseLeaseLimit} leases. You cannot create a NEW lease, but you can still Renew or Check Out existing ones.");
             }
         }

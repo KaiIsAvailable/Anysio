@@ -406,4 +406,70 @@ class UserManagementController extends Controller
 
         return back()->with('success', 'Payment proof has been rejected.');
     }
+
+    public function boostLease(Request $request)
+    {
+        $request->validate([
+            'lease_count' => 'required|integer|min:1',
+        ]);
+
+        $user = Auth::user(); 
+        $extraLeaseToAdd = (int) $request->lease_count;
+
+        // 在这里正确调用你带参数的函数
+        $result = $this->boostLeaseLimit($user, $extraLeaseToAdd);
+
+        if ($result['status']) {
+            return back()->with('success', $result['message']);
+        }
+
+        return back()->withErrors(['error' => $result['message']]);
+    }
+
+    public function boostLeaseLimit($user, $extraLeaseToAdd)
+    {
+        $management = UserManagement::where('user_id', $user->id)->first();
+        $package = $management?->package;
+
+        if (!$management || $management->tot_price <= 0 || !$package) {
+            return ['status' => false, 'message' => 'This package is not eligible for extra lease additions.'];
+        }
+
+        // 计算当前剩余可加配额：最大限制 - 已使用的 extra_lease
+        $remainingLimit = $package->max_lease_limit - $management->extra_lease;
+
+        if ($extraLeaseToAdd > $remainingLimit) {
+            return ['status' => false, 'message' => "Limit Reached: You can only add up to {$remainingLimit} more leases."];
+        }
+
+        $totalCost = $extraLeaseToAdd * $package->extra_lease_price;
+
+        try {
+            DB::transaction(function () use ($management, $extraLeaseToAdd, $totalCost, $user) {
+                $package = $management?->package;
+                $subscriptionType = 'BOOST_LEASE_' . $extraLeaseToAdd;
+                $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType, UserPayment::class);
+
+                $management->increment('extra_lease', $extraLeaseToAdd);
+                $management->increment('tot_price', $totalCost);
+
+                $management->update(['subscription_status' => 'pending']);
+
+                UserPayment::create([
+                    'id'           => (string) Str::ulid(),
+                    'user_id'      => Auth::id(),
+                    'ref_code'     => $package->ref_code,
+                    'invoice_no'   => $newInvoiceNo,
+                    'payment_type' => strtolower($subscriptionType),
+                    'amount_due'   => $totalCost,
+                    'amount_paid'  => 0,
+                    'status'       => 'unpaid',
+                ]);
+            });
+
+            return ['status' => true, 'message' => 'Capacity boosted successfully!'];
+        } catch (\Exception $e) {
+            return ['status' => false, 'message' => 'Operation failed: Please try again later.'];
+        }
+    }
 }

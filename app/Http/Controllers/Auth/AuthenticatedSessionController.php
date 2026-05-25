@@ -60,9 +60,9 @@ class AuthenticatedSessionController extends Controller
 
                         // 2. 计算金额 (之前的逻辑)
                         $amountDue = 0;
-                        if ($packageDetails && $packageDetails->price > 0) {
-                            $amountDue = $packageDetails->price;
-                        } elseif ($packageDetails && $packageDetails->commission_rate > 0) {
+                        if ($packageDetails && $mgmt->tot_price > 0) {
+                            $amountDue = $mgmt->tot_price;
+                        } elseif ($packageDetails && $mgmt->tot_price === 0) {
                             $startDate = Carbon::parse($mgmt->start_date)->format('Y-m-d');
                             $endDate = Carbon::parse($mgmt->end_date)->format('Y-m-d');
 
@@ -76,8 +76,6 @@ class AuthenticatedSessionController extends Controller
                             $amountDue = (int) ($totalPaidRent * ($packageDetails->commission_rate / 100) / 100);
                             //dd($mgmt->start_date, $mgmt->end_date, $totalPaidRent, $amountDue, $packageDetails->commission_rate / 100);
                         }
-
-                        
 
                         // 3. 生成账单
                         if ($packageDetails) {

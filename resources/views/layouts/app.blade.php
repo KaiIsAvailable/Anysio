@@ -38,7 +38,10 @@
                     $userMgmt = \App\Models\UserManagement::where('user_id', auth()->id())->first();
                     // 2. 获取支付记录（用于拿到金额和 Invoice No）
                     $latestPayment = \App\Models\UserPayment::where('user_id', auth()->id())
-                                        ->where('payment_type', 'subscription')
+                                        ->where(function ($query) {
+                                            $query->where('payment_type', 'subscription')
+                                                ->orWhere('payment_type', 'like', 'boost_lease_%');
+                                        })
                                         ->whereNot('status', 'approved')
                                         ->latest()
                                         ->first();

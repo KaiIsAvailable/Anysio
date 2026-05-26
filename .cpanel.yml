@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/thamstae/test-anysio.com/
+    - /bin/cp -R * $DEPLOYPATH

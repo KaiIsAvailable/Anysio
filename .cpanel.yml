@@ -2,6 +2,4 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/thamstae/test-anysio.thamstaekwondoacademy.com/
-    # 尝试直接复制，排除 .git 文件夹
-    - /bin/cp -rf . $DEPLOYPATH
-    - /bin/rm -rf $DEPLOYPATH/.git
+    - /bin/cp -R * $DEPLOYPATH

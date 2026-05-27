@@ -2,4 +2,6 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/thamstae/test-anysio.thamstaekwondoacademy.com/
-    - /bin/cp -R * $DEPLOYPATH
+    # 1. 使用 rsync 同步，因为它比 cp 更聪明
+    # 2. --exclude 参数完美避开了所有可能导致 Git 冲突的隐藏文件夹
+    - /bin/rsync -av --exclude='.git' --exclude='.cpanel.yml' --exclude='node_modules' ./ $DEPLOYPATH

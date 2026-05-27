@@ -2,4 +2,6 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/thamstae/test-anysio.thamstaekwondoacademy.com/
-    - /bin/rsync -av --exclude='.git' ./ $DEPLOYPATH
+    # 尝试直接复制，排除 .git 文件夹
+    - /bin/cp -rf . $DEPLOYPATH
+    - /bin/rm -rf $DEPLOYPATH/.git

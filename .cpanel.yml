@@ -1,5 +1,5 @@
 ---
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/username/public_html/
-    - /bin/cp -a . $DEPLOYPATH
+    - export DEPLOYPATH=/home/thamstae/test-anysio.thamstaekwondoacademy.com/
+    - /bin/cp -rf . $DEPLOYPATH

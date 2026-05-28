@@ -116,11 +116,20 @@ class RoomAssetController extends Controller
             $selectedUserId = Auth::id();
         }
 
+        // 💡 核心新增：获取已存在的资产名称
+        $existingAssetNames = [];
+        if ($selectedUserId) {
+            $existingAssetNames = Asset::where('user_id', $selectedUserId)
+                ->pluck('name')
+                ->toArray();
+        }
+
         return view('adminSide.rooms.roomAsset.create', compact(
             'users', 
             'assetLibrary', 
             'selectedUserId',
-            'userOptions'
+            'userOptions',
+            'existingAssetNames' // 👈 传给前端
         ));
     }
 
@@ -252,4 +261,4 @@ class RoomAssetController extends Controller
             return redirect()->back()->with('error', 'Restore failed: ' . $e->getMessage());
         }
     }
-}   
+}

@@ -25,7 +25,7 @@
                         :options="$userOptions"
                         :value="$selectedUserId"
                         placeholder="-- Choose who this asset belongs to --"
-                        onchange="if(this.value) window.location.href = '{{ route('admin.roomAsset.create') }}?user_id=' + this.value"
+                        onchange="window.location.href = this.value ? '{{ route('admin.roomAsset.create') }}?user_id=' + this.value : '{{ route('admin.roomAsset.create') }}'"
                         class="w-full transition" />
                 </section>
 
@@ -72,11 +72,11 @@
                                                     <x-form.text-input 
                                                         name="assets[{{ $i }}][name]" 
                                                         value="{{ $asset['name'] ?? '' }}" 
-                                                        class="w-full {{ $errors->has("assets.$i.name") ? 'border-red-500 focus:ring-red-500' : '' }}" 
+                                                        class="w-full {{ $errors->has('assets.'.$i.'.name') ? 'border-red-500 focus:ring-red-500' : '' }}" 
                                                         placeholder="e.g. Fridge" 
                                                         required />
                                                     
-                                                    <x-form.input-error :messages="$errors->get(\"assets.$i.name\")" class="mt-1" />
+                                                    <x-form.input-error :messages="$errors->get('assets.'.$i.'.name')" class="mt-1" />
                                                 </div>
                                                 <div>
                                                     <x-form.input-label value="Category" class="mb-1" />
@@ -104,7 +104,7 @@
         </div>
     </div>
 
-    {{-- Asset Row Template - Matches Room Create Style --}}
+    {{-- Asset Row Template --}}
     <template id="assetRowTpl">
         <div class="asset-row rounded-xl border border-gray-200 bg-gray-50 p-4 relative group animate-fadeIn transition-all hover:border-indigo-300">
             <div class="flex items-center justify-between mb-3">
@@ -114,7 +114,6 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                     <x-form.input-label value="Asset Name" class="mb-1" />
-                    {{-- 這裡我們同樣使用組件生成範本，__i__ 會被 JS 替換 --}}
                     <x-form.text-input name="assets[__i__][name]" class="w-full" placeholder="e.g. Fridge" required />
                 </div>
                 <div>
@@ -128,7 +127,7 @@
         </div>
     </template>
 
-    {{-- Asset Modal 保持原樣以確保 JS 操作 Checkbox 正常 --}}
+    {{-- Asset Modal --}}
     <div id="assetModal" class="fixed inset-0 z-50 hidden overflow-y-auto">
         <div class="flex items-center justify-center min-h-screen px-4">
             <div class="fixed inset-0 bg-slate-900 bg-opacity-60 backdrop-blur-sm transition-opacity" onclick="closeAssetModal()"></div>
@@ -140,9 +139,28 @@
                 <div class="p-6 max-h-[400px] overflow-y-auto bg-white">
                     <div class="grid grid-cols-2 gap-3">
                         @foreach($assetLibrary as $lib)
-                            <label class="flex items-center p-3 border border-gray-100 rounded-lg cursor-pointer hover:bg-indigo-50 hover:border-indigo-200 transition group">
-                                <input type="checkbox" class="asset-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" value="{{ $lib->name }}" data-category="{{ $lib->category }}">
-                                <span class="ml-3 text-sm font-medium text-slate-700 group-hover:text-indigo-700">{{ $lib->name }} ({{ $lib->category }})</span>
+                            @php
+                                // 判断资产是否已被该用户拥有
+                                $isOwned = in_array($lib->name, $existingAssetNames ?? []);
+                            @endphp
+                            
+                            {{-- 根据是否拥有，动态切换背景和光标样式 --}}
+                            <label class="flex items-center p-3 border border-gray-100 rounded-lg transition group {{ $isOwned ? 'bg-gray-100 cursor-not-allowed opacity-75' : 'cursor-pointer hover:bg-indigo-50 hover:border-indigo-200' }}">
+                                
+                                {{-- 若已拥有，加入 disabled 禁止勾选 --}}
+                                <input type="checkbox" 
+                                       class="asset-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" 
+                                       value="{{ $lib->name }}" 
+                                       data-category="{{ $lib->category }}" 
+                                       {{ $isOwned ? 'disabled' : '' }}>
+                                
+                                {{-- 若已拥有，文字变灰并显示 Already Exists --}}
+                                <span class="ml-3 text-sm font-medium {{ $isOwned ? 'text-gray-400' : 'text-slate-700 group-hover:text-indigo-700' }}">
+                                    {{ $lib->name }} ({{ $lib->category }})
+                                    @if($isOwned)
+                                        <span class="ml-1 text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-normal">Already Exists</span>
+                                    @endif
+                                </span>
                             </label>
                         @endforeach
                     </div>

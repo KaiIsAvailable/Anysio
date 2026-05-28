@@ -18,6 +18,30 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class RoomController extends Controller
 {
+    // 💡 新增一個專門的權限檢查方法，精準判斷 Agent 和 Owner 的權限
+    private function checkUnitAccess($user, $unit)
+    {
+        if (Gate::allows('super-admin')) {
+            return;
+        }
+
+        if ($user->role === 'agentAdmin' || $user->role === 'agent') {
+            // Agent 必須負責管理這個 Unit 的 Owner
+            $isManaging = Owners::where('agent_id', $user->id)
+                                ->where('user_id', $unit->owner_id)
+                                ->exists();
+            if (!$isManaging) {
+                abort(403, 'Unauthorized action: You do not manage the owner of this unit.');
+            }
+        } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
+            if ($unit->owner_id !== $user->id) {
+                abort(403, 'Unauthorized action: You do not own this unit.');
+            }
+        } else {
+            abort(403, 'Unauthorized role.');
+        }
+    }
+
     public function index(Request $request)
     {
         $search = $request->input('search');
@@ -85,72 +109,44 @@ class RoomController extends Controller
 
     public function create(Request $request)
     {
-        Gate::authorize('owner-admin');
+        // 💡 已經刪除 Gate::authorize('owner-admin');
         $user = Auth::user();
 
-        // 1. 获取当前要关联的 Unit
-        // 使用 failIf，确保如果 unit_id 不存在或不合法，直接报错
         $unitId = $request->query('unit_id');
         $unit = Unit::with(['property', 'owner'])->findOrFail($unitId);
 
-        // 2. 安全检查：根据用户角色进行不同的验证
-        //if (!Gate::allows('super-admin')) {
-        //    if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-        //        if ($unit->agent_id !== $user->id) {
-        //            abort(403, 'Unauthorized action.');
-        //        }
-        //    } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-        //        if ($unit->owner_id !== $user->id) {
-        //            abort(403, 'Unauthorized action.');
-        //        }
-        //    }
-        //}
+        // 💡 使用新的權限檢查方法
+        $this->checkUnitAccess($user, $unit);
 
-        // 3. 获取资产库 (逻辑保持不变)
-        // 根据该 Unit 所属的 Owner 过滤资产库，这样推荐更精准
         $assetLibrary = Asset::where('user_id', $unit->owner->id)
             ->orderBy('name', 'asc')
             ->get();
 
-        // 返回视图，把 $unit 传过去
         return view('adminSide.rooms.create', compact('unit', 'assetLibrary'));
     }
 
     public function store(Request $request)
     {
-        Gate::authorize('owner-admin');
+        // 💡 已經刪除 Gate::authorize('owner-admin');
         $user = Auth::user();
 
-        // 1. 验证数据
         $data = $request->validate([
             'unit_id'   => 'required|exists:units,id',
             'room_no'   => 'required|string|max:255',
             'room_type' => 'required|string|max:255',
             'status'    => 'required|',
             'address'   => 'nullable|string',
-            
-            // 匹配前端的 assets[index][id] 和 assets[index][qty]
             'assets'    => 'nullable|array',
             'assets.*.id'  => 'required_with:assets|exists:assets,id',
             'assets.*.qty' => 'required_with:assets|integer|min:0',
         ]);
 
-        // 1.5 权限检查：验证当前用户是否有权创建这个 Unit 的 Room
-        //$unit = Unit::findOrFail($data['unit_id']);
-        //if (!Gate::allows('super-admin')) {
-        //    if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-        //        if ($unit->agent_id !== $user->id) {
-        //            abort(403, 'Unauthorized action.');
-        //        }
-        //    } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-        //        if ($unit->owner_id !== $user->id) {
-        //            abort(403, 'Unauthorized action.');
-        //        }
-        //    }
-        //}
+        $unit = Unit::findOrFail($data['unit_id']);
+        
+        // 💡 使用新的權限檢查方法
+        $this->checkUnitAccess($user, $unit);
 
-        DB::transaction(function () use ($data, /*$unit*/) {
-            // 创建 Room
+        DB::transaction(function () use ($data) {
             $room = Room::create([
                 'unit_id'   => $data['unit_id'],
                 'room_no'   => $data['room_no'],
@@ -159,17 +155,15 @@ class RoomController extends Controller
                 'created_by'=> Auth::id(),
             ]);
 
-            // 3. 处理 Assets (仅处理数量大于 0 的)
             if (!empty($data['assets'])) {
                 foreach ($data['assets'] as $assetData) {
                     $quantity = (int)$assetData['qty'];
 
-                    // 只有当数量大于 0 时才创建关联记录
                     if ($quantity > 0) {
                         RoomAsset::create([
-                            'asset_id'         => $assetData['id'], // 直接使用前端传来的 ID
+                            'asset_id'         => $assetData['id'],
                             'room_id'          => $room->id,
-                            'unit_id'          => null, // 如果 RoomAsset 需要 unit_id 也可以填入
+                            'unit_id'          => null,
                             'quantity'         => $quantity,
                             'condition'        => 'Good', 
                             'last_maintenance' => null,
@@ -180,21 +174,17 @@ class RoomController extends Controller
             }
         });
 
-        // 4. 重定向
         return redirect()->route('admin.units.show', $data['unit_id'])
                         ->with('success', 'Room and assets created successfully.');
     }
 
     public function show(Room $room)
     {
-        // 1. 加载关联 (只要 Room 模型改了 morphMany，这里就生效了)
         $room->load(['unit.property', 'unit.owner', 'assets', 'leases.tenant.user']);
 
         $property = $room->unit->property;
         $fullAddress = "{$property->address}, {$property->postcode} {$property->city}, {$property->state}";
 
-        // 2. 这里的逻辑优化：直接从加载好的 leases 里提取租客，不需要手动去查 Tenants 表
-        // 这样可以减少数据库查询次数 (Eager Loading)
         $tenantsById = $room->leases->map(fn($lease) => $lease->tenant)
                                     ->filter()
                                     ->keyBy('id')
@@ -205,35 +195,19 @@ class RoomController extends Controller
 
     public function edit(Room $room)
     {
-        Gate::authorize('owner-admin');
+        // 💡 已經刪除 Gate::authorize('owner-admin');
         $user = Auth::user();
 
-        // 1. 加载 Unit 及其关联信息（用于页面展示）
         $room->load(['unit.property', 'unit.owner']);
         $unit = $room->unit;
 
-        // 2. 安全检查：根据用户角色进行不同的验证
-        if (!Gate::allows('super-admin')) {
-            if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-                // Agent 需要检查该 Unit 是否属于他管理的 Owner
-                if ($unit->agent_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                // Owner 需要检查该 Unit 是否属于他自己
-                if ($unit->owner_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            }
-        }
+        // 💡 使用新的權限檢查方法
+        $this->checkUnitAccess($user, $unit);
 
-        // 3. 获取该房东名下的资产库
         $assetLibrary = Asset::where('user_id', $unit->owner->id)
             ->orderBy('name', 'asc')
             ->get();
 
-        // 4. 获取当前房间已经存在的资产及其数量映射 [asset_id => quantity]
-        // 仅查询 Active 状态的资产，不包含被标记为 Inactive 的旧记录
         $currentAssets = RoomAsset::where('room_id', $room->id)
             ->where('status', 'Active')
             ->pluck('quantity', 'asset_id')
@@ -244,48 +218,32 @@ class RoomController extends Controller
 
     public function update(Request $request, Room $room)
     {
-        Gate::authorize('owner-admin');
+        // 💡 已經刪除 Gate::authorize('owner-admin');
         $user = Auth::user();
 
-        // 1. 权限检查：验证当前用户是否有权编辑这个 Room
-        if (!Gate::allows('super-admin')) {
-            if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-                if ($room->unit->agent_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($room->unit->owner_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            }
-        }
+        // 💡 使用新的權限檢查方法
+        $this->checkUnitAccess($user, $room->unit);
 
-        // 2. 验证数据
         $data = $request->validate([
             'room_no'   => 'required|string|max:255',
             'room_type' => 'required|string|max:255',
             'status'    => 'required|in:VACANT,OCCUPIED,MAINTENANCE',
-            
-            // 资产验证逻辑与 store 一致
             'assets'       => 'nullable|array',
             'assets.*.id'  => 'required_with:assets|exists:assets,id',
             'assets.*.qty' => 'required_with:assets|integer|min:0',
         ]);
 
         DB::transaction(function () use ($data, $room) {
-            // 更新 Room 基础信息
             $room->update([
                 'room_no'   => $data['room_no'],
                 'room_type' => $data['room_type'],
                 'status'    => $data['status'],
             ]);
 
-            // 4. 处理 Assets 更新：将旧资产标记为 Inactive，保留历史记录
             RoomAsset::where('room_id', $room->id)
                 ->where('status', 'Active')
                 ->update(['status' => 'Inactive']);
 
-            // 重新插入前端提交的、数量大于 0 的资产
             if (!empty($data['assets'])) {
                 foreach ($data['assets'] as $assetData) {
                     $quantity = (int)$assetData['qty'];
@@ -295,7 +253,7 @@ class RoomController extends Controller
                             'room_id'          => $room->id,
                             'asset_id'         => $assetData['id'],
                             'quantity'         => $quantity,
-                            'condition'        => 'Good', // 默认 Good，或从前端传值
+                            'condition'        => 'Good',
                             'last_maintenance' => null,
                             'remark'           => 'Updated via room edit',
                         ]);
@@ -310,21 +268,11 @@ class RoomController extends Controller
 
     public function destroy(Room $room)
     {
-        Gate::authorize('owner-admin');
+        // 💡 已經刪除 Gate::authorize('owner-admin');
         $user = Auth::user();
 
-        // 权限检查：验证当前用户是否有权删除这个 Room
-        if (!Gate::allows('super-admin')) {
-            if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-                if ($room->unit->agent_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($room->unit->owner_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            }
-        }
+        // 💡 使用新的權限檢查方法
+        $this->checkUnitAccess($user, $room->unit);
 
         DB::transaction(function () use ($room) {
             RoomAsset::where('room_id', $room->id)
@@ -338,26 +286,14 @@ class RoomController extends Controller
 
     public function restore(Room $room)
     {
-        Gate::authorize('owner-admin');
+        // 💡 已經刪除 Gate::authorize('owner-admin');
         $user = Auth::user();
 
-        // 权限检查：验证当前用户是否有权恢复这个 Room
-        if (!Gate::allows('super-admin')) {
-            if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-                if ($room->unit->agent_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($room->unit->owner_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            }
-        }
+        // 💡 使用新的權限檢查方法
+        $this->checkUnitAccess($user, $room->unit);
 
         DB::transaction(function () use ($room) {
-            // 恢复房间状态为 Vacant
             $room->update(['status' => 'Vacant']);
-            // 恢复之前被标记为 Inactive 的房间资产
             RoomAsset::where('room_id', $room->id)
                 ->where('status', 'Inactive')
                 ->update(['status' => 'Active']);
@@ -372,21 +308,8 @@ class RoomController extends Controller
 
     public function assetStore(Request $request, Room $room)
     {
-        Gate::authorize('owner-admin');
         $user = Auth::user();
-
-        // 权限检查：验证当前用户是否有权管理这个 Room 的资产
-        if (!Gate::allows('super-admin')) {
-            if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-                if ($room->unit->agent_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($room->unit->owner_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            }
-        }
+        $this->checkUnitAccess($user, $room->unit);
 
         $payload = $request->validate([
             'name'             => ['required', 'string', 'max:255'],
@@ -402,21 +325,8 @@ class RoomController extends Controller
 
     public function assetUpdate(Request $request, Room $room, RoomAsset $asset)
     {
-        Gate::authorize('owner-admin');
         $user = Auth::user();
-
-        // 权限检查：验证当前用户是否有权管理这个 Room 的资产
-        if (!Gate::allows('super-admin')) {
-            if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-                if ($room->unit->agent_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-                if ($room->unit->owner_id !== $user->id) {
-                    abort(403, 'Unauthorized action.');
-                }
-            }
-        }
+        $this->checkUnitAccess($user, $room->unit);
 
         abort_unless($asset->room_id === $room->id, 404);
 
@@ -434,7 +344,9 @@ class RoomController extends Controller
 
     public function assetDestroy(Room $room, RoomAsset $asset)
     {
-        Gate::authorize('owner-admin');
+        $user = Auth::user();
+        $this->checkUnitAccess($user, $room->unit);
+
         abort_unless($asset->room_id === $room->id, 404);
         $asset->update(['status' => 'inactive']);
 
@@ -447,7 +359,6 @@ class RoomController extends Controller
 
     private function validateRoomForm(Request $request, bool $isUpdate = false, ?Room $room = null): array
     {
-        Gate::authorize('owner-admin');
         $roomNoRule = $isUpdate
             ? Rule::unique('rooms', 'room_no')->ignore($room?->id)
             : Rule::unique('rooms', 'room_no');

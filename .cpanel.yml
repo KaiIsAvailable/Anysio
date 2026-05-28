@@ -2,4 +2,4 @@
 deployment:
   tasks:
     - export DEPLOYPATH=/home/thamstae/test-anysio.thamstaekwondoacademy.com/
-    - /bin/cp -rf . $DEPLOYPATH
+    - /bin/rsync -av --exclude='.git' --exclude='.env' . $DEPLOYPATH

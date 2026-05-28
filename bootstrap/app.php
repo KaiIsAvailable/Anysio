@@ -15,16 +15,19 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         //
     })
-    ->withExceptions(function (Exceptions $exceptions): void {
-        // 修改这里
-        $exceptions->render(function (TokenMismatchException $e, Request $request) {
-            // 如果是 AJAX 请求，返回状态码让前端知道 Session 挂了
+    ->withExceptions(function (Exceptions $exceptions) {
+        $exceptions->render(function (TokenMismatchException $e, $request) {
             if ($request->expectsJson()) {
-                //return response()->json(['message' => 'Session expired.'], 419);
-                return redirect()->route('login')->with('message', 'Session expired, please login again.');
+                return response()->json([
+                    'message' => 'Session expired. Please refresh the page.',
+                    'redirect' => route('login')
+                ], 419);
             }
 
-            // 如果是普通页面请求，跳转回登录页
-            return redirect()->route('login')->with('message', 'Session expired, please login again.');
+            session()->invalidate();
+            session()->regenerateToken();
+
+            return redirect()->route('login')
+                            ->with('message', 'Session expired, please login again.');
         });
     })->create();

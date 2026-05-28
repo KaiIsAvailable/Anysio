@@ -6,7 +6,7 @@
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
-    <form method="POST" action="{{ route('password.email') }}">
+    <x-form.form method="POST" action="{{ route('password.email') }}">
         @csrf
 
         <!-- Email Address -->
@@ -17,9 +17,9 @@
         </div>
 
         <div class="flex items-center justify-end mt-4">
-            <x-form.primary-button>
+            <x-form.primary-button loading="loading">
                 {{ __('Email Password Reset Link') }}
             </x-form.primary-button>
         </div>
-    </form>
+    </x-form.form>
 </x-guest-layout>

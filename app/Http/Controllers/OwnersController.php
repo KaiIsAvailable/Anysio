@@ -60,7 +60,7 @@ class OwnersController extends Controller
                 break;
         }
 
-        $owners = $query->paginate(5)->withQueryString();
+        $owners = $query->paginate(10)->withQueryString();
         return view('adminSide.owners.index', compact('owners'));
     }
 

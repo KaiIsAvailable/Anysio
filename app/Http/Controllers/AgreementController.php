@@ -17,23 +17,22 @@ class AgreementController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $query = Agreements::with(['user', 'historyVersions']) // 关键：关联历史版本
+        
+        // 💡 1. 移除原本的 historyVersions 預載入，改由下方手動精準加載
+        $query = Agreements::with(['user']) 
             ->where('status', 'active');
 
         // 权限判断逻辑
         $user = Auth::user();
         if (!Gate::allows('super-admin')) {
             if ($user->role === 'agentAdmin') {
-                // 如果是 Agent，先去 Owners 表里找出他代理的所有 Owner 的 user_id
                 $managedOwnerUserIds = Owners::where('agent_id', $user->id)->pluck('user_id');
                 
-                // Agent 可以看到：自己的协议 OR 他代理的 Owner 的协议
                 $query->where(function($q) use ($user, $managedOwnerUserIds) {
                     $q->where('user_id', $user->id)
                       ->orWhereIn('user_id', $managedOwnerUserIds);
                 });
             } else {
-                // 其他普通角色 (Owner, OwnerAdmin 等) 只能看属于自己的协议
                 $query->where('user_id', $user->id);
             }
         }
@@ -47,10 +46,30 @@ class AgreementController extends Controller
 
         $agreements = $query->latest()->paginate(10);
 
-        // 关键修正：因为 $agreements 是一个集合，需要循环处理每一项
-        $agreements->getCollection()->transform(function ($agreement) {
-            // 将 3 个或以上的换行符缩减为 2 个，保持段落感但去除冗余空白
+        // 💡 2. 獲取本頁所有協議的「始祖 ID」 (Root Parent ID)
+        $rootIds = $agreements->map(function ($a) {
+            return $a->parent_agreement_id ?: $a->id;
+        })->unique()->toArray();
+
+        // 💡 3. 一次性把這些家族的所有成員（包含始祖 v1.0）全部撈出來，完美解決 N+1 效能問題
+        $allHistories = collect();
+        if (!empty($rootIds)) {
+            $allHistories = Agreements::whereIn('id', $rootIds)
+                ->orWhereIn('parent_agreement_id', $rootIds)
+                ->orderBy('created_at', 'desc')
+                ->get();
+        }
+
+        // 💡 4. 將資料整理並綁定給前端
+        $agreements->getCollection()->transform(function ($agreement) use ($allHistories) {
             $agreement->content = preg_replace("/(\r\n|\r|\n){3,}/", "\n\n", $agreement->content);
+            
+            // 將屬於這個家族的成員（含始祖）過濾出來，綁定到自定義的 full_history 屬性
+            $rootId = $agreement->parent_agreement_id ?: $agreement->id;
+            $agreement->full_history = $allHistories->filter(function ($h) use ($rootId) {
+                return $h->id == $rootId || $h->parent_agreement_id == $rootId;
+            })->values();
+
             return $agreement;
         });
 
@@ -95,7 +114,7 @@ class AgreementController extends Controller
             'sourceAgreement',
             'isOwnerAdmin',
             'ownerAdmin',
-            'user' // 把 $user 传给前端，前端就可以通过 $user->role 来判断显示逻辑了
+            'user' 
         ));
     }
 
@@ -111,15 +130,19 @@ class AgreementController extends Controller
             'content' => 'required|string',
         ]);
 
-        // 2. 版本冲突检查（保持你原有的逻辑）
         $parentIdFromRequest = $request->input('parent_agreement_id');
+
+        // 2. 版本冲突检查（升级版本时才检查）
         if ($parentIdFromRequest) {
-            $versionExists = Agreements::where(function ($query) use ($parentIdFromRequest) {
-                $query->where('parent_agreement_id', $parentIdFromRequest)
-                    ->orWhere('id', $parentIdFromRequest);
+            $sourceAgreement = Agreements::find($parentIdFromRequest);
+            $rootParentId = $sourceAgreement->parent_agreement_id ?: $sourceAgreement->id;
+
+            $versionExists = Agreements::where(function ($query) use ($rootParentId) {
+                $query->where('parent_agreement_id', $rootParentId)
+                      ->orWhere('id', $rootParentId);
             })
-                ->where('version', $request->version)
-                ->exists();
+            ->where('version', $request->version)
+            ->exists();
 
             if ($versionExists) {
                 return back()->withErrors(['version' => 'This version already exists for this agreement tree.'])->withInput();
@@ -133,21 +156,27 @@ class AgreementController extends Controller
             $validated['user_id'] = null;
         }
 
-        // 4. 【核心修正】状态联动与 ID 继承处理
-        if ($validated['status'] === 'active') {
-            // 先找出那个目前还是 active 的“老前辈”
-            $oldActive = Agreements::where('type', $validated['type'])
-                ->where('user_id', $validated['user_id'])
-                ->where('status', 'active')
-                ->first();
+        // 4. 【核心修正】分离“全新添加”与“版本升级”逻辑
+        if ($parentIdFromRequest) {
+            // 这是一次【版本升级】
+            // 1. 获取这棵家族树真正的 Root ID
+            $sourceAgreement = Agreements::find($parentIdFromRequest);
+            $rootParentId = $sourceAgreement->parent_agreement_id ?: $sourceAgreement->id;
+            
+            // 2. 将这棵家族树里现有的 active 版本全部变成 inactive
+            Agreements::where(function ($q) use ($rootParentId) {
+                $q->where('id', $rootParentId)
+                  ->orWhere('parent_agreement_id', $rootParentId);
+            })
+            ->where('status', 'active')
+            ->update(['status' => 'inactive']);
 
-            if ($oldActive) {
-                // 关键：把新记录的 parent_id 指向这个老记录的 ID
-                $validated['parent_agreement_id'] = $oldActive->id;
-
-                // 把老记录变退休 (inactive)
-                $oldActive->update(['status' => 'inactive']);
-            }
+            // 3. 继承家族树的 Root ID
+            $validated['parent_agreement_id'] = $rootParentId;
+        } else {
+            // 这是一次【全新添加】
+            // 因为没有 parent_id，什么都不影响，直接作为独立的新协议
+            $validated['parent_agreement_id'] = null;
         }
 
         // 5. 执行创建
@@ -189,16 +218,23 @@ class AgreementController extends Controller
             ],
         ];
     }
+
     public function activate(Agreements $agreement)
     {
         try {
             DB::transaction(function () use ($agreement) {
-                // 1. 将同类型、同房东的所有协议设为 inactive
-                Agreements::where('type', $agreement->type)
-                    ->where('owner_id', $agreement->owner_id)
-                    ->update(['status' => 'inactive']);
+                // 【核心修正】在历史纪录切换版本时，只影响同一个家族树的协议
+                // 获取家族树的 Root ID
+                $rootParentId = $agreement->parent_agreement_id ?: $agreement->id;
 
-                // 2. 将当前选中的协议设为 active
+                // 1. 将这棵家族树里的所有协议都设为 inactive
+                Agreements::where(function ($q) use ($rootParentId) {
+                    $q->where('id', $rootParentId)
+                      ->orWhere('parent_agreement_id', $rootParentId);
+                })
+                ->update(['status' => 'inactive']);
+
+                // 2. 将当前选中的版本恢复为 active
                 $agreement->update(['status' => 'active']);
             });
 

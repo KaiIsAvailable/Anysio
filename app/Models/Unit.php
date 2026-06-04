@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\SyncableStatus;
 
 class Unit extends Model
 {
-    use HasUlids;
+    use HasUlids, SyncableStatus;
 
     protected $fillable = [
         'property_id',
@@ -29,9 +30,10 @@ class Unit extends Model
     /**
      * 关联到所属的大楼/小区 (Property)
      */
-    public function property(): BelongsTo
+    public function property() 
     {
-        return $this->belongsTo(Property::class);
+        // 确保这里返回的是 Property 类
+        return $this->belongsTo(Property::class, 'property_id'); 
     }
 
     /**
@@ -64,4 +66,7 @@ class Unit extends Model
     public function getFullAddressAttribute() {
         return $this->property ? $this->property->full_address : 'N/A';
     }
+
+    public function childrenItems() { return $this->rooms; }
+    public function parentItem() { return $this->property; }
 }

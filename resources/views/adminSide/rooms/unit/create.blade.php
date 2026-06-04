@@ -105,14 +105,36 @@
                         <h2 class="text-lg font-semibold text-slate-900 mb-4 border-b pb-2">Utilities & Status</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Electricity Acc No. (TNB)</label>
-                                <input type="text" name="electricity_acc_no" value="{{ old('electricity_acc_no') }}" 
-                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" pattern="[0-9]{12}" maxlength="12" minlength="12" inputmode="numeric" required title="Must be exactly 12 digits">
+                                <x-form.input-label value="Electricity Acc No. (TNB)" class="mb-1" />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="electricity_acc_no"
+                                    value="{{ old('electricity_acc_no') }}"
+                                    placeholder="e.g. 123456789012"
+                                    class=" w-full"
+                                    {{-- 这些属性会被合并进组件内部的 <input> 标签中 --}}
+                                    pattern="\d{12}" 
+                                    maxlength="12" 
+                                    inputmode="numeric"
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                />
+                                <x-form.input-error :messages="$errors->get('electricity_acc_no')" class="mt-1" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Water Acc No. (Air Selangor/SAJ)</label>
-                                <input type="text" name="water_acc_no" value="{{ old('water_acc_no') }}" 
-                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" pattern="[0-9]{16}" maxlength="16" minlength="16" inputmode="numeric" required title="Must be exactly 16 digits">
+                                <x-form.input-label value="Water Acc No. (Air Selangor/SAJ)" class="mb-1" />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="water_acc_no"
+                                    value="{{ old('water_acc_no') }}"
+                                    placeholder="e.g. 1234-5678-9012"
+                                    class=" w-full"
+                                    {{-- 这些属性会被合并进组件内部的 <input> 标签中 --}}
+                                    pattern="[\d-]{1,16}"
+                                    maxlength="16" 
+                                    inputmode="numeric"
+                                    oninput="this.value = this.value.replace(/[^0-9-]/g, '')"
+                                />
+                                <x-form.input-error :messages="$errors->get('water_acc_no')" class="mt-1" />
                             </div>
                         </div>
 

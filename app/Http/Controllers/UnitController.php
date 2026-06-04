@@ -166,6 +166,12 @@ class UnitController extends Controller
             }
 
             DB::commit();
+
+            if (method_exists($unit, 'syncStatus')) {
+                // 确保数据已加载
+                $unit->syncStatus(); 
+            }
+            
             return redirect()->route('admin.properties.show', ['property' => $request->property_id])
                  ->with('success', 'Unit created successfully!');
 
@@ -178,7 +184,7 @@ class UnitController extends Controller
     /**
      * Display the specified resource.
      */
-public function show(Request $request, Unit $unit)
+    public function show(Request $request, Unit $unit)
     {
         // 1. 建立查詢關聯
         $query = $unit->rooms()

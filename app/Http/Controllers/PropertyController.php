@@ -30,22 +30,27 @@ class PropertyController extends Controller
             ->select('properties.*', 'owners.name as owner_name', 'creators.name as creator_name')
             ->withCount('units');
 
-        // 2. 权限过滤：如果是 ownerAdmin 或 agentAdmin，限制为只能看到自己创建的房源
-        // 这里使用 when 逻辑，既清晰又符合 Laravel 链式调用习惯
-        $query->when(in_array($user->role, ['ownerAdmin', 'agentAdmin']), function ($q) use ($user) {
-            return $q->where('properties.created_by', $user->id);
-        });
-
-        if (!Gate::allows('super-admin')) {
-            if (Gate::allows('agent-admin')) {
-                $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-                $query->whereIn('properties.owner_id', $ownerIds);
-            } elseif (Gate::allows('owner-admin')) {
-                $query->where('properties.created_by', $user->id);
-            } else {
-                $query->whereRaw('1 = 0'); 
+        $query->where(function ($q) use ($user) {
+            if (Gate::allows('super-admin')) {
+                return; // 超管不过滤
             }
-        }
+
+            if (Gate::allows('agent-admin')) {
+                // Agent 只能看所属 Owner 的房源
+                $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
+                $q->whereIn('properties.owner_id', $ownerIds);
+            } 
+            elseif (Gate::allows('owner-admin')) {
+                // Owner 只能看自己创建的 OR 自己是 Owner 的
+                $q->where(function ($sub) use ($user) {
+                    $sub->where('properties.created_by', $user->id)
+                        ->orWhere('properties.owner_id', $user->id);
+                });
+            } 
+            else {
+                $q->whereRaw('1 = 0'); // 没权限就返回空
+            }
+        });
 
         $sortMapping = [
             'n'   => trim('properties.name'),
@@ -168,7 +173,7 @@ class PropertyController extends Controller
 
         if (!Gate::allows('super-admin')) {
             if (Gate::allows('owner-admin')) {
-                if ($property->created_by !== $user->id) {
+                if ($property->created_by !== $user->id && $property->owner_id !== $user->id) {
                     return redirect()->route('admin.properties.index')
                         ->with('error', 'You are not authorized to view that property.');
                 }

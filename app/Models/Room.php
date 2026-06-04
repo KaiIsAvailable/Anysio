@@ -8,10 +8,11 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Models\User;
+use App\Traits\SyncableStatus;
 
 class Room extends Model
 {
-    use HasUlids;
+    use HasUlids, SyncableStatus;
 
     protected $fillable = [
         'unit_id',
@@ -59,4 +60,7 @@ class Room extends Model
             ? $this->unit->property->full_address 
             : 'N/A';
     }
+
+    public function childrenItems() { return null; }
+    public function parentItem() { return $this->unit; }
 }

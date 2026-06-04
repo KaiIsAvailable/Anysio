@@ -3,7 +3,7 @@
         {{ __('This is a secure area of the application. Please confirm your password before continuing.') }}
     </div>
 
-    <form method="POST" action="{{ route('password.confirm') }}">
+    <x-form.form method="POST" action="{{ route('password.confirm') }}">
         @csrf
 
         <!-- Password -->
@@ -19,9 +19,9 @@
         </div>
 
         <div class="flex justify-end mt-4">
-            <x-form.primary-button>
+            <x-form.primary-button loading="loading">
                 {{ __('Confirm') }}
             </x-form.primary-button>
         </div>
-    </form>
+    </x-form.form>
 </x-guest-layout>

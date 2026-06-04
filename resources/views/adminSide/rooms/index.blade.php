@@ -7,15 +7,19 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Rooms</h1>
                     <p class="mt-2 text-sm text-gray-500">Manage and organize your room directory.</p>
                 </div>
-                <div class="flex-shrink-0">
+                <div class="flex-shrink-0" x-data="{loading: false}">
                     @can('owner-admin')
-                        <a href="{{ route('admin.rooms.create') }}"
-                        class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
-                            <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <x-form.primary-button
+                            type="button"
+                            loading="loading"
+                            @click="loading = true; window.location.href = '{{ route('admin.rooms.create') }}'"
+                            >
+
+                            <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
                             Add New Room
-                        </a>
+                        </x-form.primary-button>
                     @endcan
                 </div>
             </div>
@@ -113,10 +117,11 @@
                                 @php
                                     $status = $room->status;
                                     $badge = match ($status) {
-                                        'Vacant' => 'bg-green-100 text-green-800',
-                                        'Occupied'  => 'bg-amber-100 text-amber-800',
-                                        'Maintenance' => 'bg-blue-100 text-blue-800',
-                                        default     => 'bg-gray-100 text-gray-800',
+                                        // 这里的颜色类要匹配你的语义
+                                        'Occupied'    => 'bg-emerald-100 text-emerald-800', // 使用更专业的 Emerald 而不是简单的 Green
+                                        'Vacant'      => 'bg-amber-100 text-amber-800',     // 匹配你刚才定的黄色
+                                        'Maintenance' => 'bg-rose-100 text-rose-800',       // 维修应该用红色警示，而不是蓝色
+                                        default       => 'bg-gray-100 text-gray-800',
                                     };
                                     $assetNames = $room->assets->pluck('name')->filter()->unique()->values();
                                 @endphp

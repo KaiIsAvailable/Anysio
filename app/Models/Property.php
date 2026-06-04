@@ -6,10 +6,12 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use App\Traits\SyncableStatus;
 
 class Property extends Model
 {
-    use HasUlids;
+    use HasUlids, SyncableStatus;
 
     /**
      * 可批量赋值的字段
@@ -24,11 +26,18 @@ class Property extends Model
         'type',
         'owner_id',
         'created_by',
+        'status',
     ];
 
     public function units(): HasMany
     {
         return $this->hasMany(Unit::class, 'property_id');
+    }
+
+    public function rooms(): HasManyThrough
+    {
+        // Property 通过 Unit 关联到 Room
+        return $this->hasManyThrough(Room::class, Unit::class, 'property_id', 'unit_id');
     }
 
     public function owner(): BelongsTo
@@ -57,4 +66,7 @@ class Property extends Model
             $this->state
         ]));
     }
+
+    public function childrenItems() { return $this->units; }
+    public function parentItem() { return null; }
 }

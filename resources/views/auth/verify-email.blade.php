@@ -12,23 +12,23 @@
     <div class="mt-4 flex items-center justify-between">
         <x-auth-session-status class="mb-4" :status="session('status')" />
         
-        <form method="POST" action="{{ route('verification.send') }}">
+        <x-form.form method="POST" action="{{ route('verification.send') }}">
             @csrf
 
             <div>
-                <x-form.primary-button>
+                <x-form.primary-button loading="loading">
                     {{ __('Resend Verification Email') }}
                 </x-form.primary-button>
             </div>
-        </form>
+        </x-form.form>
 
-        <form method="POST" action="{{ route('logout') }}">
+        <x-form.form method="POST" action="{{ route('logout') }}">
             @csrf
 
             <button type="submit" class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
                 {{ __('Log Out') }}
             </button>
-        </form>
+        </x-form.form>
     </div>
 </x-guest-layout>
 

@@ -239,7 +239,7 @@ class LeaseController extends Controller
             'term_type' => 'required_if:status,New,Renew|nullable|string',
             'security_deposit' => 'nullable|numeric|min:1',
             'utilities_deposit' => 'nullable|numeric|min:1',
-            'agreement_id' => 'required',
+            'agreement_id' => 'required_if:status,New,Renew',
         ]);
 
         // 💡 修复点 2: 后端二次校验 Fee Type 是否合法，防止恶意绕过前端
@@ -310,7 +310,9 @@ class LeaseController extends Controller
             }
 
             // 检查套餐是否存在
-            if (!$management || !$management->package) {
+            if ($user->role === 'admin'){
+
+            }else if(!$management || !$management->package) {
                 return back()->with('error', 'You do not have an active subscription package.');
             }
 
@@ -320,8 +322,8 @@ class LeaseController extends Controller
             $totalLeaseLimit = $baseLeaseLimit + $extraLeaseLimit;
 
             // 计算当前活跃的主租约数量
-            $currentLeaseCount = Lease::whereNull('parent_lease_id')
-                ->whereIn('status', ['New', 'Renew'])
+            $currentLeaseCount = Lease::where('is_current', 1)
+                ->whereIn('status', ['New', 'Renew', 'Check Out']) // 只要没到 End Agreement，都算占用
                 ->when($user->role !== 'admin', function ($query) use ($user) {
                     return $query->whereHas('tenant', function ($q) use ($user) {
                         $q->where('created_by', $user->id);
@@ -398,13 +400,21 @@ class LeaseController extends Controller
                 $oldLease->update(['is_current' => false]);
             }
 
-            // 更新物理状态
+            // 1. 获取模型实例并更新状态 (这样内存中的对象 status 也是最新的)
+            $leasable = $leasableType::findOrFail($leasableId);
+            
             $targetRoomStatus = match ($validated['status']) {
                 'Check Out' => 'Cleaning',
                 'End Agreement' => 'Vacant',
                 default => 'Occupied',
             };
-            $leasableType::where('id', $leasableId)->update(['status' => $targetRoomStatus]);
+            
+            $leasable->update(['status' => $targetRoomStatus]);
+
+            // 2. 现在调用 syncStatus，它使用的是最新的 $leasable 对象
+            if (method_exists($leasable, 'syncStatus')) {
+                $leasable->syncStatus();
+            }
 
             // 创建新记录
             Lease::create([
@@ -432,8 +442,27 @@ class LeaseController extends Controller
                 'status' => $validated['status'],
             ]);
         });
+        
+        $leasable = $leasableType::findOrFail($leasableId);
+        if (method_exists($leasable, 'syncStatus')) {
+            // 关键点：在同步前强制让模型“忘记”之前的缓存关系
+            $leasable->unsetRelation('unit'); // 如果是Room，清除对Unit的关联缓存
+            $leasable->syncStatus();
+        }
 
-        return redirect()->route('admin.leases.index')->with('success', 'Operation completed successfully.');
+        return redirect()->route('admin.leases.index')->with('success', 'Lease added successfully.');
+    }
+
+    public function updatePropertyStatus(Property $property, $newStatus)
+    {
+        DB::transaction(function () use ($property, $newStatus) {
+            // 1. 强制覆盖子级 (这是“强制”行为，不论之前的状态是什么)
+            $property->units()->update(['status' => $newStatus]);
+            $property->rooms()->update(['status' => $newStatus]);
+            
+            // 2. 更新自己
+            $property->update(['status' => $newStatus]);
+        });
     }
 
     public function show(Request $request, Lease $lease)

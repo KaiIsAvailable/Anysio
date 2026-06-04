@@ -83,10 +83,10 @@
                                 @php
                                     $uStatus = $unit->status;
                                     $uBadge = match ($uStatus) {
-                                        'Vacant' => 'bg-green-100 text-green-800',
-                                        'Occupied'  => 'bg-amber-100 text-amber-800',
-                                        'Maintenance' => 'bg-blue-100 text-blue-800',
-                                        default     => 'bg-gray-100 text-gray-800',
+                                        'Occupied'    => 'bg-emerald-100 text-emerald-800', 
+                                        'Vacant'      => 'bg-amber-100 text-amber-800',     
+                                        'Maintenance' => 'bg-rose-100 text-rose-800',       
+                                        default       => 'bg-gray-100 text-gray-800',
                                     };
                                 @endphp
                                 <tr class="hover:bg-indigo-50 transition-colors cursor-pointer group"

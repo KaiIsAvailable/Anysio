@@ -172,6 +172,11 @@ class RoomController extends Controller
                     }
                 }
             }
+
+            // 触发同步
+            $unit = $room->unit; // 获取所属单位
+            $unit->unsetRelation('rooms'); // 清除缓存，确保能读到刚插入的这间房
+            $unit->syncStatus();
         });
 
         return redirect()->route('admin.units.show', $data['unit_id'])

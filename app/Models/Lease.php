@@ -70,6 +70,12 @@ class Lease extends Model
         return $this->hasMany(Utility::class);
     }
 
+    public function unit(): BelongsTo
+    {
+        // 假设 Lease 表里有 unit_id 字段
+        return $this->belongsTo(Unit::class, 'unit_id');
+    }
+
     public function maintenanceRequests(): HasMany
     {
         return $this->hasMany(Maintenance::class);

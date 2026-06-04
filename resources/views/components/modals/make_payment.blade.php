@@ -24,7 +24,7 @@ x-cloak>
             </div>
 
             {{-- Modal 主体：修正 z-index 确保它在遮罩上面 --}}
-            <div class="relative z-[102] bg-white border border-white/40 rounded-[2rem] shadow-[0_35px_100px_-15px_rgba(0,0,0,0.4)] max-w-xl w-full overflow-hidden transition-all duration-300"
+            <div class="relative z-[102] bg-white border border-white/40 rounded-[2rem] shadow-[0_35px_100px_-15px_rgba(0,0,0,0.4)] max-w-xl w-full max-h-[80vh] flex flex-col overflow-hidden transition-all duration-300"
                 x-show="openPayment"
                 x-transition:enter="transition ease-out duration-300"
                 x-transition:enter-start="opacity-0 scale-95 translate-y-4"
@@ -167,19 +167,24 @@ x-cloak>
                 {{-- 情况 B：还没上传，显示支付表单 --}}
                 @else
                     <form action="{{ $actionUrl }}" 
-                            method="POST" 
-                            enctype="multipart/form-data"
-                            x-data="{ loading: false }" @submit="loading = true"
-                            x-latest-amount-due="{{$latestPayment?->amount_due}}">
+                        method="POST" 
+                        enctype="multipart/form-data"
+                        x-data="{ loading: false }" 
+                        @submit="loading = true"
+                        x-latest-amount-due="{{$latestPayment?->amount_due}}"
+                        class="flex flex-col h-full"> {{-- 改动 1：表单设为 flex-col 且占满高度 --}}
                         @csrf
                         
-                        <div class="p-1 space-y-8">
+                        {{-- 改动 2：中间内容区添加 flex-1 overflow-y-auto --}}
+                        <div class="flex-1 overflow-y-auto p-1 space-y-8">
                             {{-- QR Section --}}
-                            <div class="flex flex-col items-center justify-center space-y-4">
+                            <div class="flex flex-col items-center justify-center space-y-4 pt-4">
                                 <div class="relative group">
                                     <div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl blur opacity-25"></div>
                                     <div class="relative bg-white p-3 rounded-2xl shadow-sm border border-gray-100">
-                                        <img src="{{ asset('image/qr_example.jpeg') }}" class="w-48 h-48 object-contain" alt="Payment QR">
+                                        <img src="{{ asset('image/qr_example.jpeg') }}" 
+                                            class="w-48 h-48 max-w-full object-contain" 
+                                            alt="Payment QR">
                                     </div>
                                 </div>
                                 <p class="text-sm text-gray-600 font-medium text-center">
@@ -190,7 +195,7 @@ x-cloak>
                             <hr class="border-gray-100">
 
                             {{-- Input Section --}}
-                            <div class="space-y-4">
+                            <div class="space-y-4 px-4">
                                 <div>
                                     <x-form.input-label value="1. Upload Bank Receipt" class="mb-3 ml-3"/>
                                     <x-form.file-input 
@@ -214,9 +219,8 @@ x-cloak>
                             </div>
                         </div>
 
-                        {{-- Footer --}}
-                        <div class="p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <!-- Logout 容器：添加 flex-1 -->
+                        {{-- 改动 3：Footer 容器确保 flex-none --}}
+                        <div class="flex-none p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
                             <x-form.form method="POST" action="{{ route('logout') }}" class="w-full sm:flex-1">
                                 @csrf
                                 <x-form.secondary-button loading="loading" type="submit" class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
@@ -224,7 +228,6 @@ x-cloak>
                                 </x-form.secondary-button>
                             </x-form.form>
 
-                            <!-- Confirm 容器：添加 flex-1 -->
                             <div class="w-full sm:flex-1">
                                 <x-form.primary-button type="submit" loading="loading" class="w-full px-4 py-3 items-center justify-center">
                                     <span>Confirm & Submit Receipt</span>

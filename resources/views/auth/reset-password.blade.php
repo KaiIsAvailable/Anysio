@@ -1,5 +1,5 @@
 <x-guest-layout>
-    <form method="POST" action="{{ route('password.store') }}">
+    <x-form.form method="POST" action="{{ route('password.store') }}">
         @csrf
 
         <!-- Password Reset Token -->
@@ -31,9 +31,16 @@
         </div>
 
         <div class="flex items-center justify-end mt-4">
-            <x-form.primary-button>
+            <x-form.form method="POST" action="{{ route('logout') }}">
+                @csrf
+
+                <button type="submit" class="underline text-sm text-gray-600 hover:text-gray-900 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    {{ __('Log Out') }}
+                </button>
+            </x-form.form>
+            <x-form.primary-button loading="loading">
                 {{ __('Reset Password') }}
             </x-form.primary-button>
         </div>
-    </form>
+    </x-form.form>
 </x-guest-layout>

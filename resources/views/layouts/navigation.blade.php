@@ -108,6 +108,7 @@
             <div x-data="{ 
                 openSetting: false, 
                 openBoost: false, 
+                openPackage: false, 
                 open: false, 
                 boostData: { 
                     packageName: '{{ Auth::user()->user_management->package->name ?? "N/A" }}', 
@@ -117,7 +118,12 @@
                         ? (Auth::user()->user_management->package->max_lease_limit - Auth::user()->user_management->extra_lease) 
                         : 0 
                     }},
-                    extraPrice: {{ Auth::user()->user_management->package->extra_lease_price ?? 0 }} 
+                    extraPrice: {{ Auth::user()->user_management->package->extra_lease_price ?? 0 }},
+
+                    paymentMode: '{{ Auth::user()->user_management->package->price_mode ?? "N/A" }}',
+                    price: '{{ Auth::user()->user_management?->package?->price / 100  ?? 0 }}',
+                    TotalAvailableLease: '{{ Auth::user()->user_management?->package?->base_lease?? 0 }}',
+                    status: '{{ Auth::user()->user_management?->package?->status ?? "N/A" }}'
                 } 
             }" class="hidden sm:flex sm:items-center sm:ms-6">
 
@@ -151,7 +157,7 @@
                             <div class="relative"> 
                                 <div @click.stop="openSetting = !openSetting" 
                                     class="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
-                                    <span>{{ __('Settings') }}</span>
+                                    <span>{{ __('Quick Actions') }}</span>
                                     <svg class="w-4 h-4 ml-1 text-gray-400 transition-transform duration-200"
                                         :class="openSetting ? 'rotate-90' : ''"
                                         fill="currentColor" viewBox="0 0 20 20">
@@ -164,10 +170,12 @@
                                     x-cloak
                                     x-transition 
                                     class="bg-gray-50 border-l-4 border-indigo-400">
-                                    
-                                    <x-dropdown-link :href="route('admin.agreements.create')" class="pl-8 py-2 text-xs">
-                                        {{ __('+ Add Agreement') }}
-                                    </x-dropdown-link>
+
+                                    <button type="button" 
+                                            @click.prevent="openPackage = true; openSetting = false;" 
+                                            class="block w-full pl-8 py-2 text-xs text-left text-gray-700 hover:bg-gray-100">
+                                        {{ __('View Current Package') }}
+                                    </button>
 
                                     {{-- 直接触发父级的 openBoost --}}
                                     <button type="button" 
@@ -175,6 +183,10 @@
                                             class="block w-full pl-8 py-2 text-xs text-left text-gray-700 hover:bg-gray-100">
                                         {{ __('+ Boost Lease Capacity') }}
                                     </button>
+
+                                    <x-dropdown-link :href="route('admin.agreements.create')" class="pl-8 py-2 text-xs">
+                                        {{ __('+ Add Agreement') }}
+                                    </x-dropdown-link>
                                 </div>
                             </div>
                         @endcan
@@ -192,6 +204,7 @@
 
                 {{-- 4. 模态框放在这里，它能直接访问到父级的 boostData 和 openBoost --}}
                 @include('components.modals.boost-lease-modal')
+                @include('components.modals.package-modal')
             </div>
 
             <!-- Hamburger -->

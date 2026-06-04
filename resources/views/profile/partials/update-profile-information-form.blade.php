@@ -9,11 +9,11 @@
         </p>
     </header>
 
-    <form id="send-verification" method="post" action="{{ route('verification.send') }}">
+    <x-form.form id="send-verification" method="post" action="{{ route('verification.send') }}">
         @csrf
-    </form>
+    </x-form.form>
 
-    <form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6">
+    <x-form.form method="post" action="{{ route('profile.update') }}" class="mt-6 space-y-6">
         @csrf
         @method('patch')
 
@@ -48,7 +48,9 @@
         </div>
 
         <div class="flex items-center gap-4">
-            <x-form.primary-button>{{ __('Save') }}</x-form.primary-button>
+            <x-form.primary-button loading="loading">
+                {{ __('Save') }}
+            </x-form.primary-button>
 
             @if (session('status') === 'profile-updated')
                 <p
@@ -60,5 +62,5 @@
                 >{{ __('Saved.') }}</p>
             @endif
         </div>
-    </form>
+    </x-form.form>
 </section>

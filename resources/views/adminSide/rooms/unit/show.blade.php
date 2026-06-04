@@ -14,7 +14,7 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Unit {{ $unit->unit_no }} <span class="text-indigo-600">Rooms</span></h1>
                     <p class="mt-2 text-sm text-gray-500 italic">Manage and organize rooms within this unit.</p>
                 </div>
-                <div class="flex-shrink-0" x-data="{loading: false}\">
+                <div class="flex-shrink-0" x-data="{loading: false}">
                     @can('owner-admin')
                         <x-form.primary-button
                             type="button"
@@ -128,12 +128,12 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                             @foreach($unit->rooms as $room)
                                 @php
-                                    $status = strtolower((string) $room->status);
+                                    $status = $room->status;
                                     $badge = match ($status) {
-                                        'vacant','available' => 'bg-green-100 text-green-800',
-                                        'occupied'  => 'bg-amber-100 text-amber-800',
-                                        'maintenance' => 'bg-blue-100 text-blue-800',
-                                        default     => 'bg-gray-100 text-gray-800',
+                                        'Occupied'    => 'bg-emerald-100 text-emerald-800', // 使用更专业的 Emerald 而不是简单的 Green
+                                        'Vacant'      => 'bg-amber-100 text-amber-800',     // 匹配你刚才定的黄色
+                                        'Maintenance' => 'bg-rose-100 text-rose-800',       // 维修应该用红色警示，而不是蓝色
+                                        default       => 'bg-gray-100 text-gray-800',
                                     };
                                     $assetNames = $room->assets->pluck('name')->filter()->unique()->values();
                                 @endphp

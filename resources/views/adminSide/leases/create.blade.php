@@ -235,7 +235,7 @@
                             </div>
                         </div>
 
-                        <div>
+                        <div id="agreement_template_section" class="mt-4">
                             <div class="flex justify-between items-center mb-1">
                                 <label for="agreement_id" class="block text-sm font-medium text-gray-700">
                                     Agreements Template
@@ -260,6 +260,7 @@
 
                         <x-preview-agreement-modal />
 
+                        <!--
                         <div id="utilities_section" class="pt-4 border-t border-gray-100">
                             <h2 class="text-lg font-semibold text-slate-900 mb-4">Utilities (RM)</h2>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -307,7 +308,7 @@
                                     </div>
                                 </div>
                             </div>
-                        </div>
+                        </div>-->
 
                     </div>
 
@@ -529,9 +530,10 @@
             const dateSection = document.getElementById('date_section');
             const feeSection = document.getElementById('fee_section');
             const depositSection = document.getElementById('deposit_section');
-            const utilitiesSection = document.getElementById('utilities_section');
+            //const utilitiesSection = document.getElementById('utilities_section');
             const checkOutSection = document.getElementById('check_out_section');
             const agreementEndSection = document.getElementById('agreement_end_section');
+            const agreementTemplateSection = document.getElementById('agreement_template_section');
 
             if (newStatus === 'New' || !newStatus) {
                 if(leaseContainer) leaseContainer.classList.add('hidden'); 
@@ -540,9 +542,11 @@
                 dateSection.classList.remove('hidden');
                 feeSection.classList.remove('hidden');
                 depositSection.classList.remove('hidden');
-                utilitiesSection.classList.remove('hidden');
+                //utilitiesSection.classList.remove('hidden');
                 checkOutSection.classList.add('hidden');
                 agreementEndSection.classList.add('hidden');
+                agreementTemplateSection.classList.remove('hidden');
+
             } 
             else if (newStatus === 'Renew') {
                 if(leaseContainer) leaseContainer.classList.remove('hidden');
@@ -551,9 +555,10 @@
                 dateSection.classList.remove('hidden');
                 feeSection.classList.remove('hidden');
                 depositSection.classList.remove('hidden');
-                utilitiesSection.classList.remove('hidden');
+                //utilitiesSection.classList.remove('hidden');
                 checkOutSection.classList.add('hidden');
                 agreementEndSection.classList.add('hidden');
+                agreementTemplateSection.classList.remove('hidden');
             } 
             else if (newStatus === 'Check Out') {
                 if(leaseContainer) leaseContainer.classList.remove('hidden');
@@ -562,9 +567,10 @@
                 dateSection.classList.add('hidden'); 
                 feeSection.classList.add('hidden');
                 depositSection.classList.add('hidden');
-                utilitiesSection.classList.add('hidden');
+                //utilitiesSection.classList.add('hidden');
                 checkOutSection.classList.remove('hidden');
                 agreementEndSection.classList.add('hidden');
+                agreementTemplateSection.classList.add('hidden');
             }
             else if (newStatus === 'End Agreement') {
                 if(leaseContainer) leaseContainer.classList.remove('hidden');
@@ -573,9 +579,10 @@
                 dateSection.classList.add('hidden');
                 feeSection.classList.add('hidden');
                 depositSection.classList.add('hidden');
-                utilitiesSection.classList.add('hidden');
+                //utilitiesSection.classList.add('hidden');
                 checkOutSection.classList.add('hidden');
                 agreementEndSection.classList.remove('hidden'); 
+                agreementTemplateSection.classList.add('hidden');
             }
         }
 

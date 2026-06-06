@@ -38,16 +38,17 @@ class PropertyController extends Controller
             if (Gate::allows('agent-admin')) {
                 // Agent 只能看所属 Owner 的房源
                 $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-                $q->whereIn('properties.owner_id', $ownerIds);
-            } 
-            elseif (Gate::allows('owner-admin')) {
+                $q->where(function ($sub) use ($ownerIds, $user) {
+                    $sub->whereIn('properties.owner_id', $ownerIds)
+                        ->orWhere('properties.created_by', $user->id); // 允许显示 owner_id 为 null 但自己创建的房产
+                });
+            } elseif (Gate::allows('owner-admin')) {
                 // Owner 只能看自己创建的 OR 自己是 Owner 的
                 $q->where(function ($sub) use ($user) {
                     $sub->where('properties.created_by', $user->id)
                         ->orWhere('properties.owner_id', $user->id);
                 });
-            } 
-            else {
+            } else {
                 $q->whereRaw('1 = 0'); // 没权限就返回空
             }
         });
@@ -59,27 +60,27 @@ class PropertyController extends Controller
             'p'   => trim('properties.postcode'),
             's'   => trim('properties.state'),
             't'   => trim('properties.type'),
-            'cr'  => trim('properties.created_at'), 
+            'cr'  => trim('properties.created_at'),
             'st'  => trim('properties.status'),
-            'o'   => trim('owner_name'), 
-            'cre' => trim('creator_name'),       
+            'o'   => trim('owner_name'),
+            'cre' => trim('creator_name'),
         ];
 
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('properties.name', 'like', "%{$search}%")
-                ->orWhere('properties.address', 'like', "%{$search}%")
-                ->orWhere('properties.city', 'like', "%{$search}%")
-                ->orWhere('properties.postcode', 'like', "%{$search}%")
-                ->orWhere('properties.state', 'like', "%{$search}%")
-                ->orWhere('properties.type', 'like', "%{$search}%")
-                ->orWhere('owners.name', 'like', "%{$search}%");
+                    ->orWhere('properties.address', 'like', "%{$search}%")
+                    ->orWhere('properties.city', 'like', "%{$search}%")
+                    ->orWhere('properties.postcode', 'like', "%{$search}%")
+                    ->orWhere('properties.state', 'like', "%{$search}%")
+                    ->orWhere('properties.type', 'like', "%{$search}%")
+                    ->orWhere('owners.name', 'like', "%{$search}%");
             });
         }
 
-        $sortParam = $request->query('sort'); 
-    
-        $field = Str::beforeLast($sortParam, '_'); 
+        $sortParam = $request->query('sort');
+
+        $field = Str::beforeLast($sortParam, '_');
         $direction = Str::afterLast($sortParam, '_');
 
         if (array_key_exists($field, $sortMapping) && in_array($direction, ['asc', 'desc'])) {
@@ -88,7 +89,7 @@ class PropertyController extends Controller
             $query->orderBy('properties.id', 'desc');
         }
 
-        
+
         $properties = $query->paginate(10)->appends($request->query());
 
         return view('adminSide.rooms.property.index', compact('properties'));
@@ -123,7 +124,7 @@ class PropertyController extends Controller
             'isAgentAdmin',
             'isSuperAdmin',
             'currentOwner'
-        )); 
+        ));
     }
 
     public function store(Request $request)
@@ -135,7 +136,7 @@ class PropertyController extends Controller
             'city'     => 'required|string|max:100',
             'postcode' => 'required|digits:5',
             'state'    => 'required|string|max:100',
-            'type'     => 'required', 
+            'type'     => 'required',
             'owner_id'  => 'nullable|required_if:has_owner,1|exists:users,id'
         ]);
 
@@ -150,7 +151,7 @@ class PropertyController extends Controller
         Property::create($validated);
 
         return redirect()->route('admin.properties.index')
-                        ->with('success', 'Property created successfully!');
+            ->with('success', 'Property created successfully!');
     }
 
     public function show(Request $request, Property $property)
@@ -166,7 +167,7 @@ class PropertyController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('units.unit_no', 'like', "%{$search}%")
-                ->orWhere('owners.name', 'like', "%{$search}%");
+                    ->orWhere('owners.name', 'like', "%{$search}%");
             });
         }
         $user = Auth::user();
@@ -208,7 +209,7 @@ class PropertyController extends Controller
             'p' => 'units.management_fee', // 假设 Price 指的是管理费
         ];
 
-        $sortParam = $request->query('sort'); 
+        $sortParam = $request->query('sort');
         $field = Str::beforeLast($sortParam, '_');
         $direction = Str::afterLast($sortParam, '_');
 
@@ -226,7 +227,7 @@ class PropertyController extends Controller
     public function edit(Property $property)
     {
         $user = Auth::user();
-        
+
         if (!Gate::allows('super-admin')) {
             if (Gate::allows('owner-admin')) {
                 if ($property->created_by !== $user->id) {
@@ -266,17 +267,18 @@ class PropertyController extends Controller
             'postcode' => 'required|digits:5',
             'state'    => 'required|string|max:100',
             'type'     => 'required',
-            'owner_id'  => 'nullable|required_if:has_owner,1|exists:users,id'
+            // 💡 修复点 1：去掉 required_if:has_owner,1，因为 edit 页面根本没这个字段
+            'owner_id' => 'nullable|exists:users,id'
         ]);
 
-        if ($request->has_owner == 0) {
-            $validated['owner_id'] = null;
-        }
+        // 💡 修复点 2：彻底删掉 if ($request->has_owner == 0) 的弱类型判断Bug
+        // 💡 修复点 3：直接接收前端传来的 owner_id。如果有值就存，没值（没选）就是 null
+        $validated['owner_id'] = $request->owner_id ?: null;
 
         $property->update($validated);
 
         return redirect()->route('admin.properties.index')
-                        ->with('success', 'Property updated successfully!');
+            ->with('success', 'Property updated successfully!');
     }
 
     public function destroy($id)
@@ -288,15 +290,14 @@ class PropertyController extends Controller
 
             Property::where('id', $id)->update(['status' => 'Removed']);
             Unit::where('property_id', $id)->update(['status' => 'Removed']);
-            Room::whereIn('unit_id', function($query) use ($id) {
+            Room::whereIn('unit_id', function ($query) use ($id) {
                 $query->select('id')->from('units')->where('property_id', $id);
             })->update(['status' => 'Removed']);
 
             DB::commit();
-            
+
             return redirect()->route('admin.properties.index')
                 ->with('success', 'Property and all associated units/rooms have been marked as removed.');
-
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error while removing property: ' . $e->getMessage());
@@ -314,15 +315,14 @@ class PropertyController extends Controller
                 ->where('status', 'removed')
                 ->update(['status' => 'Vacant']);
 
-            Room::whereIn('unit_id', function($query) use ($id) {
+            Room::whereIn('unit_id', function ($query) use ($id) {
                 $query->select('id')->from('units')->where('property_id', $id);
             })
-            ->where('status', 'removed')
-            ->update(['status' => 'Vacant']);
+                ->where('status', 'removed')
+                ->update(['status' => 'Vacant']);
 
             DB::commit();
             return redirect()->back()->with('success', 'Property and its units/rooms have been restored.');
-
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Restore failed: ' . $e->getMessage());

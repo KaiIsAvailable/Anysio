@@ -87,8 +87,9 @@ class AgreementController extends Controller
 
         // 💡 核心修复：根据不同角色拉取不同的 Owners 数据
         if ($user->role === 'agentAdmin') {
-            // AgentAdmin: 通过 agent_id 关联查找该 Agent 负责的所有 Owners
-            $owners = Owners::with('user')->where('agent_id', $user->id)->get();
+            // AgentAdmin: 通过 agent_id 关联查找该 Agent 负责的所有 Owners，返回对应的 User 实例
+            $ownerUserIds = Owners::where('agent_id', $user->id)->pluck('user_id');
+            $owners = User::whereIn('id', $ownerUserIds)->get();
         } elseif ($user->role === 'admin' || $user->role === 'superadmin') {
             // Admin / Superadmin: 可以看到所有的 owner
             $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get();

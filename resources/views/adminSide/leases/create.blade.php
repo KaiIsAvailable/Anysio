@@ -413,6 +413,10 @@
         // 以下为你原本已有的完整代码逻辑
         // ==========================================
         const allLeases = @json($leases->keyBy('id'));
+        const leasePreviewData = @json($leasePreviewData->keyBy('id'));
+        const allProperties = @json($properties->keyBy('id'));
+        const allUnits = @json($units->keyBy('id'));
+        const allRooms = @json($rooms->keyBy('id'));
 
         document.addEventListener('DOMContentLoaded', function() {
             // 初始化检查一次 Fee Type
@@ -437,7 +441,7 @@
                     toggleLeaseInput(); 
                 }
 
-                const targetSelect = document.getElementById(type + '_id_select');
+                const targetSelect = document.getElementById(type + '_select_input');
                 if (targetSelect) {
                     targetSelect.value = lease.leasable_id;
                 }
@@ -655,36 +659,109 @@
                     replacements[placeholder] = el.value || '';
                 });
 
-                const tenantSelect = document.getElementById('tenant_id');
-                if (tenantSelect && tenantSelect.value) {
-                    const fullText = tenantSelect.options[tenantSelect.selectedIndex].text;
-                    const match = fullText.match(/(.+?)\s*\((.+?)\)/);
-                    replacements['{tenant_name}'] = match ? match[1].trim() : fullText;
-                    replacements['{tenant_ic}'] = match ? match[2].trim() : '';
+                const leaseSelectionEl = document.getElementById('lease_selection');
+                if (leaseSelectionEl && (!replacements['{property_type}'] || replacements['{property_type}'] === '')) {
+                    replacements['{property_type}'] = leaseSelectionEl.value || '';
                 }
 
-                const leaseSelectionEl = document.getElementById('lease_selection');
-                if (leaseSelectionEl) {
-                    const leaseType = leaseSelectionEl.value;
-                    const activeSelect = document.getElementById(`${leaseType}_select_input`);
+                // 💡 检查当前是否为 Renew 状态
+                const statusSelect = document.getElementById('lease-status');
+                const isRenew = statusSelect && statusSelect.value === 'Renew';
 
-                    if (activeSelect && activeSelect.value) {
-                        const opt = activeSelect.options[activeSelect.selectedIndex];
-                        replacements['{property_name}'] = opt.text.trim();
-                        replacements['{property_address}'] = opt.getAttribute('data-address') || '';
-                        replacements['{owner_name}'] = opt.getAttribute('data-owner') || '';
-                        replacements['{owner_ic}'] = opt.getAttribute('data-owner-ic') || '';
+                if (isRenew) {
+                    // Renew: 从选中的 lease 记录中提取租户和房产数据
+                    const leaseIdSelect = document.getElementById('lease_id');
+                    if (leaseIdSelect && leaseIdSelect.value && leasePreviewData[leaseIdSelect.value]) {
+                        const lease = leasePreviewData[leaseIdSelect.value];
+                        
+                        console.log('=== Renew Lease Preview Debug ===');
+                        console.log('lease:', lease);
+                        
+                        // 租户信息
+                        if (lease.tenant && lease.tenant.user) {
+                            replacements['{tenant_name}'] = lease.tenant.user.name || '';
+                            replacements['{tenant_ic}'] = lease.tenant.ic_number || '';
+                        }
+
+                        // 房产类型
+                        if (lease.leasable_type) {
+                            if (lease.leasable_type.includes('Property')) replacements['{property_type}'] = 'property';
+                            else if (lease.leasable_type.includes('Unit')) replacements['{property_type}'] = 'unit';
+                            else if (lease.leasable_type.includes('Room')) replacements['{property_type}'] = 'room';
+                        }
+
+                        // 房产信息：使用后端计算的字段
+                        if (lease.leasable_name) {
+                            replacements['{property_name}'] = lease.leasable_name;
+                        }
+                        if (lease.leasable_address) {
+                            replacements['{property_address}'] = lease.leasable_address;
+                        }
+                        
+                        // Owner 信息：使用后端计算的字段
+                        if (lease.owner_data) {
+                            replacements['{owner_name}'] = lease.owner_data.name || '';
+                            replacements['{owner_ic}'] = lease.owner_data.ic_number || '';
+                        }
+
+                        // 额外 fallback: 如果 owner_ic 仍然为空，则从已加载的房产数据中提取
+                        if ((!replacements['{owner_ic}'] || replacements['{owner_ic}'] === '') && lease.leasable_type && lease.leasable_id) {
+                            if (lease.leasable_type.includes('Property') && allProperties[lease.leasable_id]) {
+                                replacements['{owner_ic}'] = allProperties[lease.leasable_id].owner?.ic_number || '';
+                            } else if (lease.leasable_type.includes('Unit') && allUnits[lease.leasable_id]) {
+                                replacements['{owner_ic}'] = allUnits[lease.leasable_id].owner?.ic_number || '';
+                            } else if (lease.leasable_type.includes('Room') && allRooms[lease.leasable_id]) {
+                                const room = allRooms[lease.leasable_id];
+                                replacements['{owner_ic}'] = room.unit?.owner?.ic_number || '';
+                            }
+                        }
+                        
+                        console.log('replacements after renew processing:', replacements);
+                    }
+                } else {
+                    // New: 从当前表单字段中提取数据
+                    const tenantSelect = document.getElementById('tenant_id');
+                    if (tenantSelect && tenantSelect.value) {
+                        const fullText = tenantSelect.options[tenantSelect.selectedIndex].text;
+                        const match = fullText.match(/(.+?)\s*\((.+?)\)/);
+                        replacements['{tenant_name}'] = match ? match[1].trim() : fullText;
+                        replacements['{tenant_ic}'] = match ? match[2].trim() : '';
+                    }
+
+                    const leaseSelectionEl = document.getElementById('lease_selection');
+                    if (leaseSelectionEl) {
+                        const leaseType = leaseSelectionEl.value;
+                        const activeSelect = document.getElementById(`${leaseType}_select_input`);
+
+                        if (activeSelect && activeSelect.value) {
+                            const opt = activeSelect.options[activeSelect.selectedIndex];
+                            replacements['{property_name}'] = opt.text.trim();
+                            replacements['{property_address}'] = opt.getAttribute('data-address') || '';
+                            replacements['{owner_name}'] = opt.getAttribute('data-owner') || '';
+                            replacements['{owner_ic}'] = opt.getAttribute('data-owner-ic') || '';
+                        }
                     }
                 }
                 
+                const normalizeNumber = (value) => {
+                    if (value == null || value === '') return value;
+                    const normalized = String(value).trim().replace(/[^0-9.\-]/g, '');
+                    const parsed = parseFloat(normalized);
+                    return Number.isNaN(parsed) ? String(value) : String(parsed);
+                };
+
                 const defaults = ['{utilities_deposit}', '{security_deposit}', '{rent_price}'];
                 defaults.forEach(key => {
-                    if (!replacements[key]) replacements[key] = '0.00';
+                    if (replacements[key] == null || replacements[key] === '') {
+                        replacements[key] = '0.00';
+                    } else {
+                        replacements[key] = normalizeNumber(replacements[key]);
+                    }
                 });
 
                 const dateDefaults = ['{start_date}', '{end_date}', '{check_out_date}', '{end_agreement_date}'];
                 dateDefaults.forEach(key => {
-                    if (!replacements[key]) replacements[key] = 'N/A';
+                    if (replacements[key] == null || replacements[key] === '') replacements[key] = 'N/A';
                 });
 
                 Object.keys(replacements).forEach(placeholder => {

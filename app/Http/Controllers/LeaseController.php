@@ -161,7 +161,9 @@ class LeaseController extends Controller
 
         $status = $request->query('status');
 
-        $leases = Lease::with(['tenant.user', 'leasable'])
+        $leases = Lease::with([
+                'tenant.user',
+            ])
             ->where('is_current', true)
             // 根据请求的 status 切换查询逻辑
             ->when($status === 'End Agreement', function ($query) {
@@ -178,6 +180,15 @@ class LeaseController extends Controller
                 });
             })
             ->get();
+
+        $leasePreviewData = $leases->map(function ($lease) {
+            $leasable = $this->getLeasableWithOwner($lease);
+            return array_merge($lease->toArray(), [
+                'leasable_name' => $this->getLeasableName($leasable),
+                'leasable_address' => $this->getLeasableAddress($leasable),
+                'owner_data' => $this->getOwnerData($leasable),
+            ]);
+        });
 
         $templates = Agreements::withTrashed()
             ->where('type', 'rental_lease')
@@ -212,11 +223,75 @@ class LeaseController extends Controller
             'rooms',
             'tenants',
             'leases',
+            'leasePreviewData',
             'statuses',
             'selectedRoom',
             'selectedTenant',
             'templates'
         ));
+    }
+
+    private function getLeasableWithOwner($lease)
+    {
+        if ($lease->leasable_type === 'App\Models\Property' || strpos($lease->leasable_type, 'Property') !== false) {
+            return Property::with('owner')->find($lease->leasable_id);
+        } elseif ($lease->leasable_type === 'App\Models\Unit' || strpos($lease->leasable_type, 'Unit') !== false) {
+            return Unit::with('owner')->find($lease->leasable_id);
+        } elseif ($lease->leasable_type === 'App\Models\Room' || strpos($lease->leasable_type, 'Room') !== false) {
+            return Room::with('unit.owner')->find($lease->leasable_id);
+        }
+        return null;
+    }
+
+    private function getLeasableName($leasable)
+    {
+        if ($leasable) {
+            if ($leasable instanceof Property) {
+                return $leasable->name;
+            } elseif ($leasable instanceof Unit) {
+                return $leasable->unit_no;
+            } elseif ($leasable instanceof Room) {
+                return $leasable->room_no;
+            }
+        }
+        return '';
+    }
+
+    private function getLeasableAddress($leasable)
+    {
+        if ($leasable) {
+            if ($leasable instanceof Property) {
+                return $leasable->full_address ?? '';
+            } elseif ($leasable instanceof Unit) {
+                return $leasable->full_address ?? '';
+            } elseif ($leasable instanceof Room) {
+                return $leasable->full_address ?? '';
+            }
+        }
+        return '';
+    }
+
+    private function getOwnerData($leasable)
+    {
+        if ($leasable) {
+            if ($leasable instanceof Property && $leasable->owner) {
+                return [
+                    'name' => $leasable->owner->name ?? '',
+                    'ic_number' => $leasable->owner->ic_number ?? '',
+                ];
+            } elseif ($leasable instanceof Unit && $leasable->owner) {
+                return [
+                    'name' => $leasable->owner->name ?? '',
+                    'ic_number' => $leasable->owner->ic_number ?? '',
+                ];
+            } elseif ($leasable instanceof Room && $leasable->unit && $leasable->unit->owner) {
+                return [
+                    'name' => $leasable->unit->owner->name ?? '',
+                    'ic_number' => $leasable->unit->owner->ic_number ?? '',
+                ];
+            }
+        }
+        return ['name' => '', 'ic_number' => ''];
     }
 
     public function store(Request $request)

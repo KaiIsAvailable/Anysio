@@ -276,22 +276,25 @@ class LeaseController extends Controller
         if ($leasable) {
             if ($leasable instanceof Property && $leasable->owner) {
                 return [
+                    'id' => $leasable->owner->id ?? '',
                     'name' => $leasable->owner->name ?? '',
                     'ic_number' => $leasable->owner->ic_number ?? '',
                 ];
             } elseif ($leasable instanceof Unit && $leasable->owner) {
                 return [
+                    'id' => $leasable->owner->id ?? '',
                     'name' => $leasable->owner->name ?? '',
                     'ic_number' => $leasable->owner->ic_number ?? '',
                 ];
             } elseif ($leasable instanceof Room && $leasable->unit && $leasable->unit->owner) {
                 return [
+                    'id' => $leasable->unit->owner->id ?? '',
                     'name' => $leasable->unit->owner->name ?? '',
                     'ic_number' => $leasable->unit->owner->ic_number ?? '',
                 ];
             }
         }
-        return ['name' => '', 'ic_number' => ''];
+        return ['id' => '', 'name' => '', 'ic_number' => ''];
     }
 
     public function store(Request $request)

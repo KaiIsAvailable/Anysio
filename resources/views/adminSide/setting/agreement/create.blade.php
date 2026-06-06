@@ -59,19 +59,26 @@
                                 Agreement Type {!! $sourceAgreement ? '<span class="text-xs font-normal text-gray-400">(Locked for new version)</span>' : '' !!}
                             </label>
 
-                            <select name="{{ $sourceAgreement ? 'type_disabled' : 'type' }}" id="type"
-                                x-model="agreementType"
-                                {{ $sourceAgreement ? 'disabled' : 'required' }}
-                                class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $sourceAgreement ? 'cursor-not-allowed' : '' }}">
+                            @if (in_array($user->role, ['admin', 'superadmin']))
+                                <select name="{{ $sourceAgreement ? 'type_disabled' : 'type' }}" id="type"
+                                    x-model="agreementType"
+                                    {{ $sourceAgreement ? 'disabled' : 'required' }}
+                                    class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 {{ $sourceAgreement ? 'cursor-not-allowed' : '' }}">
 
-                                @if (in_array($user->role, ['admin', 'superadmin']))
                                     <option value="tos" @selected(old('type', $sourceAgreement->type ?? '') == 'tos')>Register T&C</option>
                                     <option value="privacy" @selected(old('type', $sourceAgreement->type ?? '') == 'privacy')>Register Privacy Policy</option>
                                     <option value="rental_lease" @selected(old('type', $sourceAgreement->type ?? '') == 'rental_lease')>Lease Agreement</option>
-                                @else
+                                </select>
+                            @else
+                                <select name="type_disabled" id="type"
+                                    x-model="agreementType"
+                                    disabled
+                                    class="mt-1 block w-full rounded-lg border-gray-300 bg-gray-100 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 cursor-not-allowed">
+
                                     <option value="rental_lease" selected>Lease Agreement</option>
-                                @endif
-                            </select>
+                                </select>
+                                <input type="hidden" name="type" value="rental_lease">
+                            @endif
 
                             @if($sourceAgreement)
                                 <input type="hidden" name="type" value="{{ $sourceAgreement->type }}">

@@ -1,7 +1,7 @@
 <?php
 namespace App\Services;
 
-use App\Models\{Property, Tenants, Agreements, Owners, User};
+use App\Models\{Property, Tenants, Agreements, Owners, User, Asset};
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
 
@@ -26,6 +26,7 @@ class SetupCheckerService
                 'tenant'   => $this->checkTenant($user, $userId),
                 'template' => $this->checkAgreement($user, $userId, $ownerIds),
                 'owner'    => $this->checkOwner($user, $userId),
+                'asset'    => $this->checkAsset($user, $userId, $ownerIds),
                 default    => false,
             };
         }
@@ -81,5 +82,21 @@ class SetupCheckerService
         }
 
         return false;
+    }
+
+    private function checkAsset(User $user, string $userId, Collection $ownerIds)
+    {
+        // Only owner-admin level roles manage assets
+        if (!$user->hasRole('admin') && !$user->hasRole('agentAdmin') && !$user->hasRole('ownerAdmin')) {
+            return true;
+        }
+
+        return Asset::where(function($q) use ($userId, $ownerIds, $user) {
+            $q->where('user_id', $userId);
+            
+            if ($user->hasRole('agentAdmin') && $ownerIds->isNotEmpty()) {
+                $q->orWhereIn('user_id', $ownerIds);
+            }
+        })->exists();
     }
 }

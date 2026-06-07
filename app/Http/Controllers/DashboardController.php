@@ -76,7 +76,7 @@ class DashboardController extends Controller
             ->orderBy('period', 'asc')
             ->get();
 
-        $checks = $checker->check(['property', 'tenant', 'template', 'owner']);
+        $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset']);
 
         return view('dashboard', compact('overduePayments', 'checks', 'counts'));
     }

@@ -122,8 +122,7 @@
                                         <!-- Document (IC/Passport Photo) -->
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             @if($tenant->ic_photo_path)
-                                                <a href="{{ route('admin.tenants.ic_photo', basename($tenant->ic_photo_path)) }}" 
-                                                target="_blank" 
+                                                <a href="{{ route('admin.tenants.view-ic', $tenant->id) }}" 
                                                 onclick="event.stopPropagation();" 
                                                 class="inline-flex items-center px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase">
                                                     <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>

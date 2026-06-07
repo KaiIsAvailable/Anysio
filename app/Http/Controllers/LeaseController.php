@@ -136,11 +136,23 @@ class LeaseController extends Controller
 
         $properties = Property::with(['owner'])
             ->where('status', 'Vacant')
+            // 排除掉那些有 Unit 不是 Vacant 的 Property
+            ->whereDoesntHave('units', function ($q) {
+                $q->where('status', '!=', 'Vacant');
+            })
+            // 排除掉那些有 Room 不是 Vacant 的 Property
+            ->whereDoesntHave('units.rooms', function ($q) {
+                $q->where('status', '!=', 'Vacant');
+            })
             ->when($user->role !== 'admin', $authFilter)
             ->get();
 
         $units = Unit::with(['owner'])
             ->where('status', 'Vacant')
+            // 排除掉那些有 Room 不是 Vacant 的 Unit
+            ->whereDoesntHave('rooms', function ($q) {
+                $q->where('status', '!=', 'Vacant');
+            })
             ->when($user->role !== 'admin', function ($q) use ($authFilter) {
                 $q->whereHas('owner', $authFilter);
             })
@@ -487,12 +499,14 @@ class LeaseController extends Controller
                 default => 'Occupied',
             };
             
+            $leasable->propagateStatus($targetRoomStatus);
             $leasable->update(['status' => $targetRoomStatus]);
 
-            // 2. 现在调用 syncStatus，它使用的是最新的 $leasable 对象
-            if (method_exists($leasable, 'syncStatus')) {
+            if (in_array($validated['status'], ['Check Out', 'End Agreement'])) {
                 $leasable->syncStatus();
             }
+
+            Log::info("更新后的状态: " . $leasable->fresh()->status);
 
             // 创建新记录
             Lease::create([
@@ -520,27 +534,8 @@ class LeaseController extends Controller
                 'status' => $validated['status'],
             ]);
         });
-        
-        $leasable = $leasableType::findOrFail($leasableId);
-        if (method_exists($leasable, 'syncStatus')) {
-            // 关键点：在同步前强制让模型“忘记”之前的缓存关系
-            $leasable->unsetRelation('unit'); // 如果是Room，清除对Unit的关联缓存
-            $leasable->syncStatus();
-        }
 
         return redirect()->route('admin.leases.index')->with('success', 'Lease added successfully.');
-    }
-
-    public function updatePropertyStatus(Property $property, $newStatus)
-    {
-        DB::transaction(function () use ($property, $newStatus) {
-            // 1. 强制覆盖子级 (这是“强制”行为，不论之前的状态是什么)
-            $property->units()->update(['status' => $newStatus]);
-            $property->rooms()->update(['status' => $newStatus]);
-            
-            // 2. 更新自己
-            $property->update(['status' => $newStatus]);
-        });
     }
 
     public function show(Request $request, Lease $lease)

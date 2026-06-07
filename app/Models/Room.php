@@ -61,6 +61,5 @@ class Room extends Model
             : 'N/A';
     }
 
-    public function childrenItems() { return null; }
-    public function parentItem() { return $this->unit; }
+    public function parentItem() { return $this->belongsTo(Unit::class, 'unit_id'); }
 }

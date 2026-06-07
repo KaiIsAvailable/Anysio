@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Traits\SyncableStatus;
+use Illuminate\Support\Facades\Log;
 
 class Unit extends Model
 {
@@ -37,6 +38,14 @@ class Unit extends Model
     }
 
     /**
+     * 关联下属的所有房间 (Rooms)
+     */
+    public function rooms()
+    {
+        return $this->hasMany(Room::class, 'unit_id', 'id');
+    }
+
+    /**
      * 关联到业主 (Owner)
      */
     public function owner(): BelongsTo
@@ -49,14 +58,6 @@ class Unit extends Model
         return $this->belongsTo(Owners::class, 'owner_id');
     }
 
-    /**
-     * 关联下属的所有房间 (Rooms)
-     */
-    public function rooms(): HasMany
-    {
-        return $this->hasMany(Room::class);
-    }
-
     public function roomAssets(): HasMany
     {
         // 假设你的中间表模型是 RoomAsset
@@ -67,6 +68,6 @@ class Unit extends Model
         return $this->property ? $this->property->full_address : 'N/A';
     }
 
-    public function childrenItems() { return $this->rooms; }
-    public function parentItem() { return $this->property; }
+    public function childrenItems() { return $this->hasMany(Room::class); }
+    public function parentItem() { return $this->belongsTo(Property::class, 'property_id'); }
 }

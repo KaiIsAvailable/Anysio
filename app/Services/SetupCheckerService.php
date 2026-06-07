@@ -38,13 +38,16 @@ class SetupCheckerService
         if ($user->hasRole('admin')) return true;
         
         return Property::where(function($q) use ($userId, $ownerIds, $user) {
-            $q->where('created_by', $userId);
-            
-            // 如果是 agentAdmin，允许查看属于其名下 owner 的房产
-            if ($user->hasRole('agentAdmin') && $ownerIds->isNotEmpty()) {
-                $q->orWhereIn('owner_id', $ownerIds);
-            }
-        })->exists();
+            $q->where(function($sub) use ($userId, $ownerIds, $user) {
+                $sub->where('created_by', $userId);
+                
+                if ($user->hasRole('agentAdmin') && $ownerIds->isNotEmpty()) {
+                    $sub->orWhereIn('owner_id', $ownerIds);
+                }
+            });
+
+            $q->whereNot('status', 'Removed');
+        });
     }
 
     private function checkTenant(User $user, string $userId)
@@ -52,8 +55,7 @@ class SetupCheckerService
         if ($user->hasRole('admin')) return true;
 
         return Tenants::where('created_by', $userId)
-            ->where('status', 'active')
-            ->exists();
+            ->where('status', 'active');
     }
 
     private function checkAgreement(User $user, string $userId, Collection $ownerIds)
@@ -65,21 +67,15 @@ class SetupCheckerService
             if ($user->hasRole('agentAdmin')) {
                 $q->orWhereIn('user_id', $ownerIds);
             }
-        })->exists();
+        });
     }
 
-    private function checkOwner(User $user, string $userId): bool
+    private function checkOwner(User $user, string $userId)
     {
-        // Admin 和 OwnerAdmin 默认被视为拥有/不需要检查 owner 权限
-        if ($user->hasRole('admin') || $user->hasRole('ownerAdmin')) {
-            return true;
-        }
+        if ($user->hasRole('admin')) return true;
 
-        // AgentAdmin 需要检查是否有名下关联的 owner
-        if ($user->hasRole('agentAdmin')) {
-            return Owners::where('agent_id', $userId)->exists();
+        if ($user->hasRole('agentAdmin')){
+            return Owners::where('agent_id', $userId);
         }
-
-        return false;
     }
 }

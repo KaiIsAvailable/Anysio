@@ -13,6 +13,12 @@ class User extends Authenticatable implements MustVerifyEmail
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasUlids;
 
+    const ROLE_ADMIN = 'admin';
+    const ROLE_AGENT_ADMIN = 'agentAdmin';
+    const ROLE_OWNER_ADMIN = 'ownerAdmin';
+    const ROLE_OWNER = 'owner';
+    const ROLE_TENANT = 'tenant';
+
     /**
      * The attributes that are mass assignable.
      *
@@ -51,6 +57,31 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->role === self::ROLE_ADMIN;
+    }
+
+    public function isAgentAdmin(): bool
+    {
+        return $this->role === self::ROLE_AGENT_ADMIN;
+    }
+
+    public function isOwerAdmin(): bool
+    {
+        return $this->role === self::ROLE_OWNER_ADMIN;
+    }
+
+    public function isOWNER(): bool
+    {
+        return $this->role === self::ROLE_OWNER;
+    }
+
+    public function isTenant(): bool
+    {
+        return $this->role === self::ROLE_TENANT;
     }
 
     // --- 关联关系 ---

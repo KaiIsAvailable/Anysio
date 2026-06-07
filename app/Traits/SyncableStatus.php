@@ -5,56 +5,59 @@ namespace App\Traits;
 
 use Illuminate\Support\Facades\Log;
 
-trait SyncableStatus
-{
-    // 防止递归死循环的静态锁
-    protected static $isSyncing = false;
+trait SyncableStatus {
+    // 1. 向下传播：将状态强制应用到所有子孙
+    public function propagateStatus($status) {
+        $relation = method_exists($this, 'childrenItems') ? $this->childrenItems() : null;
+        if (!$relation) return;
 
-    public function syncStatus()
+        // 批量更新子级
+        $relation->update(['status' => $status]);
+        
+        // 递归处理下一层
+        foreach ($relation->get() as $child) {
+            $child->propagateStatus($status);
+        }
+    }
+
+    // 2. 向上聚合：根据所有子级的状态，决定父级的状态
+    public function syncStatus() 
     {
-        if (self::$isSyncing) return;
-        self::$isSyncing = true;
+        $relation = method_exists($this, 'childrenItems') ? $this->childrenItems() : null;
+        if (!$relation) return;
 
-        try {
-            // 1. 强制刷新关联数据：清除缓存并重新加载
-            if ($this->relationLoaded('units')) $this->unsetRelation('units');
-            if ($this->relationLoaded('rooms')) $this->unsetRelation('rooms');
+        $children = $relation->get();
+        if ($children->isEmpty()) return;
+
+        // 1. 定义状态优先级 (数值越大，优先级越高)
+        $priority = [
+            'Occupied' => 3,
+            'Cleaning' => 2,
+            'Vacant'   => 1,
+        ];
+
+        // 2. 获取所有子级的状态，取优先级最高的那一个
+        // 如果子级状态不在列表中，默认为 0
+        $newStatus = $children->map(function ($child) use ($priority) {
+            return $priority[$child->status] ?? 0;
+        })->pipe(function ($priorities) use ($priority) {
+            $maxPriority = $priorities->max();
+            // 反向查表找到对应的状态名称
+            return array_search($maxPriority, $priority) ?: 'Vacant';
+        });
+
+        $currentStatus = $this->getAttribute('status');
+
+        if ($currentStatus !== $newStatus) {
+            $this->update(['status' => $newStatus]);
             
-            // 2. 统一获取子项
-            $children = method_exists($this, 'childrenItems') ? $this->childrenItems() : null;
-
-            if ($children === null || $children->isEmpty()) {
-                // 如果是 Room 或空 Unit，这里设为 Vacant 可能会覆盖你手动设置的 Occupied
-                // 建议：仅在没有子级且当前状态为空时才设为默认，否则保持原样
-                if (empty($this->status)) {
-                    $this->update(['status' => 'Vacant']);
-                }
-            } else {
-                // 核心状态计算逻辑
-                if ($children->contains('status', 'Vacant')) {
-                    $newStatus = 'Vacant';
-                } elseif ($children->contains('status', 'Cleaning')) {
-                    $newStatus = 'Cleaning';
-                } else {
-                    $newStatus = 'Occupied';
-                }
-
-                $currentStatus = $this->status ?? $this->getAttribute('status');
-
-                // 只有状态确实发生变化时才更新
-                if ($currentStatus !== $newStatus) {
-                    $this->update(['status' => $newStatus]);
-                    Log::info("模型 " . get_class($this) . " ID: " . $this->getKey() . " 状态更新为: " . $newStatus);
-                }
-            }
-
             // 3. 递归向上
-            if (method_exists($this, 'parentItem') && $this->parentItem()) {
-                $this->parentItem()->syncStatus();
+            if (method_exists($this, 'parentItem')) {
+                $parent = $this->parentItem;
+                if ($parent && method_exists($parent, 'syncStatus')) {
+                    $parent->syncStatus();
+                }
             }
-        } finally {
-            // 无论是否报错，必须释放锁
-            self::$isSyncing = false;
         }
     }
 }

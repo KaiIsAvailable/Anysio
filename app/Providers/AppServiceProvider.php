@@ -23,32 +23,32 @@ class AppServiceProvider extends ServiceProvider
     {
         // 定义角色等级
         $levels = [
-            'admin'      => 5,
-            'agentAdmin' => 4,
-            'ownerAdmin' => 3,
-            'owner'      => 2,
-            'tenant'     => 1,
+            User::ROLE_ADMIN       => 5,
+            User::ROLE_AGENT_ADMIN => 4,
+            User::ROLE_OWNER_ADMIN => 3,
+            User::ROLE_OWNER       => 2,
+            User::ROLE_TENANT      => 1,
         ];
 
         // 定义权限映射
         Gate::define('super-admin', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) >= 5;
+            return ($levels[$user->role] ?? 0) >= $levels[User::ROLE_ADMIN];
         });
 
         Gate::define('agent-admin', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) >= 4;
+            return ($levels[$user->role] ?? 0) >= $levels[User::ROLE_AGENT_ADMIN];
         });
 
         Gate::define('owner-admin', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) >= 3;
+            return ($levels[$user->role] ?? 0) >= $levels[User::ROLE_OWNER_ADMIN];
         });
 
         Gate::define('is-owner', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) === 2;
+            return ($levels[$user->role] ?? 0) === $levels[User::ROLE_OWNER];
         });
         
         Gate::define('is-tenant', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) === 1;
+            return ($levels[$user->role] ?? 0) === $levels[User::ROLE_TENANT];
         });
     }
 }

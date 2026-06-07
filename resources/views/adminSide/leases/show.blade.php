@@ -357,11 +357,11 @@
                         </div>
                     </div>
 
-                    <div class="mt-6 pt-6 border-t border-gray-100 flex justify-end">
+                    <!--<div class="mt-6 pt-6 border-t border-gray-100 flex justify-end">
                         <a :href="activeLease.edit_url" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition">
                             Edit This Lease
                         </a>
-                    </div>
+                    </div>-->
                 </div>
             </div>
 

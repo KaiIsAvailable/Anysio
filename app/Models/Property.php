@@ -67,6 +67,5 @@ class Property extends Model
         ]));
     }
 
-    public function childrenItems() { return $this->units; }
-    public function parentItem() { return null; }
+    public function childrenItems() { return $this->hasMany(Unit::class); }
 }

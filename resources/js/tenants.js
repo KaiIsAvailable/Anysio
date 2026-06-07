@@ -74,7 +74,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- 3. Identity Document Logic ---
     // 关键：为了让 HTML 里的 onchange 能加到，必须挂载到 window
-    window.toggleIdentityInputs = function() {
+    window.toggleIdentityInputs = function(isInit = false) {
         const icType = document.querySelector('input[name="identity_type"][value="ic"]');
         if (!icType) return;
 
@@ -82,31 +82,59 @@ document.addEventListener('DOMContentLoaded', function() {
         const icContainer = document.getElementById('ic_container');
         const passportContainer = document.getElementById('passport_container');
         const nationalityInput = document.getElementById('nationality');
+        const icNumberInput = document.getElementById('ic_number');
+        const passportInput = document.getElementById('passport');
         const photoLabel = document.getElementById('photo_label');
 
         if (isIc) {
             icContainer?.classList.remove('hidden');
             passportContainer?.classList.add('hidden');
             if (nationalityInput) {
-                nationalityInput.value = 'Malaysian';
+                nationalityInput.value = 'MALAYSIAN';
                 nationalityInput.readOnly = true;
                 nationalityInput.classList.add('bg-gray-100');
             }
-            if (photoLabel) photoLabel.textContent = 'IC Photo';
+            if (icNumberInput) {
+                icNumberInput.required = true;
+            }
+            if (passportInput) {
+                passportInput.required = false;
+                if (!isInit) {
+                    passportInput.value = '';
+                }
+            }
+            if (photoLabel) {
+                const isEditPage = window.location.pathname.includes('/edit');
+                photoLabel.textContent = isEditPage ? 'Upload photocopy IC (for rental purpose)' : 'IC Photo';
+            }
         } else {
             icContainer?.classList.add('hidden');
             passportContainer?.classList.remove('hidden');
             if (nationalityInput) {
-                if (nationalityInput.value === 'Malaysian') nationalityInput.value = '';
+                if (nationalityInput.value === 'MALAYSIAN' || nationalityInput.value === 'Malaysian') {
+                    nationalityInput.value = '';
+                }
                 nationalityInput.readOnly = false;
                 nationalityInput.classList.remove('bg-gray-100');
             }
-            if (photoLabel) photoLabel.textContent = 'Passport Photo';
+            if (icNumberInput) {
+                icNumberInput.required = false;
+                if (!isInit) {
+                    icNumberInput.value = '';
+                }
+            }
+            if (passportInput) {
+                passportInput.required = true;
+            }
+            if (photoLabel) {
+                const isEditPage = window.location.pathname.includes('/edit');
+                photoLabel.textContent = isEditPage ? 'Upload photocopy Passport (for rental purpose)' : 'Passport Photo';
+            }
         }
     };
 
     // 初始化运行一次
-    window.toggleIdentityInputs();
+    window.toggleIdentityInputs(true);
 
     //edit的remove emergency contact function
     if (list) {

@@ -306,11 +306,54 @@ class TenantsController extends Controller
         return response()->file($fullPath);
     }
 
+    public function viewIc(Tenants $tenant)
+    {
+        if (empty($tenant->ic_photo_path)) {
+            abort(404, 'No identity document uploaded.');
+        }
+
+        $path = $tenant->ic_photo_path;
+
+        // 向后兼容：检查是否存放在带有 'private' 前缀的旧路径中
+        if (!Storage::disk('local')->exists($path)) {
+            $oldPath = 'private/' . $path;
+            if (Storage::disk('local')->exists($oldPath)) {
+                $path = $oldPath;
+            } else {
+                abort(404, 'File not found on server.');
+            }
+        }
+
+        $fullPath = Storage::disk('local')->path($path);
+
+        if (!file_exists($fullPath)) {
+            abort(404, 'File not found on server.');
+        }
+
+        $fileContent = file_get_contents($fullPath);
+        $base64 = base64_encode($fileContent);
+        
+        // 获取 MIME 类型
+        $mimeType = Storage::disk('local')->mimeType($path) ?: 'image/jpeg';
+        
+        $photoData = 'data:' . $mimeType . ';base64,' . $base64;
+
+        return view('adminSide.tenants.view-ic', compact('photoData', 'tenant'));
+    }
+
+
     /**
      * 统一处理 Tenant 和 Emergency Contacts 的验证逻辑
      */
     private function validateTenantData(Request $request, $tenantId = null, $userId = null)
     {
+        // Clean identity data based on type before validation
+        if ($request->identity_type === 'ic') {
+            $request->merge(['passport' => null]);
+        } else {
+            $request->merge(['ic_number' => null]);
+        }
+
         // 1. 基础字段验证
         $rules = [
             'name' => 'required|string|max:255',

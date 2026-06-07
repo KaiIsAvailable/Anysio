@@ -56,11 +56,11 @@
                             <label class="block text-sm font-medium text-slate-700 mb-3">Identity Document</label>
                             <div class="flex gap-4">
                                 <label class="inline-flex items-center cursor-pointer">
-                                    <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" checked onchange="toggleIdentityInputs()">
+                                    <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" checked onchange="toggleIdentityInputs(false)">
                                     <span class="ml-2 text-gray-700">IC (Malaysian)</span>
                                 </label>
                                 <label class="inline-flex items-center cursor-pointer">
-                                    <input type="radio" name="identity_type" value="passport" class="form-radio text-indigo-600" onchange="toggleIdentityInputs()">
+                                    <input type="radio" name="identity_type" value="passport" class="form-radio text-indigo-600" onchange="toggleIdentityInputs(false)">
                                     <span class="ml-2 text-gray-700">Passport (Non-Malaysian)</span>
                                 </label>
                             </div>
@@ -144,7 +144,13 @@
 
     <script>
         // Identity Type Toggle
-        function toggleIdentityInputs() {
+        function toggleIdentityInputs(isInit = false) {
+            // If window.toggleIdentityInputs is defined in tenants.js, defer to it
+            if (window.toggleIdentityInputs && window.toggleIdentityInputs !== toggleIdentityInputs) {
+                window.toggleIdentityInputs(isInit);
+                return;
+            }
+
             const identityType = document.querySelector('input[name="identity_type"]:checked').value;
             const icContainer = document.getElementById('ic_container');
             const passportContainer = document.getElementById('passport_container');
@@ -154,23 +160,47 @@
             const photoLabel = document.getElementById('photo_label');
 
             if (identityType === 'ic') {
-                icContainer.classList.remove('hidden');
-                passportContainer.classList.add('hidden');
-                nationalityInput.value = 'MALAYSIAN';
-                nationalityInput.classList.add('bg-gray-100');
-                nationalityInput.readOnly = true;
-                icNumberInput.required = true;
-                passportInput.required = false;
-                photoLabel.innerText = 'IC Photo';
+                if (icContainer) icContainer.classList.remove('hidden');
+                if (passportContainer) passportContainer.classList.add('hidden');
+                if (nationalityInput) {
+                    nationalityInput.value = 'MALAYSIAN';
+                    nationalityInput.classList.add('bg-gray-100');
+                    nationalityInput.readOnly = true;
+                }
+                if (icNumberInput) {
+                    icNumberInput.required = true;
+                }
+                if (passportInput) {
+                    passportInput.required = false;
+                    if (!isInit) {
+                        passportInput.value = '';
+                    }
+                }
+                if (photoLabel) {
+                    photoLabel.innerText = 'IC Photo';
+                }
             } else {
-                icContainer.classList.add('hidden');
-                passportContainer.classList.remove('hidden');
-                nationalityInput.value = '';
-                nationalityInput.classList.remove('bg-gray-100');
-                nationalityInput.readOnly = false;
-                icNumberInput.required = false;
-                passportInput.required = true;
-                photoLabel.innerText = 'Passport Photo';
+                if (icContainer) icContainer.classList.add('hidden');
+                if (passportContainer) passportContainer.classList.remove('hidden');
+                if (nationalityInput) {
+                    if (nationalityInput.value === 'MALAYSIAN') {
+                        nationalityInput.value = '';
+                    }
+                    nationalityInput.classList.remove('bg-gray-100');
+                    nationalityInput.readOnly = false;
+                }
+                if (icNumberInput) {
+                    icNumberInput.required = false;
+                    if (!isInit) {
+                        icNumberInput.value = '';
+                    }
+                }
+                if (passportInput) {
+                    passportInput.required = true;
+                }
+                if (photoLabel) {
+                    photoLabel.innerText = 'Passport Photo';
+                }
             }
         }
 
@@ -264,6 +294,6 @@
             }
         })();
 
-        document.addEventListener('DOMContentLoaded', toggleIdentityInputs);
+        document.addEventListener('DOMContentLoaded', () => toggleIdentityInputs(true));
     </script>
 </x-app-layout>

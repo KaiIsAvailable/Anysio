@@ -54,6 +54,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         // --- 只有管理员 (owner-admin) 权限能进的路由 ---
         Route::middleware('can:owner-admin')->group(function () {
             // 特定功能路由
+            Route::get('tenants/{tenant}/view-ic', [TenantsController::class, 'viewIc'])->name('tenants.view-ic');
             Route::get('tenants/ic-photo/{filename}', [TenantsController::class, 'showIcPhoto'])->name('tenants.ic_photo');
             Route::get('ticket-messages/{ticket}', [TicketController::class, 'getNewMessages'])->name('customerService.newMessages');
         });

@@ -18,6 +18,7 @@
                     @if(!$checks['tenant'])   <li><a href="{{ route('admin.tenants.create') }}">Add your first tenant</a></li> @endif
                     @if(!$checks['owner'])   <li><a href="{{ route('admin.owners.create') }}">Add your first owner</a></li> @endif
                     @if(!$checks['property']) <li><a href="{{ route('admin.properties.create') }}">Add your first property</a></li> @endif
+                    @if(!$checks['asset'])    <li><a href="{{ route('admin.roomAsset.create') }}">Add your first asset</a></li> @endif
                     @if(!$checks['template']) <li><a href="{{ route('admin.agreements.create') }}">Setup agreement template</a></li> @endif
                 </ul>
             </x-notification-banner>

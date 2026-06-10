@@ -6,8 +6,10 @@
 @endphp
 
 <form 
-    action="{{ $action }}" 
-    method="{{ $realMethod }}" 
+    {{ $attributes->merge([
+        'action' => $action,
+        'method' => $realMethod
+    ]) }}
     x-data="{ 
         loading: false,
         
@@ -80,7 +82,6 @@
     })"
     
     @keydown.enter="handleEnter($event)"
-    {{ $attributes }}
 >
     @csrf
     @if($spoofMethod) @method($spoofMethod) @endif

@@ -29,7 +29,8 @@ class StaffController extends Controller
                 });
             })
             ->orderByDesc('staff.created_at')
-            ->paginate(5);
+            ->paginate(5)
+            ->onEachSide(1);
 
         return view('adminSide.userManagement.staff.index', compact('staff'));
     }

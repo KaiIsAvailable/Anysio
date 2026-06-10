@@ -231,7 +231,7 @@ class UnitController extends Controller
         }
 
         // 4. 分頁並保留 URL 參數 (withQueryString 會自動帶上 ?sort=...&search=...)
-        $rooms = $query->paginate(10)->withQueryString();
+        $rooms = $query->paginate(10)->onEachSide(1)->withQueryString();
         
         // 將結果綁定回 $unit
         $unit->setRelation('rooms', $rooms);

@@ -8,7 +8,7 @@ Route::post('/tenants/{lease}/payments/generate-rent', [PaymentsController::clas
     ->name('payments.generateMonthlyInvoice');
 
 // 2. 创建其他杂费账单 (Others 按钮提交到这里)
-Route::post('/tenants/{tenant}/payments/storeManualInvoice', [PaymentsController::class, 'storeManualInvoice'])
+Route::post('/tenants/{lease}/payments/storeManualInvoice', [PaymentsController::class, 'storeManualInvoice'])
     ->name('payments.storeManualInvoice');
 
 Route::post('/payments/{payment}/upload', [PaymentsController::class, 'uploadProof'])

@@ -90,7 +90,7 @@ class PropertyController extends Controller
         }
 
 
-        $properties = $query->paginate(10)->appends($request->query());
+        $properties = $query->paginate(10)->onEachSide(1)->appends($request->query());
 
         return view('adminSide.rooms.property.index', compact('properties'));
     }
@@ -219,7 +219,7 @@ class PropertyController extends Controller
             $query->orderBy('units.unit_no', 'asc');
         }
 
-        $units = $query->paginate(10)->appends($request->query());
+        $units = $query->paginate(10)->onEachSide(1)->appends($request->query());
 
         return view('adminSide.rooms.property.show', compact('property', 'units'));
     }

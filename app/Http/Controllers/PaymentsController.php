@@ -41,103 +41,107 @@ class PaymentsController extends Controller
             });
         }
 
-        $payments = $query->latest()->paginate(10)->withQueryString();
+        $payments = $query->latest()->paginate(10)->onEachSide(1)->withQueryString();
         return view('adminSide.tenants.payments.index', compact('payments'));
     }
 
     // 参数直接改为 Lease $lease
-    public function generateMonthlyInvoice(Lease $lease)
+    public function generateMonthlyInvoice($leaseId)
     {
-        // 1. 状态校验
+        // 1. 查找租约
+        $lease = Lease::findOrFail($leaseId);
+
+        // 2. 状态校验
         if (!in_array($lease->status, ['New', 'Renew'])) {
-            return back()->with('error', 'This lease is not active.');
+            return back()->with('error', 'Invalid to generate invoice for your lease status');
         }
 
-        $termType = strtolower($lease->term_type); 
+        // 3. 计算逻辑：获取下一个应该生成的周期
+        $targetDate = $this->calculateNextPendingPeriod($lease);
+
+        if (!$targetDate) {
+            return back()->with('error', "You have fully generated all invoice for this lease");
+        }
+
+        // 4. 执行创建：使用事务确保数据安全
+        DB::transaction(function () use ($lease, $targetDate) {
+            $this->createRentPayment($lease, $targetDate);
+        });
+
+        $previousUrl = url()->previous();
+
+        $redirectUrl = $previousUrl . '#lease-' . $leaseId;
+
+        return redirect()->to($redirectUrl)
+                        ->with('success', "Invoice " . $targetDate->format('M Y') . " successfully generated");
+    }
+
+    public static function calculateNextPendingPeriod(Lease $lease)
+    {
         $startDate = Carbon::parse($lease->start_date)->startOfDay();
         $endDate = Carbon::parse($lease->end_date)->startOfDay();
-
-        // 2. 生成该租约所有应收的周期 (Periods)
-        $allPeriods = [];
-        $current = $startDate->copy();
-
-        while ($current <= $endDate) {
-            // --- 核心逻辑：根据类型确定存入数据库的精确日期 ---
-            $storageDate = match($termType) {
-                'daily'   => $current->copy()->format('Y-m-d'),
-                'weekly'  => $current->copy()->format('Y-m-d'), // 存周起始日
-                'monthly' => $current->copy()->startOfMonth()->format('Y-m-d'), // 强制存 1 号
-                'yearly'  => $current->copy()->startOfYear()->format('Y-m-d'),  // 强制存 1 月 1 号
-                default   => $current->copy()->format('Y-m-d')
-            };
-
-            $allPeriods[] = [
-                'date' => $storageDate,
-                // key 用于精准查重，保持与 storageDate 一致即可
-                'key'  => $storageDate 
-            ];
-
-            // 步进：移动到下一个周期
-            match($termType) {
-                'daily'   => $current->addDay(),
-                'weekly'  => $current->addWeek(),
-                'monthly' => $current->addMonth(),
-                'yearly'  => $current->addYear(),
-                default   => $current->addMonth(),
-            };
-        }
-
-        // 3. 找出所有已存在的账单 (只需查 period 字段)
-        $existingKeys = Payment::where('lease_id', $lease->id)
+        
+        // 获取所有已存在的 period，用于查重
+        $existingPeriods = Payment::where('lease_id', $lease->id)
             ->where('payment_type', 'rent')
             ->where('status', '!=', 'void')
-            ->pluck('period') // 直接获取 period 数组
+            ->pluck('period')
             ->map(fn($date) => Carbon::parse($date)->format('Y-m-d'))
             ->toArray();
 
-        // 4. 寻找第一个还没生成的周期
-        $target = null;
-        foreach ($allPeriods as $p) {
-            if (!in_array($p['key'], $existingKeys)) {
-                $target = $p;
-                break; 
+        $current = $startDate->copy();
+        while ($current <= $endDate) {
+            $period = self::getStorageDate($current, $lease->term_type);
+            
+            // 如果这个周期不在数据库里，就是我们要生成的那个
+            if (!in_array($period, $existingPeriods)) {
+                return Carbon::parse($period);
             }
+            
+            $current = self::advancePeriod($current, $lease->term_type);
         }
+        
+        return null; // 全生成了
+    }
 
-        // 5. 如果没有找到，说明全出了
-        if (!$target) {
-            return back()->with('error', "All $termType invoices for this period have already been generated.");
-        }
+    private static function getStorageDate(Carbon $date, $termType)
+    {
+        return match(strtolower($termType)) {
+            'daily'   => $date->copy()->format('Y-m-d'),
+            'weekly'  => $date->copy()->format('Y-m-d'),
+            'monthly' => $date->copy()->startOfMonth()->format('Y-m-d'),
+            'yearly'  => $date->copy()->startOfYear()->format('Y-m-d'),
+            default   => $date->copy()->format('Y-m-d')
+        };
+    }
 
-        // 6. 创建账单
-        $targetDate = Carbon::parse($target['date']);
-        $newInvoiceNo = $this->generateSequenceInvoiceNo('RENT');
+    private static function advancePeriod(Carbon $date, $termType)
+    {
+        return match(strtolower($termType)) {
+            'daily'   => $date->addDay(),
+            'weekly'  => $date->addWeek(),
+            'monthly' => $date->addMonth(),
+            'yearly'  => $date->addYear(),
+            default   => $date->addMonth()
+        };
+    }
 
+    private function createRentPayment(Lease $lease, Carbon $targetDate)
+    {
         Payment::create([
             'id'           => (string) Str::ulid(),
             'tenant_id'    => $lease->tenant_id,
             'lease_id'     => $lease->id,
-            'invoice_no'   => $newInvoiceNo,
+            'invoice_no'   => self::generateSequenceInvoiceNo('RENT'), // 调用你之前的序列生成器
             'payment_type' => 'rent',
-            'period'       => $targetDate->format('Y-m-d'), // 这里存的就是 01号 或 01-01
+            'period'       => $targetDate->format('Y-m-d'),
             'amount_due'   => (int) round($lease->rent_price * 100),
             'amount_paid'  => 0,
             'status'       => 'unpaid',
         ]);
-
-        // 7. 格式化提示语 (让用户看得舒服)
-        $msg = match($termType) {
-            'daily'   => $targetDate->format('d M Y'),
-            'weekly'  => $targetDate->format('d M Y') . ' (Weekly)',
-            'monthly' => $targetDate->format('M Y'),
-            'yearly'  => $targetDate->format('Y'),
-            default   => $targetDate->format('Y-m-d')
-        };
-
-        return back()->with('success', "Invoice for $msg generated successfully.");
     }
 
-    public function storeManualInvoice(Request $request, Tenants $tenant)
+    public function storeManualInvoice(Request $request, Lease $lease)
     {
         // 1. 验证表单提交的数据
         $payload = $request->validate([
@@ -147,10 +151,7 @@ class PaymentsController extends Controller
             'remarks'      => ['nullable', 'string', 'max:255'],
         ]);
 
-        // 获取活跃租约
-        $lease = $tenant->leases()->whereIn('status', ['New', 'Renew'])->first();
-
-        return DB::transaction(function () use ($payload, $tenant, $lease) {
+        return DB::transaction(function () use ($payload, $lease) {
             
             // 2. 将金额转为分
             $amountCents = (int) round($payload['amount_due'] * 100);
@@ -161,8 +162,8 @@ class PaymentsController extends Controller
             // 4. 执行创建
             Payment::create([
                 'id'           => (string) Str::ulid(),
-                'tenant_id'    => $tenant->id,
-                'lease_id'     => $lease ? $lease->id : null, // 手动账单可能不关联租约
+                'tenant_id'    => $lease->tenant_id,
+                'lease_id'     => $lease->id,
                 'invoice_no'   => $newInvoiceNo,
                 'payment_type' => $payload['payment_type'],
                 'period'       => Carbon::parse($payload['period'])->startOfMonth(),
@@ -304,46 +305,6 @@ class PaymentsController extends Controller
         // 例如：INV-RENT-20260212-00001
         return "INV-{$type}-{$today}-{$nextNum}";
     }
-
-    //public function uploadProof(Request $request, $id)
-    //{
-    //    // 1. 验证上传的文件
-    //    $request->validate([
-    //        'attachment' => 'required|image|mimes:jpg,jpeg,png|max:2048', // 最大 2MB
-    //        'transaction_ref' => 'nullable|string|max:255',
-    //    ]);
-
-    //    // 2. 找到对应的支付记录
-    //    $payment = UserPayment::findOrFail($id);
-
-    //    // 3. 处理文件上传
-    //    if ($request->hasFile('attachment')) {
-    //        // 如果之前有旧图，可以先删掉（选做）
-    //        if ($payment->attachment) {
-    //            // 如果之前存的是 local，这里也要指定 local
-    //            Storage::disk('local')->delete($payment->attachment);
-    //        }
-
-    //        // 存入 storage/app/receipts (不可直接外网访问)
-    //        $path = $request->file('attachment')->store('receipts', 'local');
-
-    //        // 4. 更新支付表记录
-    //        $payment->update([
-    //            'attachment' => $path,
-    //            'transaction_ref' => $request->transaction_ref,
-    //            'status' => 'pending', // 支付记录设为待审核
-    //        ]);
-
-    //        // 5. 确保 UserManagement 表也是 pending 状态（触发 Dashboard 的弹窗）
-    //        UserManagement::where('user_id', $payment->user_id)->update([
-    //            'subscription_status' => 'pending'
-    //        ]);
-    //    }else{
-    //        return back()->with('error', 'Receipt uplaod fail! Please contact customer service');
-    //    }
-
-    //    return back()->with('success', 'Receipt uploaded! Please wait for admin approval.');
-    //}
 
     public function uploadProof(Request $request, $id)
     {

@@ -1,7 +1,8 @@
 <x-app-layout>
     @php
+        $paymentsController = new \App\Http\Controllers\PaymentsController();
         // 将历史记录转换为 JS 容易读取的对象，Key 是 ID
-        $historyJson = $leaseHistory->keyBy('id')->map(function($item) {
+        $historyJson = $leaseHistory->keyBy('id')->map(function($item) use ($paymentsController) {
             return [
                 'status' => $item->status,
                 'checked_out_at' => $item->checked_out_at ? $item->checked_out_at_formatted : null,
@@ -41,6 +42,7 @@
                 'rent_mode' => strtoupper($item->term_type ?? 'N/A'),
                 'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
                 'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
+                'can_generate' => !is_null($paymentsController->calculateNextPendingPeriod($item)),
             ];
         });
         $historyData = $historyJson->toArray();
@@ -92,10 +94,17 @@
                     return response.json();
                 })
                 .then(data => {
+                    console.log('--- API Response Data ---');
+                    console.log('Full Data:', data);
+                    console.log('Can Generate Status:', data.can_generate);
+                    console.log('-------------------------');
                     const rentEl = document.getElementById('rent-payments-container');
                     const otherEl = document.getElementById('other-payments-container');
                     if (rentEl) rentEl.innerHTML = data.rentHtml;
                     if (otherEl) otherEl.innerHTML = data.otherHtml;
+                    if (this.activeLease) {
+                        this.activeLease.can_generate = data.can_generate;
+                    }
                 })
                 .catch(e => {
                     console.error('Table refresh failed:', e);
@@ -374,7 +383,7 @@
                             <button type="button" 
                                 {{-- 关键：确保 $lease->tenant 存在再生成路由，否则传 null --}}
                                 @click="$dispatch('open-manual-modal', { 
-                                    action: '{{ route('admin.payments.storeManualInvoice', $lease->tenant_id) }}'
+                                    action: `{{ url('admin/tenants') }}/${activeId}/payments/storeManualInvoice`
                                 })"
                                 class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -385,12 +394,23 @@
 
                             <x-manual-invoice-modal />
 
-                            <form action="{{ route('admin.payments.generateMonthlyInvoice', $lease->id) }}" method="POST" class="inline-block">
-                                @csrf
-                                <button type="submit" class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all">
-                                    Generate Invoice
+                            <div x-show="activeLease && activeLease.can_generate" x-cloak>
+                                <form x-ref="generateForm" 
+                                    :action="'{{ url('admin/tenants') }}/' + activeId + '/payments/generate-rent'" 
+                                    method="POST" 
+                                    class="inline-block">
+                                    @csrf
+                                    <button type="submit" class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all">
+                                        Generate Invoice
+                                    </button>
+                                </form>
+                            </div>
+
+                            <div x-show="!activeLease || !activeLease.can_generate" x-cloak>
+                                <button disabled class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg uppercase text-gray-400 bg-gray-100 cursor-not-allowed shadow-sm">
+                                    Done
                                 </button>
-                            </form>
+                            </div>
                         </div>
                     </div>
                     

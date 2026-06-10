@@ -177,80 +177,90 @@
                             </h3>
                         </div>
 
-                        <div class="grid grid-cols-1 gap-4">
-                            @forelse($tenant->leases as $lease)
-                                @php
-                                    // 逻辑判断：如果结束日期早于今天，标记为已过期
-                                    $isExpired = $lease->end_date->isPast();
-                                @endphp
-
-                                <div onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'" 
-                                    class="group relative bg-white border {{ $isExpired ? 'border-gray-100 opacity-75' : 'border-gray-200' }} rounded-xl p-5 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer mb-4">
-                                    
-                                    @if($isExpired)
-                                        <div class="absolute top-0 right-0 mt-2 mr-2">
-                                            <span class="text-[10px] font-bold text-gray-400 uppercase">Expired</span>
-                                        </div>
-                                    @endif
-
-                                    <div class="flex flex-col md:flex-row justify-between gap-4">
-                                        <div class="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4 text-left">
-                                            <div>
-                                                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Room</label>
-                                                <p class="text-sm font-bold {{ $isExpired ? 'text-gray-500' : 'text-slate-900 group-hover:text-indigo-600' }} transition-colors">
-                                                    {{ $lease->room->room_no ?? 'N/A' }}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Monthly Rent</label>
-                                                <p class="text-sm font-bold {{ $isExpired ? 'text-gray-500' : 'text-slate-900' }}">RM {{ number_format($lease->rent_price, 2) }}</p>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Duration</label>
-                                                <p class="text-sm {{ $isExpired ? 'text-gray-400' : 'text-slate-700' }} font-medium">
-                                                    {{ $lease->start_date->format('d M Y') }} - {{ $lease->end_date->format('d M Y') }}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <label class="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</label>
-                                                <div>
-                                                    <span class="px-2.5 py-0.5 inline-flex text-xs font-bold rounded-full {{ $lease->status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600' }}">
-                                                        {{ ucfirst($lease->status) }}
-                                                    </span>
+                        <div class="overflow-hidden border border-gray-200 rounded-xl shadow-sm">
+                            <table class="min-w-full divide-y divide-gray-200">
+                                <thead class="bg-gray-50">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Room</th>
+                                        <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Monthly Rent</th>
+                                        <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Duration</th>
+                                        <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="bg-white divide-y divide-gray-200">
+                                    @forelse($leases as $lease)
+                                        @php
+                                            $isExpired = $lease->end_date->isPast();
+                                        @endphp
+                                        <tr class="group hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'">
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold {{ $isExpired ? 'text-gray-500' : 'text-slate-900 group-hover:text-indigo-600' }}">
+                                                {{ $lease->leasable_name }}
+                                                
+                                                {{-- 如果你想让用户清晰看到这是 Room 还是 Unit，可以加一行小字标签 --}}
+                                                <div class="text-[10px] text-gray-400 font-normal uppercase">
+                                                    {{ $lease->leasable_type_label }}
                                                 </div>
-                                            </div>
-                                        </div>
-                                        <div class="flex items-center gap-3">
-                                            @if ($lease->status === 'New' || $lease->status === 'Renew')
-                                                {{-- 1. Generate Invoice 按钮 (主操作) --}}
-                                                <form action="{{ route('admin.payments.generateMonthlyInvoice', $lease->id) }}" method="POST" class="m-0">
-                                                    @csrf
-                                                    <button type="submit" 
-                                                            onclick="event.stopPropagation();"
-                                                            class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                                                        </svg>
-                                                        Generate Invoice
-                                                    </button>
-                                                </form>
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold {{ $isExpired ? 'text-gray-500' : 'text-slate-900' }}">
+                                                RM {{ number_format($lease->rent_price, 2) }}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-sm {{ $isExpired ? 'text-gray-400' : 'text-slate-700' }}">
+                                                {{ $lease->start_date->format('d M Y') }} - {{ $lease->end_date->format('d M Y') }}
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap">
+                                                <span class="px-2.5 py-0.5 inline-flex text-xs font-bold rounded-full {{ $lease->status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600' }}">
+                                                    {{ ucfirst($lease->status) }}
+                                                </span>
+                                                @if($isExpired)
+                                                    <span class="ml-2 text-[10px] font-bold text-gray-400 uppercase">Expired</span>
+                                                @endif
+                                            </td>
+                                            <td class="px-6 py-4 whitespace-nowrap text-center" onclick="event.stopPropagation()">
+                                                <div class="flex justify-center items-center gap-2">
+                                                    @if ($lease->status === 'New' || $lease->status === 'Renew')
+                                                        {{-- Generate Invoice 逻辑 --}}
+                                                        @if($lease->can_generate)
+                                                            <x-form.form action="{{ route('admin.payments.generateMonthlyInvoice', $lease->id) }}" method="POST" class="m-0">
+                                                                @csrf
+                                                                <x-form.primary-button 
+                                                                    type="submit" 
+                                                                    loading="loading" 
+                                                                    size="sm"
+                                                                    class="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all"
+                                                                >
+                                                                    Generate Invoice
+                                                                </x-form.primary-button>
+                                                            </x-form.form>
+                                                        @else
+                                                            <button disabled class="uppercase text-xs font-bold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg cursor-not-allowed">
+                                                                Done
+                                                            </button>
+                                                        @endif
 
-                                                {{-- 2. Add Manual Invoice 按钮 (次操作) --}}
-                                                <button type="button" 
-                                                        onclick="event.stopPropagation();"
-                                                        @click="$dispatch('open-manual-modal', { action: '{{ route('admin.payments.storeManualInvoice', $tenant->id) }}' })"
-                                                        class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
-                                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                                                    </svg>
-                                                    Add Manual Invoice
-                                                </button>
-                                            @endif
-                                        </div>
-                                    </div>
-                                </div>
-                                @empty
-                            @endforelse
+                                                        {{-- Manual Invoice 按钮 --}}
+                                                        <button type="button" 
+                                                                @click="$dispatch('open-manual-modal', { 
+                                                                    action: '{{ route('admin.payments.storeManualInvoice', $lease->id) }}',
+                                                                    leaseId: '{{ $lease->id }}' 
+                                                                })"
+                                                                class="uppercase text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-all">
+                                                            Add Manual Invoice
+                                                        </button>
+                                                    @endif
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">No leases found.</td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="mt-4">
+                            {{ $leases->appends(request()->query())->links() }}
                         </div>
                     </div>
 

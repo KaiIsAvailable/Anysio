@@ -53,7 +53,7 @@ class UserManagementController extends Controller
         }
 
         // 注意：latest() 里的字段要写全表名
-        $userManagement = $query->orderBy('user_management.created_at', 'desc')->paginate(5);
+        $userManagement = $query->orderBy('user_management.created_at', 'desc')->paginate(5)->onEachSide(1);
         //dd($userManagement->toArray());
         return view('adminSide.userManagement.index', compact('userManagement', 'pendingPayments'));
     }

@@ -75,7 +75,7 @@ class RoomAssetController extends Controller
         }
 
         // 5. 分页并保留 URL 参数 (withQueryString() 确保翻页时搜索和排序不丢失)
-        $assets = $query->paginate(10)->withQueryString(); 
+        $assets = $query->paginate(10)->onEachSide(1)->withQueryString(); 
 
         return view('adminSide.rooms.roomAsset.index', compact('assets'));
     }

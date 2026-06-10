@@ -115,6 +115,7 @@ class LeaseController extends Controller
         $leases = $query->orderBy('created_at', 'desc')
             ->where('is_current', true)
             ->paginate(10)
+            ->onEachSide(1)
             ->appends($request->query());
 
         $statusOptions = ['New', 'Renew', 'Check out', 'End Agreement'];
@@ -551,16 +552,18 @@ class LeaseController extends Controller
                 ->where('status', '!=', 'void')
                 ->orderBy('period', 'desc')
                 ->latest()
-                ->paginate(5, ['*'], 'rent_page');
+                ->paginate(5, ['*'], 'rent_page')
+                ->onEachSide(1);
 
             $otherPayments = $targetLease->payments()
                 ->where('payment_type', '!=', 'rent')
                 ->where('status', '!=', 'void')
                 ->latest()
-                ->paginate(5, ['*'], 'other_page');
+                ->paginate(5, ['*'], 'other_page')
+                ->onEachSide(1);
 
             // 返回专门的局部视图
-            return view('adminSide.tenants.payments.partial_overview', [
+            return  view('adminSide.tenants.payments.partial_overview', [
                 'lease' => $targetLease,
                 'rentPayments' => $rentPayments,
                 'otherPayments' => $otherPayments
@@ -601,14 +604,16 @@ class LeaseController extends Controller
             ->where('status', '!=', 'void')
             ->orderBy('period', 'desc')
             ->latest()
-            ->paginate(5, ['*'], 'rent_page');
+            ->paginate(5, ['*'], 'rent_page')
+            ->onEachSide(1);
 
         // 2. 如果你还想显示其他类型的费用（比如押金、水电费）
         $otherPayments = $lease->payments()
             ->where('payment_type', '!=', 'rent')
             ->where('status', '!=', 'void')
             ->latest()
-            ->paginate(5, ['*'], 'other_page');
+            ->paginate(5, ['*'], 'other_page')
+            ->onEachSide(1);
 
         // 将结果按时间正序排列（从最老的到最新的）
         $leaseHistory = $leaseHistory->reverse();
@@ -708,6 +713,7 @@ class LeaseController extends Controller
 
     public function refreshPaymentsTable(Lease $lease)
     {
+        $canGenerate = !is_null(PaymentsController::calculateNextPendingPeriod($lease));
         $allPayments = $lease->payments()
             ->where('status', '!=', 'void')
             ->latest()->get();
@@ -727,7 +733,8 @@ class LeaseController extends Controller
 
         return response()->json([
             'rentHtml' => $rentHtml,
-            'otherHtml' => $otherHtml
+            'otherHtml' => $otherHtml,
+            'can_generate' => $canGenerate
         ]);
     }
 }

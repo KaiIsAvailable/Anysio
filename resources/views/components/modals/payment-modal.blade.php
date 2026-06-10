@@ -2,6 +2,14 @@
     <template x-teleport="body">
         <div x-show="openPayment" 
             x-cloak
+            x-effect="if (openPayment) { 
+                $nextTick(() => { 
+                    const first = $el.querySelector('input:not([type=hidden]):not([disabled])');
+                    if (first) {
+                        first.focus();
+                    }
+                }); 
+            }"
             class="fixed inset-0 z-[100] overflow-y-auto">
             
             <div class="flex items-center justify-center min-h-screen px-4 py-6">

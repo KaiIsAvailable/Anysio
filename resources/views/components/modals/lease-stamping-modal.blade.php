@@ -2,7 +2,16 @@
 @props(['lease' => null])
 
 <template x-teleport="body">
-    <div x-show="openUpload" x-cloak class="fixed inset-0 z-[101] flex items-center justify-center p-4">
+    <div x-show="openUpload" x-cloak 
+        x-effect="if (openUpload) { 
+            $nextTick(() => { 
+                const first = $el.querySelector('input:not([type=hidden]):not([disabled])');
+                if (first) {
+                    first.focus();
+                }
+            }); 
+        }"
+        class="fixed inset-0 z-[101] flex items-center justify-center p-4">
         
         {{-- A. 遮罩层：必须是绝对定位，撑满整个父级 fixed 容器 --}}
         <div class="absolute inset-0">
@@ -36,8 +45,14 @@
                 </button>
             </div>
 
+            @php
+                $actionUrl = $lease ? route('admin.leases.upload-stamping', $lease->id) : '';
+            @endphp
+
             {{-- 表单 --}}
-            <form :action="activeLease.upload_url || '{{ $lease ? route('admin.leases.upload-stamping', $lease->id) : '' }}'"
+            <x-form.form 
+                  :action="$actionUrl"
+                  x-bind:action="activeLease.upload_url || '{{ $actionUrl }}'"
                   method="POST" 
                   enctype="multipart/form-data">
                 @csrf
@@ -49,7 +64,7 @@
                         <label class="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">
                             Adjudication No (Reference)
                         </label>
-                        <input type="text" name="stamping_reference_no" required 
+                        <input type="text" name="stamping_reference_no" required
                                :value="activeLease?.stamping_reference_no || ''"
                                placeholder="e.g. J1234567890"
                                class="w-full px-4 py-4 bg-slate-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-700">
@@ -106,16 +121,12 @@
                             class="flex-1 px-4 py-4 text-gray-400 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-white transition-all">
                         Cancel
                     </button>
-                    <button type="submit" 
-                        {{-- 提交时进入 loading 状态，防止重复点击 --}}
-                        @click="loading = true"
-                        :class="loading ? 'opacity-70 cursor-not-allowed' : ''"
-                        class="flex-[2] px-4 py-4 bg-slate-900 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-indigo-600 shadow-lg transition-all flex items-center justify-center">
-                        
+                    <x-form.primary-button type="submit" loading="loading"
+                        class="flex-[2] px-4 py-4 rounded-2xl text-xs uppercase tracking-widest transition-all flex items-center justify-center">
                         Upload Now
-                    </button>
+                    </x-form.primary-button>
                 </div>
-            </form>
+            </x-form.form>
         </div>
     </div>
 </template>

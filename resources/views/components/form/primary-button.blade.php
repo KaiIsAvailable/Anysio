@@ -1,14 +1,19 @@
-@props(['loading' => false])
+@props(['loading' => false, 'size' => 'md'])
 
 @php
     // 判断传入的是否是 Alpine.js 的变量名字符串（比如 'loading' 或 'openUpload'）
     // 如果是纯布尔值或普通字符串，交由 Blade 处理
     $isAlpine = is_string($loading) && !in_array($loading, ['true', 'false', '1', '0']);
+
+    $sizeClasses = [
+        'sm' => 'px-3 py-1.5 text-xs',
+        'md' => 'px-4 py-2 text-xs',
+    ][$size] ?? 'px-4 py-2 text-xs';
 @endphp
 
 <button {{ $attributes->merge([
     'type' => 'submit',
-    'class' => 'inline-flex items-center justify-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150 disabled:opacity-50 disabled:cursor-not-allowed'
+    'class' => "inline-flex items-center justify-center {$sizeClasses} bg-indigo-600 border border-transparent rounded-md font-semibold text-white uppercase tracking-widest hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
 ]) }} 
 {{-- 兼容 Alpine 和原生 Blade 的 disabled 绑定 --}}
 @if($isAlpine)

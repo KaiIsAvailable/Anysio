@@ -46,7 +46,7 @@ class MaintenanceController extends Controller
         }
 
         // Sort by created_at descending (newest first)
-        $maintenances = $query->orderBy('created_at', 'desc')->paginate(10);
+        $maintenances = $query->orderBy('created_at', 'desc')->paginate(10)->onEachSide(1);
 
         // Append query string to pagination links
         $maintenances->appends($request->all());

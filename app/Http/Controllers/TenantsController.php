@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Models\Room;
 use App\Models\Unit;
 use App\Models\Property;
+use App\Http\Controllers\PaymentsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\File;
@@ -247,43 +248,52 @@ class TenantsController extends Controller
 
     public function show(Tenants $tenant)
     {
-        // 1. 保留原本的关联加载，但把 payments 移出去单独处理
+        $paymentsController = new PaymentsController();
+
+        // 1. 先加载租户的基础关联（不需要分页的）
         $tenant->load([
-            'emergencyContacts',
-            'user:id,name,email',
-            'leases' => function ($query) {
-                $query->with([
-                    'leasable' => function ($morphTo) {
-                        // 这里处理多态加载
-                        $morphTo->morphWith([
-                            Room::class => ['unit'], // 如果是房间，顺便带出它的单位
-                            Unit::class,
-                            Property::class,
-                        ]);
-                    }
-                ])->orderBy('start_date', 'desc');
-            }
+            'emergencyContacts', 
+            'user:id,name,email'
         ]);
 
-        // 2. 单独为 Rent 账单进行分页查询 (使用 payments() 方法)
+        // 2. 单独处理 Lease 的分页查询 (核心修正点)
+        $leases = $tenant->leases()
+            ->with(['leasable' => function ($morph) {
+                $morph->morphWith([
+                    Room::class     => ['unit'],
+                    Unit::class,
+                    Property::class,
+                ]);
+            }])
+            ->orderBy('start_date', 'desc')
+            ->paginate(5, ['*'], 'lease_page')
+            ->onEachSide(1);
+
+        // 3. 计算 can_generate (仅针对当前页面的 5 个 lease)
+        foreach ($leases as $lease) {
+            $lease->can_generate = !is_null($paymentsController->calculateNextPendingPeriod($lease));
+        }
+
+        // 4. 其余账单查询逻辑保持不变
         $rentPayments = $tenant->payments()
             ->where('payment_type', 'rent')
             ->where('status', '!=', 'void')
             ->orderBy('period', 'desc')
-            ->latest()
-            ->paginate(5, ['*'], 'rent_page'); // 指定分页参数名为 rent_page
+            ->paginate(5, ['*'], 'rent_page')
+            ->onEachSide(1);
 
-        // 3. 单独为其他账单进行分页查询
         $otherPayments = $tenant->payments()
             ->where('payment_type', '!=', 'rent')
             ->where('status', '!=', 'void')
             ->latest()
-            ->paginate(5, ['*'], 'other_page'); // 指定分页参数名为 other_page
+            ->paginate(5, ['*'], 'other_page')
+            ->onEachSide(1);
 
-        $latestLease = $tenant->leases->first();
+        $latestLease = $leases->first(); // 注意：从分页结果中获取第一个
 
-        // 4. 将变量传回 View
-        return view('adminSide.tenants.show', compact('tenant', 'latestLease', 'rentPayments', 'otherPayments'));
+        return view('adminSide.tenants.show', compact(
+            'tenant', 'leases', 'latestLease', 'rentPayments', 'otherPayments'
+        ));
     }
 
     public function showIcPhoto($filename)

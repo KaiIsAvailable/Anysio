@@ -102,7 +102,7 @@ class RoomController extends Controller
                 break;
         }
 
-        $rooms = $query->paginate(10)->appends($request->query());
+        $rooms = $query->paginate(10)->onEachSide(1)->appends($request->query());
 
         return view('adminSide.rooms.index', compact('rooms'));
     }

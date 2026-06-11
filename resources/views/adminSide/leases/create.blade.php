@@ -166,7 +166,7 @@
                                     <option value="">-- Choose Tenant --</option>
                                     @foreach($tenants as $tenant)
                                     <option value="{{ $tenant->id }}" @selected(old('tenant_id')==$tenant->id)>
-                                        {{ $tenant->user?->name ?? 'Unknown' }} ({{ $tenant->ic_number ?? 'N/A' }})
+                                        {{ $tenant->user?->name ?? 'Unknown' }} ({{ $tenant->ic_number ?? $tenant->passport ?? 'N/A' }})
                                     </option>
                                     @endforeach
                                 </select>

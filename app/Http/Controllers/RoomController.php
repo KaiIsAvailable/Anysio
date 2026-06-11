@@ -232,7 +232,7 @@ class RoomController extends Controller
         $data = $request->validate([
             'room_no'   => 'required|string|max:255',
             'room_type' => 'required|string|max:255',
-            'status'    => 'required|in:VACANT,OCCUPIED,MAINTENANCE',
+            'status'    => 'required',
             'assets'       => 'nullable|array',
             'assets.*.id'  => 'required_with:assets|exists:assets,id',
             'assets.*.qty' => 'required_with:assets|integer|min:0',

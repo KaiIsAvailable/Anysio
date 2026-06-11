@@ -73,7 +73,7 @@
                                     <x-form.input-label value="Status" class="mb-1" />
                                     <x-form.input-select 
                                         name="status" 
-                                        :options="['VACANT' => 'VACANT', 'OCCUPIED' => 'OCCUPIED', 'MAINTENANCE' => 'MAINTENANCE']" 
+                                        :options="['Vacant' => 'Vacant', 'Occupied' => 'Occupied', 'Maintenance' => 'Maintenance']" 
                                         :value="strtoupper(old('status', $room->status))" 
                                         class="w-full" 
                                         required />

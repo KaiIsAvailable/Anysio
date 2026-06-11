@@ -7,7 +7,7 @@ use Illuminate\Support\Collection;
 
 class SetupCheckerService
 {
-    public function check(array $requirements)
+    public function check(array $requirements, $type = 'exists')
     {
         /** @var \App\Models\User $user */
         $user = Auth::user();
@@ -21,7 +21,7 @@ class SetupCheckerService
 
         $results = [];
         foreach ($requirements as $requirement) {
-            $results[$requirement] = match ($requirement) {
+            $builder = match ($requirement) {
                 'property' => $this->checkProperty($user, $userId, $ownerIds),
                 'tenant'   => $this->checkTenant($user, $userId),
                 'template' => $this->checkAgreement($user, $userId, $ownerIds),
@@ -29,6 +29,10 @@ class SetupCheckerService
                 'asset'    => $this->checkAsset($user, $userId, $ownerIds),
                 default    => false,
             };
+
+            $results[$requirement] = ($builder === true) 
+                ? true 
+                : ($builder instanceof \Illuminate\Database\Eloquent\Builder ? $builder->exists() : false);
         }
 
         return $results;
@@ -93,6 +97,6 @@ class SetupCheckerService
             if ($user->hasRole('agentAdmin') && $ownerIds->isNotEmpty()) {
                 $q->orWhereIn('user_id', $ownerIds);
             }
-        })->exists();
+        });
     }
 }

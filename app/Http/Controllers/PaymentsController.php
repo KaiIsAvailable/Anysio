@@ -4,6 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Models\Payment;
 use App\Models\Tenants;
+use App\Models\Room;
+use App\Models\Unit;
+use App\Models\Property;
 use App\Models\Lease;
 use App\Models\UserPayment;
 use App\Models\UserManagement;
@@ -21,7 +24,19 @@ class PaymentsController extends Controller
     public function index(Request $request)
     {
         $userId = Auth::id();
-        $query = Payment::with(['tenant.user', 'lease.room']);
+        $query = Payment::with([
+            'tenant.user', 
+            'lease' => function ($leaseQuery) {
+                // 这里进入 Lease 模型，通过 leasable 关联使用 morphWith
+                $leaseQuery->with(['leasable' => function ($morphQuery) {
+                    $morphQuery->morphWith([
+                        Room::class     => ['unit'], // 如果是 Room，顺便把 unit 也取出来
+                        Unit::class     => [],
+                        Property::class => [],
+                    ]);
+                }]);
+            }
+        ]);
 
         if (!Gate::allows('super-admin')) {
             // 关键：只要 tenant 表里的 created_by 是当前登录用户，就显示这条账单
@@ -141,40 +156,40 @@ class PaymentsController extends Controller
         ]);
     }
 
+    public function storeManualInvoiceLogic(Lease $lease, array $payload)
+    {
+        $amountCents = (int) round($payload['amount_due'] * 100);
+        $newInvoiceNo = $this->generateSequenceInvoiceNo('INV');
+
+        return Payment::create([
+            'id'           => (string) Str::ulid(),
+            'tenant_id'    => $lease->tenant_id,
+            'lease_id'     => $lease->id,
+            'invoice_no'   => $newInvoiceNo,
+            'payment_type' => $payload['payment_type'],
+            'period'       => Carbon::parse($payload['period'])->startOfMonth(),
+            'amount_due'   => $amountCents,
+            'amount_paid'  => 0,
+            'status'       => 'unpaid',
+            'remarks'      => $payload['remarks'] ?? null,
+        ]);
+    }
+
+    // 2. 供 Web 路由使用的 Action (处理 Request 和 跳转)
     public function storeManualInvoice(Request $request, Lease $lease)
     {
-        // 1. 验证表单提交的数据
         $payload = $request->validate([
-            'payment_type' => ['required', 'string', 'max:50'], // 例如：Utilities, Deposit, Maintenance
+            'payment_type' => ['required', 'string', 'max:50'],
             'amount_due'   => ['required', 'numeric', 'min:0.01'],
             'period'       => ['required', 'date'],
             'remarks'      => ['nullable', 'string', 'max:255'],
         ]);
 
-        return DB::transaction(function () use ($payload, $lease) {
-            
-            // 2. 将金额转为分
-            $amountCents = (int) round($payload['amount_due'] * 100);
-
-            // 3. 生成单号 (建议给手动账单一个前缀或通用标识)
-            $newInvoiceNo = $this->generateSequenceInvoiceNo('INV'); 
-
-            // 4. 执行创建
-            Payment::create([
-                'id'           => (string) Str::ulid(),
-                'tenant_id'    => $lease->tenant_id,
-                'lease_id'     => $lease->id,
-                'invoice_no'   => $newInvoiceNo,
-                'payment_type' => $payload['payment_type'],
-                'period'       => Carbon::parse($payload['period'])->startOfMonth(),
-                'amount_due'   => $amountCents,
-                'amount_paid'  => 0,
-                'status'       => 'unpaid',
-                'remarks'      => $payload['remarks'],
-            ]);
-
-            return back()->with('success', 'Manual invoice generated successfully.');
+        DB::transaction(function () use ($payload, $lease) {
+            $this->storeManualInvoiceLogic($lease, $payload);
         });
+
+        return back()->with('success', 'Manual invoice generated successfully.');
     }
 
     public function update(Request $request, Payment $payment)
@@ -189,7 +204,7 @@ class PaymentsController extends Controller
 
         // 1. 核心阻断：检查是否有任何【更早日期】且【未付清】的单子
         // 无论类型是 'rent' 还是 'Underpaid xxx'，只要 period 更早且未付，就必须先还
-        $earlierUnpaid = Payment::where('tenant_id', $payment->tenant_id)
+        $earlierUnpaid = Payment::where('lease_id', $payment->lease_id) // <--- 改为 lease_id
             ->where('status', 'unpaid')
             ->where('period', '<', $payment->period)
             ->exists();

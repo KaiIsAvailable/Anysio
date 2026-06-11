@@ -70,7 +70,21 @@
 
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="text-sm font-medium text-slate-900">{{ $payment->tenant->user->name ?? 'N/A' }}</div>
-                                            <div class="text-xs text-gray-500">Room: {{ $payment->lease->room->room_no ?? 'N/A' }}</div>
+                                            <div class="text-xs text-gray-500">
+                                                @php
+                                                    $leasable = $payment->lease->leasable ?? null;
+                                                @endphp
+
+                                                @if($leasable instanceof \App\Models\Room)
+                                                    Room: {{ $leasable->room_no }} (Unit: {{ $leasable->unit->unit_no ?? 'N/A' }})
+                                                @elseif($leasable instanceof \App\Models\Unit)
+                                                    Unit: {{ $leasable->unit_no }}
+                                                @elseif($leasable instanceof \App\Models\Property)
+                                                    Property: {{ $leasable->name }}
+                                                @else
+                                                    N/A
+                                                @endif
+                                            </div>
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">

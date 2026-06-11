@@ -364,7 +364,7 @@ class UserManagementController extends Controller
                 : $now;
 
             // 计算 End Date
-            $newEndDate = ($packageDetails->price_mode === 'monthly') 
+            $newEndDate = (strtolower($packageDetails->price_mode) === 'monthly') 
                             ? $newStartDate->copy()->addMonth() 
                             : $newStartDate->copy()->addYear();
 

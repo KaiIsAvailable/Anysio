@@ -138,7 +138,7 @@ class RegisteredUserController extends Controller
 
                 if ($commissionRate > 0) {
                     $startDate = now();
-                    $endDate = ($packageDetails->price_mode === 'monthly') 
+                    $endDate = (strtolower($packageDetails->price_mode) === 'monthly') 
                                 ? $startDate->copy()->addMonth() 
                                 : $startDate->copy()->addYear();
                 }

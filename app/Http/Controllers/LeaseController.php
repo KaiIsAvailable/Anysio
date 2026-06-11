@@ -510,7 +510,7 @@ class LeaseController extends Controller
             Log::info("更新后的状态: " . $leasable->fresh()->status);
 
             // 创建新记录
-            Lease::create([
+            $newLease = Lease::create([
                 'parent_lease_id' => $oldLease?->id,
                 'agreement_id' => $validated['agreement_id'],
                 'is_current' => true,
@@ -534,9 +534,30 @@ class LeaseController extends Controller
                 'utilities_deposit' => $uDep,
                 'status' => $validated['status'],
             ]);
+
+            if (in_array($validated['status'], ['New', 'Renew'])) {
+                $paymentController = new PaymentsController();
+                $paymentController->generateMonthlyInvoice($newLease->id);
+
+                $depositTypes = [
+                    'Security Deposit'  => $sDep,
+                    'Utilities Deposit' => $uDep,
+                ];
+
+                foreach ($depositTypes as $type => $amount) {
+                    if ($amount > 0) {
+                        $paymentController->storeManualInvoiceLogic($newLease, [
+                            'payment_type' => $type,
+                            'amount_due'   => $amount,
+                            'period'       => $newLease->start_date,
+                            'remarks'      => 'Initial ' . $type
+                        ]);
+                    }
+                }
+            }
         });
 
-        return redirect()->route('admin.leases.index')->with('success', 'Lease added successfully.');
+        return redirect()->route('admin.leases.index')->with('success', 'Lease, first rent invoice and deposit invoice generated successfully.');
     }
 
     public function show(Request $request, Lease $lease)

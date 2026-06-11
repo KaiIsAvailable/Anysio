@@ -324,7 +324,7 @@ class TenantsController extends Controller
 
         $path = $tenant->ic_photo_path;
 
-        // 向后兼容：检查是否存放在带有 'private' 前缀的旧路径中
+        // 向后兼容路径检查
         if (!Storage::disk('local')->exists($path)) {
             $oldPath = 'private/' . $path;
             if (Storage::disk('local')->exists($oldPath)) {
@@ -336,15 +336,12 @@ class TenantsController extends Controller
 
         $fullPath = Storage::disk('local')->path($path);
 
-        if (!file_exists($fullPath)) {
-            abort(404, 'File not found on server.');
-        }
-
+        // 修复点：直接使用 Storage 门面获取 MIME 类型
+        // 或者使用文件信息类获取
+        $mimeType = Storage::mimeType($path) ?: 'image/jpeg';
+        
         $fileContent = file_get_contents($fullPath);
         $base64 = base64_encode($fileContent);
-        
-        // 获取 MIME 类型
-        $mimeType = Storage::disk('local')->mimeType($path) ?: 'image/jpeg';
         
         $photoData = 'data:' . $mimeType . ';base64,' . $base64;
 

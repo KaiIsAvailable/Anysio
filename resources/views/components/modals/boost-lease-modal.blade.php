@@ -41,7 +41,7 @@
                         <p class="text-sm font-bold text-slate-700" x-text="boostData.packageName"></p>
                         <div class="flex justify-between text-[11px] text-slate-500 mt-2 font-bold">
                             <span>Limit: <span x-text="boostData.maxLimit"></span> </span>
-                            <span>RM <span x-text="boostData.extraPrice"></span> / unit</span>
+                            <span>RM <span x-text="boostData.extraPrice / 100"></span> / unit</span>
                         </div>
                         <span class="text-slate-500 text-[11px] font-bold">Balance Limit: <span x-text="boostData.balanceLimit"></span> </span>
                     </div>

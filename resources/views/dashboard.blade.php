@@ -11,20 +11,20 @@
             $isSetupComplete = !in_array(false, $checks);
         @endphp
 
-        @if(!$isSetupComplete)
-            <x-notification-banner type="warning" class="mb-6">
-                <span class="font-bold">Getting Started:</span> Please complete the following create your first lease:
-                <ul class="mt-2 list-disc list-inside px-4">
-                    @if(!$checks['tenant'])   <li><a href="{{ route('admin.tenants.create') }}">Add your first tenant</a></li> @endif
-                    @if(!$checks['owner'])   <li><a href="{{ route('admin.owners.create') }}">Add your first owner</a></li> @endif
-                    @if(!$checks['property']) <li><a href="{{ route('admin.properties.create') }}">Add your first property</a></li> @endif
-                    @if(!$checks['asset'])    <li><a href="{{ route('admin.roomAsset.create') }}">Add your first asset</a></li> @endif
-                    @if(!$checks['template']) <li><a href="{{ route('admin.agreements.create') }}">Setup agreement template</a></li> @endif
-                </ul>
-            </x-notification-banner>
-        @endif
-
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            @if(!$isSetupComplete)
+                <x-notification-banner type="warning" class="mb-6">
+                    <span class="font-bold">Getting Started:</span> Please complete the following create your first lease:
+                    <ul class="mt-2 list-disc list-inside px-4">
+                        @if(!$checks['tenant'])   <li><a href="{{ route('admin.tenants.create') }}">Add your first tenant</a></li> @endif
+                        @if(!$checks['owner'])   <li><a href="{{ route('admin.owners.create') }}">Add your first owner</a></li> @endif
+                        @if(!$checks['property']) <li><a href="{{ route('admin.properties.create') }}">Add your first property</a></li> @endif
+                        @if(!$checks['asset'])    <li><a href="{{ route('admin.roomAsset.create') }}">Add your first asset</a></li> @endif
+                        @if(!$checks['template']) <li><a href="{{ route('admin.agreements.create') }}">Setup agreement template</a></li> @endif
+                    </ul>
+                </x-notification-banner>
+            @endif
+
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 @foreach([
                     ['title' => 'Properties', 'total' => $counts['total_properties'] ?? 0, 'vacant' => $counts['vacant_properties'] ?? 0, 'occ' => $counts['occ_properties'] ?? 0, 'main' => $counts['main_properties'] ?? 0, 'clean' => $counts['clean_properties'] ?? 0],
@@ -119,31 +119,51 @@
             const renderedCharts = {};
 
             function initChart(title) {
-                // 防止重复初始化
                 if (renderedCharts[title]) return;
 
                 const counts = @json($counts);
-                const elementId = "#chart-" + title;
+                const element = document.querySelector("#chart-" + title);
                 
+                // 调试：看看获取到的 ID 是否正确
+                console.log("Initializing chart for:", title);
+
                 // 映射数据
                 let series = [];
                 if (title === 'Properties') series = [counts.occ_properties, counts.vacant_properties, counts.main_properties, counts.clean_properties];
                 else if (title === 'Units') series = [counts.occ_units, counts.vacant_units, counts.main_units, counts.clean_units];
-                else if (title === 'Rooms') series = [counts.occ_rooms, counts.vacant_rooms, counts.main_rooms, counts.clean_rooms];
+                else if (title === 'Rooms') series = [counts.occ_rooms, counts.vacant_rooms, counts.main_rooms, counts.clean_rooms]; // 请根据你后台实际的 key 检查！
+
+                // 调试：看看 series 到底是什么
+                console.log("Series data:", series);
+
+                // 将 null 或 undefined 转换为 0，防止 reduce 报错
+                const safeSeries = series.map(val => val || 0);
+                const hasData = safeSeries.some(value => value > 0);
+
+                if (!hasData) {
+                    element.innerHTML = `
+                        <div class="flex items-center justify-center w-full h-[220px]">
+                            <span class="text-slate-400 text-sm font-bold uppercase tracking-widest">
+                                No Data Available
+                            </span>
+                        </div>
+                    `;
+                    renderedCharts[title] = true;
+                    return;
+                }
 
                 const options = {
-                    chart: { type: 'donut', height: 220, width: '100%' }, // 强制宽度 100%
-                    series: series,
+                    chart: { type: 'donut', height: 220, width: '100%' },
+                    series: safeSeries, // 使用处理后的安全数据
                     labels: ['Occupied', 'Vacant', 'Cleaning', 'Maintenance'],
                     colors: ['#10b981', '#f59e0b', '#8b5cf6', '#ef4444'],
                     dataLabels: { enabled: false },
                     legend: { position: 'bottom', fontSize: '10px' }
                 };
 
-                const chart = new ApexCharts(document.querySelector(elementId), options);
+                const chart = new ApexCharts(element, options);
                 chart.render();
                 
-                // 标记已渲染
                 renderedCharts[title] = true;
             }
         </script>

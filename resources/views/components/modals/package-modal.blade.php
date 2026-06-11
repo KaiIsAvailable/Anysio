@@ -57,7 +57,7 @@
                 {{-- 额外费用提示 (单独一行) --}}
                 <div class="bg-indigo-50 p-4 rounded-2xl flex justify-between items-center text-indigo-900 border border-indigo-100">
                     <span class="text-xs font-bold uppercase">Extra Lease Cost</span>
-                    <span class="text-sm font-black" x-text="'RM ' + boostData.extraPrice + ' / unit'"></span>
+                    <span class="text-sm font-black" x-text="'RM ' + (boostData.extraPrice / 100).toFixed(2) + ' / unit'"></span>
                 </div>
             </div>
         </div>

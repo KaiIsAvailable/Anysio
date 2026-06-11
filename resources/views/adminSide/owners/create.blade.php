@@ -13,75 +13,113 @@
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <form action="{{ route('admin.owners.store') }}" method="POST" class="p-8">
-                    @csrf
+                <x-form.form action="{{ route('admin.owners.store') }}" class="p-8">
                     
                     <div class="space-y-6">
+                        {{-- Full Name --}}
                         <div>
-                            <label for="name" class="block text-sm font-semibold text-gray-700">Full Name</label>
-                            <input type="text" name="name" id="name" value="{{ old('name') }}" placeholder="Enter owner's full name" required 
-                                   class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                            @error('name') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                            <x-form.input-label value="Full Name" class="mb-1" />
+                            <x-form.text-input 
+                                name="name" 
+                                id="name" 
+                                value="{{ old('name') }}" 
+                                placeholder="Enter owner's full name" 
+                                class="w-full"
+                                required 
+                            />
+                            <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                         </div>
 
+                        {{-- Email --}}
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <div class="flex items-center justify-between mb-2">
-                                <label class="block text-sm font-semibold text-gray-700">Email Address</label>
+                                <x-form.input-label value="Email Address" class="mb-0" />
                                 <label class="inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="random_email" id="random_email" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
                                     <span class="ml-2 text-xs font-medium text-indigo-600 uppercase tracking-wider">Generate Random</span>
                                 </label>
                             </div>
-                            <input type="email" name="email" id="email_input" value="{{ old('email') }}" placeholder="example@mail.com"
-                                   class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-all">
+                            <x-form.text-input 
+                                type="email" 
+                                name="email" 
+                                id="email_input" 
+                                value="{{ old('email') }}" 
+                                placeholder="example@mail.com"
+                                class="w-full transition-all" 
+                            />
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">If random is selected, a temporary password will also be generated.</p>
-                            @error('email') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                            <x-form.input-error :messages="$errors->get('email')" class="mt-1" />
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {{-- Company Name --}}
                             <div>
-                                <label for="company_name" class="block text-sm font-semibold text-gray-700">Company Name</label>
-                                <input type="text" name="company_name" id="company_name" value="{{ old('company_name') }}" placeholder="Optional"
-                                       class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                @error('company_name') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                                <x-form.input-label value="Company Name" class="mb-1" />
+                                <x-form.text-input 
+                                    name="company_name" 
+                                    id="company_name" 
+                                    value="{{ old('company_name') }}" 
+                                    placeholder="Optional"
+                                    class="w-full" 
+                                />
+                                <x-form.input-error :messages="$errors->get('company_name')" class="mt-1" />
                             </div>
 
+                            {{-- IC Number --}}
                             <div>
-                                <label for="ic_number" class="block text-sm font-semibold text-gray-700">IC Number</label>
-                                <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number') }}" placeholder="e.g. 900101105221" required
-                                       class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                @error('ic_number') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                                <x-form.input-label value="IC Number" class="mb-1" />
+                                <x-form.text-input 
+                                    name="ic_number" 
+                                    id="ic_number" 
+                                    value="{{ old('ic_number') }}" 
+                                    placeholder="e.g. 900101105221" 
+                                    class="w-full"
+                                    required 
+                                />
+                                <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
                             </div>
 
+                            {{-- Phone Number --}}
                             <div>
-                                <label for="phone" class="block text-sm font-semibold text-gray-700">Phone Number</label>
-                                <input type="text" name="phone" id="phone" value="{{ old('phone') }}" placeholder="e.g. +60123456789" required
-                                       class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                @error('phone') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                                <x-form.input-label value="Phone Number" class="mb-1" />
+                                <x-form.text-input 
+                                    name="phone" 
+                                    id="phone" 
+                                    value="{{ old('phone') }}" 
+                                    placeholder="e.g. +60123456789" 
+                                    class="w-full"
+                                    required 
+                                />
+                                <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
                             </div>
 
+                            {{-- Gender --}}
                             <div>
-                                <label for="gender" class="block text-sm font-semibold text-gray-700">Gender</label>
-                                <select name="gender" id="gender" required 
-                                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                    <option value="">-- Select Gender --</option>
-                                    <option value="Male" {{ old('gender') == 'Male' ? 'selected' : '' }}>Male</option>
-                                    <option value="Female" {{ old('gender') == 'Female' ? 'selected' : '' }}>Female</option>
-                                </select>
-                                @error('gender') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
+                                <x-form.input-label value="Gender" class="mb-1" />
+                                <x-form.input-select 
+                                    name="gender" 
+                                    id="gender" 
+                                    :options="['Male' => 'Male', 'Female' => 'Female']"
+                                    placeholder="-- Select Gender --"
+                                    class="w-full"
+                                    required 
+                                />
+                                <x-form.input-error :messages="$errors->get('gender')" class="mt-1" />
                             </div>
                         </div>
 
-                        <div class="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                            <a href="{{ route('admin.owners.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                        {{-- Actions --}}
+                        <div class="pt-4 border-t border-gray-100 flex justify-end gap-3" x-data="{ loading: false }">
+                            <a href="{{ route('admin.owners.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                                 Cancel
                             </a>
-                            <button type="submit" class="px-6 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 shadow-md transition-all">
+                            
+                            <x-form.primary-button type="submit" loading="loading" class="px-6 py-2.5">
                                 Save Owner
-                            </button>
+                            </x-form.primary-button>
                         </div>
                     </div>
-                </form>
+                </x-form.form>
             </div>
         </div>
     </div>

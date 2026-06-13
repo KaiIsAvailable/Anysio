@@ -26,7 +26,7 @@
             'resources/js/tenants.js', 
             'resources/js/userManagement.js',
             'resources/js/room.js',
-            'resources/js/agreementPreview.js',
+            //'resources/js/agreementPreview.js',
         ])
         @stack('scripts')
     </head>

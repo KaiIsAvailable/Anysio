@@ -47,34 +47,11 @@
                 {{-- Search Bar Slot --}}
                 <x-slot name="header">
                     <div class="flex justify-end">
-                        <form method="GET" action="{{ route('admin.userManagement.index') }}" class="flex items-stretch gap-2">
+                        <x-form.form method="GET" action="{{ route('admin.userManagement.index') }}" class="flex items-stretch gap-2">
                             <div class="flex items-stretch relative">
-                                <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                    <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                    </svg>
-                                </div>
-                                
-                                {{-- 使用你的 x-text-input 组件 (修改点) --}}
-                                <x-form.text-input 
-                                    name="search" 
-                                    value="{{ request('search') }}"
-                                    class="w-72 sm:w-80 !rounded-r-none"
-                                    style="padding-left: 2.75rem;"
-                                    placeholder="Search by name or email..."
-                                />
-                                
-                                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
-                                    Search
-                                </button>
-
-                                @if(request('search'))
-                                    <a href="{{ route('admin.userManagement.index') }}" class="ml-2 inline-flex items-center px-3 py-2 rounded-lg bg-white hover:bg-gray-100 text-slate-900 border border-gray-200 text-sm transition-all">
-                                        Clear
-                                    </a>
-                                @endif
+                                <x-table.search placeholder="Search by user name..." />
                             </div>
-                        </form>
+                        </x-form.form>
                     </div>
                 </x-slot>
 

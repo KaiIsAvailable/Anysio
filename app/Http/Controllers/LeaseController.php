@@ -74,9 +74,7 @@ class LeaseController extends Controller
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('status', 'like', '%' . $search . '%')
-                    // 搜索多态关联的数据
                     ->orWhereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($search) {
-                        // 1. 先进行“房产属性”的搜索
                         $mq->where(function ($query) use ($search, $type) {
                             if ($type === Room::class) {
                                 $query->where('room_no', 'like', '%' . $search . '%');
@@ -86,15 +84,12 @@ class LeaseController extends Controller
                                 $query->where('name', 'like', '%' . $search . '%');
                             }
                         })
-                        // 2. 使用 orWhereHas 在同一个 Morph 闭包里加上“业主姓名”的搜索
                         ->orWhere(function ($query) use ($search, $type) {
                             if ($type === Room::class) {
-                                // Room -> Unit -> Owner
                                 $query->whereHas('unit.owner', function ($oq) use ($search) {
                                     $oq->where('name', 'like', '%' . $search . '%');
                                 });
                             } else {
-                                // Property 或 Unit -> Owner
                                 $query->whereHas('owner', function ($oq) use ($search) {
                                     $oq->where('name', 'like', '%' . $search . '%');
                                 });
@@ -119,6 +114,10 @@ class LeaseController extends Controller
             ->appends($request->query());
 
         $statusOptions = ['New', 'Renew', 'Check out', 'End Agreement'];
+
+        if ($request->ajax()) {
+            return view('adminSide.leases._table', compact('leases', 'statusOptions'));
+        }
 
         return view('adminSide.leases.index', compact('leases', 'statusOptions'));
     }

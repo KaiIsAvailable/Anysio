@@ -145,7 +145,7 @@
 
                                             {{-- status --}}
                                             <td class="px-6 py-4">
-                                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
+                                                <span class="whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
                                                     {{ $lease->status ?? 'N/A' }}
                                                 </span>
                                             </td>

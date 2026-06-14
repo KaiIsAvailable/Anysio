@@ -195,10 +195,33 @@ class LeaseController extends Controller
 
         $leasePreviewData = $leases->map(function ($lease) {
             $leasable = $this->getLeasableWithOwner($lease);
+            
+            // --- 新增：计算累计押金逻辑 ---
+            $cumulativeSecurity = 0;
+            $cumulativeUtilities = 0;
+            $current = $lease;
+            
+            // 循环向上累加
+            while ($current) {
+                $cumulativeSecurity += $current->security_deposit ?? 0;
+                $cumulativeUtilities += $current->utilities_deposit ?? 0;
+                
+                // 查找下一个父级租约
+                if ($current->parent_lease_id) {
+                    $current = Lease::find($current->parent_lease_id);
+                } else {
+                    $current = null;
+                }
+            }
+            // ----------------------------
+
             return array_merge($lease->toArray(), [
                 'leasable_name' => $this->getLeasableName($leasable),
                 'leasable_address' => $this->getLeasableAddress($leasable),
                 'owner_data' => $this->getOwnerData($leasable),
+                // 将计算好的累计金额传给前端
+                'cumulative_security' => $cumulativeSecurity,
+                'cumulative_utilities' => $cumulativeUtilities,
             ]);
         });
 
@@ -321,8 +344,7 @@ class LeaseController extends Controller
             'tenant_id' => 'required_if:status,New|nullable|exists:tenants,id',
 
             'start_date' => 'required_if:status,New,Renew|nullable|date',
-            // 💡 修复点 1: 改为 after_or_equal，允许 start 和 end 是同一天（1天）
-            'end_date' => 'required_if:status,New,Renew|nullable|date|after_or_equal:start_date',
+            'end_date'   => 'required_if:status,New,Renew|nullable|date|after_or_equal:start_date',
             'checked_out_at' => 'required_if:status,Check Out|nullable|date',
             'agreement_ended_at' => 'required_if:status,End Agreement|nullable|date',
             'rent_price' => 'required_if:status,New,Renew|nullable|numeric|min:1',
@@ -441,7 +463,7 @@ class LeaseController extends Controller
                     'after_or_equal:' . Carbon::parse($oldLease->end_date)->toDateString(),
                 ],
             ], [
-                'start_date.after_or_equal' => 'Your start date must be after or equal to the previous end date.',
+                'start_date.after_or_equal' => 'New lease must start on or after the previous lease ends.',
             ]);
         }
 
@@ -486,6 +508,32 @@ class LeaseController extends Controller
         // 执行数据库事务
         DB::transaction(function () use ($validated, $oldLease, $leasableType, $leasableId, $tenantId, $sDep, $uDep, $depositMode) {
 
+            $parseDate = function ($date) {
+                if (empty($date)) return null;
+                try {
+                    return Carbon::parse($date)->format('Y-m-d');
+                } catch (\Exception $e) {
+                    return null;
+                }
+            };
+
+            // 现在你可以安全地赋值了
+            $startDate = in_array($validated['status'], ['New', 'Renew']) 
+                ? $parseDate($validated['start_date']) 
+                : $oldLease?->start_date;
+
+            $endDate = in_array($validated['status'], ['New', 'Renew']) 
+                ? $parseDate($validated['end_date']) 
+                : $oldLease?->end_date;
+
+            $checkOutDate = ($validated['status'] === 'Check Out') 
+                ? $parseDate($validated['checked_out_at']) 
+                : null;
+
+            $endAgreementDate = ($validated['status'] === 'End Agreement') 
+                ? $parseDate($validated['agreement_ended_at']) 
+                : null;
+
             if ($oldLease) {
                 $oldLease->update(['is_current' => false]);
             }
@@ -511,19 +559,17 @@ class LeaseController extends Controller
             // 创建新记录
             $newLease = Lease::create([
                 'parent_lease_id' => $oldLease?->id,
-                'agreement_id' => $validated['agreement_id'],
+                'agreement_id' => in_array($validated['status'], ['New', 'Renew']) 
+                        ? ($validated['agreement_id'] ?? null) 
+                        : $oldLease?->agreement_id,
                 'is_current' => true,
                 'leasable_type' => $leasableType,
                 'leasable_id' => $leasableId,
                 'tenant_id' => $tenantId,
-                'start_date' => in_array($validated['status'], ['New', 'Renew'])
-                    ? $validated['start_date']
-                    : $oldLease?->start_date,
-                'end_date' => in_array($validated['status'], ['New', 'Renew'])
-                    ? $validated['end_date']
-                    : $oldLease?->end_date,
-                'checked_out_at' => $validated['status'] === 'Check Out' ? $validated['checked_out_at'] : null,
-                'agreement_ended_at' => $validated['status'] === 'End Agreement' ? $validated['agreement_ended_at'] : null,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+                'checked_out_at' => $checkOutDate,
+                'agreement_ended_at' => $endAgreementDate,
                 'term_type' => $validated['term_type'] ?? $oldLease?->term_type,
                 'rent_price' => ($validated['status'] === 'New' || $validated['status'] === 'Renew')
                     ? ($validated['rent_price'] ?? 0)

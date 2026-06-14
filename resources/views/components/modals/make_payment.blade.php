@@ -103,70 +103,67 @@
                                 </svg>
                             </div>
                         </div>
-
                         <div class="space-y-2">
                             <h4 class="text-2xl font-black text-slate-800 tracking-tight">Verification Failed</h4>
                             <p class="text-slate-500 text-sm max-w-xs mx-auto">
-                                We couldn't verify your previous receipt. Please review the details below and <span
-                                    class="text-rose-600 font-bold">re-upload</span> a valid proof.
+                                We couldn't verify your previous receipt. Please review the details below and 
+                                <span class="text-rose-600 font-bold">re-upload</span> a valid proof.
                             </p>
                         </div>
                     </div>
 
-                    {{-- 2. 重新上传表单 (与 Case B 结构完全一致) --}}
-                    <form action="{{ $actionUrl }}" method="POST" enctype="multipart/form-data" x-data="{ loading: false }"
+                    {{-- 2. 重新上传表单 (加入了滚动高度限制) --}}
+                    <form action="{{ $actionUrl }}" 
+                        method="POST" 
+                        enctype="multipart/form-data" 
+                        class="flex flex-col h-full overflow-hidden"
+                        x-data="{ loading: false }"
                         @submit="loading = true">
                         @csrf
 
-                        <div class="px-8 pb-8 space-y-6">
+                        {{-- 中间滚动区 --}}
+                        <div class="flex-1 overflow-y-auto p-8 space-y-6">
                             <div class="bg-white border-2 border-dashed border-rose-200 rounded-3xl p-6">
                                 <div class="space-y-4">
                                     <div>
-                                        <label
-                                            class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Re-upload
-                                            Bank Receipt</label>
-                                        <input type="file" name="attachment" required
-                                            class="block w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100 border border-gray-100 rounded-2xl p-2 bg-gray-50/50 cursor-pointer transition-all" />
-                                        @error('attachment')
-                                            <p class="mt-1 text-xs text-red-600 font-medium">{{ $message }}</p>
-                                        @enderror
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Re-upload Bank Receipt</label>
+                                        <input type="file" name="attachment" required class="block w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100 border border-gray-100 rounded-2xl p-2 bg-gray-50/50 cursor-pointer transition-all" />
                                     </div>
-
                                     <div>
-                                        <label
-                                            class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Updated
-                                            Transaction Ref (Optional)</label>
-                                        <input type="text" name="transaction_ref" value="" placeholder="e.g. 123456789"
-                                            class="block w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-rose-500 text-sm font-medium">
-                                        @error('transaction_ref')
-                                            <p class="mt-1 text-xs text-red-600 font-medium">{{ $message }}</p>
-                                        @enderror
+                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Updated Transaction Ref (Optional)</label>
+                                        <input type="text" name="transaction_ref" placeholder="e.g. 123456789" class="block w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-rose-500 text-sm font-medium">
                                     </div>
                                 </div>
                             </div>
-
                             <div class="text-center">
                                 <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
-                                    Need help? <a href="mailto:support@anysio.com"
-                                        class="text-indigo-500 hover:underline">Contact Support</a>
+                                    Need help? <a href="mailto:support@anysio.com" class="text-indigo-500 hover:underline">Contact Support</a>
                                 </p>
                             </div>
                         </div>
 
                         {{-- Footer 按钮 --}}
-                        <div
-                            class="p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
-                            <x-form.form method="POST" action="{{ route('logout') }}"
-                                class="w-full md:w-auto text-center md:text-right">
+                        <div class="flex-none p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
+                            {{-- 登出按钮：去掉了会导致渲染冲突的 loading 属性 --}}
+                            <x-form.form method="POST" action="{{ route('logout') }}" class="w-full md:w-auto text-center md:text-right">
                                 @csrf
-                                <x-form.secondary-button loading="loading"
+                                <x-form.secondary-button type="submit" loading="loading"
                                     class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
                                     {{ __('Log Out') }}
                                 </x-form.secondary-button>
                             </x-form.form>
-                            <x-form.primary-button type="submit" loading="loading"
+
+                            {{-- 提交按钮：统一使用 loading 变量 --}}
+                            <x-form.primary-button type="submit"
                                 class="w-full px-4 py-3 bg-rose-600 text-white rounded-2xl font-black text-base hover:bg-rose-700 shadow-xl shadow-rose-200 transition-all active:scale-[0.98] disabled:opacity-70 flex items-center justify-center">
-                                <span x-show="!isUploading">Update & Resubmit Proof</span>
+                                <span x-show="!loading">Update & Resubmit Proof</span>
+                                <span x-show="loading" class="flex items-center" x-cloak>
+                                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                    </svg>
+                                    Uploading...
+                                </span>
                             </x-form.primary-button>
                         </div>
                     </form>
@@ -175,11 +172,11 @@
                 @else
                     <form action="{{ $actionUrl }}" method="POST" enctype="multipart/form-data" x-data="{ loading: false }"
                         @submit="loading = true" x-latest-amount-due="{{$latestPayment?->amount_due}}"
-                        class="flex flex-col h-full"> {{-- 改动 1：表单设为 flex-col 且占满高度 --}}
+                        class="flex flex-col h-full overflow-hidden"> {{-- 改动 1：表单设为 flex-col 且占满高度 --}}
                         @csrf
 
                         {{-- 改动 2：中间内容区添加 flex-1 overflow-y-auto --}}
-                        <div class="flex-1 overflow-y-auto p-1 space-y-8">
+                        <div class="flex-1 overflow-y-auto p-1 space-y-8 min-h-0">
                             {{-- QR Section --}}
                             <div class="flex flex-col items-center justify-center space-y-4 pt-4">
                                 <div class="relative group">
@@ -199,7 +196,7 @@
                             <hr class="border-gray-100">
 
                             {{-- Input Section --}}
-                            <div class="space-y-4 px-4">
+                            <div class="flex-none p-6 bg-gray-50/80 border-t border-gray-100 space-y-4 px-4">
                                 <div>
                                     <x-form.input-label value="1. Upload Bank Receipt" class="mb-3 ml-3" />
                                     <x-form.file-input name="attachment" :required="$latestPayment->amount_due > 0" />
@@ -242,62 +239,3 @@
         </div>
     </template>
 </div>
-
-<style>
-    @keyframes shake {
-
-        0%,
-        100% {
-            transform: translateX(0);
-        }
-
-        25% {
-            transform: translateX(-8px);
-        }
-
-        50% {
-            transform: translateX(8px);
-        }
-
-        75% {
-            transform: translateX(-8px);
-        }
-    }
-
-    .animate-shake {
-        animation: shake 0.4s ease-in-out;
-    }
-
-    /* 慢速旋转动画，适合等待界面 */
-    .animate-spin-slow {
-        animation: spin 3s linear infinite;
-    }
-
-    @keyframes spin {
-        from {
-            transform: rotate(0deg);
-        }
-
-        to {
-            transform: rotate(360deg);
-        }
-    }
-
-    /* 锁定背景 */
-    nav,
-    aside,
-    header {
-        pointer-events: none !important;
-        user-select: none;
-    }
-
-    .backdrop-blur-2xl {
-        -webkit-backdrop-filter: blur(40px);
-        /* Safari 兼容 */
-        backdrop-filter: blur(40px);
-    }
-
-    [x-cloak] {
-        display: none !important;
-    }
-</style>

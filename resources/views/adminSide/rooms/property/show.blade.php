@@ -37,7 +37,7 @@
                     <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                         <h2 class="text-lg font-semibold text-slate-800 italic">Listing Units</h2>
                         
-                        <form method="GET" action="{{ route('admin.properties.show', $property->id) }}" class="flex items-stretch gap-2">
+                        <x-form.form method="GET" action="{{ route('admin.properties.show', $property->id) }}" class="flex items-stretch gap-2">
                             <div class="flex items-stretch">
                                 <a href="{{ route('admin.roomAsset.index') }}" 
                                 class="inline-flex items-center px-5 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors mr-4">
@@ -46,22 +46,9 @@
                                     </svg>
                                     View Room Assets
                                 </a>
-                                <div class="relative flex-1">
-                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <svg class="h-5 w-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                        </svg>
-                                    </div>
-                                    <input type="text" name="search" value="{{ request('search') }}"
-                                           style="padding-left: 45px;"
-                                           class="block w-64 sm:w-72 pr-4 py-2.5 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder-gray-400"
-                                           placeholder="Search Unit No (e.g. 1-1-1a)...">
-                                </div>
-                                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700 transition-colors">
-                                    Search
-                                </button>
+                                <x-table.search placeholder="Search units name..." />
                             </div>
-                        </form>
+                        </x-form.form>
                     </div>
                 </div>
 

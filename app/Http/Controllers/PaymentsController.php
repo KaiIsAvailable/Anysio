@@ -242,6 +242,7 @@ class PaymentsController extends Controller
             } 
             // 3. 处理溢缴 (Overpaid)
             elseif ($totalInputCents > $dueCents) {
+                return back()->with('error', 'You cannot paid more then the payment for this moment');
                 $overPaidCents = $totalInputCents - $dueCents;
                 $actualAppliedCents = $dueCents;
 

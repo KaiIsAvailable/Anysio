@@ -181,8 +181,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Start Date</label>
                                 {{-- 💡 修复点 3: 增加 onchange 触发计算函数 --}}
-                                <input type="date" id="start-date" name="start_date" value="{{ old('start_date') }}" data-preview="{start_date}" onchange="calculateAvailableFeeTypes()"
-                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                                <x-form.date-input id="start-date" name="start_date" label="Start Date" onchange="calculateAvailableFeeTypes()" />
                                 @error('start_date')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                 @enderror
@@ -191,8 +190,7 @@
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">End Date</label>
                                 {{-- 💡 修复点 4: 增加 onchange 触发计算函数 --}}
-                                <input type="date" id="end-date" name="end_date" value="{{ old('end_date') }}" data-preview="{end_date}" onchange="calculateAvailableFeeTypes()"
-                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                                <x-form.date-input id="end-date" name="end_date" label="End Date" onchange="calculateAvailableFeeTypes()" />
                                 @error('end_date')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                 @enderror
@@ -201,15 +199,13 @@
 
                         <div id="check_out_section" class="mt-4">
                             <label class="block text-sm font-medium text-gray-700">Check Out Date</label>
-                            <input type="date" name="checked_out_at" value="{{ old('checked_out_at') }}" data-preview="{check_out_date}"
-                                class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                            <x-form.date-input id="check-out-date" name="checked_out_at" label="Check Out Date"/>
                             @error('checked_out_at') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
 
                         <div id="agreement_end_section" class="mt-4">
                             <label class="block text-sm font-medium text-gray-700">Agreement Ended Date</label>
-                            <input type="date" name="agreement_ended_at" value="{{ old('agreement_ended_at') }}" data-preview="{end_agreement_date}"
-                                class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
+                            <x-form.date-input id="agreement-end-date" name="agreement_ended_at" label="Agreement Ended Date"/>
                             @error('agreement_ended_at') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
 
@@ -267,6 +263,15 @@
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                 @enderror
                             </div>
+                        </div>
+
+                        <div id="bring_forward_notice" class="hidden col-span-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                            <p class="text-sm text-blue-800">
+                                <span class="font-semibold">Previous Deposits:</span> 
+                                <span id="bf-security">RM 0.00</span> (Security) | 
+                                <span id="bf-utilities">RM 0.00</span> (Utilities)
+                                <span class="block mt-1 text-xs text-blue-600 italic">These amounts are brought forward from your previous lease.</span>
+                            </p>
                         </div>
 
                         <div id="agreement_template_section" class="mt-4">
@@ -443,6 +448,44 @@
             }
         }
 
+        document.addEventListener('DOMContentLoaded', function() {
+            const startInput = document.querySelector('#start-date');
+            const endInput = document.querySelector('#end-date');
+
+            if (startInput && endInput) {
+                const startPicker = startInput._flatpickr;
+                const endPicker = endInput._flatpickr;
+
+                // 定义联动函数
+                function syncDateConstraints() {
+                    if (startPicker && startPicker.selectedDates.length > 0) {
+                        // 核心：直接读取当前 Start Date 的值并应用到 End Date
+                        endPicker.set('minDate', startPicker.selectedDates[0]);
+                    }
+                }
+
+                // 1. 初始化时立刻执行一次，无需等待用户点击
+                syncDateConstraints();
+
+                // 2. 绑定事件，后续用户手动修改时触发
+                startPicker.config.onChange.push(function(selectedDates) {
+                    if (selectedDates.length > 0) {
+                        endPicker.set('minDate', selectedDates[0]);
+                        // 这里的调用确保了：即便不是通过选 Lease，只要日期变了，费用类型也会重新计算
+                        if (typeof calculateAvailableFeeTypes === 'function') {
+                            calculateAvailableFeeTypes();
+                        }
+                    }
+                });
+
+                endPicker.config.onChange.push(function() {
+                    if (typeof calculateAvailableFeeTypes === 'function') {
+                        calculateAvailableFeeTypes();
+                    }
+                });
+            }
+        });
+
         // ==========================================
         // 以下为你原本已有的完整代码逻辑
         // ==========================================
@@ -484,21 +527,51 @@
                 document.getElementById('monthly-rent').value = lease.rent_price;
 
                 if (lease.end_date) {
-                    document.getElementById('start-date').value = lease.end_date;
-                    // 旧租约拉过来后，也顺便计算一下新开放的 Fee Types
+                    let startDateObj = new Date(lease.end_date);
+                    startDateObj.setDate(startDateObj.getDate() + 1);
+                    
+                    const startInput = document.getElementById('start-date');
+                    const endInput = document.getElementById('end-date');
+
+                    // 1. 设置 Start Date
+                    if (startInput._flatpickr) {
+                        startInput._flatpickr.setDate(startDateObj);
+                    } else {
+                        startInput.value = startDateObj.toISOString().split('T')[0];
+                    }
+
+                    // 2. 核心逻辑：确保 End Date 永远不能小于 Start Date
+                    if (endInput._flatpickr) {
+                        // 这一行代码至关重要：它直接锁定了 End Date 的选择范围
+                        endInput._flatpickr.set('minDate', startDateObj);
+                        
+                        // 可选：如果 End Date 当前的值已经早于新 Start Date，自动重置 End Date
+                        if (endInput._flatpickr.selectedDates.length > 0 && 
+                            endInput._flatpickr.selectedDates[0] < startDateObj) {
+                            endInput._flatpickr.clear();
+                        }
+                    }
+                    
+                    // 3. 触发费用计算
                     calculateAvailableFeeTypes();
                 }
 
-                const depositMode = document.getElementById('deposit_mode');
+                //选lease不需要带入押金金额 因为deposit是bring forward的
+                document.getElementById('security-deposit').value = '';
+                document.getElementById('utilities-deposit').value = '';
+
+                // 找到选中的旧租约后
                 const sDep = parseFloat(lease.security_deposit) || 0;
                 const uDep = parseFloat(lease.utilities_deposit) || 0;
 
-                if (sDep > 0 && uDep > 0) depositMode.value = 'both';
-                else if (uDep > 0) depositMode.value = 'utilities_only';
-                else depositMode.value = 'security_only';
+                const leaseDataMap = @json($leasePreviewData->keyBy('id'));
+                const leaseData = leaseDataMap[leaseId];
+                const bfSec = document.getElementById('bf-security');
+                const bfUtil = document.getElementById('bf-utilities');
+                
+                if (bfSec) bfSec.innerText = 'RM ' + parseFloat(leaseData.cumulative_security).toFixed(2);
+                if (bfUtil) bfUtil.innerText = 'RM ' + parseFloat(leaseData.cumulative_utilities).toFixed(2);
 
-                document.getElementById('security-deposit').value = sDep;
-                document.getElementById('utilities-deposit').value = uDep;
                 toggleDepositVisibility();
 
                 let utils = lease.utilities;
@@ -552,73 +625,46 @@
 
         function toggleLeaseSelect() {
             const statusSelect = document.getElementById('lease-status');
-            const newStatus = statusSelect.value;
+            const newStatus = statusSelect.value || 'New';
 
+            // 1. 检查是否需要刷新页面 (保持你原有的逻辑)
             const urlParams = new URLSearchParams(window.location.search);
-            const currentStatusInUrl = urlParams.get('status');
-
-            if (newStatus !== currentStatusInUrl) {
+            if (newStatus !== urlParams.get('status')) {
                 window.location.href = `{{ route('admin.leases.create') }}?status=${newStatus}`;
                 return;
             }
 
-            const leaseContainer = document.getElementById('lease_select_container');
-            const propertyContainer = document.getElementById('property_select_type');
-            const tenantContainer = document.getElementById('tenant_field');
-            const dateSection = document.getElementById('date_section');
-            const feeSection = document.getElementById('fee_section');
-            const depositSection = document.getElementById('deposit_section');
-            //const utilitiesSection = document.getElementById('utilities_section');
-            const checkOutSection = document.getElementById('check_out_section');
-            const agreementEndSection = document.getElementById('agreement_end_section');
-            const agreementTemplateSection = document.getElementById('agreement_template_section');
+            // 2. 配置哪些 ID 是需要显示的 (true = 显示, false = 隐藏)
+            const sections = {
+                'lease_select_container': ['Renew', 'Check Out', 'End Agreement'].includes(newStatus),
+                'property_select_type': newStatus === 'New',
+                'tenant_field': newStatus === 'New',
+                'date_section': ['New', 'Renew'].includes(newStatus),
+                'fee_section': ['New', 'Renew'].includes(newStatus),
+                'deposit_section': ['New', 'Renew'].includes(newStatus),
+                'bring_forward_notice': newStatus === 'Renew',
+                'check_out_section': newStatus === 'Check Out',
+                'agreement_end_section': newStatus === 'End Agreement',
+                'agreement_template_section': ['New', 'Renew'].includes(newStatus)
+            };
 
-            if (newStatus === 'New' || !newStatus) {
-                if (leaseContainer) leaseContainer.classList.add('hidden');
-                propertyContainer.classList.remove('hidden');
-                tenantContainer.classList.remove('hidden');
-                dateSection.classList.remove('hidden');
-                feeSection.classList.remove('hidden');
-                depositSection.classList.remove('hidden');
-                //utilitiesSection.classList.remove('hidden');
-                checkOutSection.classList.add('hidden');
-                agreementEndSection.classList.add('hidden');
-                agreementTemplateSection.classList.remove('hidden');
+            // 3. 统一执行显示/隐藏与启用/禁用
+            Object.keys(sections).forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
 
-            } else if (newStatus === 'Renew') {
-                if (leaseContainer) leaseContainer.classList.remove('hidden');
-                propertyContainer.classList.add('hidden');
-                tenantContainer.classList.add('hidden');
-                dateSection.classList.remove('hidden');
-                feeSection.classList.remove('hidden');
-                depositSection.classList.remove('hidden');
-                //utilitiesSection.classList.remove('hidden');
-                checkOutSection.classList.add('hidden');
-                agreementEndSection.classList.add('hidden');
-                agreementTemplateSection.classList.remove('hidden');
-            } else if (newStatus === 'Check Out') {
-                if (leaseContainer) leaseContainer.classList.remove('hidden');
-                propertyContainer.classList.add('hidden');
-                tenantContainer.classList.add('hidden');
-                dateSection.classList.add('hidden');
-                feeSection.classList.add('hidden');
-                depositSection.classList.add('hidden');
-                //utilitiesSection.classList.add('hidden');
-                checkOutSection.classList.remove('hidden');
-                agreementEndSection.classList.add('hidden');
-                agreementTemplateSection.classList.add('hidden');
-            } else if (newStatus === 'End Agreement') {
-                if (leaseContainer) leaseContainer.classList.remove('hidden');
-                propertyContainer.classList.add('hidden');
-                tenantContainer.classList.add('hidden');
-                dateSection.classList.add('hidden');
-                feeSection.classList.add('hidden');
-                depositSection.classList.add('hidden');
-                //utilitiesSection.classList.add('hidden');
-                checkOutSection.classList.add('hidden');
-                agreementEndSection.classList.remove('hidden');
-                agreementTemplateSection.classList.add('hidden');
-            }
+                const isVisible = sections[id];
+                
+                // 切换类名
+                el.classList.toggle('hidden', !isVisible);
+
+                // 核心：处理输入字段的 disabled 状态
+                // 如果不可见，禁用内部所有输入，防止提交残留数据
+                const inputs = el.querySelectorAll('input, select, textarea');
+                inputs.forEach(input => {
+                    input.disabled = !isVisible;
+                });
+            });
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -848,34 +894,53 @@
         });
 
         function filterTemplates() {
-            // 1. 获取当前选中的租赁类型 (property/unit/room)
-            const type = document.getElementById('lease_selection').value;
-            const activeSelect = document.getElementById(type + '_select_input');
+            // 变量定义
+            let ownerId = null;
 
-            // 2. 获取当前选中房产的 owner_id
-            // 确保你的 property_select_input, unit_select_input, room_select_input 的 option 里都存了 data-owner-id
-            const selectedOption = activeSelect.options[activeSelect.selectedIndex];
-            const ownerId = selectedOption.getAttribute('data-owner-id');
+            // --- 新增：兼容 Renew Lease 流程 ---
+            const leaseSelect = document.getElementById('lease_id');
+            // 如果页面上有 lease_id 下拉框且有被选中的选项
+            if (leaseSelect && leaseSelect.value !== "") {
+                const selectedLease = leaseSelect.options[leaseSelect.selectedIndex];
+                ownerId = selectedLease.getAttribute('data-owner-id');
+            }
+
+            // --- 原有逻辑：兼容 New Lease 流程 ---
+            // 只有当上面没有通过 lease_id 拿到 ownerId 时，才走原逻辑
+            if (!ownerId) {
+                const typeEl = document.getElementById('lease_selection');
+                if (typeEl && typeEl.value) {
+                    const activeSelect = document.getElementById(typeEl.value + '_select_input');
+                    if (activeSelect && activeSelect.selectedIndex > 0) {
+                        const selectedOption = activeSelect.options[activeSelect.selectedIndex];
+                        ownerId = selectedOption.getAttribute('data-owner-id');
+                    }
+                }
+            }
 
             console.log("--- 模板过滤调试 ---");
-            console.log("选中的房产 Owner ID:", ownerId);
+            console.log("最终确认的 Owner ID:", ownerId);
 
-            // 3. 过滤模板
+            // 如果无论哪种方式都没拿到 Owner ID，直接返回，避免报错
+            if (!ownerId) {
+                console.warn("当前状态无法获取 Owner ID，跳过过滤。");
+                return;
+            }
+
+            // --- 3. 过滤模板 (保持原逻辑不变) ---
             const agreementSelect = document.getElementById('agreement_id');
+            if (!agreementSelect) return;
 
             Array.from(agreementSelect.options).forEach(option => {
-                if (option.value === "") return; // 跳过默认提示选项
+                if (option.value === "") return;
 
-                // 使用你在 HTML 中定义的 data-agreement-user-id
                 const templateUserId = option.getAttribute('data-agreement-user-id');
-
-                console.log(`对比: 模板用户(${templateUserId}) vs 房产Owner(${ownerId})`);
-
-                // 强转为字符串比较，防止类型不匹配
+                
+                // 匹配逻辑
                 if (ownerId && String(templateUserId) === String(ownerId)) {
-                    option.style.display = 'block'; // 显示匹配的
+                    option.style.display = 'block'; 
                 } else {
-                    option.style.display = 'none'; // 隐藏不匹配的
+                    option.style.display = 'none'; 
                 }
             });
 
@@ -886,7 +951,7 @@
         }
 
         // 绑定事件：当房产选择改变时触发
-        ['property_select_input', 'unit_select_input', 'room_select_input'].forEach(id => {
+        ['property_select_input', 'unit_select_input', 'room_select_input', 'lease_id'].forEach(id => {
             document.getElementById(id).addEventListener('change', filterTemplates);
         });
     </script>

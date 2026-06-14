@@ -20,6 +20,10 @@
         <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
         <script>window.currentUser = { name: "{{ auth()->user()->name }}" };</script>
 
+        <!--Date Picker -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+        <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
         @vite([
             'resources/css/app.css',
             'resources/js/app.js', 

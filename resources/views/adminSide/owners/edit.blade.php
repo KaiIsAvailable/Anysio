@@ -2,7 +2,6 @@
     <div class="py-12 bg-gray-50 min-h-screen">
         <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
             
-            {{-- Navigation & Title (Aligned with Create) --}}
             <div class="mb-6">
                 <a href="{{ route('admin.owners.index') }}" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center transition-colors">
                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -13,10 +12,11 @@
                 <h1 class="text-2xl font-bold text-slate-900 mt-2">Edit Owner</h1>
             </div>
 
-            {{-- Form Card --}}
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <x-form.form action="{{ route('admin.owners.update', $owner->id) }}" class="p-8">
+                {{-- 💡 修复点1：给组件加上 method="POST" --}}
+                <x-form.form method="POST" action="{{ route('admin.owners.update', $owner->id) }}" class="p-8">
                     @method('PUT')
+                    @csrf
 
                     <div class="space-y-6">
                         
@@ -117,7 +117,8 @@
                         </div>
 
                         {{-- Actions (Aligned with Create) --}}
-                        <div class="pt-4 border-t border-gray-100 flex justify-end gap-3" x-data="{ loading: false }">
+                        {{-- 💡 修复点2：去掉了结尾的 x-data="{ loading: false }" --}}
+                        <div class="pt-4 border-t border-gray-100 flex justify-end gap-3">
                             <a href="{{ route('admin.owners.index') }}" 
                                class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                                 Cancel

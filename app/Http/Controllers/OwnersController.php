@@ -76,7 +76,7 @@ class OwnersController extends Controller
             'random_email' => $request->has('random_email') ? true : false,
         ]);
 
-        // 1. Validate the incoming data (excluding user_id since we create it here)
+        // Validate the incoming data (excluding user_id since we create it here)
         $validatedData = $request->validate([
             'name'         => 'required|string|max:255',
             'email'        => $request->random_email ? 'nullable' : 'required|email|unique:users,email',
@@ -93,10 +93,10 @@ class OwnersController extends Controller
         }
 
         try {
-            // 2. Start a transaction to ensure both records are created safely
+            // Start a transaction to ensure both records are created safely
             DB::beginTransaction();
 
-            // 3. Create the User record with random Email and Password
+            // Create the User record with random Email and Password
             $user = User::create([
                 'name'     => $validatedData['name'],
                 'email'    => $validatedData['email'],
@@ -104,8 +104,8 @@ class OwnersController extends Controller
                 'role'     => 'owner',
             ]);
 
-            // 4. Create the Owner record using the new $user->id
-           $ownerData = [
+            // Create the Owner record using the new $user->id
+            $ownerData = [
                 'user_id'      => $user->id,
                 'company_name' => $validatedData['company_name'],
                 'ic_number'    => $validatedData['ic_number'],
@@ -124,7 +124,6 @@ class OwnersController extends Controller
             return redirect()->route('admin.owners.index')->with('success', 'Owner and User account created successfully.');
 
         } catch (\Exception $e) {
-            // Rollback if anything goes wrong
             DB::rollBack();
             return back()->withErrors(['error' => 'Failed to create owner: ' . $e->getMessage()]);
         }
@@ -137,6 +136,7 @@ class OwnersController extends Controller
 
     public function update(Request $request, Owners $owner)
     {
+        // 💡 修复点：彻底移除 'email' 验证规则，因为前端已锁定，后端绝不再次校验和更新它
         $validatedData = $request->validate([
             // Use the $owner->id to ignore the current record in the unique check
             'user_id'             => 'required|exists:users,id|unique:owners,user_id,' . $owner->id,
@@ -151,7 +151,7 @@ class OwnersController extends Controller
             'usage_count'         => 'nullable|integer'
         ]);
 
-        // ACTUAL UPDATE LOGIC
+        // ACTUAL UPDATE LOGIC (此时 $validatedData 干净不含 email，更不可能引发报错)
         $owner->update($validatedData);
 
         return redirect()->route('admin.owners.index')->with('success', 'Owner updated successfully.');

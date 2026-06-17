@@ -1,55 +1,63 @@
 <x-app-layout>
     @php
-        $paymentsController = new \App\Http\Controllers\PaymentsController();
-        // 将历史记录转换为 JS 容易读取的对象，Key 是 ID
-        $historyJson = $leaseHistory->keyBy('id')->map(function($item) use ($paymentsController) {
-            return [
-                'status' => $item->status,
-                'checked_out_at' => $item->checked_out_at ? $item->checked_out_at_formatted : null,
-                'agreement_ended_at' => $item->agreement_ended_at ? $item->agreement_ended_at_formatted : null,
-                'start_date' => $item->start_date_formatted ?? null,
-                'end_date' => $item->end_date_formatted ?? null,
-                'term_type' => strtoupper($item->term_type) ?? 'N/A',
-                'rent_price' => number_format($item->rent_price, 2),
-                'deposit_mode' => strtoupper($item->deposit_mode) ?? 'SECURITY',
-                'security_deposit' => ($item->security_deposit > 0) 
-                    ? number_format($item->security_deposit, 2) 
-                    : null,
+    $paymentsController = new \App\Http\Controllers\PaymentsController();
+    // 将历史记录转换为 JS 容易读取的对象，Key 是 ID
+    $historyJson = $leaseHistory->keyBy('id')->map(function($item) use ($paymentsController) {
+        return [
+            'status' => $item->status,
+            'checked_out_at' => $item->checked_out_at ? $item->checked_out_at_formatted : null,
+            'agreement_ended_at' => $item->agreement_ended_at ? $item->agreement_ended_at_formatted : null,
+            'start_date' => $item->start_date_formatted ?? null,
+            'end_date' => $item->end_date_formatted ?? null,
+            'term_type' => strtoupper($item->term_type) ?? 'N/A',
+            'rent_price' => number_format($item->rent_price, 2),
+            'deposit_mode' => strtoupper($item->deposit_mode) ?? 'SECURITY',
+            'security_deposit' => ($item->security_deposit > 0)
+                ? number_format($item->security_deposit, 2)
+                : null,
+            'utilities_deposit' => ($item->utilities_deposit > 0)
+                ? number_format($item->utilities_deposit, 2)
+                : null,
+            'edit_url' => route('admin.leases.edit', $item->id),
+            'stamping_status' => (bool)$item->stamping_status,
+            'stamping_cert_path' => $item->stamping_cert_path,
+            'stamping_reference_no' => $item->stamping_reference_no,
+            'stamped_at' => $item->stamped_at ? $item->stamped_at_formatted : null,
+            'can_stamp' => in_array($item->status, ['New', 'Renew']),
+            'upload_url' => route('admin.leases.upload-stamping', $item->id),
+            'view_url' => route('admin.leases.view-cert', $item->id),
+            'agreement' => [
+                'title' => $item->agreement?->title ?? 'Agreement',
+                'content' => $item->agreement?->content ?? '',
+            ],
+            'agreement_id' => $item->agreement_id,
+            'tenant_name' => $item->tenant?->user?->name ?? 'N/A',
+            'tenant_ic' => $item->tenant?->ic_number ?? 'N/A',
+            
+            // 💡 修复点 1：安全获取 Owner Name
+            'owner_name' => ($item->leasable instanceof \App\Models\Room)
+                ? ($item->leasable->unit?->owner?->name ?? 'N/A')
+                : ($item->leasable->owner?->name ?? 'N/A'),
 
-                'utilities_deposit' => ($item->utilities_deposit > 0) 
-                    ? number_format($item->utilities_deposit, 2) 
-                    : null,
-                'edit_url' => route('admin.leases.edit', $item->id),
-                'stamping_status' => (bool)$item->stamping_status,
-                'stamping_cert_path' => $item->stamping_cert_path,
-                'stamping_reference_no' => $item->stamping_reference_no,
-                'stamped_at' => $item->stamped_at ? $item->stamped_at_formatted : null,
-                'can_stamp' => in_array($item->status, ['New', 'Renew']),
-                'upload_url' => route('admin.leases.upload-stamping', $item->id),
-                'view_url' => route('admin.leases.view-cert', $item->id),
-                'agreement' => [
-                    'title' => $item->agreement?->title ?? 'Agreement',
-                    'content' => $item->agreement?->content ?? '', 
-                ],
-                'agreement_id' => $item->agreement_id,
-                'tenant_name' => $item->tenant?->user->name ?? 'N/A',
-                'tenant_ic' => $item->tenant?->ic_number ?? 'N/A',
-                'owner_name' => $item->leasable?->owner?->name ?? $item->leasable?->owner?->unit->name ?? 'N/A',
-                'owner_ic' => $item->leasable?->owner?->ic_number ?? 'N/A',
-                'property_address' => $item->leasable?->full_address ?? 'N/A',
-                'property_type' => $item->leasableTypeLabel ?? 'N/A',
-                'property_name' => $item->leasableName ?? 'N/A',
-                'rent_mode' => strtoupper($item->term_type ?? 'N/A'),
-                'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
-                'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
-                'can_generate' => !is_null($paymentsController->calculateNextPendingPeriod($item)),
-            ];
-        });
-        $historyData = $historyJson->toArray();
+            // 💡 修复点 2：连跳两级，去真正的 Owner 表里抓取 IC Number
+            'owner_ic' => ($item->leasable instanceof \App\Models\Room)
+                ? ($item->leasable->unit?->owner?->owner?->ic_number ?? 'N/A')
+                : ($item->leasable->owner?->owner?->ic_number ?? 'N/A'),
+                
+            'property_address' => $item->leasable?->full_address ?? 'N/A',
+            'property_type' => strtolower(class_basename($item->leasable_type)) ?? 'N/A',
+            'property_name' => $item->leasableName ?? 'N/A',
+            'rent_mode' => strtoupper($item->term_type ?? 'N/A'),
+            'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
+            'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
+            'can_generate' => !is_null($paymentsController->calculateNextPendingPeriod($item)),
+        ];
+    });
+    $historyData = $historyJson->toArray();
     @endphp
 
     {{-- 1. 初始化数据，注意 activeId 加了单引号 --}}
-    <div class="py-12 bg-gray-50 min-h-screen font-sans" 
+    <div class="py-12 bg-gray-50 min-h-screen font-sans"
         x-data="{ 
             activeId: '{{ old('active_id', $lease->id) }}',
             source: {{ $historyJson->isNotEmpty() ? $historyJson->toJson() : '{}' }},
@@ -123,9 +131,8 @@
         }"
         @click.stop
         @open-payment.window="paymentData = $event.detail; openPayment = true;"
-        @open-manual-modal.window="openManual = true; manualActionUrl = $event.detail.action;"
-    >
-        
+        @open-manual-modal.window="openManual = true; manualActionUrl = $event.detail.action;">
+
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <a href="{{ route('admin.leases.index') }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center transition-colors">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -135,52 +142,52 @@
             </a>
             <br>
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-            
-            {{-- Grid Lease Flow --}}
-            <div class="mb-8 w-full">
+
+                {{-- Grid Lease Flow --}}
+                <div class="mb-8 w-full">
                     <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Lease Progression</h2>
                     </div>
-                    
+
                     <div class="p-6">
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full z-[101]">
                             @foreach($leaseHistory as $history)
-                                @php
-                                    $hStatus = strtolower((string)$history->status);
-                                    $statusColor = match($hStatus) {
-                                        'new' => 'indigo', 'renew' => 'emerald', 'check out' => 'amber', 'end' => 'gray', default => 'slate'
-                                    };
-                                @endphp
+                            @php
+                            $hStatus = strtolower((string)$history->status);
+                            $statusColor = match($hStatus) {
+                            'new' => 'indigo', 'renew' => 'emerald', 'check out' => 'amber', 'end' => 'gray', default => 'slate'
+                            };
+                            @endphp
 
-                                {{-- 修改点：@click 内部 ID 加引号，:class 内部比较也加引号 --}}
-                                <div @click="activeId = '{{ $history->id }}'" 
-                                    class="relative p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer group"
-                                    :class="activeId == '{{ $history->id }}' 
+                            {{-- 修改点：@click 内部 ID 加引号，:class 内部比较也加引号 --}}
+                            <div @click="activeId = '{{ $history->id }}'"
+                                class="relative p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer group"
+                                :class="activeId == '{{ $history->id }}' 
                                         ? 'border-{{ $statusColor }}-500 bg-{{ $statusColor }}-50 ring-4 ring-{{ $statusColor }}-100 z-10' 
                                         : 'border-gray-100 bg-white hover:border-indigo-300 hover:shadow-md hover:-translate-y-1'">
-                                    
-                                    <div class="flex justify-between items-start mb-3">
-                                        <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
-                                              :class="activeId == '{{ $history->id }}' ? 'bg-{{ $statusColor }}-200 text-{{ $statusColor }}-800' : 'bg-gray-100 text-gray-500'">
-                                            {{ $history->status }} {{ $history->is_current ? '(Current)' : '' }}
-                                        </span>
-                                    </div>
 
-                                    <div class="flex items-center gap-1.5">
-                                        <p class="text-xs font-bold text-slate-900">
-                                            {{ $history->start_date_formatted ?? '-' }} - {{ $history->end_date_formatted ?? '-' }}
-                                            @if ($history->agreement_ended_at)
-                                                <p class="text-xs font-bold text-slate-900">
-                                                    ({{ $history->agreement_ended_at_formatted ?? '-' }})
-                                                </p>
-                                            @elseif ($history->checked_out_at)
-                                                <p class="text-xs font-bold text-slate-900">
-                                                    ({{ $history->checked_out_at_formatted ?? '-' }})
-                                                </p>
-                                            @endif
-                                        </p>
-                                    </div>
+                                <div class="flex justify-between items-start mb-3">
+                                    <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
+                                        :class="activeId == '{{ $history->id }}' ? 'bg-{{ $statusColor }}-200 text-{{ $statusColor }}-800' : 'bg-gray-100 text-gray-500'">
+                                        {{ $history->status }} {{ $history->is_current ? '(Current)' : '' }}
+                                    </span>
                                 </div>
+
+                                <div class="flex items-center gap-1.5">
+                                    <p class="text-xs font-bold text-slate-900">
+                                        {{ $history->start_date_formatted ?? '-' }} - {{ $history->end_date_formatted ?? '-' }}
+                                        @if ($history->agreement_ended_at)
+                                    <p class="text-xs font-bold text-slate-900">
+                                        ({{ $history->agreement_ended_at_formatted ?? '-' }})
+                                    </p>
+                                    @elseif ($history->checked_out_at)
+                                    <p class="text-xs font-bold text-slate-900">
+                                        ({{ $history->checked_out_at_formatted ?? '-' }})
+                                    </p>
+                                    @endif
+                                    </p>
+                                </div>
+                            </div>
                             @endforeach
                         </div>
                     </div>
@@ -190,15 +197,15 @@
             {{-- 3. 详情区域 --}}
             <div class="mt-8">
                 {{-- 使用 x-cloak 防止闪烁 (如果你的 CSS 里有定义的话) --}}
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6" 
-                    x-show="activeId" 
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-6"
+                    x-show="activeId"
                     x-data="{ 
                         {{-- 如果有特定字段的错误，初始化为 true --}}
                         openUpload: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }}, 
                         shake: {{ $errors->any() ? 'true' : 'false' }} 
                     }"
                     x-transition:enter="transition ease-out duration-300">
-                                    
+
                     <div class="flex items-center justify-between mb-8 pb-4 border-b border-gray-100">
                         {{-- 左侧：标题 --}}
                         <h3 class="text-xl font-black text-slate-800 flex items-center gap-3">
@@ -208,22 +215,24 @@
 
                         {{-- 右侧：动态操作按钮 --}}
                         <div class="flex items-center gap-3">
-                            
+
                             <template x-if="activeLease.can_stamp">
                                 <div class="flex items-center gap-2">
-                                    
+
                                     {{-- 修改这一行：使用双叹号强转布尔，或者直接利用 JS 的真值判断 --}}
                                     <template x-if="activeLease.stamping_status && activeLease.stamping_cert_path">
                                         <div class="flex items-center gap-2">
                                             <div class="flex items-center gap-2">
                                                 <span class="p-1 bg-emerald-100 text-emerald-600 rounded-full">
-                                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
-                                                    </span>
-                                                    <a :href="activeLease.view_url" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">
-                                                        View Cert
-                                                    </a>
+                                                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                                    </svg>
+                                                </span>
+                                                <a :href="activeLease.view_url" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">
+                                                    View Cert
+                                                </a>
                                             </div>
-                                            
+
                                             <button @click="openUpload = true" class="p-1.5 text-gray-400 hover:text-indigo-600 transition-colors">
                                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -234,8 +243,8 @@
 
                                     {{-- 对应修改：未上传的情况 --}}
                                     <template x-if="!activeLease.stamping_status || !activeLease.stamping_cert_path">
-                                        <button @click="openUpload = true" 
-                                                class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                        <button @click="openUpload = true"
+                                            class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
                                             UPLOAD STAMPING
                                         </button>
                                     </template>
@@ -252,8 +261,6 @@
                             <div x-show="activeLease && activeLease.agreement_id">
                                 <button type="button"
                                     @click="
-                                        console.log('Button clicked! Active Lease Data:', activeLease); // 调试1: 看看数据进来了没
-                                        
                                         let content = activeLease.agreement?.content || '';
                                         if (!content) {
                                             console.warn('Agreement content is empty');
@@ -285,19 +292,19 @@
                                             '{end_agreement_date}': activeLease.end_agreement_date,
                                         };
 
-                                        console.log('Replacements ready:', replacements); // 调试2: 看看替换表是否正确
-
                                         Object.keys(replacements).forEach(key => {
-                                            const val = replacements[key];
+                                            const val = replacements[key] || 'N/A';
                                             const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-                                            content = content.replace(regex, `<span class='text-inherit font-semibold'>${val}</span>`);
+                                            content = content.replace(regex, `<span class='text-inherit font-semibold text-indigo-600'>${val}</span>`);
                                         });
 
-                                        console.log('Dispatching event...'); // 调试3
                                         $dispatch('open-lease-preview', { 
                                             content: content, 
                                             title: activeLease.agreement?.title || 'Agreement Preview'
                                         });
+                                        
+                                        // 强制锁定滚动条
+                                        document.body.style.overflow = 'hidden';
                                     "
                                     class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
                                     VIEW AGREEMENT
@@ -305,11 +312,11 @@
                             </div>
 
                             <div class="h-6 w-[1px] bg-gray-200 mx-1"></div>
-                            
+
                             {{-- 3. 关键：将 $lease 替换为页面上定义的变量 --}}
                             {{-- 这里假设你的后端已经通过路由或初始化传了一个总的 $lease 对象 --}}
                             <x-modals.lease-stamping-modal ::lease-id="activeId" />
-                            <x-preview-agreement-modal ::lease-id="activeId"  />
+                            <x-preview-agreement-modal ::lease-id="activeId" />
                         </div>
                     </div>
 
@@ -337,7 +344,7 @@
                             <p class="text-xs text-gray-500 uppercase font-bold">Rent Price</p>
                             <p class="text-lg font-semibold text-indigo-600">RM <span x-text="activeLease.rent_price"></span></p>
                         </div>
-                        
+
                         <div class="p-4 bg-gray-50 rounded-lg">
                             <p class="text-xs text-gray-500 uppercase font-bold">Deposit Mode</p>
                             <p class="text-lg font-semibold" x-text="activeLease.deposit_mode"></p>
@@ -365,12 +372,6 @@
                             <p class="text-lg font-semibold text-red-900" x-text="activeLease.agreement_ended_at"></p>
                         </div>
                     </div>
-
-                    <!--<div class="mt-6 pt-6 border-t border-gray-100 flex justify-end">
-                        <a :href="activeLease.edit_url" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition">
-                            Edit This Lease
-                        </a>
-                    </div>-->
                 </div>
             </div>
 
@@ -380,8 +381,7 @@
                         <h3 class="text-lg font-bold text-slate-800">Payment Overview</h3>
                         <div class="flex items-center gap-2">
                             {{-- Add Manual Invoice 按钮 --}}
-                            <button type="button" 
-                                {{-- 关键：确保 $lease->tenant 存在再生成路由，否则传 null --}}
+                            <button type="button"
                                 @click="$dispatch('open-manual-modal', { 
                                     action: `{{ url('admin/tenants') }}/${activeId}/payments/storeManualInvoice`
                                 })"
@@ -395,9 +395,9 @@
                             <x-manual-invoice-modal />
 
                             <div x-show="activeLease && activeLease.can_generate" x-cloak>
-                                <form x-ref="generateForm" 
-                                    :action="'{{ url('admin/tenants') }}/' + activeId + '/payments/generate-rent'" 
-                                    method="POST" 
+                                <form x-ref="generateForm"
+                                    :action="'{{ url('admin/tenants') }}/' + activeId + '/payments/generate-rent'"
+                                    method="POST"
                                     class="inline-block">
                                     @csrf
                                     <button type="submit" class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all">
@@ -413,7 +413,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     {{-- Rent Outstanding 部分 --}}
                     <div>
                         <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
@@ -434,16 +434,16 @@
                                 </thead>
                                 <tbody id="rent-payments-container" class="bg-white divide-y divide-gray-200">
                                     @include('adminSide.tenants.payments.paymentTable', [
-                                        'payments' => $rentPayments,
-                                        'emptyMessage' => 'No outstanding rent found.'
+                                    'payments' => $rentPayments,
+                                    'emptyMessage' => 'No outstanding rent found.'
                                     ])
                                 </tbody>
                             </table>
                         </div>
                         @if($rentPayments->hasPages())
-                            <div class="mt-4">
-                                {{ $rentPayments->appends(['other_page' => request('other_page')])->links() }}
-                            </div>
+                        <div class="mt-4">
+                            {{ $rentPayments->appends(['other_page' => request('other_page')])->links() }}
+                        </div>
                         @endif
                     </div>
 
@@ -469,20 +469,65 @@
                                 </thead>
                                 <tbody id="other-payments-container" class="bg-white divide-y divide-gray-200">
                                     @include('adminSide.tenants.payments.paymentTable', [
-                                        'payments' => $otherPayments,
-                                        'emptyMessage' => 'No miscellaneous records found.'
+                                    'payments' => $otherPayments,
+                                    'emptyMessage' => 'No miscellaneous records found.'
                                     ])
                                 </tbody>
                             </table>
                         </div>
                         @if($otherPayments->hasPages())
-                            <div class="mt-4">
-                                {{ $otherPayments->appends(['rent_page' => request('rent_page')])->links() }}
-                            </div>
+                        <div class="mt-4">
+                            {{ $otherPayments->appends(['rent_page' => request('rent_page')])->links() }}
+                        </div>
                         @endif
                     </div>
                 </div>
             </div>
         </div>
     </div>
+
+    {{-- 💡 修复点 3：在底部加入和 create 页面完全一样的 "暴力解锁防线" --}}
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 方法 A：监听全域点击
+            document.addEventListener('click', function() {
+                setTimeout(() => {
+                    const modal = document.getElementById('preview-modal');
+                    if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none') {
+                        document.body.style.overflow = ''; 
+                    }
+                }, 50);
+            });
+
+            // 方法 B：监听键盘 Esc 键
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    setTimeout(() => {
+                        const modal = document.getElementById('preview-modal');
+                        if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none') {
+                            document.body.style.overflow = ''; 
+                        } else {
+                            if(modal) modal.classList.add('hidden'); 
+                            document.body.style.overflow = ''; 
+                        }
+                    }, 50);
+                }
+            });
+            
+            // 方法 C：DOM 突变观察者
+            const modalEl = document.getElementById('preview-modal');
+            if (modalEl) {
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.attributeName === 'class' || mutation.attributeName === 'style') {
+                            if (modalEl.classList.contains('hidden') || getComputedStyle(modalEl).display === 'none') {
+                                document.body.style.overflow = ''; 
+                            }
+                        }
+                    });
+                });
+                observer.observe(modalEl, { attributes: true });
+            }
+        });
+    </script>
 </x-app-layout>

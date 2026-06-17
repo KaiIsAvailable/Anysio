@@ -49,6 +49,19 @@ class LoginRequest extends FormRequest
             ]);
         }
 
+        $user = Auth::user();
+
+        if ($user->status !== 'active') {
+            Auth::guard('web')->logout();
+            
+            request()->session()->invalidate();
+            request()->session()->regenerateToken();
+
+            throw ValidationException::withMessages([
+                'email' => 'Your Account has been inactive. Please contact administrator',
+            ]);
+        }
+
         RateLimiter::clear($this->throttleKey());
     }
 

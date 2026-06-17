@@ -43,7 +43,7 @@ class RegisteredUserController extends Controller
         // 1. 验证字段
         $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255', 'unique:users,email'],
+            'email' => ['required', 'string', 'lowercase', 'email', 'max:255'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'role' => ['required', 'in:owner,tenant,agent'],
             'has_agent' => ['required_if:role,owner', 'in:yes,no'],
@@ -63,12 +63,18 @@ class RegisteredUserController extends Controller
             'terms' => ['accepted'],
         ]);
 
+        $existingUser = User::where('email', $request->email)->first();
+        if ($existingUser && $existingUser->status === 'active') {
+            return back()->withErrors(['email' => 'This account is already active.']);
+        }
+
         $latestTos = Agreements::where('type', 'tos')->where('status', 'active')->latest()->first();
         $latestPrivacy = Agreements::where('type', 'privacy')->where('status', 'active')->latest()->first();
 
         return DB::transaction(function () use ($request, $latestTos, $latestPrivacy) {
             $user = null;
             $packageId = null;
+            $existingUser = User::where('email', $request->email)->first();
             if ($request->filled('ref_code')) {
                 $package = RefCodePackage::where('ref_code', $request->ref_code)
                             ->where('status', 'active')
@@ -124,12 +130,21 @@ class RegisteredUserController extends Controller
                         ->where('ref_code', $request->ref_code)
                         ->first();
                 
-                $user = User::create(array_merge([
-                    'name' => $request->name,
-                    'email' => $request->email,
+                $user = $existingUser ?: User::create(array_merge([
+                    'name'     => $request->name,
+                    'email'    => $request->email,
                     'password' => Hash::make($request->password),
-                    'role' => $finalRole,
+                    'role'     => $finalRole,
                 ], $complianceData));
+
+                // 2. 如果是旧用户，确保数据被更新（同步新密码、状态等）
+                if ($existingUser) {
+                    $user->update(array_merge([
+                        'name'     => $request->name,
+                        'password' => Hash::make($request->password),
+                        'role'     => $finalRole,
+                    ], $complianceData));
+                }
 
                 $commissionRate = $packageDetails->commission_rate ?? 0;
                 $price = $packageDetails->price ?? 0;
@@ -156,15 +171,6 @@ class RegisteredUserController extends Controller
                     'tot_price' => $packageDetails->price,
                     'subscription_status' => $subscriptionStatus, // 这些人是要付钱的
                 ]);
-
-                //if ($finalRole === 'ownerAdmin'){
-                //    Owners::create([
-                //        'user_id' => $user->id,
-                //        'ic_number' => 'null',
-                //        'phone' => 'null',
-                //        'gender' => 'null',
-                //    ]);
-                //}
             }
 
             // 3. 生成订阅账单 (套用你的 Payment 逻辑)

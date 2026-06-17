@@ -140,7 +140,7 @@ class OwnersController extends Controller
         $validatedData = $request->validate([
             // Use the $owner->id to ignore the current record in the unique check
             'user_id'             => 'required|exists:users,id|unique:owners,user_id,' . $owner->id,
-            'email'               => 'required|email|unique:users,email,' . $owner->id,
+            //'email'               => 'required|email|unique:users,email,' . $owner->id,
             'company_name'        => 'nullable|string|max:255',
             'ic_number'           => 'nullable|string|max:20',
             'phone'               => 'required|string|max:20',

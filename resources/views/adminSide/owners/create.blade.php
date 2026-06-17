@@ -72,10 +72,14 @@
                                     name="ic_number" 
                                     id="ic_number" 
                                     value="{{ old('ic_number') }}" 
-                                    placeholder="e.g. 900101105221" 
+                                    placeholder="" 
                                     class="w-full"
                                     required 
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                                    maxlength="12" 
+                                    inputmode="numeric"
                                 />
+                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
                                 <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
                             </div>
 
@@ -86,10 +90,14 @@
                                     name="phone" 
                                     id="phone" 
                                     value="{{ old('phone') }}" 
-                                    placeholder="e.g. +60123456789" 
+                                    placeholder="" 
                                     class="w-full"
                                     required 
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                                    maxlength="20" 
+                                    inputmode="numeric"
                                 />
+                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 01xxxxxxxxx</p>
                                 <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
                             </div>
 

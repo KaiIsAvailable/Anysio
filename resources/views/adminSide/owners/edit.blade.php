@@ -71,7 +71,12 @@
                                     id="ic_number" 
                                     value="{{ old('ic_number', $owner->ic_number) }}" 
                                     class="w-full" 
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                                    maxlength="12" 
+                                    inputmode="numeric"
+                                    required
                                 />
+                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
                                 <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
                             </div>
                         </div>
@@ -85,9 +90,13 @@
                                     name="phone" 
                                     id="phone" 
                                     value="{{ old('phone', $owner->phone) }}" 
-                                    class="w-full" 
+                                    class="w-full"
                                     required 
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                                    maxlength="12" 
+                                    inputmode="numeric"
                                 />
+                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 01xxxxxxxxx</p>
                                 <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
                             </div>
 

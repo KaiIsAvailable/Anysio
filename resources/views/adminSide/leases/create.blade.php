@@ -46,31 +46,32 @@
                                     <option value="">-- Choose Lease --</option>
                                     @foreach($leases as $lease)
                                     @php
-                                        $leasePropertyType = '';
-                                        $leasePropertyName = '';
-                                        $leaseOwnerName = '';
-                                        $leaseOwnerIc = '';
-                                        $leaseOwnerId = '';
+                                    $leasePropertyType = '';
+                                    $leasePropertyName = '';
+                                    $leaseOwnerName = '';
+                                    $leaseOwnerIc = '';
+                                    $leaseOwnerId = '';
 
-                                        if ($lease->leasable instanceof \App\Models\Property) {
-                                            $leasePropertyType = 'property';
-                                            $leasePropertyName = $lease->leasable->name ?? '';
-                                            $leaseOwnerName = optional($lease->leasable->owner)->name ?? '';
-                                            $leaseOwnerIc = optional($lease->leasable->owner)->ic_number ?? '';
-                                            $leaseOwnerId = optional($lease->leasable->owner)->id ?? '';
-                                        } elseif ($lease->leasable instanceof \App\Models\Unit) {
-                                            $leasePropertyType = 'unit';
-                                            $leasePropertyName = $lease->leasable->unit_no ?? '';
-                                            $leaseOwnerName = optional($lease->leasable->owner)->name ?? '';
-                                            $leaseOwnerIc = optional($lease->leasable->owner)->ic_number ?? '';
-                                            $leaseOwnerId = optional($lease->leasable->owner)->id ?? '';
-                                        } elseif ($lease->leasable instanceof \App\Models\Room) {
-                                            $leasePropertyType = 'room';
-                                            $leasePropertyName = $lease->leasable->room_no ?? '';
-                                            $leaseOwnerName = optional($lease->leasable->unit->owner)->name ?? '';
-                                            $leaseOwnerIc = optional($lease->leasable->unit->owner)->ic_number ?? '';
-                                            $leaseOwnerId = optional($lease->leasable->unit->owner)->id ?? '';
-                                        }
+                                    // 💡 修复点：连跳两层关联找到真实的 Owner IC
+                                    if ($lease->leasable instanceof \App\Models\Property) {
+                                        $leasePropertyType = 'property';
+                                        $leasePropertyName = $lease->leasable->name ?? '';
+                                        $leaseOwnerName = $lease->leasable->owner?->name ?? '';
+                                        $leaseOwnerIc = $lease->leasable->owner?->owner?->ic_number ?? '';
+                                        $leaseOwnerId = $lease->leasable->owner?->id ?? '';
+                                    } elseif ($lease->leasable instanceof \App\Models\Unit) {
+                                        $leasePropertyType = 'unit';
+                                        $leasePropertyName = $lease->leasable->unit_no ?? '';
+                                        $leaseOwnerName = $lease->leasable->owner?->name ?? '';
+                                        $leaseOwnerIc = $lease->leasable->owner?->owner?->ic_number ?? '';
+                                        $leaseOwnerId = $lease->leasable->owner?->id ?? '';
+                                    } elseif ($lease->leasable instanceof \App\Models\Room) {
+                                        $leasePropertyType = 'room';
+                                        $leasePropertyName = $lease->leasable->room_no ?? '';
+                                        $leaseOwnerName = $lease->leasable->unit?->owner?->name ?? '';
+                                        $leaseOwnerIc = $lease->leasable->unit?->owner?->owner?->ic_number ?? '';
+                                        $leaseOwnerId = $lease->leasable->unit?->owner?->id ?? '';
+                                    }
                                     @endphp
                                     <option value="{{ $lease->id }}"
                                         data-property-type="{{ $leasePropertyType }}"
@@ -121,7 +122,8 @@
                                     <select name="property_id" id="property_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Property --</option>
                                         @foreach($properties as $p)
-                                        <option value="{{ $p->id }}" data-owner="{{ $p->owner->name ?? 'N/A' }}" data-owner-id="{{$p->owner?->id}}" data-owner-ic="{{ $p->owner?->ic_number ?? 'N/A' }}" data-address="{{ $p->full_address }}" {{ old('property_id') == $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
+                                        {{-- 💡 修复点：$p->owner?->owner?->ic_number --}}
+                                        <option value="{{ $p->id }}" data-owner="{{ $p->owner?->name ?? 'N/A' }}" data-owner-id="{{ $p->owner?->id }}" data-owner-ic="{{ $p->owner?->owner?->ic_number ?? 'N/A' }}" data-address="{{ $p->full_address }}" {{ old('property_id') == $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
                                         @endforeach
                                     </select>
                                     @error('property_id')
@@ -134,7 +136,8 @@
                                     <select name="unit_id" id="unit_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Unit --</option>
                                         @foreach($units as $u)
-                                        <option value="{{ $u->id }}" data-owner="{{ $u->owner->name }}" data-owner-id="{{$u->owner?->id}}" data-owner-ic="{{ $u->owner->ic_number }}" data-address="{{ $u->full_address }}" {{ old('unit_id') == $u->id ? 'selected' : '' }}>{{ $u->unit_no }}</option>
+                                        {{-- 💡 修复点：$u->owner?->owner?->ic_number --}}
+                                        <option value="{{ $u->id }}" data-owner="{{ $u->owner?->name ?? 'N/A' }}" data-owner-id="{{ $u->owner?->id }}" data-owner-ic="{{ $u->owner?->owner?->ic_number ?? 'N/A' }}" data-address="{{ $u->full_address }}" {{ old('unit_id') == $u->id ? 'selected' : '' }}>{{ $u->unit_no }}</option>
                                         @endforeach
                                     </select>
                                     @error('unit_id')
@@ -147,7 +150,8 @@
                                     <select name="room_id" id="room_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
                                         <option value="">-- Choose Room --</option>
                                         @foreach($rooms as $r)
-                                        <option value="{{ $r->id }}" data-owner="{{ $r->unit->owner->name }}" data-owner-id="{{$r->unit->owner?->id}}" data-owner-ic="{{ $r->unit->owner->ic_number }}" data-address="{{ $r->full_address }}" {{ old('room_id') == $r->id ? 'selected' : '' }}>{{ $r->room_no }}</option>
+                                        {{-- 💡 修复点：$r->unit?->owner?->owner?->ic_number --}}
+                                        <option value="{{ $r->id }}" data-owner="{{ $r->unit?->owner?->name ?? 'N/A' }}" data-owner-id="{{ $r->unit?->owner?->id }}" data-owner-ic="{{ $r->unit?->owner?->owner?->ic_number ?? 'N/A' }}" data-address="{{ $r->full_address }}" {{ old('room_id') == $r->id ? 'selected' : '' }}>{{ $r->room_no }}</option>
                                         @endforeach
                                     </select>
                                     @error('room_id')
@@ -180,7 +184,6 @@
                         <div id="date_section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">Start Date</label>
-                                {{-- 💡 修复点 3: 增加 onchange 触发计算函数 --}}
                                 <x-form.date-input id="start-date" name="start_date" label="Start Date" onchange="calculateAvailableFeeTypes()" />
                                 @error('start_date')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -189,7 +192,6 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-gray-700">End Date</label>
-                                {{-- 💡 修复点 4: 增加 onchange 触发计算函数 --}}
                                 <x-form.date-input id="end-date" name="end_date" label="End Date" onchange="calculateAvailableFeeTypes()" />
                                 @error('end_date')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -199,13 +201,13 @@
 
                         <div id="check_out_section" class="mt-4">
                             <label class="block text-sm font-medium text-gray-700">Check Out Date</label>
-                            <x-form.date-input id="check-out-date" name="checked_out_at" label="Check Out Date"/>
+                            <x-form.date-input id="check-out-date" name="checked_out_at" label="Check Out Date" />
                             @error('checked_out_at') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
 
                         <div id="agreement_end_section" class="mt-4">
                             <label class="block text-sm font-medium text-gray-700">Agreement Ended Date</label>
-                            <x-form.date-input id="agreement-end-date" name="agreement_ended_at" label="Agreement Ended Date"/>
+                            <x-form.date-input id="agreement-end-date" name="agreement_ended_at" label="Agreement Ended Date" />
                             @error('agreement_ended_at') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
 
@@ -267,8 +269,8 @@
 
                         <div id="bring_forward_notice" class="hidden col-span-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                             <p class="text-sm text-blue-800">
-                                <span class="font-semibold">Previous Deposits:</span> 
-                                <span id="bf-security">RM 0.00</span> (Security) | 
+                                <span class="font-semibold">Previous Deposits:</span>
+                                <span id="bf-security">RM 0.00</span> (Security) |
                                 <span id="bf-utilities">RM 0.00</span> (Utilities)
                                 <span class="block mt-1 text-xs text-blue-600 italic">These amounts are brought forward from your previous lease.</span>
                             </p>
@@ -299,56 +301,6 @@
 
                         <x-preview-agreement-modal />
 
-                        <!--
-                        <div id="utilities_section" class="pt-4 border-t border-gray-100">
-                            <h2 class="text-lg font-semibold text-slate-900 mb-4">Utilities (RM)</h2>
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                                    <h3 class="text-sm font-semibold text-slate-900 mb-3">Water</h3>
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label class="block text-xs font-medium text-gray-500">Previous</label>
-                                            <input type="text" id="water-prev" name="utilities[water][prev]" value="{{ old('utilities.water.prev') }}"
-                                                   class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                                            @error('utilities.water.prev')
-                                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                            @enderror
-                                        </div>
-                                        <div>
-                                            <label class="block text-xs font-medium text-gray-500">Current</label>
-                                            <input type="text" id="water-curr" name="utilities[water][curr]" value="{{ old('utilities.water.curr') }}"
-                                                   class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                                            @error('utilities.water.curr')
-                                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                            @enderror
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                                    <h3 class="text-sm font-semibold text-slate-900 mb-3">Electric</h3>
-                                    <div class="grid grid-cols-2 gap-4">
-                                        <div>
-                                            <label class="block text-xs font-medium text-gray-500">Previous</label>
-                                            <input type="text" id="electric-prev" name="utilities[electric][prev]" value="{{ old('utilities.electric.prev') }}"
-                                                   class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                                            @error('utilities.electric.prev')
-                                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                            @enderror
-                                        </div>
-                                        <div>
-                                            <label class="block text-xs font-medium text-gray-500">Current</label>
-                                            <input type="text" id="electric-curr" name="utilities[electric][curr]" value="{{ old('utilities.electric.curr') }}"
-                                                   class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                                            @error('utilities.electric.curr')
-                                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                            @enderror
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>-->
-
                     </div>
 
                     <div class="px-8 py-5 bg-white border-t border-gray-100 flex items-center justify-end">
@@ -364,7 +316,7 @@
 
     <script>
         // ==========================================
-        // 💡 修复点 5: 全新的日期 & Fee Type 计算逻辑
+        // 1. 日期 & Fee Type 计算逻辑
         // ==========================================
         function calculateAvailableFeeTypes() {
             const startInput = document.getElementById('start-date');
@@ -406,7 +358,7 @@
                 years--; // 月份或天数没到，不算满一年
             }
 
-            // 根据你领导的业务逻辑推断可用选项
+            // 根据业务逻辑推断可用选项
             let allowed = ['daily']; // 任何情况都可以选 daily
 
             if (diffDays >= 7 && months < 1) {
@@ -432,18 +384,16 @@
                     if (opt.selected) selectedStillValid = true;
                 } else {
                     opt.style.display = 'none'; // 隐藏选项
-                    opt.disabled = true; // 禁用选项 (防止部分浏览器不支持 display:none)
+                    opt.disabled = true; // 禁用选项
                     if (opt.selected) opt.selected = false;
                 }
             });
 
-            // 如果当前选中的值被禁用了，自动帮你选一个目前能用的最高级选项
             if (!selectedStillValid) {
                 if (allowedTypes.includes('monthly')) termSelect.value = 'monthly';
                 else if (allowedTypes.includes('weekly')) termSelect.value = 'weekly';
                 else termSelect.value = 'daily';
 
-                // 触发已有联动（如果有的话）
                 if (typeof toggleLeaseInput === 'function') toggleLeaseInput();
             }
         }
@@ -456,22 +406,17 @@
                 const startPicker = startInput._flatpickr;
                 const endPicker = endInput._flatpickr;
 
-                // 定义联动函数
                 function syncDateConstraints() {
                     if (startPicker && startPicker.selectedDates.length > 0) {
-                        // 核心：直接读取当前 Start Date 的值并应用到 End Date
                         endPicker.set('minDate', startPicker.selectedDates[0]);
                     }
                 }
 
-                // 1. 初始化时立刻执行一次，无需等待用户点击
                 syncDateConstraints();
 
-                // 2. 绑定事件，后续用户手动修改时触发
                 startPicker.config.onChange.push(function(selectedDates) {
                     if (selectedDates.length > 0) {
                         endPicker.set('minDate', selectedDates[0]);
-                        // 这里的调用确保了：即便不是通过选 Lease，只要日期变了，费用类型也会重新计算
                         if (typeof calculateAvailableFeeTypes === 'function') {
                             calculateAvailableFeeTypes();
                         }
@@ -487,16 +432,12 @@
         });
 
         // ==========================================
-        // 以下为你原本已有的完整代码逻辑
+        // 2. 基础表单交互联动
         // ==========================================
-        const allLeases = @json($leases->keyBy('id'));
-        const leasePreviewData = @json($leasePreviewData->keyBy('id'));
-        const allProperties = @json($properties->keyBy('id'));
-        const allUnits = @json($units->keyBy('id'));
-        const allRooms = @json($rooms->keyBy('id'));
+        const allLeases = @json($leases -> keyBy('id'));
+        const leasePreviewData = @json($leasePreviewData -> keyBy('id'));
 
         document.addEventListener('DOMContentLoaded', function() {
-            // 初始化检查一次 Fee Type
             calculateAvailableFeeTypes();
 
             const leaseSelect = document.getElementById('lease_id');
@@ -529,46 +470,38 @@
                 if (lease.end_date) {
                     let startDateObj = new Date(lease.end_date);
                     startDateObj.setDate(startDateObj.getDate() + 1);
-                    
+
                     const startInput = document.getElementById('start-date');
                     const endInput = document.getElementById('end-date');
 
-                    // 1. 设置 Start Date
                     if (startInput._flatpickr) {
                         startInput._flatpickr.setDate(startDateObj);
                     } else {
                         startInput.value = startDateObj.toISOString().split('T')[0];
                     }
 
-                    // 2. 核心逻辑：确保 End Date 永远不能小于 Start Date
                     if (endInput._flatpickr) {
-                        // 这一行代码至关重要：它直接锁定了 End Date 的选择范围
                         endInput._flatpickr.set('minDate', startDateObj);
-                        
-                        // 可选：如果 End Date 当前的值已经早于新 Start Date，自动重置 End Date
-                        if (endInput._flatpickr.selectedDates.length > 0 && 
+                        if (endInput._flatpickr.selectedDates.length > 0 &&
                             endInput._flatpickr.selectedDates[0] < startDateObj) {
                             endInput._flatpickr.clear();
                         }
                     }
-                    
-                    // 3. 触发费用计算
+
                     calculateAvailableFeeTypes();
                 }
 
-                //选lease不需要带入押金金额 因为deposit是bring forward的
                 document.getElementById('security-deposit').value = '';
                 document.getElementById('utilities-deposit').value = '';
 
-                // 找到选中的旧租约后
                 const sDep = parseFloat(lease.security_deposit) || 0;
                 const uDep = parseFloat(lease.utilities_deposit) || 0;
 
-                const leaseDataMap = @json($leasePreviewData->keyBy('id'));
+                const leaseDataMap = @json($leasePreviewData -> keyBy('id'));
                 const leaseData = leaseDataMap[leaseId];
                 const bfSec = document.getElementById('bf-security');
                 const bfUtil = document.getElementById('bf-utilities');
-                
+
                 if (bfSec) bfSec.innerText = 'RM ' + parseFloat(leaseData.cumulative_security).toFixed(2);
                 if (bfUtil) bfUtil.innerText = 'RM ' + parseFloat(leaseData.cumulative_utilities).toFixed(2);
 
@@ -627,14 +560,12 @@
             const statusSelect = document.getElementById('lease-status');
             const newStatus = statusSelect.value || 'New';
 
-            // 1. 检查是否需要刷新页面 (保持你原有的逻辑)
             const urlParams = new URLSearchParams(window.location.search);
             if (newStatus !== urlParams.get('status')) {
                 window.location.href = `{{ route('admin.leases.create') }}?status=${newStatus}`;
                 return;
             }
 
-            // 2. 配置哪些 ID 是需要显示的 (true = 显示, false = 隐藏)
             const sections = {
                 'lease_select_container': ['Renew', 'Check Out', 'End Agreement'].includes(newStatus),
                 'property_select_type': newStatus === 'New',
@@ -648,18 +579,11 @@
                 'agreement_template_section': ['New', 'Renew'].includes(newStatus)
             };
 
-            // 3. 统一执行显示/隐藏与启用/禁用
             Object.keys(sections).forEach(id => {
                 const el = document.getElementById(id);
                 if (!el) return;
-
                 const isVisible = sections[id];
-                
-                // 切换类名
                 el.classList.toggle('hidden', !isVisible);
-
-                // 核心：处理输入字段的 disabled 状态
-                // 如果不可见，禁用内部所有输入，防止提交残留数据
                 const inputs = el.querySelectorAll('input, select, textarea');
                 inputs.forEach(input => {
                     input.disabled = !isVisible;
@@ -673,50 +597,54 @@
             toggleLeaseSelect();
         });
 
+        // ==========================================
+        // 💡 预览模板的【统一控制中心】
+        // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
             const previewBtn = document.getElementById('preview-btn');
-            const modal = document.getElementById('preview-modal');
-            const modalContent = document.getElementById('modal-content');
-            const modalTitle = document.getElementById('modal-title');
             const agreementSelect = document.getElementById('agreement_id');
 
-            const closeElements = ['close-modal-btn', 'close-modal-bg', 'close-modal-footer'];
+            if (!previewBtn) return;
 
-            previewBtn.addEventListener('click', function() {
-                const selectedOption = agreementSelect.options[agreementSelect.selectedIndex];
-                const content = selectedOption.getAttribute('data-content');
-                const title = selectedOption.getAttribute('data-title');
-
-                if (!content || agreementSelect.value === "") {
-                    alert("Please select a template first.");
-                    return;
-                }
-
-                modalTitle.innerText = "Preview: " + title;
-                modalContent.innerHTML = content;
-                modal.classList.remove('hidden');
-                document.body.style.overflow = 'hidden';
-            });
-
-            closeElements.forEach(id => {
-                document.getElementById(id).addEventListener('click', () => {
-                    modal.classList.add('hidden');
-                    document.body.style.overflow = 'auto';
-                });
+            // 彻底解决 Scroll 锁定防线：无论任何形式的弹窗消失，强制解锁滚动
+            document.addEventListener('click', function() {
+                setTimeout(() => {
+                    const modal = document.getElementById('preview-modal');
+                    if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none') {
+                        document.body.style.overflow = '';
+                    }
+                }, 50);
             });
 
             document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape' && !modal.classList.contains('hidden')) {
-                    modal.classList.add('hidden');
-                    document.body.style.overflow = 'auto';
+                if (e.key === 'Escape') {
+                    setTimeout(() => {
+                        const modal = document.getElementById('preview-modal');
+                        if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none') {
+                            document.body.style.overflow = ''; 
+                        } else {
+                            if(modal) modal.classList.add('hidden'); 
+                            document.body.style.overflow = ''; 
+                        }
+                    }, 50);
                 }
             });
-        });
 
-        document.addEventListener('DOMContentLoaded', function() {
-            const previewBtn = document.getElementById('preview-btn');
-            const agreementSelect = document.getElementById('agreement_id');
+            const modalEl = document.getElementById('preview-modal');
+            if (modalEl) {
+                const observer = new MutationObserver(function(mutations) {
+                    mutations.forEach(function(mutation) {
+                        if (mutation.attributeName === 'class' || mutation.attributeName === 'style') {
+                            if (modalEl.classList.contains('hidden') || getComputedStyle(modalEl).display === 'none') {
+                                document.body.style.overflow = ''; 
+                            }
+                        }
+                    });
+                });
+                observer.observe(modalEl, { attributes: true });
+            }
 
+            // 提取并替换资料的核心逻辑
             function generatePreviewContent() {
                 if (!agreementSelect || !agreementSelect.value) {
                     alert("Please select a template first.");
@@ -731,97 +659,51 @@
 
                 const replacements = {};
 
+                // 抓取基础表单数据
+                // 抓取基础表单数据
                 document.querySelectorAll('[data-preview]').forEach(el => {
                     const placeholder = el.getAttribute('data-preview');
                     replacements[placeholder] = el.value || '';
                 });
 
-                const leaseSelectionEl = document.getElementById('lease_selection');
-                if (leaseSelectionEl && (!replacements['{property_type}'] || replacements['{property_type}'] === '')) {
-                    replacements['{property_type}'] = leaseSelectionEl.value || '';
-                }
+                // 手动且精准地抓取日期
+                const sd = document.getElementById('start-date');
+                if (sd && sd.value) replacements['{start_date}'] = sd.value;
 
-                // 💡 检查当前是否为 Renew 状态
+                const ed = document.getElementById('end-date');
+                if (ed && ed.value) replacements['{end_date}'] = ed.value;
+
+                const cod = document.getElementById('check-out-date');
+                if (cod && cod.value) replacements['{check_out_date}'] = cod.value;
+
+                const aed = document.getElementById('agreement-end-date');
+                if (aed && aed.value) replacements['{end_agreement_date}'] = aed.value;
+
+                // 区分状态：提取房源、租客与业主资料
                 const statusSelect = document.getElementById('lease-status');
-                const isRenew = statusSelect && statusSelect.value === 'Renew';
+                const isRenew = statusSelect && statusSelect.value !== 'New';
 
                 if (isRenew) {
-                    // Renew: 从选中的 lease 记录中提取租户和房产数据
                     const leaseIdSelect = document.getElementById('lease_id');
-                    if (leaseIdSelect && leaseIdSelect.value && leasePreviewData[leaseIdSelect.value]) {
-                        const lease = leasePreviewData[leaseIdSelect.value];
-                        const leaseOption = leaseIdSelect.options[leaseIdSelect.selectedIndex];
+                    if (leaseIdSelect && leaseIdSelect.value && leaseIdSelect.selectedIndex > 0) {
+                        const opt = leaseIdSelect.options[leaseIdSelect.selectedIndex];
+                        
+                        if (opt.dataset.propertyName) replacements['{property_name}'] = opt.dataset.propertyName;
+                        if (opt.dataset.propertyAddress) replacements['{property_address}'] = opt.dataset.propertyAddress;
+                        if (opt.dataset.ownerName) replacements['{owner_name}'] = opt.dataset.ownerName;
+                        if (opt.dataset.ownerIc) replacements['{owner_ic}'] = opt.dataset.ownerIc;
+                        if (opt.dataset.ownerId) replacements['{owner_id}'] = opt.dataset.ownerId;
+                        if (opt.dataset.propertyType) replacements['{property_type}'] = opt.dataset.propertyType.toUpperCase();
 
-                        console.log('=== Renew Lease Preview Debug ===');
-                        console.log('lease:', lease);
-                        console.log('leaseOption dataset:', leaseOption?.dataset);
-
-                        // 租户信息
-                        if (lease.tenant && lease.tenant.user) {
-                            replacements['{tenant_name}'] = lease.tenant.user.name || '';
-                            replacements['{tenant_ic}'] = lease.tenant.ic_number || '';
+                        const match = opt.text.match(/^\s*(.+?)\s*\((.+?)\)/);
+                        if (match) {
+                            replacements['{tenant_name}'] = match[1].trim();
+                            replacements['{tenant_ic}'] = match[2].trim();
                         }
-
-                        const leaseType = leaseOption?.dataset?.propertyType || (lease.leasable_type ? (
-                            lease.leasable_type.includes('Property') ? 'property' :
-                            lease.leasable_type.includes('Unit') ? 'unit' :
-                            lease.leasable_type.includes('Room') ? 'room' :
-                            ''
-                        ) : '');
-                        if (leaseType) {
-                            replacements['{property_type}'] = leaseType;
-                        }
-
-                        if (leaseOption?.dataset?.propertyAddress) {
-                            replacements['{property_address}'] = leaseOption.dataset.propertyAddress;
-                        } else if (lease.leasable_address) {
-                            replacements['{property_address}'] = lease.leasable_address;
-                        }
-
-                        if (leaseOption?.dataset?.propertyName) {
-                            replacements['{property_name}'] = leaseOption.dataset.propertyName;
-                        } else if (lease.leasable_name) {
-                            replacements['{property_name}'] = lease.leasable_name;
-                        }
-
-                        if (leaseOption?.dataset?.ownerName) {
-                            replacements['{owner_name}'] = leaseOption.dataset.ownerName;
-                        } else if (lease.owner_data) {
-                            replacements['{owner_name}'] = lease.owner_data.name || '';
-                        }
-
-                        if (leaseOption?.dataset?.ownerIc) {
-                            replacements['{owner_ic}'] = leaseOption.dataset.ownerIc;
-                        } else if (lease.owner_data) {
-                            replacements['{owner_ic}'] = lease.owner_data.ic_number || '';
-                        }
-
-                        if (leaseOption?.dataset?.ownerId) {
-                            replacements['{owner_id}'] = leaseOption.dataset.ownerId;
-                        } else if (lease.owner_data && lease.owner_data.id) {
-                            replacements['{owner_id}'] = lease.owner_data.id;
-                        }
-
-                        if ((!replacements['{owner_ic}'] || replacements['{owner_ic}'] === '') && lease.leasable_type && lease.leasable_id) {
-                            if (lease.leasable_type.includes('Property') && allProperties[lease.leasable_id]) {
-                                replacements['{owner_ic}'] = allProperties[lease.leasable_id].owner?.ic_number || '';
-                                replacements['{owner_id}'] = allProperties[lease.leasable_id].owner?.id || replacements['{owner_id}'] || '';
-                            } else if (lease.leasable_type.includes('Unit') && allUnits[lease.leasable_id]) {
-                                replacements['{owner_ic}'] = allUnits[lease.leasable_id].owner?.ic_number || '';
-                                replacements['{owner_id}'] = allUnits[lease.leasable_id].owner?.id || replacements['{owner_id}'] || '';
-                            } else if (lease.leasable_type.includes('Room') && allRooms[lease.leasable_id]) {
-                                const room = allRooms[lease.leasable_id];
-                                replacements['{owner_ic}'] = room.unit?.owner?.ic_number || '';
-                                replacements['{owner_id}'] = room.unit?.owner?.id || replacements['{owner_id}'] || '';
-                            }
-                        }
-
-                        console.log('replacements after renew processing:', replacements);
                     }
                 } else {
-                    // New: 从当前表单字段中提取数据
                     const tenantSelect = document.getElementById('tenant_id');
-                    if (tenantSelect && tenantSelect.value) {
+                    if (tenantSelect && tenantSelect.value && tenantSelect.selectedIndex > 0) {
                         const fullText = tenantSelect.options[tenantSelect.selectedIndex].text;
                         const match = fullText.match(/(.+?)\s*\((.+?)\)/);
                         replacements['{tenant_name}'] = match ? match[1].trim() : fullText;
@@ -833,80 +715,80 @@
                         const leaseType = leaseSelectionEl.value;
                         const activeSelect = document.getElementById(`${leaseType}_select_input`);
 
-                        if (activeSelect && activeSelect.value) {
+                        if (activeSelect && activeSelect.value && activeSelect.selectedIndex > 0) {
                             const opt = activeSelect.options[activeSelect.selectedIndex];
+                            
                             replacements['{property_name}'] = opt.text.trim();
                             replacements['{property_address}'] = opt.getAttribute('data-address') || '';
                             replacements['{owner_name}'] = opt.getAttribute('data-owner') || '';
-                            replacements['{owner_ic}'] = opt.getAttribute('data-owner-ic') || '';
+                            
+                            // 💡 修复点：直接获取刚刚在 HTML 里修好的 data-owner-ic！
+                            replacements['{owner_ic}'] = opt.getAttribute('data-owner-ic') || ''; 
                         }
                     }
                 }
 
-                const normalizeNumber = (value) => {
-                    if (value == null || value === '') return value;
-                    const normalized = String(value).trim().replace(/[^0-9.\-]/g, '');
-                    const parsed = parseFloat(normalized);
-                    return Number.isNaN(parsed) ? String(value) : String(parsed);
-                };
-
-                const defaults = ['{utilities_deposit}', '{security_deposit}', '{rent_price}'];
-                defaults.forEach(key => {
-                    if (replacements[key] == null || replacements[key] === '') {
+                // 金额补全 0.00
+                const amounts = ['{utilities_deposit}', '{security_deposit}', '{rent_price}'];
+                amounts.forEach(key => {
+                    if (!replacements[key]) {
                         replacements[key] = '0.00';
                     } else {
-                        replacements[key] = normalizeNumber(replacements[key]);
+                        const normalized = String(replacements[key]).trim().replace(/[^0-9.\-]/g, '');
+                        const parsed = parseFloat(normalized);
+                        replacements[key] = Number.isNaN(parsed) ? String(replacements[key]) : String(parsed);
                     }
                 });
 
-                const dateDefaults = ['{start_date}', '{end_date}', '{check_out_date}', '{end_agreement_date}'];
-                dateDefaults.forEach(key => {
-                    if (replacements[key] == null || replacements[key] === '') replacements[key] = 'N/A';
+                // 空白内容统一变为 N/A
+                const strings = ['{start_date}', '{end_date}', '{check_out_date}', '{end_agreement_date}', '{owner_ic}', '{property_type}', '{owner_name}'];
+                strings.forEach(key => {
+                    if (!replacements[key] || replacements[key].trim() === '') replacements[key] = 'N/A';
                 });
 
+                // 执行替换并添加高亮
                 Object.keys(replacements).forEach(placeholder => {
                     const val = replacements[placeholder];
                     const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-                    content = content.replace(regex, `<span class="text-inherit font-semibold">${val}</span>`);
+                    content = content.replace(regex, `<span class="text-inherit font-semibold text-indigo-600">${val}</span>`);
                 });
 
-                return {
-                    content,
-                    title
-                };
+                return { content, title };
             }
 
-            if (previewBtn) {
-                previewBtn.addEventListener('click', function() {
+            // 按钮点击事件（触发弹窗）
+            previewBtn.addEventListener('click', function() {
+                try {
                     const result = generatePreviewContent();
-
                     if (result) {
+                        const modal = document.getElementById('preview-modal');
                         const modalContent = document.getElementById('modal-content');
-                        if (modalContent) {
-                            modalContent.innerHTML = result.content;
-                            window.dispatchEvent(new CustomEvent('open-preview-modal'));
-                        } else {
-                            console.error("找不到 ID 为 modal-content 的元素，请检查组件文件。");
-                        }
+                        const modalTitle = document.getElementById('modal-title');
+                        
+                        if (modalTitle) modalTitle.innerText = "Preview: " + result.title;
+                        if (modalContent) modalContent.innerHTML = result.content;
+                        if (modal) modal.classList.remove('hidden');
+                        document.body.style.overflow = 'hidden'; // 禁止背景滚动
+                        
+                        // 兼容 AlpineJS 组件
+                        window.dispatchEvent(new CustomEvent('open-preview-modal'));
                     }
-                });
-            }
+                } catch (error) {
+                    console.error("🚨 Preview Error: ", error);
+                    alert("Something went wrong while generating the preview. Check console for details.");
+                }
+            });
         });
 
         function filterTemplates() {
-            // 变量定义
             let ownerId = null;
 
-            // --- 新增：兼容 Renew Lease 流程 ---
             const leaseSelect = document.getElementById('lease_id');
-            // 如果页面上有 lease_id 下拉框且有被选中的选项
             if (leaseSelect && leaseSelect.value !== "") {
                 const selectedLease = leaseSelect.options[leaseSelect.selectedIndex];
                 ownerId = selectedLease.getAttribute('data-owner-id');
             }
 
-            // --- 原有逻辑：兼容 New Lease 流程 ---
-            // 只有当上面没有通过 lease_id 拿到 ownerId 时，才走原逻辑
             if (!ownerId) {
                 const typeEl = document.getElementById('lease_selection');
                 if (typeEl && typeEl.value) {
@@ -918,41 +800,29 @@
                 }
             }
 
-            console.log("--- 模板过滤调试 ---");
-            console.log("最终确认的 Owner ID:", ownerId);
+            if (!ownerId) return;
 
-            // 如果无论哪种方式都没拿到 Owner ID，直接返回，避免报错
-            if (!ownerId) {
-                console.warn("当前状态无法获取 Owner ID，跳过过滤。");
-                return;
-            }
-
-            // --- 3. 过滤模板 (保持原逻辑不变) ---
             const agreementSelect = document.getElementById('agreement_id');
             if (!agreementSelect) return;
 
             Array.from(agreementSelect.options).forEach(option => {
                 if (option.value === "") return;
-
                 const templateUserId = option.getAttribute('data-agreement-user-id');
-                
-                // 匹配逻辑
                 if (ownerId && String(templateUserId) === String(ownerId)) {
-                    option.style.display = 'block'; 
+                    option.style.display = 'block';
                 } else {
-                    option.style.display = 'none'; 
+                    option.style.display = 'none';
                 }
             });
 
-            // 重置选择（如果当前选中的模板被隐藏了，则重置）
             if (agreementSelect.selectedIndex > 0 && agreementSelect.options[agreementSelect.selectedIndex].style.display === 'none') {
                 agreementSelect.value = "";
             }
         }
 
-        // 绑定事件：当房产选择改变时触发
         ['property_select_input', 'unit_select_input', 'room_select_input', 'lease_id'].forEach(id => {
-            document.getElementById(id).addEventListener('change', filterTemplates);
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('change', filterTemplates);
         });
     </script>
 </x-app-layout>

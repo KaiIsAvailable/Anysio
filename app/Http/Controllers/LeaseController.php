@@ -50,14 +50,14 @@ class LeaseController extends Controller
                         $mq->whereHas('unit.owner', function ($oq) use ($userId) {
                             $oq->where(function ($q) use ($userId) {
                                 $q->where('created_by', $userId)
-                                ->orWhere('owner_id', $userId);
+                                    ->orWhere('owner_id', $userId);
                             });
                         });
                     } else {
                         $mq->whereHas('owner', function ($oq) use ($userId) {
                             $oq->where(function ($q) use ($userId) {
                                 $q->where('created_by', $userId)
-                                ->orWhere('owner_id', $userId);
+                                    ->orWhere('owner_id', $userId);
                             });
                         });
                     }
@@ -84,17 +84,17 @@ class LeaseController extends Controller
                                 $query->where('name', 'like', '%' . $search . '%');
                             }
                         })
-                        ->orWhere(function ($query) use ($search, $type) {
-                            if ($type === Room::class) {
-                                $query->whereHas('unit.owner', function ($oq) use ($search) {
-                                    $oq->where('name', 'like', '%' . $search . '%');
-                                });
-                            } else {
-                                $query->whereHas('owner', function ($oq) use ($search) {
-                                    $oq->where('name', 'like', '%' . $search . '%');
-                                });
-                            }
-                        });
+                            ->orWhere(function ($query) use ($search, $type) {
+                                if ($type === Room::class) {
+                                    $query->whereHas('unit.owner', function ($oq) use ($search) {
+                                        $oq->where('name', 'like', '%' . $search . '%');
+                                    });
+                                } else {
+                                    $query->whereHas('owner', function ($oq) use ($search) {
+                                        $oq->where('name', 'like', '%' . $search . '%');
+                                    });
+                                }
+                            });
                     })
                     ->orWhereHas('tenant.user', function ($tq) use ($search) {
                         $tq->where('name', 'like', '%' . $search . '%');
@@ -174,8 +174,16 @@ class LeaseController extends Controller
         $status = $request->query('status');
 
         $leases = Lease::with([
-                'tenant.user',
-            ])
+            'tenant.user',
+            // 👇 修复点：添加 leasable 的嵌套多态预加载，确保能拉取到深层 Owner 资料
+            'leasable' => function ($morphTo) {
+                $morphTo->morphWith([
+                    \App\Models\Room::class => ['unit.owner'],
+                    \App\Models\Unit::class => ['owner'],
+                    \App\Models\Property::class => ['owner'],
+                ]);
+            }
+        ])
             ->where('is_current', true)
             // 根据请求的 status 切换查询逻辑
             ->when($status === 'End Agreement', function ($query) {
@@ -195,17 +203,17 @@ class LeaseController extends Controller
 
         $leasePreviewData = $leases->map(function ($lease) {
             $leasable = $this->getLeasableWithOwner($lease);
-            
+
             // --- 新增：计算累计押金逻辑 ---
             $cumulativeSecurity = 0;
             $cumulativeUtilities = 0;
             $current = $lease;
-            
+
             // 循环向上累加
             while ($current) {
                 $cumulativeSecurity += $current->security_deposit ?? 0;
                 $cumulativeUtilities += $current->utilities_deposit ?? 0;
-                
+
                 // 查找下一个父级租约
                 if ($current->parent_lease_id) {
                     $current = Lease::find($current->parent_lease_id);
@@ -422,9 +430,8 @@ class LeaseController extends Controller
             }
 
             // 检查套餐是否存在
-            if ($user->role === 'admin'){
-
-            }else if(!$management || !$management->package) {
+            if ($user->role === 'admin') {
+            } else if (!$management || !$management->package) {
                 return back()->with('error', 'You do not have an active subscription package.');
             }
 
@@ -518,20 +525,20 @@ class LeaseController extends Controller
             };
 
             // 现在你可以安全地赋值了
-            $startDate = in_array($validated['status'], ['New', 'Renew']) 
-                ? $parseDate($validated['start_date']) 
+            $startDate = in_array($validated['status'], ['New', 'Renew'])
+                ? $parseDate($validated['start_date'])
                 : $oldLease?->start_date;
 
-            $endDate = in_array($validated['status'], ['New', 'Renew']) 
-                ? $parseDate($validated['end_date']) 
+            $endDate = in_array($validated['status'], ['New', 'Renew'])
+                ? $parseDate($validated['end_date'])
                 : $oldLease?->end_date;
 
-            $checkOutDate = ($validated['status'] === 'Check Out') 
-                ? $parseDate($validated['checked_out_at']) 
+            $checkOutDate = ($validated['status'] === 'Check Out')
+                ? $parseDate($validated['checked_out_at'])
                 : null;
 
-            $endAgreementDate = ($validated['status'] === 'End Agreement') 
-                ? $parseDate($validated['agreement_ended_at']) 
+            $endAgreementDate = ($validated['status'] === 'End Agreement')
+                ? $parseDate($validated['agreement_ended_at'])
                 : null;
 
             if ($oldLease) {
@@ -540,13 +547,13 @@ class LeaseController extends Controller
 
             // 1. 获取模型实例并更新状态 (这样内存中的对象 status 也是最新的)
             $leasable = $leasableType::findOrFail($leasableId);
-            
+
             $targetRoomStatus = match ($validated['status']) {
                 'Check Out' => 'Cleaning',
                 'End Agreement' => 'Vacant',
                 default => 'Occupied',
             };
-            
+
             $leasable->propagateStatus($targetRoomStatus);
             $leasable->update(['status' => $targetRoomStatus]);
 
@@ -559,9 +566,9 @@ class LeaseController extends Controller
             // 创建新记录
             $newLease = Lease::create([
                 'parent_lease_id' => $oldLease?->id,
-                'agreement_id' => in_array($validated['status'], ['New', 'Renew']) 
-                        ? ($validated['agreement_id'] ?? null) 
-                        : $oldLease?->agreement_id,
+                'agreement_id' => in_array($validated['status'], ['New', 'Renew'])
+                    ? ($validated['agreement_id'] ?? null)
+                    : $oldLease?->agreement_id,
                 'is_current' => true,
                 'leasable_type' => $leasableType,
                 'leasable_id' => $leasableId,

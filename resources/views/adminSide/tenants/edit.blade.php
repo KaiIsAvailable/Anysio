@@ -14,7 +14,7 @@
             </div>
 
             <div class="bg-white shadow-lg rounded-xl p-6">
-                <form action="{{ route('admin.tenants.update', $tenant->id) }}" method="POST" enctype="multipart/form-data">
+                <x-form.form action="{{ route('admin.tenants.update', $tenant->id) }}" method="POST" enctype="multipart/form-data">
                     @csrf
                     @method('PUT')
 
@@ -172,11 +172,11 @@
                     </div>
 
                     <div class="flex justify-end pt-4 border-t">
-                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-lg shadow transition duration-150 ease-in-out">
+                        <x-form.primary-button loading="loading">
                             Update Tenant
-                        </button>
+                        </x-form.primary-button>
                     </div>
-                </form>
+                </x-form.form>
             </div>
         </div>
     </div>

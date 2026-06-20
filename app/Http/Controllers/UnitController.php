@@ -10,6 +10,7 @@ use App\Models\Room;
 use App\Models\Property;
 use App\Models\Owners;
 use App\Models\User;
+use App\Traits\RoleBasedDataTrait;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -17,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 
 class UnitController extends Controller
 {
+    use RoleBasedDataTrait;
     /**
      * Display a listing of the resource.
      */
@@ -47,7 +49,7 @@ class UnitController extends Controller
         }
 
         // 3. 其他数据加载
-        $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get();
+        $owners = $this->getAuthorizedOwners();
         
         $assetLibrary = Asset::select('id', 'name', 'user_id', 'status')->get();
         
@@ -244,35 +246,27 @@ class UnitController extends Controller
      */
     public function edit(string $id)
     {
-        // 预加载关联：获取 Unit、关联的 Rooms，以及所有 RoomAssets
-        // 注意：RoomAsset 包含 unit_level 的（room_id 为 null）和 room_level 的
-        $unit = Unit::with(['rooms', 'roomAssets'])->findOrFail($id);
+        // 1. 预加载 owner，这是最稳妥的
+        // 这对应你在 Unit 模型里定义的 public function owner() { return $this->belongsTo(User::class, 'owner_id'); }
+        $unit = Unit::with(['rooms', 'roomAssets', 'owner'])->findOrFail($id);
 
-        // 获取所有属性列表，方便在编辑页切换或显示
+        // 2. 直接通过关联获取业主
+        $currentOwner = $unit->owner; // 这就是 User 对象，如果没找到则为 null
+
+        // 3. 其他逻辑保持不变
         $properties = Property::all();
         $targetProperty = Property::find($unit->property_id);
-
-        // 获取业主资料
-        $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get(['id', 'name']);
+        $owners = $this->getAuthorizedOwners();
         $hasRoomsCount = $unit->rooms()->count() > 0 ? 1 : 0;
+        
+        // 权限判断现在变得非常安全：如果 $currentOwner 是 null，isOwnerAdmin 自动为 false
+        $isOwnerAdmin = ($currentOwner && Auth::id() == $currentOwner->id && Auth::user()->role === 'ownerAdmin');
 
-        $isOwnerAdmin = (Auth::id() == $targetProperty->owner_id) && 
-                    (Auth::user()->role === 'ownerAdmin');
-
-        $currentOwner = User::find($targetProperty->owner_id);
-
-        // 资产库
         $assetLibrary = Asset::select('id', 'name', 'user_id', 'status')->get();
 
         return view('adminSide.rooms.unit.edit', compact(
-            'unit', 
-            'properties', 
-            'owners', 
-            'targetProperty', 
-            'assetLibrary',
-            'hasRoomsCount',
-            'isOwnerAdmin',
-            'currentOwner'
+            'unit', 'properties', 'owners', 'targetProperty', 
+            'assetLibrary', 'hasRoomsCount', 'isOwnerAdmin', 'currentOwner'
         ));
     }
     /**

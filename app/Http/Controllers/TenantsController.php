@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TenantsController extends Controller
 {
@@ -299,6 +300,8 @@ class TenantsController extends Controller
     public function showIcPhoto($filename)
     {
         $path = 'tenants/ic_path/' . $filename;
+
+        Log::info('Attempting to find file at: ' . Storage::disk('local')->path($path));
 
         // 向后兼容：检查是否存放在带有 'private' 前缀的旧路径中
         if (!Storage::disk('local')->exists($path)) {

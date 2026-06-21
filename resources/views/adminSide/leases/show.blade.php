@@ -25,7 +25,7 @@
             'stamped_at' => $item->stamped_at ? $item->stamped_at_formatted : null,
             'can_stamp' => in_array($item->status, ['New', 'Renew']),
             'upload_url' => route('admin.leases.upload-stamping', $item->id),
-            'view_url' => route('admin.leases.view-cert', $item->id),
+            'view_url' => route('admin.leases.cert-file', $item->id),
             'agreement' => [
                 'title' => $item->agreement?->title ?? 'Agreement',
                 'content' => $item->agreement?->content ?? '',

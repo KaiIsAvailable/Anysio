@@ -319,7 +319,7 @@ class TenantsController extends Controller
         return $fileService->getStreamResponse($tenant->ic_photo_path);
     }
 
-    public function viewIc(Tenants $tenant, FileService $fileService)
+    public function viewIc(Tenants $tenant)
     {
         if (empty($tenant->ic_photo_path)) {
             abort(404, 'No identity document uploaded.');

@@ -53,37 +53,9 @@ trait RoleBasedDataTrait
     protected function getAuthorizedOwners()
     {
         $user = Auth::user();
+        $query = User::whereIn('role', ['owner', 'ownerAdmin']);
         
-        // 1. Super Admin 拥有所有权限
-        if (Gate::allows('super-admin')) {
-            return User::whereIn('role', ['owner', 'ownerAdmin', 'agentAdmin', 'admin'])->get();
-        }
-
-        // 2. 普通逻辑
-        return User::where(function ($q) use ($user) {
-            if ($user->role === 'ownerAdmin') {
-                $q->where('id', $user->id);
-            } elseif ($user->role === 'agentAdmin') {
-                // 获取该 Agent 管理的所有关联用户ID
-                $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-                $q->whereIn('id', $ownerIds);
-            }
-        })
-        // 关键点：这里应该允许 'owner' 和 'ownerAdmin'，除非你只想看 owner
-        ->whereIn('role', ['owner', 'ownerAdmin']) 
-        ->get();
-    }
-
-    protected function getEffectiveOwnerId(): string 
-    {
-        $user = Auth::user();
-        if ($user->role === 'ownerAdmin') {
-            return $user->id; // 这里返回的是 ULID 字符串
-        }
-        
-        // AgentAdmin 情况：确保这里获取的也是 ULID 字符串
-        $owner = Owners::where('agent_id', $user->id)->first();
-        return $owner ? $owner->user_id : $user->id;
+        return $this->applyOwnershipFilter($query, $user, 'id')->get();
     }
 
     protected function applyLeaseOwnershipFilter($query, $user)
@@ -91,7 +63,6 @@ trait RoleBasedDataTrait
         if (Gate::allows('super-admin')) return $query;
 
         return $query->whereHas('tenant', function ($q) use ($user) {
-            // 直接调用你写好的那个包含 OwnerAdmin/AgentAdmin 逻辑的过滤器
             $this->applyOwnershipFilter($q, $user);
         });
     }

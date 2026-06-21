@@ -6,7 +6,7 @@ use Illuminate\Support\Str;
 
 class FileService
 {
-    protected $disk = 'local'; // 指定使用 private 磁盘
+    protected $disk = 'local';
     protected const PATH_MAP = [
         'tenant_ic'      => 'tenants/ic_photo',
         'lease_stamping' => 'leases/stamping_certs',
@@ -87,22 +87,5 @@ class FileService
             return Storage::disk($this->disk)->delete($path);
         }
         return false;
-    }
-
-    public function getBase64EncodedFile(string $path): string
-    {
-        // 兼容性检查：如果是旧路径，处理一下
-        $fullPath = Storage::disk($this->disk)->path($path);
-        if (!file_exists($fullPath)) {
-            $fullPath = storage_path('app/private/private/' . $path); // 尝试旧路径
-        }
-
-        if (!file_exists($fullPath)) {
-            abort(404, 'File not found.');
-        }
-
-        $mimeType = mime_content_type($fullPath);
-        $data = file_get_contents($fullPath);
-        return 'data:' . $mimeType . ';base64,' . base64_encode($data);
     }
 }

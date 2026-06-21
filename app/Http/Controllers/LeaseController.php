@@ -699,18 +699,20 @@ class LeaseController extends Controller
         }
     }
 
-    public function viewCert(Lease $lease, FileService $fileService)
+    public function viewCert(Lease $lease)
     {
         if (empty($lease->stamping_cert_path)) {
             abort(404, 'No certificate path record.');
         }
 
-        // 调用 Service 获取编码后的数据
-        $pdfData = $fileService->getBase64EncodedFile($lease->stamping_cert_path);
-
-        return view('adminSide.leases.view-cert', compact('pdfData', 'lease'));
+        return view('adminSide.leases.view-cert', compact('lease'));
     }
 
+    public function showCertFile(Lease $lease, FileService $fileService)
+    {
+        return $fileService->getStreamResponse($lease->stamping_cert_path);
+    }
+    
     public function getPaymentsTableOnly(Lease $lease)
     {
         $payments = $lease->payments()->latest()->get();

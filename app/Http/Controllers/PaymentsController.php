@@ -345,8 +345,8 @@ class PaymentsController extends Controller
                 $fileService->delete($payment->attachment);
             }
             
-            $ownerId = $this->getEffectiveOwnerId();
-            $path = $fileService->upload($request->file('attachment'), $ownerId, 'user_receipt');
+            $userId = Auth::id();
+            $path = $fileService->upload($request->file('attachment'), $userId, 'user_receipt');
             
         } elseif ($isZeroAmount && !$payment->attachment) {
             $path = 'system/zero_amount_auto_approved';

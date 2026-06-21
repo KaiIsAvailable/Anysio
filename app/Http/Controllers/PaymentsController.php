@@ -18,9 +18,12 @@ use \Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use App\Services\FileService;
+use App\Traits\RoleBasedDataTrait;
 
 class PaymentsController extends Controller
 {
+    use RoleBasedDataTrait;
     public function index(Request $request)
     {
         $userId = Auth::id();
@@ -322,75 +325,68 @@ class PaymentsController extends Controller
         return "INV-{$type}-{$today}-{$nextNum}";
     }
 
-    public function uploadProof(Request $request, $id)
+    public function uploadProof(Request $request, $id, FileService $fileService)
     {
-        // 1. 找到支付记录
         $payment = UserPayment::findOrFail($id);
-        
-        // 2. 检查是否为 0 元账单
         $isZeroAmount = ($payment->amount_due <= 0);
 
-        // 3. 如果不是 0 元，则强制验证文件；如果是 0 元，则文件可选
+        // 1. 验证逻辑
         $rules = [
             'transaction_ref' => 'nullable|string|max:255',
+            'attachment' => ($isZeroAmount ? 'nullable' : 'required') . '|image|mimes:jpg,jpeg,png|max:2048',
         ];
-        
-        if (!$isZeroAmount) {
-            $rules['attachment'] = 'required|image|mimes:jpg,jpeg,png|max:2048';
-        } else {
-            $rules['attachment'] = 'nullable|image|mimes:jpg,jpeg,png|max:2048';
-        }
-
         $request->validate($rules);
 
-        // 4. 处理文件逻辑
-        $path = $payment->attachment; // 默认为原有的路径（如果有）
+        // 2. 文件处理逻辑：统一交给 FileService
+        $path = $payment->attachment;
 
         if ($request->hasFile('attachment')) {
-            if ($payment->attachment) {
-                Storage::disk('local')->delete($payment->attachment);
+            if ($payment->attachment && $payment->attachment !== 'system/zero_amount_auto_approved') {
+                $fileService->delete($payment->attachment);
             }
-            $path = $request->file('attachment')->store('receipts', 'local');
+            
+            $ownerId = $this->getEffectiveOwnerId();
+            $path = $fileService->upload($request->file('attachment'), $ownerId, 'user_receipt');
+            
         } elseif ($isZeroAmount && !$payment->attachment) {
-            // 如果是 0 元且用户没上传，给一个特殊标识或留空
-            $path = 'system/zero_amount_auto_approved'; 
+            $path = 'system/zero_amount_auto_approved';
         }
 
-        // 5. 更新状态
-        // 如果是 0 元，状态直接设为 'paid'，否则设为 'pending'
-        $newStatus = $isZeroAmount ? 'paid' : 'pending';
+        DB::transaction(function () use ($payment, $path, $request, $isZeroAmount) {
+            // 3. 业务逻辑 (保持不变)
+            $newStatus = $isZeroAmount ? 'paid' : 'pending';
 
-        $packageDetails = DB::table('ref_code_packages')
-            ->where('ref_code', $payment->ref_code)
-            ->first();
+            $packageDetails = DB::table('ref_code_packages')
+                ->where('ref_code', $payment->ref_code)
+                ->first();
 
-        $startDate = null;
-        $endDate = null;
+            $startDate = null;
+            $endDate = null;
 
-        $startDate = now();
-        $endDate = ($packageDetails->price_mode === 'monthly') 
-                    ? $startDate->copy()->addMonth()
-                    : $startDate->copy()->addYear();
+            $startDate = now();
+            $endDate = ($packageDetails->price_mode === 'monthly') 
+                        ? $startDate->copy()->addMonth()
+                        : $startDate->copy()->addYear();
 
-        $userManagement = UserManagement::where('user_id', $payment->user_id)->first();
+            $userManagement = UserManagement::where('user_id', $payment->user_id)->first();
 
-        $userManagement->update([
-            'start_date' => $startDate,
-            'end_date' => $endDate,
-        ]);
+            $userManagement->update([
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+            ]);
 
-        $payment->update([
-            'attachment' => $path,
-            'transaction_ref' => $request->transaction_ref,
-            'status' => $newStatus,
-        ]);
+            $payment->update([
+                'attachment' => $path,
+                'transaction_ref' => $request->transaction_ref,
+                'status' => $newStatus,
+            ]);
 
-        // 更新管理状态
-        UserManagement::where('user_id', $payment->user_id)->update([
-            'subscription_status' => ($newStatus === 'paid') ? 'active' : 'pending'
-        ]);
-
-        $message = $isZeroAmount ? 'Subscription activated successfully!' : 'Receipt uploaded! Please wait for admin approval.';
-        return back()->with('success', $message);
+            // 更新管理状态
+            UserManagement::where('user_id', $payment->user_id)->update([
+                'subscription_status' => ($newStatus === 'paid') ? 'active' : 'pending'
+            ]);
+        });
+        
+        return back()->with('success', $isZeroAmount ? 'Subscription activated!' : 'Receipt uploaded!');
     }
 }

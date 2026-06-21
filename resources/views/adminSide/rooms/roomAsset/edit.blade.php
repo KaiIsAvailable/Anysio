@@ -24,6 +24,18 @@
                     </div>
 
                     <div class="p-6 space-y-5">
+                        <div class="flex items-center p-4 bg-gray-50 border border-gray-200 rounded-2xl">
+                            <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-3 text-blue-600">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                </svg>
+                            </div>
+                            
+                            <div>
+                                <p class="text-sm font-black text-slate-800">{{ $asset->user->name }}</p>
+                                <p class="text-xs text-slate-500 capitalize">{{ ucfirst($asset->user->role) }}</p>
+                            </div>
+                        </div>
                         {{-- Asset Name --}}
                         <div>
                             <x-form.input-label value="Asset Name" class="mb-1" />
@@ -45,12 +57,6 @@
                                 :value="old('category', $asset->category)"
                                 class="w-full" />
                             <x-form.input-error :messages="$errors->get('category')" class="mt-1" />
-                        </div>
-
-                        {{-- Optional: Show who this belongs to (Read Only) --}}
-                        <div class="pt-4 border-t border-gray-50">
-                            <p class="text-xs text-gray-400 uppercase tracking-widest font-semibold">Owner Info</p>
-                            <p class="text-sm text-slate-600 mt-1">{{ $asset->user->name }} ({{ ucfirst($asset->user->role) }})</p>
                         </div>
                     </div>
 

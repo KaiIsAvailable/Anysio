@@ -16,15 +16,18 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
+use App\Traits\RoleBasedDataTrait;
 use App\Http\Controllers\PaymentsController;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use App\Services\FileService;
 
 class LeaseController extends Controller
 {
+    use RoleBasedDataTrait;
     public function index(Request $request)
     {
         $userId = Auth::id();
@@ -124,52 +127,13 @@ class LeaseController extends Controller
 
     public function create(Request $request)
     {
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = Auth::user();
 
-        $authFilter = function ($query) use ($user) {
-            if ($user->role === 'ownerAdmin' || $user->role === 'agentAdmin') {
-                // 直接匹配 created_by 字段
-                $query->where('created_by', $user->id);
-            }
-        };
-
-        $properties = Property::with(['owner'])
-            ->where('status', 'Vacant')
-            // 排除掉那些有 Unit 不是 Vacant 的 Property
-            ->whereDoesntHave('units', function ($q) {
-                $q->where('status', '!=', 'Vacant');
-            })
-            // 排除掉那些有 Room 不是 Vacant 的 Property
-            ->whereDoesntHave('units.rooms', function ($q) {
-                $q->where('status', '!=', 'Vacant');
-            })
-            ->when($user->role !== 'admin', $authFilter)
-            ->get();
-
-        $units = Unit::with(['owner'])
-            ->where('status', 'Vacant')
-            // 排除掉那些有 Room 不是 Vacant 的 Unit
-            ->whereDoesntHave('rooms', function ($q) {
-                $q->where('status', '!=', 'Vacant');
-            })
-            ->when($user->role !== 'admin', function ($q) use ($authFilter) {
-                $q->whereHas('owner', $authFilter);
-            })
-            ->get();
-
-        $rooms = Room::with(['unit.owner'])
-            ->where('status', 'Vacant')
-            ->when($user->role !== 'admin', function ($q) use ($authFilter) {
-                $q->whereHas('unit.owner', $authFilter);
-            })
-            ->get();
-
-        $tenants = Tenants::with('user')
-            ->when($user->role !== 'admin', function ($query) use ($user) {
-                return $query->where('created_by', $user->id);
-            })
-            ->get();
+        $properties = $this->getAuthorizedProperties()->where('status', 'Vacant')->get();
+        $units      = $this->getAuthorizedUnits()->where('status', 'Vacant')->get();
+        $rooms      = $this->getAuthorizedRooms()->where('status', 'Vacant')->get();
+        $tenants    = $this->applyOwnershipFilter(Tenants::query(), $user)->get();
 
         $status = $request->query('status');
 
@@ -178,27 +142,19 @@ class LeaseController extends Controller
             // 👇 修复点：添加 leasable 的嵌套多态预加载，确保能拉取到深层 Owner 资料
             'leasable' => function ($morphTo) {
                 $morphTo->morphWith([
-                    \App\Models\Room::class => ['unit.owner'],
-                    \App\Models\Unit::class => ['owner'],
-                    \App\Models\Property::class => ['owner'],
+                    Room::class => ['unit.owner'],
+                    Unit::class => ['owner'],
+                    Property::class => ['owner'],
                 ]);
             }
         ])
             ->where('is_current', true)
-            // 根据请求的 status 切换查询逻辑
-            ->when($status === 'End Agreement', function ($query) {
-                // 如果是终止协议或退房，只显示目前处于 Active 状态的租约
-                return $query->where('status', ['Check Out']);
-            }, function ($query) {
-                // 默认情况（比如 New 或 Renew），显示你原本定义的范围
-                return $query->whereIn('status', ['New', 'Renew']);
-            })
-            // 权限过滤逻辑保持不变
-            ->when($user->role !== 'admin', function ($query) use ($user) {
-                $query->whereHas('tenant', function ($q) use ($user) {
-                    $q->where('created_by', $user->id);
-                });
-            })
+            ->when($status === 'End Agreement', 
+                fn($q) => $q->where('status', 'Check Out'),
+                fn($q) => $q->whereIn('status', ['New', 'Renew'])
+            )
+            // 直接调用 Trait 中的方法，完美解耦！
+            ->when($user->role !== 'admin', fn($query) => $this->applyLeaseOwnershipFilter($query, $user))
             ->get();
 
         $leasePreviewData = $leases->map(function ($lease) {
@@ -233,27 +189,11 @@ class LeaseController extends Controller
             ]);
         });
 
-        $templates = Agreements::withTrashed()
-            ->where('type', 'rental_lease')
-            ->where('status', 'active')
-            ->when($user->role !== 'admin', function ($query) use ($user) {
-                // 1. 如果是 OwnerAdmin：只能看到自己创建的协议
-                if ($user->role === 'ownerAdmin') {
-                    $query->where('user_id', $user->id);
-                }
-                // 2. 如果是 AgentAdmin：可以看到自己负责的所有 Owner 创建的协议 + 自己创建的
-                elseif ($user->role === 'agentAdmin') {
-                    // 先找到此 Agent 负责的所有 Owner 的 user_id
-                    $managedOwnerUserIds = Owners::where('agent_id', $user->id)
-                        ->pluck('user_id');
-
-                    $query->where(function ($q) use ($user, $managedOwnerUserIds) {
-                        $q->where('user_id', $user->id)
-                            ->orWhereIn('user_id', $managedOwnerUserIds);
-                    });
-                }
-            })
-            ->get();
+        $templates = $this->applyOwnershipFilter(
+            Agreements::withTrashed()->where('type', 'rental_lease')->where('status', 'active'),
+            $user,
+            'user_id' // 明确指定过滤字段为 user_id
+        )->get();
 
         // 初始变量
         $selectedRoom = null;
@@ -726,7 +666,7 @@ class LeaseController extends Controller
         ])->render();
     }
 
-    public function uploadStamping(Request $request, Lease $lease)
+    public function uploadStamping(Request $request, Lease $lease, FileService $fileService)
     {
         $validated = $request->validate([
             'stamping_reference_no' => 'required|string|max:100',
@@ -734,20 +674,24 @@ class LeaseController extends Controller
         ]);
 
         try {
-            if ($request->hasFile('stamping_cert')) {
-                if ($lease->stamping_cert_path && Storage::disk('local')->exists($lease->stamping_cert_path)) {
-                    Storage::disk('local')->delete($lease->stamping_cert_path);
-                }
-
-                $path = $request->file('stamping_cert')->store('stamping_certs', 'local');
-
-                $lease->update([
-                    'stamping_status' => true,
-                    'stamping_cert_path' => $path,
-                    'stamping_reference_no' => $validated['stamping_reference_no'],
-                    'stamped_at' => now(),
-                ]);
+            if ($lease->stamping_cert_path) {
+                $fileService->delete($lease->stamping_cert_path);
             }
+
+            $userId = Auth::id(); 
+            
+            $path = $fileService->upload(
+                $request->file('stamping_cert'), 
+                $userId, 
+                'lease_stamping'
+            );
+
+            $lease->update([
+                'stamping_status' => true,
+                'stamping_cert_path' => $path,
+                'stamping_reference_no' => $validated['stamping_reference_no'],
+                'stamped_at' => now(),
+            ]);
 
             return back()->with('success', 'Stamping certificate uploaded successfully!');
         } catch (\Exception $e) {
@@ -755,21 +699,14 @@ class LeaseController extends Controller
         }
     }
 
-    public function viewCert(Lease $lease)
+    public function viewCert(Lease $lease, FileService $fileService)
     {
         if (empty($lease->stamping_cert_path)) {
             abort(404, 'No certificate path record.');
         }
 
-        $path = storage_path('app/private/' . $lease->stamping_cert_path);
-
-        if (!file_exists($path)) {
-            abort(404, 'File not found on server.');
-        }
-
-        $fileContent = file_get_contents($path);
-        $base64 = base64_encode($fileContent);
-        $pdfData = 'data:application/pdf;base64,' . $base64;
+        // 调用 Service 获取编码后的数据
+        $pdfData = $fileService->getBase64EncodedFile($lease->stamping_cert_path);
 
         return view('adminSide.leases.view-cert', compact('pdfData', 'lease'));
     }

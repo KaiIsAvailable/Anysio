@@ -19,12 +19,12 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use App\Traits\RoleBasedDataTrait;
+use App\Services\FileService;
 
 class TenantsController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    use RoleBasedDataTrait;
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -88,7 +88,7 @@ class TenantsController extends Controller
         return view('adminSide.tenants.create');
     }
 
-    public function store(Request $request)
+    public function store(Request $request, FileService $fileService)
     {
         // 1. 处理随机 Email
         if ($request->has('random_email') && $request->random_email == '1') {
@@ -98,7 +98,7 @@ class TenantsController extends Controller
         // 2. 校验数据 (统一抛出 ValidationException)
         $this->validateTenantData($request);
 
-        return DB::transaction(function () use ($request) {
+        return DB::transaction(function () use ($request, $fileService) {
 
             // 4. 创建租客 User 账号
             $user = User::create([
@@ -126,7 +126,13 @@ class TenantsController extends Controller
 
             // 图片处理
             if ($request->hasFile('ic_photo_path')) {
-                $data['ic_photo_path'] = $request->file('ic_photo_path')->store('tenants/ic_path', 'local');
+                $userId = Auth::id();
+                
+                $data['ic_photo_path'] = $fileService->upload(
+                    $request->file('ic_photo_path'), 
+                    $userId, 
+                    'tenant_ic' 
+                );
             }
 
             $tenant = Tenants::create($data);
@@ -162,12 +168,12 @@ class TenantsController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Tenants $tenant)
+    public function update(Request $request, Tenants $tenant, FileService $fileService)
     {
         // 1. 执行验证（内部若失败会抛出异常，自动返回）
         $this->validateTenantData($request, $tenant->id, $tenant->user_id);
 
-        return DB::transaction(function () use ($tenant, $request) {
+        return DB::transaction(function () use ($tenant, $request, $fileService) {
 
             // 2. 更新关联的 User 账号
             $tenant->user->update([
@@ -187,12 +193,17 @@ class TenantsController extends Controller
 
             // 4. 图片处理逻辑
             if ($request->hasFile('ic_photo_path')) {
-                // 删除旧照片
-                if ($tenant->ic_photo_path) {
-                    Storage::disk('local')->delete($tenant->ic_photo_path);
+                $userId = Auth::id(); 
+                
+                if (!empty($tenant->ic_photo_path)) {
+                    $fileService->delete($tenant->ic_photo_path);
                 }
-                // 存储新照片
-                $data['ic_photo_path'] = $request->file('ic_photo_path')->store('tenants/ic_path', 'local');
+                
+                $data['ic_photo_path'] = $fileService->upload(
+                    $request->file('ic_photo_path'), 
+                    $userId,
+                    'tenant_ic' 
+                );
             }
 
             $tenant->update($data);
@@ -297,58 +308,24 @@ class TenantsController extends Controller
         ));
     }
 
-    public function showIcPhoto($filename)
+    public function showIcPhoto(Request $request, $filename, FileService $fileService)
     {
-        $path = 'tenants/ic_path/' . $filename;
-
-        Log::info('Attempting to find file at: ' . Storage::disk('local')->path($path));
-
-        // 向后兼容：检查是否存放在带有 'private' 前缀的旧路径中
-        if (!Storage::disk('local')->exists($path)) {
-            $oldPath = 'private/tenants/ic_path/' . $filename;
-            if (Storage::disk('local')->exists($oldPath)) {
-                $path = $oldPath;
-            } else {
-                abort(404);
-            }
+        $tenant = Tenants::where('ic_photo_path', 'LIKE', '%' . $filename)->first();
+        
+        if (!$tenant) {
+            abort(404, 'Tenant record not found.');
         }
-        // 获取磁盘上文件的完整物理路径
-        $fullPath = Storage::disk('local')->path($path);
 
-        // 直接使用 Laravel 的 response helper
-        return response()->file($fullPath);
+        return $fileService->getStreamResponse($tenant->ic_photo_path);
     }
 
-    public function viewIc(Tenants $tenant)
+    public function viewIc(Tenants $tenant, FileService $fileService)
     {
         if (empty($tenant->ic_photo_path)) {
             abort(404, 'No identity document uploaded.');
         }
 
-        $path = $tenant->ic_photo_path;
-
-        // 向后兼容路径检查
-        if (!Storage::disk('local')->exists($path)) {
-            $oldPath = 'private/' . $path;
-            if (Storage::disk('local')->exists($oldPath)) {
-                $path = $oldPath;
-            } else {
-                abort(404, 'File not found on server.');
-            }
-        }
-
-        $fullPath = Storage::disk('local')->path($path);
-
-        // 修复点：直接使用 Storage 门面获取 MIME 类型
-        // 或者使用文件信息类获取
-        $mimeType = Storage::mimeType($path) ?: 'image/jpeg';
-        
-        $fileContent = file_get_contents($fullPath);
-        $base64 = base64_encode($fileContent);
-        
-        $photoData = 'data:' . $mimeType . ';base64,' . $base64;
-
-        return view('adminSide.tenants.view-ic', compact('photoData', 'tenant'));
+        return view('adminSide.tenants.view-ic', compact('tenant'));
     }
 
 

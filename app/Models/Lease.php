@@ -8,11 +8,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Traits\Auditable;
 
 class Lease extends Model
 {
-    use HasUlids;
+    use HasUlids, Auditable;
 
+    protected $table = 'leases';
     protected $keyType = 'string';
     public $incrementing = false;
 

@@ -8,11 +8,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use App\Traits\SyncableStatus;
+use App\Traits\Auditable;
 
 class Property extends Model
 {
-    use HasUlids, SyncableStatus;
-
+    use HasUlids, SyncableStatus, Auditable;
+    protected $table = 'payments';
     /**
      * 可批量赋值的字段
      * 按照你之前定稿的 Migration 字段

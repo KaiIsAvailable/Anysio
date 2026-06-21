@@ -5,10 +5,12 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 
 class Staff extends Model
 {
-    use HasFactory, HasUlids;
+    use HasFactory, HasUlids, Auditable;
+    protected $table = 'staff';
     protected $fillable = [
         'user_id',
         'user_mgnt_id',

@@ -67,6 +67,25 @@ class Lease extends Model
         return $this->belongsTo(User::class, 'owner_id');
     }
 
+    protected function ownerUserId(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                // 1. 获取关联的 leasable 模型 (Property/Unit/Room)
+                $model = $this->leasable;
+                if (!$model) return null;
+
+                // 2. 根据类型往上找 owner_id
+                return match (get_class($model)) {
+                    \App\Models\Property::class => $model->owner_id,
+                    \App\Models\Unit::class     => $model->property->owner_id ?? null,
+                    \App\Models\Room::class     => $model->unit->property->owner_id ?? null,
+                    default                     => null,
+                };
+            },
+        );
+    }
+
     public function utilities(): HasMany
     {
         return $this->hasMany(Utility::class);

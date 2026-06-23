@@ -14,12 +14,12 @@ class NotificationRecipient extends Model
     protected $table = 'notification_recipients';
     protected $fillable = [
         'notification_id',
-        'tenant_id',
-        'is_read',
+        'user_id',
+        'read_at',
     ];
 
     protected $casts = [
-        'is_read' => 'boolean',
+        'read_at' => 'datetime',
     ];
 
     public function notification(): BelongsTo

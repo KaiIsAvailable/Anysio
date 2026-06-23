@@ -33,12 +33,12 @@
     @endif
 
     <div class="flex-1">
-        <p class="font-bold text-sm leading-tight">{{ $message }}</p>
-        @if($details)
-            <div class="mt-2 text-xs opacity-90 font-medium">
-                {{ $details }}
-            </div>
-        @endif
+        <p class="font-bold text-sm leading-tight" x-text="message"></p>
+        
+        <div x-show="details" 
+            class="mt-2 text-xs opacity-90 font-medium" 
+            x-text="details">
+        </div>
     </div>
 
     <button @click="show = false" class="text-current opacity-50 hover:opacity-100 transition-opacity">

@@ -1,4 +1,4 @@
-@props(['action', 'method' => 'POST'])
+@props(['action' => '', 'method' => 'POST'])
 
 @php
     $realMethod = in_array(strtoupper($method), ['GET', 'POST']) ? $method : 'POST';

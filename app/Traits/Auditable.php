@@ -46,4 +46,26 @@ trait Auditable
             'user_agent'     => Request::userAgent(),
         ]);
     }
+
+    public static function logError($model, $message, $context = [])
+    {
+        // 获取关联类名，如果 $model 不存在，则存为 'System' 或 'General'
+        $type = $model ? get_class($model) : 'App\Models\System';
+        $id = $model ? $model->id : null;
+
+        AuditLog::create([
+            'user_id'        => Auth::id(),
+            'event'          => 'error', 
+            'auditable_type' => $type,
+            'auditable_id'   => $id,
+            'old_values'     => null,
+            // 将错误信息和额外的上下文合并
+            'new_values'     => [
+                'message' => $message, 
+                'details' => $context
+            ],
+            'ip_address'     => Request::ip(),
+            'user_agent'     => Request::userAgent(),
+        ]);
+    }
 }

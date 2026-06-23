@@ -8,14 +8,20 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::disableForeignKeyConstraints();
+        Schema::dropIfExists('notification_recipients');
+        Schema::dropIfExists('notifications');
+
         Schema::create('notifications', function (Blueprint $table) {
             $table->ulid('id')->primary();
-            $table->foreignUlid('owner_id')->nullable()->constrained('owners')->nullOnDelete();
-            $table->string('type');
+            $table->foreignUlid('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('type')->index();
             $table->string('title');
-            $table->text('content');
+            $table->json('data')->nullable(); 
             $table->timestamps();
         });
+
+        Schema::enableForeignKeyConstraints();
     }
 
     public function down(): void

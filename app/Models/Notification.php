@@ -14,10 +14,14 @@ class Notification extends Model
 
     protected $table = 'notifications';
     protected $fillable = [
-        'owner_id',
+        'created_by',
         'type',
         'title',
-        'content',
+        'data',
+    ];
+
+    protected $casts = [
+        'data' => 'array', // 必须加这个！
     ];
 
     public function owner(): BelongsTo

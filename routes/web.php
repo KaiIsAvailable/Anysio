@@ -4,6 +4,7 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\TenantsController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\WelcomeController;
+use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
@@ -12,6 +13,10 @@ Route::get('/', function () {
     return view('welcome');
 });
 Route::get('/', [WelcomeController::class, 'index']);
+
+Route::middleware(['auth', 'can:super-admin'])->group(function () {
+    Route::post('/user/verify-password', [UserController::class, 'verifyPassword'])->name('user.verify-password');
+});
 
 // 2. 登录后的基础路由
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -50,6 +55,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/customerServiceRoute.php';
         require __DIR__.'/agreementRoute.php';
         require __DIR__.'/packageRoute.php';
+        require __DIR__.'/auditLogRoute.php';
+        require __DIR__.'/notificationRoute.php';
 
         // --- 只有管理员 (owner-admin) 权限能进的路由 ---
         Route::middleware('can:owner-admin')->group(function () {

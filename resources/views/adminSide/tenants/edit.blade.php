@@ -23,15 +23,15 @@
                         <h2 class="text-xl font-semibold text-slate-800 mb-4">User Details</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div class="mb-4">
-                                <label for="name" class="block text-sm font-medium text-slate-900 mb-1">Full Name</label>
-                                <input type="text" name="name" id="name" value="{{ old('name', $tenant->user->name) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                                @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                <x-form.input-label for="name" value="Full Name" class="mb-1" />
+                                <x-form.text-input name="name" id="name" value="{{ old('name', $tenant->user->name) }}" class="w-full" required />
+                                <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                             </div>
 
                             <div class="mb-4">
-                                <label for="email" class="block text-sm font-medium text-slate-900 mb-1">Email Address</label>
-                                <input type="email" name="email" id="email" value="{{ old('email', $tenant->user->email) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                                @error('email') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                <x-form.input-label for="email" value="Email Address" class="mb-1" />
+                                <x-form.text-input type="email" name="email" id="email" value="{{ old('email', $tenant->user->email) }}" class="w-full" required />
+                                <x-form.input-error :messages="$errors->get('email')" class="mt-1" />
                             </div>
                         </div>
                     </div>
@@ -41,9 +41,9 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <!-- Phone -->
                         <div class="mb-4">
-                            <label for="phone" class="block text-sm font-medium text-slate-900 mb-1">Phone</label>
-                            <input type="text" name="phone" id="phone" value="{{ old('phone', $tenant->phone) }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="20" inputmode="numeric" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                            @error('phone') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-label for="phone" value="Phone" class="mb-1" />
+                            <x-form.text-input name="phone" id="phone" value="{{ old('phone', $tenant->phone) }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="20" inputmode="numeric" class="w-full" required />
+                            <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
                         </div>
 
                         @php
@@ -52,7 +52,7 @@
 
                         <!-- Identity Type Selection -->
                         <div class="mb-4 col-span-1 md:col-span-2">
-                            <label class="block text-sm font-medium text-slate-900 mb-2">Identity Document</label>
+                            <x-form.input-label value="Identity Document" class="mb-2" />
                             <div class="flex gap-4">
                                 <label class="inline-flex items-center cursor-pointer">
                                     <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" {{ $isIc ? 'checked' : '' }} onchange="toggleIdentityInputs(false)">
@@ -67,40 +67,36 @@
 
                         <!-- IC Number -->
                         <div class="mb-4" id="ic_container">
-                            <label for="ic_number" class="block text-sm font-medium text-slate-900 mb-1">IC Number</label>
-                            <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number', $tenant->ic_number) }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('ic_number') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-label for="ic_number" value="IC Number" class="mb-1" />
+                            <x-form.text-input name="ic_number" id="ic_number" value="{{ old('ic_number', $tenant->ic_number) }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full" />
+                            <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
                         </div>
 
                         <!-- Passport -->
                         <div class="mb-4 {{ $isIc ? 'hidden' : '' }}" id="passport_container">
-                            <label for="passport" class="block text-sm font-medium text-slate-900 mb-1">Passport Number</label>
-                            <input type="text" name="passport" id="passport" value="{{ old('passport', $tenant->passport) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('passport') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-label for="passport" value="Passport Number" class="mb-1" />
+                            <x-form.text-input name="passport" id="passport" value="{{ old('passport', $tenant->passport) }}" class="w-full" />
+                            <x-form.input-error :messages="$errors->get('passport')" class="mt-1" />
                         </div>
 
                         <!-- Nationality -->
                         <div class="mb-4">
-                            <label for="nationality" class="block text-sm font-medium text-slate-900 mb-1">Nationality</label>
-                            <input type="text" name="nationality" id="nationality" value="{{ old('nationality', $tenant->nationality) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                            @error('nationality') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-label for="nationality" value="Nationality" class="mb-1" />
+                            <x-form.text-input name="nationality" id="nationality" value="{{ old('nationality', $tenant->nationality) }}" class="w-full" required />
+                            <x-form.input-error :messages="$errors->get('nationality')" class="mt-1" />
                         </div>
 
                         <!-- Gender -->
                         <div class="mb-4">
-                            <label for="gender" class="block text-sm font-medium text-slate-900 mb-1">Gender</label>
-                            <select name="gender" id="gender" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                                <option value="">-- Select Gender --</option>
-                                <option value="Male" {{ (old('gender') ?? $tenant->gender) == 'Male' || (old('gender') ?? $tenant->gender) == 'Male' ? 'selected' : '' }}>Male</option>
-                                <option value="Female" {{ (old('gender') ?? $tenant->gender) == 'Female' || (old('gender') ?? $tenant->gender) == 'Female' ? 'selected' : '' }}>Female</option>
-                            </select>
-                            @error('gender') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-label for="gender" value="Gender" class="mb-1" />
+                            <x-form.input-select name="gender" id="gender" :value="old('gender', $tenant->gender)" :options="['Male' => 'Male', 'Female' => 'Female']" placeholder="-- Select Gender --" class="w-full shadow-sm" required />
+                            <x-form.input-error :messages="$errors->get('gender')" class="mt-1" />
                         </div>
 
                         <div class="col-span-1 md:col-span-2">
-                            <label for="occupation" class="block text-sm font-medium text-slate-900 mb-1">Occupation</label>
-                            <input type="text" name="occupation" id="occupation" value="{{ old('occupation', $tenant->occupation) }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('occupation') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-label for="occupation" value="Occupation" class="mb-1" />
+                            <x-form.text-input name="occupation" id="occupation" value="{{ old('occupation', $tenant->occupation) }}" class="w-full" />
+                            <x-form.input-error :messages="$errors->get('occupation')" class="mt-1" />
                         </div>
                     </div>
 
@@ -155,7 +151,7 @@
 
                     <!-- Photo -->
                     <div class="mb-6">
-                        <label for="ic_photo_path" id="photo_label" class="block text-sm font-medium text-slate-900 mb-1">Upload photocopy IC (for rental purpose)</label>
+                        <x-form.input-label for="ic_photo_path" id="photo_label" value="Upload photocopy IC (for rental purpose)" class="mb-1" />
                         <p class="text-xs text-gray-500 mb-2">Please ask user to scratch IC before upload.</p>
                         
                         <div id="ic_preview_container" class="mb-2 {{ $tenant->ic_photo_path ? '' : 'hidden' }}">
@@ -166,9 +162,9 @@
                             @endif
                         </div>
 
-                        <input type="file" name="ic_photo_path" id="ic_photo_path" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100">
+                        <x-form.file-input name="ic_photo_path" id="ic_photo_path" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full" />
                         <p class="text-xs text-gray-500 mt-1">Leave empty to keep current photo.</p>
-                        @error('ic_photo_path') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                        <x-form.input-error :messages="$errors->get('ic_photo_path')" class="mt-1" />
                     </div>
 
                     <div class="flex justify-end pt-4 border-t">

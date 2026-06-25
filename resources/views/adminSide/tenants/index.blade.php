@@ -31,26 +31,25 @@
                 <!-- Search Section -->
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
-                        <x-form.form method="GET" action="{{ route('admin.tenants.index') }}" class="flex items-stretch gap-2">
-                            <div class="flex items-stretch">
+                        <x-form.form method="GET" action="{{ route('admin.tenants.index') }}" class="flex flex-wrap items-center gap-4">
+                            <div class="flex items-stretch justify-between">
                                 <x-table.search placeholder="Search by tenant name..." />
                             </div>
                         </x-form.form>
-                    </div>
-                </div>
+                    </div>                </div>
 
                 <!-- Table Section -->
                 <div class="overflow-x-auto">
                     @if($tenants->count() > 0)
-                        <table class="w-full divide-y divide-gray-200 text-left">
+                        <table class="table-auto w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Tenant Details</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Contact Info</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Demographics</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Emergency</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Document</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Joined Date</th>
+                                    <x-table.th name="Tenant Details" sortField="n" />
+                                    <x-table.th name="Contact Info" sortField="p" />
+                                    <x-table.th name="Demographics" />
+                                    <x-table.th name="Emergency" />
+                                    <x-table.th name="Document" />
+                                    <x-table.th name="Joined Date" sortField="jd" />
                                     @can('owner-admin')
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                     @endcan

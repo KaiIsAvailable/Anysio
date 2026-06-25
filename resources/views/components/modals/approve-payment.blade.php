@@ -44,16 +44,14 @@
                     {{-- 右侧：操作面板 --}}
                     <div class="md:w-64 bg-slate-50/80 border-t md:border-t-0 md:border-l border-slate-100 p-4 md:p-6 flex flex-row md:flex-col justify-center items-center gap-3">
                         {{-- Reject Button --}}
-                        <form action="{{ route('admin.payments.reject', $payment->id) }}" method="POST" x-data="{ loading: false }" @submit="loading = true" class="flex-1 md:w-full">
-                            @csrf
-                            @method('PATCH')
+                        <x-form.form action="{{ route('admin.payments.reject', $payment->id) }}" method="PATCH" class="flex-1 md:w-full">
                             <x-form.secondary-button type="submit" 
                                     loading="loading"
                                     onclick="return confirm('Reject this transaction?')"
                                     class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
                                 Reject
                             </x-form.secondary-button>
-                        </form>
+                        </x-form.form>
 
                         <x-form.primary-button type="button" 
                             @click="$dispatch('open-payment-record', { 

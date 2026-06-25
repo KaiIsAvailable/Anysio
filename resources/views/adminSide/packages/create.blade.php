@@ -23,16 +23,16 @@
                             <h3 class="text-sm font-bold text-indigo-600 uppercase tracking-wider mb-4">Basic Information</h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label for="name" class="block text-sm font-semibold text-gray-700">Package Name</label>
-                                    <input type="text" name="name" id="name" value="{{ old('name') }}" placeholder="e.g. PREMIUM P1" required 
-                                           class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 uppercase">
+                                    <x-form.input-label for="name" value="Package Name" />
+                                    <x-form.text-input name="name" id="name" value="{{ old('name') }}" placeholder="e.g. PREMIUM P1" required 
+                                           class="mt-1 block w-full uppercase" />
                                     @error('name') <p class="mt-1 text-xs text-red-500">{{ $message }}</p> @enderror
                                 </div>
 
                                 <div>
-                                    <label for="ref_code" class="block text-sm font-semibold text-gray-700">Reference Code</label>
-                                    <input type="text" name="ref_code" id="ref_code" value="{{ old('ref_code') }}" placeholder="AUTO-GENERATED" readonly 
-                                           class="mt-1 block w-full rounded-lg border-gray-200 bg-gray-50 shadow-sm font-mono uppercase cursor-not-allowed">
+                                    <x-form.input-label for="ref_code" value="Reference Code" />
+                                    <x-form.text-input name="ref_code" id="ref_code" value="{{ old('ref_code') }}" placeholder="AUTO-GENERATED" readonly 
+                                           class="mt-1 block w-full bg-gray-50 font-mono uppercase cursor-not-allowed" />
                                 </div>
                             </div>
                         </div>
@@ -43,12 +43,9 @@
                             
                             {{-- 1. 周期选择 --}}
                             <div class="mb-6 w-1/2">
-                                <label for="price_mode" class="block text-sm font-semibold text-gray-700">Billing Cycle</label>
-                                <select name="price_mode" id="price_mode" required 
-                                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 uppercase text-sm">
-                                    <option value="MONTHLY">MONTHLY</option>
-                                    <option value="YEARLY">YEARLY</option>
-                                </select>
+                                <x-form.input-label for="price_mode" value="Billing Cycle" />
+                                <x-form.input-select name="price_mode" id="price_mode" :options="['MONTHLY' => 'MONTHLY', 'YEARLY' => 'YEARLY']" required 
+                                        class="mt-1 block w-full uppercase text-sm" />
                             </div>
 
                             {{-- 2. 模式切换：通过 x-model 双向绑定 commType 状态 --}}
@@ -57,13 +54,13 @@
                                 <div class="flex gap-4">
                                     <label class="inline-flex items-center cursor-pointer">
                                         <input type="radio" name="comm_type" value="percentage" 
-                                            x-model="commType" {{-- 👈 绑定 Alpine 状态 --}}
+                                            x-model="commType" 
                                             class="text-indigo-600 focus:ring-indigo-500">
                                         <span class="ml-2 text-sm text-gray-600 font-medium">Percentage of Rental (%)</span>
                                     </label>
                                     <label class="inline-flex items-center cursor-pointer">
                                         <input type="radio" name="comm_type" value="fixed" 
-                                            x-model="commType" {{-- 👈 绑定 Alpine 状态 --}}
+                                            x-model="commType" 
                                             class="text-indigo-600 focus:ring-indigo-500">
                                         <span class="ml-2 text-sm text-gray-600 font-medium">Fixed Subscription Fee (RM)</span>
                                     </label>
@@ -77,18 +74,18 @@
                                 <div x-show="commType === 'percentage'" x-transition class="animate-fadeIn">
                                     <label class="block text-sm font-semibold text-gray-700">Billing Rate (%)</label>
                                     <div class="mt-1 relative w-full">
-                                        <input type="number" 
+                                        <x-form.text-input type="number" 
                                             name="commission_display" 
                                             id="commission_display"
-                                            :disabled="commType !== 'percentage'" {{-- 👈 关键：不显示时必须 disable，这样核心组件的 querySelector 就会自动跳过它！ --}}
+                                            :disabled="commType !== 'percentage'" 
                                             value="{{ old('commission_display') }}"
                                             min="1" 
                                             max="100" 
                                             step="0.01" 
                                             placeholder="0" 
-                                            class="block w-full rounded-lg border-gray-300 pr-10 focus:ring-indigo-500 focus:border-indigo-500"
+                                            class="block w-full pr-10 focus:ring-indigo-500 focus:border-indigo-500"
                                             onwheel="this.blur()"
-                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46">
+                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46" />
                                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                             <span class="text-gray-500 text-sm">%</span>
                                         </div>
@@ -99,17 +96,17 @@
                                 {{-- 固定价格输入 --}}
                                 <div x-show="commType === 'fixed'" x-transition class="animate-fadeIn">
                                     <label class="block text-sm font-semibold text-gray-700">Fixed Price (RM)</label>
-                                    <div class="mt-1 relative w-full"> {{-- 修正了 w-100 错误 --}}
-                                        <input type="number" 
+                                    <div class="mt-1 relative w-full"> 
+                                        <x-form.text-input type="number" 
                                             step="0.01" 
                                             name="price_display" 
                                             id="price_display" 
-                                            :disabled="commType !== 'fixed'" {{-- 👈 关键：不显示时自动 disable 避开回车排队 --}}
+                                            :disabled="commType !== 'fixed'" 
                                             value="{{ old('price_display') }}"
                                             placeholder="0.00" 
-                                            class="block w-full rounded-lg border-gray-300 focus:ring-indigo-500"
+                                            class="block w-full focus:ring-indigo-500"
                                             onwheel="this.blur()" 
-                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46">
+                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46" />
                                     </div>
                                     <p class="mt-1 text-[10px] text-gray-400 italic">Example: Fixed RM 100 per billing cycle.</p>
                                 </div>
@@ -124,14 +121,14 @@
                                 
                                 {{-- 1. 原本支持多少 Lease --}}
                                 <div>
-                                    <label for="base_lease" class="block text-sm font-semibold text-slate-700">Base Lease Quota</label>
+                                    <x-form.input-label for="base_lease" value="Base Lease Quota" />
                                     <div class="mt-1 relative">
-                                        <input type="number" name="base_lease" id="base_lease" 
+                                        <x-form.text-input type="number" name="base_lease" id="base_lease" 
                                             value="{{ old('base_lease') }}" placeholder="0"  required 
-                                            class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                            class="block w-full"
                                             onwheel="this.blur()"
                                             oninput="if(this.value.length > 9) this.value = this.value.slice(0, 9);"
-                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46">
+                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46" />
                                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                             <span class="text-gray-400 text-xs">Leases</span>
                                         </div>
@@ -141,31 +138,31 @@
 
                                 {{-- 2. Add-on Price (加一个多少钱) --}}
                                 <div>
-                                    <label for="add_on_price" class="block text-sm font-semibold text-slate-700">Add-on Price (Per Lease)(RM)</label>
+                                    <x-form.input-label for="add_on_price_display" value="Add-on Price (Per Lease)(RM)" />
                                     <div class="mt-1 relative">
-                                        <input type="number" 
+                                        <x-form.text-input type="number" 
                                             step="0.01" 
                                             name="add_on_price_display" 
                                             id="add_on_price_display"
                                             value="{{ old('add_on_price_display') }}"
                                             placeholder="0.00" 
                                             required
-                                            class="block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                                            class="block w-full"
                                             onwheel="this.blur()"
-                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46">
+                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46" />
                                     </div>
                                     <p class="mt-2 text-[11px] text-gray-500 italic">Charge for each additional lease added.</p>
                                 </div>
 
                                 {{-- 3. Lease Limit (最多加购多少) --}}
                                 <div>
-                                    <label for="add_on_limit" class="block text-sm font-semibold text-slate-700">Max Add-on Limit</label>
+                                    <x-form.input-label for="add_on_limit" value="Max Add-on Limit" />
                                     <div class="mt-1 relative">
-                                        <input type="number" name="add_on_limit" id="add_on_limit" 
+                                        <x-form.text-input type="number" name="add_on_limit" id="add_on_limit" 
                                             value="{{ old('add_on_limit') }}" placeholder="0"  required 
-                                            class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                            class="block w-full"
                                             onwheel="this.blur()"
-                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46">
+                                            onkeypress="return event.charCode >= 48 && event.charCode <= 57 || event.charCode === 46" />
                                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                             <span class="text-gray-400 text-xs">Leases</span>
                                         </div>

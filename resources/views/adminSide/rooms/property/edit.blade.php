@@ -60,6 +60,7 @@
                                     />
                                 </div>
                             @endif
+
                             {{-- Property Name --}}
                             <div>
                                 <x-form.input-label value="Property Name" class="mb-1" />
@@ -67,7 +68,7 @@
                                     name="name" 
                                     value="{{ old('name', $property->name) }}" 
                                     placeholder="E.G. ANYSIO HQ"
-                                    class="w-full "
+                                    class="w-full"
                                     required 
                                 />
                                 <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
@@ -79,58 +80,59 @@
                                 <x-form.input-select 
                                     name="type"
                                     :value="$property->type"
-                                    class=" w-full"
+                                    class="w-full"
                                     :options="['Condo' => 'Condo / Apartment', 'Landed' => 'Landed House', 'Commercial' => 'Commercial Building', 'Shop Lot' => 'Shop Lot']"
                                     placeholder="Select a Property Type">
                                 </x-form.input-select>
                             </div>
 
-                            {{-- Address --}}
+                            {{-- Address 💡 已替换为组件 Label --}}
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Address</label>
+                                <x-form.input-label value="Address" class="mb-1" />
                                 <textarea name="address" rows="3" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">{{ old('address', $property->address) }}</textarea>
-                                @error('address') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
+                                <x-form.input-error :messages="$errors->get('address')" class="mt-1" />
                             </div>
 
-                            {{-- City & Postcode --}}
+                            {{-- City & Postcode 💡 已替换为组件 Text-Input --}}
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-900 mb-1">City</label>
-                                    <input type="text" name="city" value="{{ old('city', $property->city) }}" 
-                                           class=" w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                                    <x-form.input-label value="City" class="mb-1" />
+                                    <x-form.text-input 
+                                        name="city" 
+                                        value="{{ old('city', $property->city) }}" 
+                                        class="w-full"
+                                    />
+                                    <x-form.input-error :messages="$errors->get('city')" class="mt-1" />
                                 </div>
 
                                 <div>
-                                    <label class="block text-sm font-medium text-slate-900 mb-1">Postcode</label>
-                                     <input type="text" name="postcode" value="{{ old('postcode', $property->postcode) }}"
-                                         class=" w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" pattern="\d{5}" maxlength="5" minlength="5" inputmode="numeric"
-                                         oninput="this.value = this.value.replace(/[^0-9]/g, '')">
+                                    <x-form.input-label value="Postcode" class="mb-1" />
+                                     <x-form.text-input 
+                                        name="postcode" 
+                                        value="{{ old('postcode', $property->postcode) }}"
+                                        class="w-full" 
+                                        pattern="\d{5}" 
+                                        maxlength="5" 
+                                        minlength="5" 
+                                        inputmode="numeric"
+                                        oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                                    />
+                                    <x-form.input-error :messages="$errors->get('postcode')" class="mt-1" />
                                 </div>
                             </div>
 
-                            {{-- State (这里建议用我之前给你的马来西亚州属列表) --}}
+                            {{-- State --}}
                             <div>
                                 <x-form.input-label value="State" class="mb-1" />
                                 <x-form.input-select 
                                     name="state" 
                                     :value="$property->state"
                                     :options="[
-                                        'Johor' => 'Johor',
-                                        'Kedah' => 'Kedah',
-                                        'Kelantan' => 'Kelantan',
-                                        'Melaka' => 'Melaka',
-                                        'Negeri Sembilan' => 'Negeri Sembilan',
-                                        'Pahang' => 'Pahang',
-                                        'Perak' => 'Perak',
-                                        'Perlis' => 'Perlis',
-                                        'Pulau Pinang' => 'Pulau Pinang',
-                                        'Sabah' => 'Sabah',
-                                        'Sarawak' => 'Sarawak',
-                                        'Selangor' => 'Selangor',
-                                        'Terengganu' => 'Terengganu',
-                                        'W.P. Kuala Lumpur' => 'W.P. Kuala Lumpur',
-                                        'W.P. Labuan' => 'W.P. Labuan',
-                                        'W.P. Putrajaya' => 'W.P. Putrajaya'
+                                        'Johor' => 'Johor', 'Kedah' => 'Kedah', 'Kelantan' => 'Kelantan', 'Melaka' => 'Melaka',
+                                        'Negeri Sembilan' => 'Negeri Sembilan', 'Pahang' => 'Pahang', 'Perak' => 'Perak',
+                                        'Perlis' => 'Perlis', 'Pulau Pinang' => 'Pulau Pinang', 'Sabah' => 'Sabah',
+                                        'Sarawak' => 'Sarawak', 'Selangor' => 'Selangor', 'Terengganu' => 'Terengganu',
+                                        'W.P. Kuala Lumpur' => 'W.P. Kuala Lumpur', 'W.P. Labuan' => 'W.P. Labuan', 'W.P. Putrajaya' => 'W.P. Putrajaya'
                                     ]" 
                                     placeholder="Select a State"
                                 />

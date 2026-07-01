@@ -40,7 +40,7 @@ class PropertyController extends Controller
                 $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
                 $q->where(function ($sub) use ($ownerIds, $user) {
                     $sub->whereIn('properties.owner_id', $ownerIds)
-                        ->orWhere('properties.created_by', $user->id); // 允许显示 owner_id 为 null 但自己创建的房产
+                        ->orWhere('properties.created_by', $user->id); 
                 });
             } elseif (Gate::allows('owner-admin')) {
                 // Owner 只能看自己创建的 OR 自己是 Owner 的
@@ -53,33 +53,31 @@ class PropertyController extends Controller
             }
         });
 
+        // 💡 重点：严格对齐 index.blade.php 中的 6 列 (Name, Type, Status, Owner, Address, Created)
         $sortMapping = [
-            'n'   => trim('properties.name'),
-            'a'   => trim('properties.address'),
-            'c'   => trim('properties.city'),
-            'p'   => trim('properties.postcode'),
-            's'   => trim('properties.state'),
-            't'   => trim('properties.type'),
-            'cr'  => trim('properties.created_at'),
-            'st'  => trim('properties.status'),
-            'o'   => trim('owner_name'),
-            'cre' => trim('creator_name'),
+            'n'  => 'properties.name',
+            't'  => 'properties.type',
+            'st' => 'properties.status',
+            'o'  => 'owner_name',
+            'a'  => 'properties.address',
+            'cr' => 'properties.created_at',
         ];
 
+        // 💡 重点：搜索只搜表格里显示的列 (Address 包含了 City, Postcode, State 所以一起搜)
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('properties.name', 'like', "%{$search}%")
+                    ->orWhere('properties.type', 'like', "%{$search}%")
+                    ->orWhere('properties.status', 'like', "%{$search}%")
                     ->orWhere('properties.address', 'like', "%{$search}%")
                     ->orWhere('properties.city', 'like', "%{$search}%")
                     ->orWhere('properties.postcode', 'like', "%{$search}%")
                     ->orWhere('properties.state', 'like', "%{$search}%")
-                    ->orWhere('properties.type', 'like', "%{$search}%")
                     ->orWhere('owners.name', 'like', "%{$search}%");
             });
         }
 
         $sortParam = $request->query('sort');
-
         $field = Str::beforeLast($sortParam, '_');
         $direction = Str::afterLast($sortParam, '_');
 
@@ -88,7 +86,6 @@ class PropertyController extends Controller
         } else {
             $query->orderBy('properties.id', 'desc');
         }
-
 
         $properties = $query->paginate(10)->onEachSide(1)->appends($request->query());
 
@@ -160,33 +157,32 @@ class PropertyController extends Controller
         $query = Unit::query()
             ->where('property_id', $property->id)
             ->leftJoin('users as owners', 'units.owner_id', '=', 'owners.id')
-            ->select('units.*', 'owners.name as owner_name'); // 获取业主名用于排序
+            ->select('units.*', 'owners.name as owner_name');
 
-        // 搜索逻辑
+        // 💡 重点：搜索逻辑严格限制在 Unit No, Status 和 Owner Name
         $search = $request->input('search');
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('units.unit_no', 'like', "%{$search}%")
+                    ->orWhere('units.status', 'like', "%{$search}%")
                     ->orWhere('owners.name', 'like', "%{$search}%");
             });
         }
+        
         $user = Auth::user();
 
         if (!Gate::allows('super-admin')) {
             if (Gate::allows('owner-admin')) {
                 if ($property->created_by !== $user->id && $property->owner_id !== $user->id) {
-                    return redirect()->route('admin.properties.index')
-                        ->with('error', 'You are not authorized to view that property.');
+                    return redirect()->route('admin.properties.index')->with('error', 'You are not authorized to view that property.');
                 }
             } elseif (Gate::allows('agent-admin')) {
                 $allowedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
                 if (!$allowedOwnerIds->contains($property->owner_id)) {
-                    return redirect()->route('admin.properties.index')
-                        ->with('error', 'You are not authorized to view that property.');
+                    return redirect()->route('admin.properties.index')->with('error', 'You are not authorized to view that property.');
                 }
             } else {
-                return redirect()->route('admin.properties.index')
-                    ->with('error', 'You are not authorized to view that property.');
+                return redirect()->route('admin.properties.index')->with('error', 'You are not authorized to view that property.');
             }
         }
 
@@ -201,12 +197,11 @@ class PropertyController extends Controller
             }
         }]);
 
-        // 排序白名单
+        // 💡 重点：排序白名单，严格对齐 show.blade.php 里的 4 个 TH
         $sortMapping = [
             'u' => 'units.unit_no',
-            'o' => 'owner_name',    // 对应上面 join 进来的字段
+            'o' => 'owner_name',    
             's' => 'units.status',
-            'p' => 'units.management_fee', // 假设 Price 指的是管理费
         ];
 
         $sortParam = $request->query('sort');

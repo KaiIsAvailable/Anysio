@@ -51,61 +51,26 @@
 
                 <div class="overflow-x-auto">
                     @if($unit->rooms->count() > 0)
-                        @php
-                            $sort = request('sort');
-                            $noDesc = $sort === 'room_no_desc';
-                            $noAsc  = $sort === 'room_no_asc';
-                            $nextNoSort = $noAsc ? 'room_no_desc' : 'room_no_asc';
-
-                            $dateDesc = $sort === 'newest';
-                            $dateAsc  = is_null($sort) || $sort === 'oldest';
-                            $nextDateSort = $dateAsc ? 'newest' : 'oldest';
-                        @endphp
-
                         <table class="table-fixed w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                             <thead class="bg-gray-50">
-                            <tr>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
-                                    <div class="flex items-center">
-                                        @if($unit->has_rooms == 1)
-                                            <a href="{{ route('admin.units.show', array_merge(['unit' => $unit->id], request()->query(), ['sort' => $nextNoSort])) }}"
-                                            class="inline-flex items-center space-x-1 text-indigo-600 hover:text-indigo-900 font-bold">
-                                                <span>Room No</span>
-                                                @if($noAsc)
-                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                                                @elseif($noDesc)
-                                                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                                @endif
-                                            </a>
-                                        @else
-                                            <div class="inline-flex items-center space-x-1 text-gray-400 cursor-default">
-                                                <span class="font-medium">Unit Only</span>
-                                                <svg class="h-4 w-4 opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                                                </svg>
-                                            </div>
-                                        @endif
-                                    </div>
-                                </th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Type</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Owner</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Assets</th>
-                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">
-                                    <a href="{{ route('admin.units.show', array_merge(['unit' => $unit->id], request()->query(), ['sort' => $nextDateSort])) }}"
-                                       class="inline-flex items-center space-x-1 text-gray-700 hover:text-indigo-600">
-                                        <span>Created</span>
-                                        @if($dateAsc)
-                                            <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15l7-7 7 7"/></svg>
-                                        @elseif($dateDesc)
-                                            <svg class="h-4 w-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                                        @endif
-                                    </a>
-                                </th>
-                                @can('owner-admin')
-                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                @endcan
-                            </tr>
+                                <tr>
+                                    {{-- 逻辑：如果是 Unit Only 就只显示文字，不给排序；如果有 Room 才给排序 --}}
+                                    @if($unit->has_rooms == 1)
+                                        <x-table.th name="Room No" sortField="r" />
+                                    @else
+                                        <x-table.th name="Unit Only" />
+                                    @endif
+                                    
+                                    <x-table.th name="Type" sortField="t" />
+                                    <x-table.th name="Status" sortField="s" />
+                                    <x-table.th name="Owner" /> {{-- Owner 是 Unit 级别的，通常不参与 Room 列表排序 --}}
+                                    <x-table.th name="Assets" />
+                                    <x-table.th name="Created" sortField="c" />
+                                    
+                                    @can('owner-admin')
+                                        <x-table.th name="Actions" />
+                                    @endcan
+                                </tr>
                             </thead>
 
                             <tbody class="bg-white divide-y divide-gray-200">

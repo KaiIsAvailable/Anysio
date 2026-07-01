@@ -70,7 +70,7 @@ class LeaseController extends Controller
             });
         }
 
-        // 3. 搜索逻辑更新
+        // 3. 搜索逻辑更新 (保持你的原有优秀逻辑)
         if ($search) {
             $query->where(function ($q) use ($search) {
                 $q->where('status', 'like', '%' . $search . '%')
@@ -106,9 +106,35 @@ class LeaseController extends Controller
             $query->where('status', $status);
         }
 
-        // 4. 获取数据（既然去掉了 hover 展开，不需要 $groups 了）
-        $leases = $query->orderBy('created_at', 'desc')
-            ->where('is_current', true)
+        // 4. 完美对齐前端表头的 Sort 逻辑
+        $sortParam = $request->query('sort');
+        $field = Str::beforeLast($sortParam, '_');
+        $direction = Str::afterLast($sortParam, '_');
+
+        if ($field === 't' && in_array($direction, ['asc', 'desc'])) {
+            // 通过 Join 排序租客名称
+            $query->join('tenants', 'leases.tenant_id', '=', 'tenants.id')
+                  ->join('users as tu', 'tenants.user_id', '=', 'tu.id')
+                  ->orderBy('tu.name', $direction)
+                  ->select('leases.*'); // 防止 ID 冲突
+        } else {
+            // 直属字段的排序白名单
+            $sortMapping = [
+                'd'  => 'start_date',
+                'r'  => 'rent_price',
+                'de' => 'security_deposit',
+                's'  => 'status',
+            ];
+
+            if (array_key_exists($field, $sortMapping) && in_array($direction, ['asc', 'desc'])) {
+                $query->orderBy($sortMapping[$field], $direction);
+            } else {
+                $query->orderBy('leases.created_at', 'desc');
+            }
+        }
+
+        // 获取数据
+        $leases = $query->where('is_current', true)
             ->paginate(10)
             ->onEachSide(1)
             ->appends($request->query());

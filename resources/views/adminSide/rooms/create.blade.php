@@ -67,7 +67,7 @@
                                     <x-form.input-label value="Status" class="mb-1" />
                                     <x-form.input-select 
                                         name="status" 
-                                        :options="['Vacant' => 'Vacant', 'Occupied' => 'Occupied', 'Maitenance' => 'Maitenance']" 
+                                        :options="['Vacant' => 'Vacant', 'Occupied' => 'Occupied', 'Maintenance' => 'Maintenance']" 
                                         :value="old('status')" 
                                         class="w-full" 
                                         required />

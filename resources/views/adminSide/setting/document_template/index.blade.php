@@ -27,7 +27,7 @@
                     <x-form.primary-button
                         type="button"
                         loading="loading"
-                        @click="loading = true; window.location.href = '{{ route('admin.agreements.create') }}'">
+                        @click="loading = true; window.location.href = '{{ route('admin.document-templates.create') }}'">
 
                         <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -100,7 +100,7 @@
                                 </svg>
                             </button>
 
-                            <a :href="'{{ route('admin.agreements.create') }}?from_id=' + currentId"
+                            <a :href="'{{ route('admin.document-templates.create') }}?from_id=' + currentId"
                                 class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                 title="Create new version based on this selected version">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -215,7 +215,7 @@
         function activateVersion(id) {
             console.log("Activating version ID:", id);
 
-            let url = "{{ route('admin.agreements.activate', ':id') }}".replace(':id', id);
+            let url = "{{ route('admin.document-templates.activate', ':id') }}".replace(':id', id);
 
             fetch(url, {
                     method: 'POST',

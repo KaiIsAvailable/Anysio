@@ -2,12 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Property;
-use App\Models\Tenants;
-use App\Models\Agreements;
 use Illuminate\Support\Facades\Gate;
 use App\Models\Owners;
-use App\Models\Payment;
+use App\Models\Invoice;
 use App\Services\SetupCheckerService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -62,22 +59,22 @@ class DashboardController extends Controller
         $counts = (array) $stats;
 
         //Payment
-        $overduePayments = Payment::with([
-                'tenant.user',
-                'lease.unit', 
-                'lease.room'  
-            ])
-            ->where('status', 'unpaid')
-            ->where('period', '<', now())
-            // 直接在这里过滤 tenant 表
-            ->whereHas('tenant', function ($query) {
-                $query->where('created_by', Auth::id());
-            })
-            ->orderBy('period', 'asc')
-            ->get();
+        $overdueInvoices = Invoice::with([
+            'lease.tenant.user',
+            'lease.unit',
+            'lease.room',
+            'items'
+        ])
+        ->where('status', 'unpaid') 
+        ->where('due_date', '<', now())
+        ->whereHas('lease.tenant', function ($query) {
+            $query->where('created_by', Auth::id()); 
+        })
+        ->orderBy('due_date', 'asc')
+        ->get();
 
         $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset'], 'exists');
 
-        return view('dashboard', compact('overduePayments', 'checks', 'counts'));
+        return view('dashboard', compact('overdueInvoices', 'checks', 'counts'));
     }
 }

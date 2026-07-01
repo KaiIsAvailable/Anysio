@@ -7,6 +7,7 @@ use App\Http\Controllers\PaymentsController;
 use App\Models\User;
 use App\Models\UserPayment;
 use App\Models\Agreements;
+use App\Models\DocumentTemplate;
 use App\Models\Owners;
 use App\Models\Tenants;
 use App\Models\UserManagement;
@@ -68,8 +69,8 @@ class RegisteredUserController extends Controller
             return back()->withErrors(['email' => 'This account is already active.']);
         }
 
-        $latestTos = Agreements::where('type', 'tos')->where('status', 'active')->latest()->first();
-        $latestPrivacy = Agreements::where('type', 'privacy')->where('status', 'active')->latest()->first();
+        $latestTos = DocumentTemplate::where('category', 'tos')->where('status', 'active')->latest()->first();
+        $latestPrivacy = DocumentTemplate::where('category', 'privacy')->where('status', 'active')->latest()->first();
 
         return DB::transaction(function () use ($request, $latestTos, $latestPrivacy) {
             $user = null;

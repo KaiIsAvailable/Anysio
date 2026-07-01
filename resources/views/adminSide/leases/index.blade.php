@@ -12,7 +12,7 @@
                     <x-form.primary-button
                         type="button"
                         loading="loading"
-                        @click="loading = true; window.location.href = '{{ route('admin.agreements.index') }}'"
+                        @click="loading = true; window.location.href = '{{ route('admin.document-templates.index') }}'"
                         >
                         Agreement Templates
                     </x-form.primary-button>

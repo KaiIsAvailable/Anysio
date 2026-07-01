@@ -28,7 +28,7 @@ return new class extends Migration
                     $table->foreignUlid('tos_id') // 必须是 foreignUlid 才能匹配 01knya... 这种格式
                         ->nullable()
                         ->after('is_agree')
-                        ->constrained('agreements') 
+                        ->constrained('document_templates') 
                         ->onDelete('set null');
                 }
 
@@ -37,7 +37,7 @@ return new class extends Migration
                     $table->foreignUlid('privacy_id') // 同样改为 foreignUlid
                         ->nullable()
                         ->after('tos_id')
-                        ->constrained('agreements')
+                        ->constrained('document_templates')
                         ->onDelete('set null');
                 }
 

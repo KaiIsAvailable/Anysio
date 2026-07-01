@@ -65,7 +65,7 @@
                         {{ __('Rooms') }}
                     </x-nav-link>-->
 
-                    <x-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*', 'admin.agreements.*')">
+                    <x-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*', 'admin.document-templates.*')">
                         {{ __('Leases') }}
                     </x-nav-link>
 
@@ -78,8 +78,8 @@
                     </x-nav-link>-->
 
                     <!--@can('owner-admin')
-                        <x-nav-link :href="route('admin.agreements.index')" :active="request()->routeIs('admin.agreements.*')">
-                            {{ __('Agreement Templates') }}
+                        <x-nav-link :href="route('admin.document-templates.index')" :active="request()->routeIs('admin.document-templates.*')">
+                            {{ __('Document Templates') }}
                         </x-nav-link>
                     @endcan-->
 
@@ -194,8 +194,8 @@
                                         {{ __('+ Boost Lease Capacity') }}
                                     </button>
 
-                                    <x-dropdown-link :href="route('admin.agreements.create')" class="pl-8 py-2 text-xs">
-                                        {{ __('+ Add Agreement') }}
+                                    <x-dropdown-link :href="route('admin.document-templates.create')" class="pl-8 py-2 text-xs">
+                                        {{ __('+ Add Document Template') }}
                                     </x-dropdown-link>
                                 </div>
                             </div>
@@ -267,7 +267,7 @@
                 </x-responsive-nav-link>
             @endcan
 
-            <x-responsive-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*') || request()->routeIs('admin.agreements.*')">
+            <x-responsive-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*') || request()->routeIs('admin.document-templates.*')">
                 {{ __('Leases') }}
             </x-responsive-nav-link>
 

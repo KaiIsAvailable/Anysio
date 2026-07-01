@@ -20,7 +20,7 @@
                         @if(!$checks['owner'])   <li><a href="{{ route('admin.owners.create') }}">Add your first owner</a></li> @endif
                         @if(!$checks['property']) <li><a href="{{ route('admin.properties.create') }}">Add your first property</a></li> @endif
                         @if(!$checks['asset'])    <li><a href="{{ route('admin.roomAsset.create') }}">Add your first asset</a></li> @endif
-                        @if(!$checks['template']) <li><a href="{{ route('admin.agreements.create') }}">Setup agreement template</a></li> @endif
+                        @if(!$checks['template']) <li><a href="{{ route('admin.document-templates.create') }}">Setup agreement template</a></li> @endif
                     </ul>
                 </x-notification-banner>
             @endif
@@ -79,33 +79,44 @@
                 <table class="w-full text-left">
                     <thead class="text-xs text-slate-400 uppercase">
                         <tr>
-                            <th class="pb-3">Unit</th>
+                            <th class="pb-3">Invoice No.</th>
+                            <th class="pb-3">Leaseable Type</th>
+                            <th class="pb-3">Leaseable Name</th>
                             <th class="pb-3">Tenant</th>
                             <th class="pb-3">Amount</th>
-                            <th class="pb-3">Due Date</th> </tr>
+                            <th class="pb-3">Due Date</th> 
+                        </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
-                        @forelse($overduePayments as $payment)
+                        @forelse($overdueInvoices as $invoice)
                         <tr class="text-sm font-medium hover:bg-slate-50">
                             <td class="py-4">
-                                {{ $payment->lease->leasableName ?? 'N/A' }}
+                                {{ $invoice->invoice_no ?? 'N/A' }}
                             </td>
                             
                             <td class="py-4">
-                                {{ $payment->tenant->user->name ?? 'Unknown' }}
+                                {{ $invoice->lease->leasable_type ?? 'N/A' }}
+                            </td>
+                            
+                            <td class="py-4">
+                                {{ $invoice->lease->leasable_name ?? 'N/A' }}
+                            </td>
+                            
+                            <td class="py-4">
+                                {{ $invoice->tenant->user->name ?? 'Unknown' }}
                             </td>
                             
                             <td class="py-4 text-rose-600 font-bold">
-                                RM {{ number_format($payment->amount_due, 2) }}
+                                RM {{ number_format($invoice->amount_due, 2) }}
                             </td>
                             
                             <td class="py-4 text-xs text-slate-500">
-                                {{ $payment->periodDisplay }}
+                                {{ $invoice->periodDisplay }}
                             </td>
                         </tr>
                         @empty
                         <tr>
-                            <td colspan="4" class="py-4 text-center text-slate-400">No overdue payments.</td>
+                            <td colspan="6" class="py-4 text-center text-slate-400">No overdue payments.</td>
                         </tr>
                         @endforelse
                     </tbody>

@@ -286,25 +286,10 @@ class TenantsController extends Controller
             $lease->can_generate = !is_null($paymentsController->calculateNextPendingPeriod($lease));
         }
 
-        // 4. 其余账单查询逻辑保持不变
-        $rentPayments = $tenant->payments()
-            ->where('payment_type', 'rent')
-            ->where('status', '!=', 'void')
-            ->orderBy('period', 'desc')
-            ->paginate(5, ['*'], 'rent_page')
-            ->onEachSide(1);
-
-        $otherPayments = $tenant->payments()
-            ->where('payment_type', '!=', 'rent')
-            ->where('status', '!=', 'void')
-            ->latest()
-            ->paginate(5, ['*'], 'other_page')
-            ->onEachSide(1);
-
         $latestLease = $leases->first(); // 注意：从分页结果中获取第一个
 
         return view('adminSide.tenants.show', compact(
-            'tenant', 'leases', 'latestLease', 'rentPayments', 'otherPayments'
+            'tenant', 'leases', 'latestLease'
         ));
     }
 

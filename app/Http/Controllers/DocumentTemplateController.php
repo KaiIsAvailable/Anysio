@@ -4,24 +4,30 @@ namespace App\Http\Controllers;
 
 use App\Models\Owners;
 use App\Models\User;
-use App\Models\Agreements;
+use App\Models\DocumentTemplate;
 use App\Traits\RoleBasedDataTrait;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
+use App\Services\DocumentTemplateService;
 
 use Illuminate\Http\Request;
 use Termwind\Components\Raw;
 
-class AgreementController extends Controller
+class DocumentTemplateController extends Controller
 {
     use RoleBasedDataTrait;
+    
+    public function __construct(
+        protected DocumentTemplateService $documentTemplateService
+    ) {}
+
     public function index(Request $request)
     {
         $search = $request->input('search');
         
         // 💡 1. 移除原本的 historyVersions 預載入，改由下方手動精準加載
-        $query = Agreements::with(['user']) 
+        $query = DocumentTemplate::with(['user']) 
             ->where('status', 'active');
 
         // 权限判断逻辑
@@ -56,7 +62,7 @@ class AgreementController extends Controller
         // 💡 3. 一次性把這些家族的所有成員（包含始祖 v1.0）全部撈出來，完美解決 N+1 效能問題
         $allHistories = collect();
         if (!empty($rootIds)) {
-            $allHistories = Agreements::whereIn('id', $rootIds)
+            $allHistories = DocumentTemplate::whereIn('id', $rootIds)
                 ->orWhereIn('parent_agreement_id', $rootIds)
                 ->orderBy('created_at', 'desc')
                 ->get();
@@ -75,7 +81,7 @@ class AgreementController extends Controller
             return $agreement;
         });
 
-        return view('adminSide.setting.agreement.index', compact('agreements'));
+        return view('adminSide.setting.document_template.index', compact('agreements'));
     }
 
     public function create(Request $request)
@@ -84,98 +90,55 @@ class AgreementController extends Controller
 
         // 权限布尔值判断
         $isOwnerAdmin = $user->role === 'ownerAdmin';
-        $isOwnerAgentAdmin = in_array($user->role, ['ownerAdmin', 'agentAdmin']);
-        $ownerAdmin = $user->name;
+        $isAgentAdmin = $user->role === 'agentAdmin';
+        $ownerAdmin = [$user->id, $user->name];
 
-        $owners = $this->getAuthorizedOwners();
+        if ($isOwnerAdmin) {
+            $ownerOptions = collect([$user]);
+        } elseif ($isAgentAdmin) {
+            $ownerOptions = $this->getAuthorizedOwnersOnly();
+        } else {
+            $ownerOptions = $this->getAuthorizedOwners();
 
-        // 获取动态变量占位符
-        $placeholders = self::getAvailablePlaceholders();
+            $ownerOptions->prepend((object) [
+                'id' => '',
+                'name' => 'System Admin',
+            ]);
+        }
 
         // 处理继承/编辑逻辑
         $sourceAgreement = null;
         if ($request->has('from_id')) {
-            $sourceAgreement = Agreements::findOrFail($request->from_id);
+            $sourceAgreement = DocumentTemplate::findOrFail($request->from_id);
         }
 
         // 将所有变量（包括 $user 实例本身）传递给前端 Blade 视图
-        return view('adminSide.setting.agreement.create', compact(
-            'owners',
-            'isOwnerAgentAdmin',
-            'placeholders',
+        return view('adminSide.setting.document_template.create', compact(
+            'ownerOptions',
+            'isAgentAdmin',
             'sourceAgreement',
             'isOwnerAdmin',
             'ownerAdmin',
-            'user' 
+            'user'
         ));
     }
 
     public function store(Request $request)
     {
-        // 1. 基础验证
         $validated = $request->validate([
-            'parent_agreement_id' => 'nullable|string',
-            'type' => 'required|string',
             'user_id' => 'nullable|exists:users,id',
+            'category' => 'required|string',
             'title' => 'required|string|max:255',
-            'version' => 'required|string',
-            'content' => 'required|string',
+            'version' => 'required|string|max:50',
+            'details' => 'nullable|string',
+            'html_template' => 'required|string',
         ]);
 
-        $parentIdFromRequest = $request->input('parent_agreement_id');
+        $this->documentTemplateService->create($validated);
 
-        // 2. 版本冲突检查（升级版本时才检查）
-        if ($parentIdFromRequest) {
-            $sourceAgreement = Agreements::find($parentIdFromRequest);
-            $rootParentId = $sourceAgreement->parent_agreement_id ?: $sourceAgreement->id;
-
-            $versionExists = Agreements::where(function ($query) use ($rootParentId) {
-                $query->where('parent_agreement_id', $rootParentId)
-                      ->orWhere('id', $rootParentId);
-            })
-            ->where('version', $request->version)
-            ->exists();
-
-            if ($versionExists) {
-                return back()->withErrors(['version' => 'This version already exists for this agreement tree.'])->withInput();
-            }
-        }
-
-        // 3. 数据规范化处理
-        $validated['status'] = 'active';
-
-        if ($validated['type'] !== 'rental_lease') {
-            $validated['user_id'] = null;
-        }
-
-        // 4. 【核心修正】分离“全新添加”与“版本升级”逻辑
-        if ($parentIdFromRequest) {
-            // 这是一次【版本升级】
-            // 1. 获取这棵家族树真正的 Root ID
-            $sourceAgreement = Agreements::find($parentIdFromRequest);
-            $rootParentId = $sourceAgreement->parent_agreement_id ?: $sourceAgreement->id;
-            
-            // 2. 将这棵家族树里现有的 active 版本全部变成 inactive
-            Agreements::where(function ($q) use ($rootParentId) {
-                $q->where('id', $rootParentId)
-                  ->orWhere('parent_agreement_id', $rootParentId);
-            })
-            ->where('status', 'active')
-            ->update(['status' => 'inactive']);
-
-            // 3. 继承家族树的 Root ID
-            $validated['parent_agreement_id'] = $rootParentId;
-        } else {
-            // 这是一次【全新添加】
-            // 因为没有 parent_id，什么都不影响，直接作为独立的新协议
-            $validated['parent_agreement_id'] = null;
-        }
-
-        // 5. 执行创建
-        Agreements::create($validated);
-
-        return redirect()->route('admin.agreements.index')
-            ->with('success', 'Agreement version created and activated successfully!');
+        return redirect()
+            ->route('admin.document-templates.index')
+            ->with('success', 'Document template created successfully.');
     }
 
     private static function getAvailablePlaceholders()
@@ -211,23 +174,23 @@ class AgreementController extends Controller
         ];
     }
 
-    public function activate(Agreements $agreement)
+    public function activate(DocumentTemplate $documentTemplate)
     {
         try {
-            DB::transaction(function () use ($agreement) {
+            DB::transaction(function () use ($documentTemplate) {
                 // 【核心修正】在历史纪录切换版本时，只影响同一个家族树的协议
                 // 获取家族树的 Root ID
-                $rootParentId = $agreement->parent_agreement_id ?: $agreement->id;
+                $rootParentId = $documentTemplate->parent_id ?: $documentTemplate->id;
 
                 // 1. 将这棵家族树里的所有协议都设为 inactive
-                Agreements::where(function ($q) use ($rootParentId) {
+                DocumentTemplate::where(function ($q) use ($rootParentId) {
                     $q->where('id', $rootParentId)
-                      ->orWhere('parent_agreement_id', $rootParentId);
+                      ->orWhere('parent_id', $rootParentId);
                 })
                 ->update(['status' => 'inactive']);
 
                 // 2. 将当前选中的版本恢复为 active
-                $agreement->update(['status' => 'active']);
+                $documentTemplate->update(['status' => 'active']);
             });
 
             return response()->json(['success' => true]);

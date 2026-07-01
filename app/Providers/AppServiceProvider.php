@@ -6,7 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\Gate;
 use App\Models\User;
 use App\Models\Lease;
-use App\Models\Payment;
+use App\Models\Invoice;
 use App\Observers\LeaseObserver;
 use App\Observers\PaymentObserver;
 
@@ -28,7 +28,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Lease::observe(LeaseObserver::class);
-        Payment::observe(PaymentObserver::class);
+        //Invoice::observe(InvoiceObserver::class);
 
         // 定义角色等级
         $levels = [

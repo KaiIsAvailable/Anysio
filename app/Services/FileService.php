@@ -11,6 +11,7 @@ class FileService
         'tenant_ic'      => 'tenants/ic_photo',
         'lease_stamping' => 'leases/stamping_certs',
         'user_receipt'   => 'users/receipts',
+        'user_invoice'   => 'users/invoices',
     ];
 
     public function getPath(string $category, string $userId): string

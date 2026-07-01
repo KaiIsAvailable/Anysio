@@ -148,7 +148,7 @@
                                 
                                 <div x-show="activeTab === 'tos'">
                                     @php
-                                        $tos = \App\Models\Agreements::where('type', 'tos')->where('status', 'active')->latest()->first();
+                                        $tos = \App\Models\DocumentTemplate::where('category', 'tos')->where('status', 'active')->latest()->first();
                                     @endphp
                                     @if($tos)
                                         <div class="prose prose-indigo max-w-none quill-content"> {{-- 建议使用 Tailwind Typography 插件的 prose 类 --}}
@@ -161,7 +161,7 @@
 
                                 <div x-show="activeTab === 'privacy'">
                                     @php
-                                        $privacy = \App\Models\Agreements::where('type', 'privacy')->where('status', 'active')->latest()->first();
+                                        $privacy = \App\Models\DocumentTemplate::where('category', 'privacy')->where('status', 'active')->latest()->first();
                                     @endphp
                                     @if($privacy)
                                         <div class="prose prose-indigo max-w-none quill-content"> {{-- 建议使用 Tailwind Typography 插件的 prose 类 --}}

@@ -53,7 +53,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/staffRoute.php';
         require __DIR__.'/userManagementRoute.php';
         require __DIR__.'/customerServiceRoute.php';
-        require __DIR__.'/agreementRoute.php';
+        require __DIR__.'/documentTemplateRoute.php';
         require __DIR__.'/packageRoute.php';
         require __DIR__.'/auditLogRoute.php';
         require __DIR__.'/notificationRoute.php';

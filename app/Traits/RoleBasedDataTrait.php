@@ -58,6 +58,14 @@ trait RoleBasedDataTrait
         return $this->applyOwnershipFilter($query, $user, 'id')->get();
     }
 
+    protected function getAuthorizedOwnersOnly()
+    {
+        $user = Auth::user();
+        $query = User::where('role', 'owner');
+        
+        return $this->applyOwnershipFilter($query, $user, 'id')->get();
+    }
+
     protected function applyLeaseOwnershipFilter($query, $user)
     {
         if (Gate::allows('super-admin')) return $query;

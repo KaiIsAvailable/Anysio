@@ -1,7 +1,7 @@
 <?php
 namespace App\Services;
 
-use App\Models\{Property, Tenants, Agreements, Owners, User, Asset};
+use App\Models\{Property, Tenants, DocumentTemplate, Owners, User, Asset};
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Collection;
 
@@ -67,7 +67,7 @@ class SetupCheckerService
     {
         if ($user->hasRole('admin')) return true;
 
-        return Agreements::where(function($q) use ($userId, $ownerIds, $user) {
+        return DocumentTemplate::where(function($q) use ($userId, $ownerIds, $user) {
             $q->where('user_id', $userId);
             if ($user->hasRole('agentAdmin')) {
                 $q->orWhereIn('user_id', $ownerIds);

@@ -13,7 +13,7 @@ use App\Traits\Auditable;
 class Property extends Model
 {
     use HasUlids, SyncableStatus, Auditable;
-    protected $table = 'payments';
+    protected $table = 'properties';
     /**
      * 可批量赋值的字段
      * 按照你之前定稿的 Migration 字段

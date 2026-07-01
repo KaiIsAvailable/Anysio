@@ -9,11 +9,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use App\Models\User;
 use App\Traits\SyncableStatus;
+use App\Traits\Auditable;
 
 class Room extends Model
 {
-    use HasUlids, SyncableStatus;
+    use HasUlids, SyncableStatus, Auditable;
 
+    protected $table = 'rooms';
     protected $fillable = [
         'unit_id',
         'owner_id',

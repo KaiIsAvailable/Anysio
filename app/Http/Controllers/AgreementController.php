@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Owners;
 use App\Models\User;
 use App\Models\Agreements;
+use App\Traits\RoleBasedDataTrait;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -14,6 +15,7 @@ use Termwind\Components\Raw;
 
 class AgreementController extends Controller
 {
+    use RoleBasedDataTrait;
     public function index(Request $request)
     {
         $search = $request->input('search');
@@ -85,18 +87,7 @@ class AgreementController extends Controller
         $isOwnerAgentAdmin = in_array($user->role, ['ownerAdmin', 'agentAdmin']);
         $ownerAdmin = $user->name;
 
-        // 💡 核心修复：根据不同角色拉取不同的 Owners 数据
-        if ($user->role === 'agentAdmin') {
-            // AgentAdmin: 通过 agent_id 关联查找该 Agent 负责的所有 Owners，返回对应的 User 实例
-            $ownerUserIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-            $owners = User::whereIn('id', $ownerUserIds)->get();
-        } elseif ($user->role === 'admin' || $user->role === 'superadmin') {
-            // Admin / Superadmin: 可以看到所有的 owner
-            $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get();
-        } else {
-            // OwnerAdmin (或其他没有权限查看下拉框的角色): 传个空的集合过去节省数据库性能
-            $owners = collect();
-        }
+        $owners = $this->getAuthorizedOwners();
 
         // 获取动态变量占位符
         $placeholders = self::getAvailablePlaceholders();

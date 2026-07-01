@@ -34,30 +34,40 @@ class OwnersController extends Controller
             }
         }
 
-        // Search by User Name
+        // Search
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->whereHas('user', function ($q) use ($search) {
-                $q->where('name', 'like', '%' . $search . '%');
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('user', function ($uq) use ($search) {
+                    $uq->where('users.name', 'like', '%' . $search . '%')
+                       ->orWhere('users.email', 'like', '%' . $search . '%');
+                })
+                ->orWhere('owners.company_name', 'like', '%' . $search . '%')
+                ->orWhere('owners.phone', 'like', '%' . $search . '%')
+                ->orWhere('owners.ic_number', 'like', '%' . $search . '%')
+                ->orWhere('owners.gender', 'like', '%' . $search . '%');
             });
         }
 
         // Sorting
         $sort = $request->get('sort');
-        switch ($sort) {
-            case 'name_asc':
-            case 'name_desc':
-                $direction = ($sort === 'name_asc') ? 'asc' : 'desc';
+        if ($sort) {
+            if (str_starts_with($sort, 'n_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
                 $query->join('users', 'owners.user_id', '=', 'users.id')
                       ->select('owners.*') 
                       ->orderBy('users.name', $direction);
-                break;
-            case 'newest':
-                $query->orderBy('created_at', 'desc');
-                break;
-            default:
-                $query->orderBy('created_at', 'asc');
-                break;
+            } elseif (str_starts_with($sort, 'c_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('owners.company_name', $direction);
+            } elseif (str_starts_with($sort, 'jd_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('owners.created_at', $direction);
+            } else {
+                $query->orderBy('owners.created_at', 'asc');
+            }
+        } else {
+            $query->orderBy('owners.created_at', 'asc');
         }
 
         $owners = $query->paginate(10)->withQueryString()->onEachSide(1);
@@ -140,6 +150,7 @@ class OwnersController extends Controller
         $validatedData = $request->validate([
             // Use the $owner->id to ignore the current record in the unique check
             'user_id'             => 'required|exists:users,id|unique:owners,user_id,' . $owner->id,
+            //'email'               => 'required|email|unique:users,email,' . $owner->id,
             'company_name'        => 'nullable|string|max:255',
             'ic_number'           => 'nullable|string|max:20',
             'phone'               => 'required|string|max:20',

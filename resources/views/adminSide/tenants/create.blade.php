@@ -21,23 +21,23 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <!-- Name -->
                             <div>
-                                <label for="name" class="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
-                                <input type="text" name="name" id="name" value="{{ old('name') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                                @error('name') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                <x-form.input-label for="name" value="Full Name" class="mb-1" />
+                                <x-form.text-input name="name" id="name" value="{{ old('name') }}" class="w-full" required />
+                                <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                             </div>
 
                             <!-- Email (Owners Style) -->
                             <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                                 <div class="flex items-center justify-between mb-2">
-                                    <label class="block text-sm font-semibold text-gray-700">Email Address</label>
+                                    <x-form.input-label value="Email Address" class="mb-0" />
                                     <label class="inline-flex items-center cursor-pointer">
                                         <input type="checkbox" name="random_email" id="random_email" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" value="1" {{ old('random_email') ? 'checked' : '' }}>
                                         <span class="ml-2 text-xs font-medium text-indigo-600 tracking-wider">Generate Random</span>
                                     </label>
                                 </div>
-                                <input type="email" name="email" id="email_input" value="{{ old('email') }}" placeholder="example@mail.com" class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-all">
+                                <x-form.text-input type="email" name="email" id="email_input" value="{{ old('email') }}" placeholder="example@mail.com" class="block w-full transition-all" />
                                 <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Click generate random if you do not know user email.</p>
-                                @error('email') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                                <x-form.input-error :messages="$errors->get('email')" class="mt-1" />
                             </div>
                         </div>
                     </div>
@@ -45,15 +45,15 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <!-- Phone -->
                         <div>
-                            <label for="phone" class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                            <input type="text" name="phone" id="phone" value="{{ old('phone') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" inputmode="numeric" maxlength="20" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                            <x-form.input-label for="phone" value="Phone" class="mb-1" />
+                            <x-form.text-input name="phone" id="phone" value="{{ old('phone') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" inputmode="numeric" maxlength="20" class="w-full" required />
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 01xxxxxxxxx</p>
-                            @error('phone') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
                         </div>
 
                         <!-- Identity Type Selection -->
                         <div>
-                            <label class="block text-sm font-medium text-slate-700 mb-3">Identity Document</label>
+                            <x-form.input-label value="Identity Document" class="mb-3" />
                             <div class="flex gap-4">
                                 <label class="inline-flex items-center cursor-pointer">
                                     <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" checked onchange="toggleIdentityInputs(false)">
@@ -68,42 +68,38 @@
 
                         <!-- IC Number -->
                         <div id="ic_container">
-                            <label for="ic_number" class="block text-sm font-medium text-slate-700 mb-1">IC Number</label>
-                            <input type="text" name="ic_number" id="ic_number" value="{{ old('ic_number') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                            <x-form.input-label for="ic_number" value="IC Number" class="mb-1" />
+                            <x-form.text-input name="ic_number" id="ic_number" value="{{ old('ic_number') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full" />
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
-                            @error('ic_number') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
                         </div>
 
                         <!-- Passport -->
                         <div id="passport_container" class="hidden">
-                            <label for="passport" class="block text-sm font-medium text-slate-700 mb-1">Passport Number</label>
-                            <input type="text" name="passport" id="passport" value="{{ old('passport') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                            <x-form.input-label for="passport" value="Passport Number" class="mb-1" />
+                            <x-form.text-input name="passport" id="passport" value="{{ old('passport') }}" class="w-full" />
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: A12345678</p>
-                            @error('passport') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-error :messages="$errors->get('passport')" class="mt-1" />
                         </div>
 
                         <!-- Nationality -->
                         <div>
-                            <label for="nationality" class="block text-sm font-medium text-slate-700 mb-1">Nationality</label>
-                            <input type="text" name="nationality" id="nationality" value="{{ old('nationality', 'MALAYSIAN') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm bg-gray-100" readonly required>
-                            @error('nationality') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-label for="nationality" value="Nationality" class="mb-1" />
+                            <x-form.text-input name="nationality" id="nationality" value="{{ old('nationality', 'MALAYSIAN') }}" class="w-full bg-gray-100" readonly required />
+                            <x-form.input-error :messages="$errors->get('nationality')" class="mt-1" />
                         </div>
 
                         <!-- Gender -->
                         <div>
-                            <label for="gender" class="block text-sm font-medium text-slate-700 mb-1">Gender</label>
-                            <select name="gender" id="gender" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                                <option value="">-- Select Gender --</option>
-                                <option value="Male" {{ old('gender') == 'Male' ? 'selected' : '' }}>Male</option>
-                                <option value="Female" {{ old('gender') == 'Female' ? 'selected' : '' }}>Female</option>
-                            </select>
-                            @error('gender') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-label for="gender" value="Gender" class="mb-1" />
+                            <x-form.input-select name="gender" id="gender" :options="['Male' => 'Male', 'Female' => 'Female']" placeholder="-- Select Gender --" class="w-full shadow-sm" required />
+                            <x-form.input-error :messages="$errors->get('gender')" class="mt-1" />
                         </div>
 
                         <div class="col-span-1 md:col-span-2">
-                            <label for="occupation" class="block text-sm font-medium text-slate-700 mb-1">Occupation</label>
-                            <input type="text" name="occupation" id="occupation" value="{{ old('occupation') }}" class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                            @error('occupation') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                            <x-form.input-label for="occupation" value="Occupation" class="mb-1" />
+                            <x-form.text-input name="occupation" id="occupation" value="{{ old('occupation') }}" class="w-full" />
+                            <x-form.input-error :messages="$errors->get('occupation')" class="mt-1" />
                         </div>
                     </div>
 
@@ -121,15 +117,15 @@
 
                     <!-- Photo -->
                     <div class="mb-6">
-                        <label for="ic_photo_path" id="photo_label" class="block text-sm font-medium text-slate-700 mb-1">IC Photo</label>
+                        <x-form.input-label for="ic_photo_path" id="photo_label" value="IC Photo" class="mb-1" />
                         
                         <!-- Image Preview Container -->
                         <div id="ic_preview_container" class="mb-3 hidden">
                             <img id="ic_preview" src="#" alt="IC Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
                         </div>
 
-                        <input type="file" name="ic_photo_path" id="ic_photo_path" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition-colors">
-                        @error('ic_photo_path') <span class="text-red-600 text-xs">{{ $message }}</span> @enderror
+                        <x-form.file-input name="ic_photo_path" id="ic_photo_path" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full" />
+                        <x-form.input-error :messages="$errors->get('ic_photo_path')" class="mt-1" />
                     </div>
 
                     <div class="flex justify-end pt-4 border-t border-gray-100">

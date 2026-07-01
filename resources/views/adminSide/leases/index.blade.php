@@ -166,8 +166,7 @@
                                                                 <span class="p-1 bg-emerald-100 text-emerald-600 rounded-full">
                                                                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
                                                                 </span>
-                                                                <a href="{{ route('admin.leases.view-cert', $lease->id) }}" 
-                                                                target="_blank" 
+                                                                <a href="{{ route('admin.leases.cert-file', $lease->id) }}" 
                                                                 class="text-xs font-bold text-emerald-600 hover:underline">
                                                                     View Cert
                                                                 </a>

@@ -18,9 +18,12 @@ use \Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
+use App\Services\FileService;
+use App\Traits\RoleBasedDataTrait;
 
 class PaymentsController extends Controller
 {
+    use RoleBasedDataTrait;
     public function index(Request $request)
     {
         $userId = Auth::id();
@@ -49,14 +52,46 @@ class PaymentsController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
-                $q->where('invoice_no', 'like', "%{$search}%")
+                $q->where('payments.invoice_no', 'like', "%{$search}%")
+                ->orWhere('payments.status', 'like', "%{$search}%")
+                ->orWhere('payments.amount_due', 'like', "%{$search}%")
+                ->orWhere('payments.payment_type', 'like', "%{$search}%")
                 ->orWhereHas('tenant.user', function($sub) use ($search) {
-                    $sub->where('name', 'like', "%{$search}%");
+                    $sub->where('users.name', 'like', "%{$search}%")
+                       ->orWhere('users.email', 'like', "%{$search}%");
                 });
             });
         }
 
-        $payments = $query->latest()->paginate(10)->onEachSide(1)->withQueryString();
+        // 排序逻辑 (Invoice: inv, Tenant Details: t, Amount: a, Status: s, Date: d)
+        $sort = $request->get('sort');
+        if ($sort) {
+            if (str_starts_with($sort, 'inv_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('payments.invoice_no', $direction);
+            } elseif (str_starts_with($sort, 't_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->join('tenants', 'payments.tenant_id', '=', 'tenants.id')
+                      ->join('users', 'tenants.user_id', '=', 'users.id')
+                      ->select('payments.*')
+                      ->orderBy('users.name', $direction);
+            } elseif (str_starts_with($sort, 'a_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('payments.amount_due', $direction);
+            } elseif (str_starts_with($sort, 's_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('payments.status', $direction);
+            } elseif (str_starts_with($sort, 'd_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('payments.created_at', $direction);
+            } else {
+                $query->orderBy('payments.created_at', 'desc');
+            }
+        } else {
+            $query->orderBy('payments.created_at', 'desc');
+        }
+
+        $payments = $query->paginate(10)->onEachSide(1)->withQueryString();
         return view('adminSide.tenants.payments.index', compact('payments'));
     }
 
@@ -322,75 +357,68 @@ class PaymentsController extends Controller
         return "INV-{$type}-{$today}-{$nextNum}";
     }
 
-    public function uploadProof(Request $request, $id)
+    public function uploadProof(Request $request, $id, FileService $fileService)
     {
-        // 1. 找到支付记录
         $payment = UserPayment::findOrFail($id);
-        
-        // 2. 检查是否为 0 元账单
         $isZeroAmount = ($payment->amount_due <= 0);
 
-        // 3. 如果不是 0 元，则强制验证文件；如果是 0 元，则文件可选
+        // 1. 验证逻辑
         $rules = [
             'transaction_ref' => 'nullable|string|max:255',
+            'attachment' => ($isZeroAmount ? 'nullable' : 'required') . '|image|mimes:jpg,jpeg,png|max:2048',
         ];
-        
-        if (!$isZeroAmount) {
-            $rules['attachment'] = 'required|image|mimes:jpg,jpeg,png|max:2048';
-        } else {
-            $rules['attachment'] = 'nullable|image|mimes:jpg,jpeg,png|max:2048';
-        }
-
         $request->validate($rules);
 
-        // 4. 处理文件逻辑
-        $path = $payment->attachment; // 默认为原有的路径（如果有）
+        // 2. 文件处理逻辑：统一交给 FileService
+        $path = $payment->attachment;
 
         if ($request->hasFile('attachment')) {
-            if ($payment->attachment) {
-                Storage::disk('local')->delete($payment->attachment);
+            if ($payment->attachment && $payment->attachment !== 'system/zero_amount_auto_approved') {
+                $fileService->delete($payment->attachment);
             }
-            $path = $request->file('attachment')->store('receipts', 'local');
+            
+            $userId = Auth::id();
+            $path = $fileService->upload($request->file('attachment'), $userId, 'user_receipt');
+            
         } elseif ($isZeroAmount && !$payment->attachment) {
-            // 如果是 0 元且用户没上传，给一个特殊标识或留空
-            $path = 'system/zero_amount_auto_approved'; 
+            $path = 'system/zero_amount_auto_approved';
         }
 
-        // 5. 更新状态
-        // 如果是 0 元，状态直接设为 'paid'，否则设为 'pending'
-        $newStatus = $isZeroAmount ? 'paid' : 'pending';
+        DB::transaction(function () use ($payment, $path, $request, $isZeroAmount) {
+            // 3. 业务逻辑 (保持不变)
+            $newStatus = $isZeroAmount ? 'paid' : 'pending';
 
-        $packageDetails = DB::table('ref_code_packages')
-            ->where('ref_code', $payment->ref_code)
-            ->first();
+            $packageDetails = DB::table('ref_code_packages')
+                ->where('ref_code', $payment->ref_code)
+                ->first();
 
-        $startDate = null;
-        $endDate = null;
+            $startDate = null;
+            $endDate = null;
 
-        $startDate = now();
-        $endDate = ($packageDetails->price_mode === 'monthly') 
-                    ? $startDate->copy()->addMonth()
-                    : $startDate->copy()->addYear();
+            $startDate = now();
+            $endDate = ($packageDetails->price_mode === 'monthly') 
+                        ? $startDate->copy()->addMonth()
+                        : $startDate->copy()->addYear();
 
-        $userManagement = UserManagement::where('user_id', $payment->user_id)->first();
+            $userManagement = UserManagement::where('user_id', $payment->user_id)->first();
 
-        $userManagement->update([
-            'start_date' => $startDate,
-            'end_date' => $endDate,
-        ]);
+            $userManagement->update([
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+            ]);
 
-        $payment->update([
-            'attachment' => $path,
-            'transaction_ref' => $request->transaction_ref,
-            'status' => $newStatus,
-        ]);
+            $payment->update([
+                'attachment' => $path,
+                'transaction_ref' => $request->transaction_ref,
+                'status' => $newStatus,
+            ]);
 
-        // 更新管理状态
-        UserManagement::where('user_id', $payment->user_id)->update([
-            'subscription_status' => ($newStatus === 'paid') ? 'active' : 'pending'
-        ]);
-
-        $message = $isZeroAmount ? 'Subscription activated successfully!' : 'Receipt uploaded! Please wait for admin approval.';
-        return back()->with('success', $message);
+            // 更新管理状态
+            UserManagement::where('user_id', $payment->user_id)->update([
+                'subscription_status' => ($newStatus === 'paid') ? 'active' : 'pending'
+            ]);
+        });
+        
+        return back()->with('success', $isZeroAmount ? 'Subscription activated!' : 'Receipt uploaded!');
     }
 }

@@ -8,12 +8,15 @@ return new class extends Migration
 {
     public function up(): void
     {
+        Schema::dropIfExists('notification_recipients');
+
         Schema::create('notification_recipients', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->foreignUlid('notification_id')->constrained('notifications')->cascadeOnDelete();
-            $table->foreignUlid('tenant_id')->constrained('tenants')->cascadeOnDelete();
-            $table->boolean('is_read')->default(false)->index();
+            $table->foreignUlid('user_id')->constrained('users')->cascadeOnDelete();
+            $table->timestamp('read_at')->nullable()->index(); 
             $table->timestamps();
+            $table->index(['user_id', 'read_at']);
         });
     }
 

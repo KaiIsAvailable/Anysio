@@ -10,6 +10,8 @@ Route::get('leases/{lease}/view-cert', [LeaseController::class, 'viewCert'])
     ->name('leases.view-cert')
     ->middleware('auth');
 
+Route::get('leases/{lease}/cert-file', [LeaseController::class, 'showCertFile'])->name('leases.cert-file');
+
 Route::post('leases/{lease}/upload-stamping', [LeaseController::class, 'uploadStamping'])
     ->name('leases.upload-stamping');
 

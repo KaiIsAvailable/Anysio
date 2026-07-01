@@ -25,7 +25,7 @@
             'stamped_at' => $item->stamped_at ? $item->stamped_at_formatted : null,
             'can_stamp' => in_array($item->status, ['New', 'Renew']),
             'upload_url' => route('admin.leases.upload-stamping', $item->id),
-            'view_url' => route('admin.leases.view-cert', $item->id),
+            'view_url' => route('admin.leases.cert-file', $item->id),
             'agreement' => [
                 'title' => $item->agreement?->title ?? 'Agreement',
                 'content' => $item->agreement?->content ?? '',
@@ -228,7 +228,7 @@
                                                         <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
                                                     </svg>
                                                 </span>
-                                                <a :href="activeLease.view_url" target="_blank" class="text-xs font-bold text-indigo-600 hover:underline">
+                                                <a :href="activeLease.view_url" class="text-xs font-bold text-indigo-600 hover:underline">
                                                     View Cert
                                                 </a>
                                             </div>

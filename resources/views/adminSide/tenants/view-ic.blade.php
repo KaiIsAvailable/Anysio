@@ -28,9 +28,10 @@
     <div class="mt-2">
         <div class="max-w-[95%] mx-auto px-2">
             <div class="bg-slate-900 shadow-2xl rounded-xl border border-slate-800 overflow-hidden flex items-center justify-center p-6" 
-                 style="height: calc(100vh - 180px); min-height: 600px;">
+                style="height: calc(100vh - 180px); min-height: 600px;">
+                
                 <img 
-                    src="{{ $photoData }}" 
+                    src="{{ route('admin.tenants.ic_photo', ['filename' => basename($tenant->ic_photo_path)]) }}" 
                     class="max-w-full max-h-full object-contain rounded-lg shadow-lg select-none"
                     alt="Identity Document"
                     draggable="false">

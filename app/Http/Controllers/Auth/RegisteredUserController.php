@@ -143,6 +143,8 @@ class RegisteredUserController extends Controller
                         'name'     => $request->name,
                         'password' => Hash::make($request->password),
                         'role'     => $finalRole,
+                        'email_verified_at' => null,
+                        'status' => 'active',                
                     ], $complianceData));
                 }
 

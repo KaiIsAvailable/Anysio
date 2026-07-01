@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use App\Traits\Auditable;
 
 class Maintenance extends Model
 {
-    use HasUlids;
+    use HasUlids, Auditable;
 
     // 指定表名
     protected $table = 'maintenance';

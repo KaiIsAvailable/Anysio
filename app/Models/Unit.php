@@ -8,11 +8,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\Traits\SyncableStatus;
 use Illuminate\Support\Facades\Log;
+use App\Traits\Auditable;
 
 class Unit extends Model
 {
-    use HasUlids, SyncableStatus;
-
+    use HasUlids, SyncableStatus, Auditable;
+    protected $table = 'units';
     protected $fillable = [
         'property_id',
         'owner_id',

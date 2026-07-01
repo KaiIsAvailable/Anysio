@@ -8,11 +8,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Traits\Auditable;
 
 class Lease extends Model
 {
-    use HasUlids;
+    use HasUlids, Auditable;
 
+    protected $table = 'leases';
     protected $keyType = 'string';
     public $incrementing = false;
 
@@ -63,6 +65,25 @@ class Lease extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    protected function ownerUserId(): Attribute
+    {
+        return Attribute::make(
+            get: function () {
+                // 1. 获取关联的 leasable 模型 (Property/Unit/Room)
+                $model = $this->leasable;
+                if (!$model) return null;
+
+                // 2. 根据类型往上找 owner_id
+                return match (get_class($model)) {
+                    \App\Models\Property::class => $model->owner_id,
+                    \App\Models\Unit::class     => $model->property->owner_id ?? null,
+                    \App\Models\Room::class     => $model->unit->property->owner_id ?? null,
+                    default                     => null,
+                };
+            },
+        );
     }
 
     public function utilities(): HasMany

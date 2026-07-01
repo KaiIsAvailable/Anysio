@@ -7,11 +7,12 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Traits\Auditable;
 
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasUlids;
+    use HasFactory, Notifiable, HasUlids, Auditable;
 
     const ROLE_ADMIN = 'admin';
     const ROLE_AGENT_ADMIN = 'agentAdmin';
@@ -24,6 +25,7 @@ class User extends Authenticatable implements MustVerifyEmail
      *
      * @var list<string>
      */
+    protected $table = 'users';
     protected $fillable = [
         'name',
         'email',
@@ -103,5 +105,22 @@ class User extends Authenticatable implements MustVerifyEmail
     public function hasRole($role) 
     {
         return $this->role === $role;
+    }
+
+    public function notificationRecipients()
+    {
+        return $this->hasMany(NotificationRecipient::class);
+    }
+
+    public function unreadNotifications()
+    {
+        return $this->hasManyThrough(
+            Notification::class,  
+            NotificationRecipient::class, 
+            'user_id',    
+            'id',        
+            'id',         
+            'notification_id' 
+        )->whereNull('notification_recipients.read_at');
     }
 }

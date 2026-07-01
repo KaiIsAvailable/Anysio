@@ -6,11 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\Traits\Auditable;
 
 class Owners extends Model
 {
-    use HasUlids;
+    use HasUlids, Auditable;
 
+    protected $table = 'owners';
     protected $fillable = [
         'user_id',
         'agent_id',

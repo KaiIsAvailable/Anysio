@@ -6,10 +6,11 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use App\Traits\Auditable;
 
 class Agreements extends Model
 {
-    use HasUlids, SoftDeletes;
+    use HasUlids, SoftDeletes, Auditable;
     protected $table = 'agreements';
     protected $fillable = [
         'parent_agreement_id',

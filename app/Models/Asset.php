@@ -4,11 +4,12 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
+use App\Traits\Auditable;
 
 class Asset extends Model
 {
-    use HasUlids;
-
+    use HasUlids, Auditable;
+    protected $table = 'assets';
     protected $fillable = [
         'user_id', 
         'name',

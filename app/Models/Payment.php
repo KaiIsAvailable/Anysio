@@ -7,11 +7,13 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Carbon\Carbon;
+use App\Traits\Auditable;
 
 class Payment extends Model
 {
-    use HasUlids;
+    use HasUlids, Auditable;
 
+    protected $table = 'payments';
     protected $fillable = [
         'lease_id',        // 关联哪份合约
         'tenant_id',       // 关联哪个学生/租客

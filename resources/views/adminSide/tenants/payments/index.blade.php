@@ -27,8 +27,8 @@
                 
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
-                        <x-form.form method="GET" action="{{ route('admin.payments.index') }}" class="flex items-stretch gap-2">
-                            <div class="flex items-stretch">
+                        <x-form.form method="GET" action="{{ route('admin.payments.index') }}" class="flex flex-wrap items-center gap-4">
+                            <div class="flex items-stretch justify-between">
                                 <x-table.search placeholder="Search payments..." />
                             </div>
                         </x-form.form>
@@ -37,14 +37,14 @@
 
                 <div class="overflow-x-auto">
                     @if($payments->count() > 0)
-                        <table class="w-full divide-y divide-gray-200 text-left">
+                        <table class="table-auto w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Invoice</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Tenant Details</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Amount (RM)</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Date</th>
+                                    <x-table.th name="Invoice" sortField="inv" />
+                                    <x-table.th name="Tenant Details" sortField="t" />
+                                    <x-table.th name="Amount (RM)" sortField="a" />
+                                    <x-table.th name="Status" sortField="s" />
+                                    <x-table.th name="Date" sortField="d" />
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>

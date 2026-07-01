@@ -31,16 +31,8 @@
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
                         <x-form.form method="GET" action="{{ route('admin.owners.index') }}" class="flex flex-wrap items-center gap-4">
-                            <div class="flex items-center gap-2">
+                            <div class="flex items-stretch justify-between">
                                 <x-table.search placeholder="Search by owner name..." />
-                                
-                                {{-- Preserve your Clear logic smoothly alongside the component --}}
-                                @if(request('search'))
-                                    <a href="{{ route('admin.owners.index') }}" 
-                                       class="inline-flex items-center px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-slate-900 border border-gray-200 text-sm transition-colors">
-                                        Clear
-                                    </a>
-                                @endif
                             </div>
                         </x-form.form>
                     </div>
@@ -49,7 +41,7 @@
                 {{-- Table --}}
                 <div class="overflow-x-auto">
                     @if($owners && $owners->count() > 0)
-                        <table class="w-full divide-y divide-gray-200 text-left">
+                        <table class="table-auto w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <x-table.th name="Owner Details" sortField="n" />
@@ -57,7 +49,7 @@
                                     <x-table.th name="Contact Info" />
                                     <x-table.th name="Joined Date" sortField="jd" />
                                     @can('owner-admin')
-                                        <x-table.th name="Actions" />
+                                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                     @endcan
                                 </tr>
                             </thead>

@@ -2,22 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate;
 use App\Models\Property;
 use App\Models\Owners;
 use App\Models\User;
 use App\Models\UserManagement;
 use App\Models\Room;
 use App\Models\Unit;
-use Faker\Guesser\Name;
-use Illuminate\Foundation\Console\AboutCommand;
+use App\Traits\RoleBasedDataTrait;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class PropertyController extends Controller
 {
+    use RoleBasedDataTrait;
     public function index(Request $request)
     {
         $search = $request->input('search');
@@ -100,20 +100,9 @@ class PropertyController extends Controller
         $isAgentAdmin = $user->role === 'agentAdmin';
         $isSuperAdmin = Gate::allows('super-admin');
 
-        $owners = collect();
-        $currentOwner = null;
-
-        if ($isOwnerAdmin) {
-            $currentOwner = $user;
-        } elseif ($isAgentAdmin) {
-            $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-            $owners = User::whereIn('id', $ownerIds)
-                ->where('role', 'owner')
-                ->get(['id', 'name']);
-        } elseif ($isSuperAdmin) {
-            $owners = User::whereIn('role', ['owner', 'ownerAdmin', 'agentAdmin', 'admin'])
-                ->get(['id', 'name']);
-        }
+        $owners = $this->getAuthorizedOwners(); 
+        
+        $currentOwner = $isOwnerAdmin ? $user : null;
 
         return view('adminSide.rooms.property.create', compact(
             'owners',
@@ -223,33 +212,20 @@ class PropertyController extends Controller
     {
         $user = Auth::user();
 
-        if (!Gate::allows('super-admin')) {
-            if (Gate::allows('owner-admin')) {
-                if ($property->created_by !== $user->id) {
-                    return redirect()->route('admin.properties.index')->with('error', 'Unauthorized.');
-                }
-            } elseif (Gate::allows('agent-admin')) {
-                $allowedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-                if (!$allowedOwnerIds->contains($property->owner_id)) {
-                    return redirect()->route('admin.properties.index')->with('error', 'Unauthorized.');
-                }
-            } else {
-                return redirect()->route('admin.properties.index')->with('error', 'Unauthorized.');
-            }
-        }
+        // 2. 调用 Trait 获取统一权限下的 Owners 列表
+        $owners = $this->getAuthorizedOwners();
 
-        $isOwnerAdmin = $user->role === 'ownerAdmin';
-        $owners = User::whereIn('role', ['owner', 'ownerAdmin'])->get(['id', 'name']);
-
-        $currentOwner = null;
-        if ($isOwnerAdmin) {
-            $currentOwner = $user;
-        }
-
+        // 3. 校验是否有 Owner 数据
         if ($owners->isEmpty()) {
-            return redirect()->back()->with('error', 'Owner profile not found. Please contact admin.');
+            return redirect()->back()->with('error', 'Owner profile not found.');
         }
 
+        // 4. 定义前端需要的状态标志
+        $isOwnerAdmin = $user->role === 'ownerAdmin';
+        $currentOwner = $isOwnerAdmin ? $user : null;
+
+        // 注意：这里删掉了之前那个硬编码的 $owners = User::whereIn(...) 
+        // 直接用上面 trait 返回的 $owners
         return view('adminSide.rooms.property.edit', compact('property', 'isOwnerAdmin', 'currentOwner', 'owners'));
     }
 

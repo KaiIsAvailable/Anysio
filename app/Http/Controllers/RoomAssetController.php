@@ -13,9 +13,11 @@ use Illuminate\Validation\Rule;
 use App\Models\Unit;
 use App\Models\Room;
 use App\Models\Owners;
+use App\Traits\RoleBasedDataTrait;
 
 class RoomAssetController extends Controller
 {
+    use RoleBasedDataTrait;
     public function index(Request $request) 
     {
         $user = Auth::user();
@@ -86,37 +88,19 @@ class RoomAssetController extends Controller
 
         $authUser = Auth::user();
         
-        // 1. 根据角色过滤用户池
-        $usersQuery = User::whereIn('role', ['ownerAdmin', 'owner', 'agentAdmin']);
+        // 💡 直接调用 Trait 中的权限方法
+        // 这样你就不用管底层是怎么过滤的了，它自动处理了 agentAdmin 和 ownerAdmin 的权限
+        $users = $this->getAuthorizedOwners(); 
 
-        if ($authUser->role === 'agentAdmin') {
-            // AgentAdmin 只能看到属于自己 Agent 下的 Owner (通过 Owner 表关联)
-            $usersQuery->whereHas('owner', function ($q) use ($authUser) {
-                $q->where('agent_id', $authUser->id);
-            });
-        } elseif ($authUser->role === 'ownerAdmin') {
-            // OwnerAdmin 可能只能看到自己（或者按照你的业务需求调整）
-            $usersQuery->where('id', $authUser->id);
-        }
-        
-        $users = $usersQuery->get();
-
-        // 2. 转换成 select 所需的格式
+        // 转换格式，注意：这里 $users 是集合，直接 map 即可
         $userOptions = $users->mapWithKeys(function ($user) {
             return [$user->id => $user->name . ' (' . ucfirst($user->role) . ')'];
         });
 
-        $assetLibrary = Asset::select('name', 'category', 'status')
-            ->distinct()
-            ->get();
-            
-        $selectedUserId = $request->query('user_id');
+        $assetLibrary = Asset::select('name', 'category', 'status')->distinct()->get();
+                
+        $selectedUserId = $request->query('user_id') ?? ($authUser->role === 'ownerAdmin' ? $authUser->id : null);
 
-        if (!$selectedUserId && $authUser->role === 'ownerAdmin') {
-            $selectedUserId = Auth::id();
-        }
-
-        // 💡 核心新增：获取已存在的资产名称
         $existingAssetNames = [];
         if ($selectedUserId) {
             $existingAssetNames = Asset::where('user_id', $selectedUserId)
@@ -129,7 +113,7 @@ class RoomAssetController extends Controller
             'assetLibrary', 
             'selectedUserId',
             'userOptions',
-            'existingAssetNames' // 👈 传给前端
+            'existingAssetNames'
         ));
     }
 

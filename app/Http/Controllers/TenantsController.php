@@ -18,12 +18,13 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use App\Traits\RoleBasedDataTrait;
+use App\Services\FileService;
 
 class TenantsController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    use RoleBasedDataTrait;
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -34,45 +35,52 @@ class TenantsController extends Controller
 
         // 1. 预加载关联
         $query = Tenants::with(['user', 'emergencyContacts', 'leases.room'])
-            ->where('status', 'active');
+            ->where('tenants.status', 'active');
 
         // --- 权限范围过滤重构 ---
         if (in_array($user->role, ['agent', 'agentAdmin', 'ownerAdmin'])) {
-            $query->where('created_by', $user->id);
+            $query->where('tenants.created_by', $user->id);
         } elseif ($user->role === ['owner']) {
-            $query->where('owner_id', $user->id);
+            $query->where('tenants.owner_id', $user->id);
         }
         // ----------------------------
 
-        // 2. 搜索逻辑 (保持不变)
+        // 2. 搜索逻辑 (包含展示的所有字段)
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->whereHas('user', function ($q) use ($search) {
-                $q->where('name', 'like', '%' . $search . '%');
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('user', function ($uq) use ($search) {
+                    $uq->where('users.name', 'like', '%' . $search . '%')
+                       ->orWhere('users.email', 'like', '%' . $search . '%');
+                })
+                ->orWhere('tenants.phone', 'like', '%' . $search . '%')
+                ->orWhere('tenants.ic_number', 'like', '%' . $search . '%')
+                ->orWhere('tenants.passport', 'like', '%' . $search . '%')
+                ->orWhere('tenants.nationality', 'like', '%' . $search . '%')
+                ->orWhere('tenants.gender', 'like', '%' . $search . '%')
+                ->orWhere('tenants.occupation', 'like', '%' . $search . '%');
             });
         }
 
-        // 3. 排序逻辑 (保持不变)
-        $sort = $request->get('sort', 'oldest');
-        if (in_array($sort, ['name_asc', 'name_desc'])) {
-            // 注意：Join 的时候 select tenants.* 避免 ID 冲突
-            $query->join('users', 'tenants.user_id', '=', 'users.id')
-                ->select('tenants.*');
-        }
-
-        switch ($sort) {
-            case 'name_asc':
-                $query->orderBy('users.name', 'asc');
-                break;
-            case 'name_desc':
-                $query->orderBy('users.name', 'desc');
-                break;
-            case 'newest':
-                $query->orderBy('tenants.created_at', 'desc');
-                break;
-            default:
+        // 3. 排序逻辑 (Details: n, Contact Info: p, Joined Date: jd)
+        $sort = $request->get('sort');
+        if ($sort) {
+            if (str_starts_with($sort, 'n_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->join('users', 'tenants.user_id', '=', 'users.id')
+                    ->select('tenants.*')
+                    ->orderBy('users.name', $direction);
+            } elseif (str_starts_with($sort, 'p_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('tenants.phone', $direction);
+            } elseif (str_starts_with($sort, 'jd_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('tenants.created_at', $direction);
+            } else {
                 $query->orderBy('tenants.created_at', 'asc');
-                break;
+            }
+        } else {
+            $query->orderBy('tenants.created_at', 'asc');
         }
 
         $tenants = $query->paginate(10)->withQueryString();
@@ -87,7 +95,7 @@ class TenantsController extends Controller
         return view('adminSide.tenants.create');
     }
 
-    public function store(Request $request)
+    public function store(Request $request, FileService $fileService)
     {
         // 1. 处理随机 Email
         if ($request->has('random_email') && $request->random_email == '1') {
@@ -97,7 +105,7 @@ class TenantsController extends Controller
         // 2. 校验数据 (统一抛出 ValidationException)
         $this->validateTenantData($request);
 
-        return DB::transaction(function () use ($request) {
+        return DB::transaction(function () use ($request, $fileService) {
 
             // 4. 创建租客 User 账号
             $user = User::create([
@@ -125,7 +133,13 @@ class TenantsController extends Controller
 
             // 图片处理
             if ($request->hasFile('ic_photo_path')) {
-                $data['ic_photo_path'] = $request->file('ic_photo_path')->store('tenants/ic_path', 'local');
+                $userId = Auth::id();
+                
+                $data['ic_photo_path'] = $fileService->upload(
+                    $request->file('ic_photo_path'), 
+                    $userId, 
+                    'tenant_ic' 
+                );
             }
 
             $tenant = Tenants::create($data);
@@ -161,12 +175,12 @@ class TenantsController extends Controller
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Tenants $tenant)
+    public function update(Request $request, Tenants $tenant, FileService $fileService)
     {
         // 1. 执行验证（内部若失败会抛出异常，自动返回）
         $this->validateTenantData($request, $tenant->id, $tenant->user_id);
 
-        return DB::transaction(function () use ($tenant, $request) {
+        return DB::transaction(function () use ($tenant, $request, $fileService) {
 
             // 2. 更新关联的 User 账号
             $tenant->user->update([
@@ -186,12 +200,17 @@ class TenantsController extends Controller
 
             // 4. 图片处理逻辑
             if ($request->hasFile('ic_photo_path')) {
-                // 删除旧照片
-                if ($tenant->ic_photo_path) {
-                    Storage::disk('local')->delete($tenant->ic_photo_path);
+                $userId = Auth::id(); 
+                
+                if (!empty($tenant->ic_photo_path)) {
+                    $fileService->delete($tenant->ic_photo_path);
                 }
-                // 存储新照片
-                $data['ic_photo_path'] = $request->file('ic_photo_path')->store('tenants/ic_path', 'local');
+                
+                $data['ic_photo_path'] = $fileService->upload(
+                    $request->file('ic_photo_path'), 
+                    $userId,
+                    'tenant_ic' 
+                );
             }
 
             $tenant->update($data);
@@ -296,24 +315,15 @@ class TenantsController extends Controller
         ));
     }
 
-    public function showIcPhoto($filename)
+    public function showIcPhoto(Request $request, $filename, FileService $fileService)
     {
-        $path = 'tenants/ic_path/' . $filename;
-
-        // 向后兼容：检查是否存放在带有 'private' 前缀的旧路径中
-        if (!Storage::disk('local')->exists($path)) {
-            $oldPath = 'private/tenants/ic_path/' . $filename;
-            if (Storage::disk('local')->exists($oldPath)) {
-                $path = $oldPath;
-            } else {
-                abort(404);
-            }
+        $tenant = Tenants::where('ic_photo_path', 'LIKE', '%' . $filename)->first();
+        
+        if (!$tenant) {
+            abort(404, 'Tenant record not found.');
         }
-        // 获取磁盘上文件的完整物理路径
-        $fullPath = Storage::disk('local')->path($path);
 
-        // 直接使用 Laravel 的 response helper
-        return response()->file($fullPath);
+        return $fileService->getStreamResponse($tenant->ic_photo_path);
     }
 
     public function viewIc(Tenants $tenant)
@@ -322,30 +332,7 @@ class TenantsController extends Controller
             abort(404, 'No identity document uploaded.');
         }
 
-        $path = $tenant->ic_photo_path;
-
-        // 向后兼容路径检查
-        if (!Storage::disk('local')->exists($path)) {
-            $oldPath = 'private/' . $path;
-            if (Storage::disk('local')->exists($oldPath)) {
-                $path = $oldPath;
-            } else {
-                abort(404, 'File not found on server.');
-            }
-        }
-
-        $fullPath = Storage::disk('local')->path($path);
-
-        // 修复点：直接使用 Storage 门面获取 MIME 类型
-        // 或者使用文件信息类获取
-        $mimeType = Storage::mimeType($path) ?: 'image/jpeg';
-        
-        $fileContent = file_get_contents($fullPath);
-        $base64 = base64_encode($fileContent);
-        
-        $photoData = 'data:' . $mimeType . ';base64,' . $base64;
-
-        return view('adminSide.tenants.view-ic', compact('photoData', 'tenant'));
+        return view('adminSide.tenants.view-ic', compact('tenant'));
     }
 
 

@@ -43,91 +43,83 @@
                         </button>
                     </div>
                     
-                    {{-- ### 关键修改：在这里添加 x-data ### --}}
-                    <form :action="paymentData.actionUrl" method="POST" x-data="{ method: 'Cash', loading: false }" @submit="loading = true">
-                        @csrf
-                        @method('PATCH')
+                    @php
+                    $paymentMethods = [
+                        'Cash' => 'Cash (01)',
+                        'Cheque' => 'Cheque (02)',
+                        'Bank Transfer' => 'Bank Transfer (03)',
+                        'Credit Card' => 'Credit Card (04)',
+                        'Debit Card' => 'Debit Card (05)',
+                        'e-Wallet / Digital Wallet' => 'e-Wallet / Digital Wallet (06)',
+                        'Digital Bank' => 'Digital Bank (07)',
+                        'Others' => 'Others (08)',
+                    ];
+                    @endphp
+
+                    <x-form.form x-bind:action="paymentData.actionUrl" method="PATCH" x-data="{ method: 'Cash' }">
                         
                         <div class="p-6 space-y-4">
                             {{-- Amount Paid --}}
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Amount Paid (RM)</label>
-                                <input type="number" step="0.01" name="amount_paid"
-                                    :value="paymentData.amountDue" required
-                                    class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-lg">
+                                <x-form.input-label value="Amount Paid (RM)" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
+                                <x-form.text-input type="number" step="0.01" name="amount_paid"
+                                    x-bind:value="paymentData.amountDue" required
+                                    class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-lg" />
                                 <p class="text-xs text-gray-400 mt-2">Outstanding: RM <span x-text="paymentData.amountDue"></span></p>
-                                @error('amount_paid')
-                                    <p class="mt-1 text-xs text-red-600 font-medium">{{ $message }}</p>
-                                @enderror
+                                <x-form.input-error :messages="$errors->get('amount_paid')" class="mt-1" />
                             </div>
 
                             {{-- Date & Method --}}
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Payment Date</label>
-                                    <input type="date" name="payment_date" value="{{ date('Y-m-d') }}" required
-                                        class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm">
-                                    @error('payment_date')
-                                        <p class="mt-1 text-xs text-red-600 font-medium">{{ $message }}</p>
-                                    @enderror
+                                    <x-form.input-label value="Payment Date" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
+                                    <x-form.text-input type="date" name="payment_date" value="{{ date('Y-m-d') }}" required
+                                        class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm" />
+                                    <x-form.input-error :messages="$errors->get('payment_date')" class="mt-1" />
                                 </div>
 
                                 <div>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Received Via</label>
-                                    <select name="received_via" 
-                                            x-model="method"
-                                            required 
-                                            class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm">
-                                        <option value="Cash">Cash (01)</option>
-                                        <option value="Cheque">Cheque (02)</option>
-                                        <option value="Bank Transfer">Bank Transfer (03)</option>
-                                        <option value="Credit Card">Credit Card (04)</option>
-                                        <option value="Debit Card">Debit Card (05)</option>
-                                        <option value="e-Wallet / Digital Wallet">e-Wallet / Digital Wallet (06)</option>
-                                        <option value="Digital Bank">Digital Bank (07)</option>
-                                        <option value="Others">Others (08)</option>
-                                    </select>
+                                    <x-form.input-label value="Received Via" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
+                                    <x-form.input-select name="received_via" 
+                                             x-model="method"
+                                             :options="$paymentMethods"
+                                             required 
+                                             class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm" />
                                 </div>
                             </div>
 
                             <div class="mt-4 space-y-4">
                                 {{-- Cheque --}}
                                 <div x-show="method === 'Cheque'" x-transition x-cloak>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 text-indigo-600">Cheque Number</label>
-                                    <input type="text" name="transaction_ref" 
-                                        :required="method === 'Cheque'"
-                                        :disabled="method !== 'Cheque'"
+                                    <x-form.input-label value="Cheque Number" class="!text-xs !font-bold !text-indigo-600 uppercase tracking-wider mb-1" />
+                                    <x-form.text-input type="text" name="transaction_ref" 
+                                        x-bind:required="method === 'Cheque'"
+                                        x-bind:disabled="method !== 'Cheque'"
                                         placeholder="e.g. 123456"
-                                        class="block w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm">
-                                    @error('transaction_ref')
-                                        <p class="mt-1 text-xs text-red-600 font-medium">{{ $message }}</p>
-                                    @enderror
+                                        class="block w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" />
+                                    <x-form.input-error :messages="$errors->get('transaction_ref')" class="mt-1" />
                                 </div>
 
                                 {{-- Bank Transfer / e-Wallet / Digital Bank --}}
                                 <div x-show="['Bank Transfer', 'e-Wallet / Digital Wallet', 'Digital Bank'].includes(method)" x-transition x-cloak>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 text-indigo-600">Reference Number (Ref ID)</label>
-                                    <input type="text" name="transaction_ref" 
-                                        :required="['Bank Transfer', 'e-Wallet / Digital Wallet', 'Digital Bank'].includes(method)"
-                                        :disabled="!['Bank Transfer', 'e-Wallet / Digital Wallet', 'Digital Bank'].includes(method)"
+                                    <x-form.input-label value="Reference Number (Ref ID)" class="!text-xs !font-bold !text-indigo-600 uppercase tracking-wider mb-1" />
+                                    <x-form.text-input type="text" name="transaction_ref" 
+                                        x-bind:required="['Bank Transfer', 'e-Wallet / Digital Wallet', 'Digital Bank'].includes(method)"
+                                        x-bind:disabled="!['Bank Transfer', 'e-Wallet / Digital Wallet', 'Digital Bank'].includes(method)"
                                         placeholder="e.g. MYR88231... or TNG-992..."
-                                        class="block w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm">
-                                    @error('transaction_ref')
-                                        <p class="mt-1 text-xs text-red-600 font-medium">{{ $message }}</p>
-                                    @enderror
+                                        class="block w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" />
+                                    <x-form.input-error :messages="$errors->get('transaction_ref')" class="mt-1" />
                                 </div>
 
                                 {{-- Cards --}}
                                 <div x-show="['Credit Card', 'Debit Card'].includes(method)" x-transition x-cloak>
-                                    <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 text-indigo-600">Last 4 Digits / Auth Code</label>
-                                    <input type="text" name="transaction_ref" 
-                                        :required="['Credit Card', 'Debit Card'].includes(method)"
-                                        :disabled="!['Credit Card', 'Debit Card'].includes(method)"
+                                    <x-form.input-label value="Last 4 Digits / Auth Code" class="!text-xs !font-bold !text-indigo-600 uppercase tracking-wider mb-1" />
+                                    <x-form.text-input type="text" name="transaction_ref" 
+                                        x-bind:required="['Credit Card', 'Debit Card'].includes(method)"
+                                        x-bind:disabled="!['Credit Card', 'Debit Card'].includes(method)"
                                         placeholder="e.g. 8890"
-                                        class="block w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm">
-                                    @error('transaction_ref')
-                                        <p class="mt-1 text-xs text-red-600 font-medium">{{ $message }}</p>
-                                    @enderror
+                                        class="block w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" />
+                                    <x-form.input-error :messages="$errors->get('transaction_ref')" class="mt-1" />
                                 </div>
 
                                 {{-- Cash --}}
@@ -139,23 +131,21 @@
                                         No reference number required for cash payments.
                                     </p>
                                     {{-- If it's not Cash, we disable this so it doesn't overwrite other methods --}}
-                                    <input type="hidden" name="transaction_ref" value="CASH" :disabled="method !== 'Cash'">
+                                    <input type="hidden" name="transaction_ref" value="CASH" x-bind:disabled="method !== 'Cash'">
                                 </div>
                             </div>
 
                             {{-- Remarks --}}
                             <div>
-                                <label class="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-1">Remarks</label>
+                                <x-form.input-label value="Remarks" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
                                 <textarea name="remarks" rows="2" placeholder="Internal notes..."
                                         class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm"></textarea>
-                                @error('remarks')
-                                    <p class="mt-1 text-xs text-red-600 font-medium">{{ $message }}</p>
-                                @enderror
+                                <x-form.input-error :messages="$errors->get('remarks')" class="mt-1" />
                             </div>
                         </div>
 
                         <div class="p-6 bg-gray-50 border-t border-gray-100 flex gap-3">
-                            <button type="button" @click="openPayment = false" loading="loading"
+                            <button type="button" @click="openPayment = false"
                                     class="flex-1 px-4 py-3 border border-gray-200 text-gray-600 rounded-xl font-bold text-sm hover:bg-white transition-colors">
                                 Cancel
                             </button>
@@ -165,7 +155,7 @@
                                 <span>Confirm Payment</span>
                             </x-form.primary-button>
                         </div>
-                    </form>
+                    </x-form.form>
                 </div>
             </div>
         </div>

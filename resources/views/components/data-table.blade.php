@@ -9,13 +9,17 @@
 
     <div class="overflow-x-auto">
         @if($collection && $collection->count() > 0)
-            <table class="w-full divide-y divide-gray-200 text-left">
+            <table class="table-auto w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                 <thead class="bg-gray-50">
                     <tr>
                         @foreach($columns as $column)
-                            <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                {{ $column }}
-                            </th>
+                            @if(is_array($column))
+                                <x-table.th :name="$column['name']" :sortField="$column['sortField'] ?? null" />
+                            @else
+                                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                    {{ $column }}
+                                </th>
+                            @endif
                         @endforeach
                         <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>

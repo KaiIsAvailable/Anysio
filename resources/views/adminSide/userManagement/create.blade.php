@@ -11,67 +11,54 @@
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <form action="{{ route('admin.userManagement.store') }}" method="POST" class="p-8">
-                    @csrf
-                    
+                @php
+                    $referredByOptions = [];
+                    foreach($refCodes as $code) {
+                        $referredByOptions[$code->ref_code] = $code->ref_code . ' (' . ($code->package_name ?? 'No Package Name') . ')';
+                    }
+                @endphp
+
+                <x-form.form action="{{ route('admin.userManagement.store') }}" method="POST" class="p-8">
                     <div class="space-y-6">
                         <div>
-                            <x-form.input-label for="name" value="Full Name" class="text-sm font-semibold text-gray-700" />
+                            <x-form.input-label for="name" value="Full Name" class="text-sm font-semibold text-gray-700 mb-1" />
                             <x-form.text-input id="name" name="name" type="text" placeholder="Enter user's full name" required
-                                        class="mt-1 block w-full rounded-lg shadow-sm focus:border-indigo-500 focus:ring-indigo-500" />
+                                        class="w-full" />
                         </div>
 
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <div class="flex items-center justify-between mb-2">
-                                <label class="block text-sm font-semibold text-gray-700">Email Address</label>
+                                <x-form.input-label value="Email Address" class="mb-0" />
                                 <label class="inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="random_email" id="random_email" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
                                     <span class="ml-2 text-xs font-medium text-indigo-600 uppercase tracking-wider">Generate Random</span>
                                 </label>
                             </div>
                             <x-form.text-input type="email" name="email" id="email_input" placeholder="example@mail.com"
-                                   class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-all">
-                            </x-form.text-input>
+                                   class="block w-full transition-all" />
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">If random is selected, a temporary password will also be generated.</p>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700">Base User Type</label>
-                                <select name="role_type" id="role_type" required class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                    <option value="">-- Select Type --</option>
-                                    <option value="admin">Admin</option>
-                                    <option value="owner">Owner</option>
-                                    <option value="agent">Agent</option>
-                                </select>
+                                <x-form.input-label value="Base User Type" class="mb-1" />
+                                <x-form.input-select name="role_type" id="role_type" :options="['admin' => 'Admin', 'owner' => 'Owner', 'agent' => 'Agent']" placeholder="-- Select Type --" required class="w-full" />
                                 <p class="mt-1 text-xs text-gray-400">Determines the role in the 'users' table.</p>
                             </div>
 
                             <div>
-                                <label class="block text-sm font-semibold text-gray-700">Management Role</label>
-                                <select name="pms_role" id="pms_role" required 
+                                <x-form.input-label value="Management Role" class="mb-1" />
+                                <x-form.input-select name="pms_role" id="pms_role" :options="['admin' => 'Admin', 'ownerAdmin' => 'Owner Admin', 'agentAdmin' => 'Agent Admin']" placeholder="-- Auto-selected --" required 
                                         class="mt-1 block w-full rounded-lg border-gray-100 bg-gray-50 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" 
                                         style="pointer-events: none; touch-action: none;" 
-                                        tabindex="-1">
-                                    <option value="">-- Auto-selected --</option>
-                                    <option value="admin">Admin</option>
-                                    <option value="ownerAdmin">Owner Admin</option>
-                                    <option value="agentAdmin">Agent Admin</option>
-                                </select>
+                                        tabindex="-1" />
                                 <p class="mt-1 text-xs text-gray-400">Determines access level in Management (Auto-synced).</p>
                             </div>
                         </div>
 
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700">Referred By (Package Code)</label>
-                            <select name="referred_by" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                                <option value="">-- No Referral --</option>
-                                @foreach($refCodes as $code)
-                                    <option value="{{ $code->ref_code }}">
-                                        {{ $code->ref_code }} ({{ $code->package_name ?? 'No Package Name' }})
-                                    </option>
-                                @endforeach
-                            </select>
+                            <x-form.input-label value="Referred By (Package Code)" class="mb-1" />
+                            <x-form.input-select name="referred_by" :options="$referredByOptions" placeholder="-- No Referral --" class="w-full" />
                         </div>
 
                         <div class="pt-4 border-t border-gray-100 flex justify-end gap-3">
@@ -81,7 +68,7 @@
                             </x-form.primary-button>
                         </div>
                     </div>
-                </form>
+                </x-form.form>
             </div>
         </div>
     </div>

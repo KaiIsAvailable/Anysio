@@ -192,48 +192,39 @@ class UnitController extends Controller
         $query = $unit->rooms()
             ->with(['unit.owner:id,name,email', 'assets']);
 
-        // 2. 處理搜尋 (Searching)
-        if ($request->filled('search')) {
-            $search = $request->input('search');
+        // 2. 處理搜尋 (Searching) - 严格匹配前端显示的列 (Room No, Type, Status, Asset Name)
+        $search = $request->input('search');
+        if ($search) {
             $query->where(function($q) use ($search) {
-                $q->where('room_no', 'like', "%{$search}%")
+                $q->where('rooms.room_no', 'like', "%{$search}%")
+                  ->orWhere('rooms.room_type', 'like', "%{$search}%")
+                  ->orWhere('rooms.status', 'like', "%{$search}%")
                   ->orWhereHas('assets', function($aq) use ($search) {
-                      $aq->where('name', 'like', "%{$search}%");
+                      $aq->where('assets.name', 'like', "%{$search}%");
                   });
             });
         }
 
-        // 3. 處理排序 (Sorting) - 完美適配領導的組件邏輯
-        // 組件傳過來的值會是像 'room_no_asc', 'status_desc', 'created_at_asc' 這樣
-        $sortParam = $request->input('sort');
+        // 3. 處理排序 (Sorting) - 完美適配領導的 <x-table.th> 組件邏輯
+        $sortMapping = [
+            'r' => 'rooms.room_no',
+            't' => 'rooms.room_type',
+            's' => 'rooms.status',
+            'c' => 'rooms.created_at',
+        ];
 
-        if ($sortParam) {
-            // 解析結尾是 _asc 還是 _desc，並分離出真正的欄位名稱
-            if (str_ends_with($sortParam, '_desc')) {
-                $sortField = str_replace('_desc', '', $sortParam);
-                $direction = 'desc';
-            } elseif (str_ends_with($sortParam, '_asc')) {
-                $sortField = str_replace('_asc', '', $sortParam);
-                $direction = 'asc';
-            } else {
-                $sortField = $sortParam;
-                $direction = 'asc';
-            }
+        $sortParam = $request->query('sort');
+        $field = Str::beforeLast($sortParam, '_');
+        $direction = Str::afterLast($sortParam, '_');
 
-            // 白名單校驗：只允許這些欄位進行排序，防止報錯
-            $validSortFields = ['room_no', 'status', 'created_at'];
-            
-            if (in_array($sortField, $validSortFields)) {
-                $query->orderBy($sortField, $direction);
-            } else {
-                $query->orderBy('room_no', 'asc'); // 預設排序
-            }
+        if (array_key_exists($field, $sortMapping) && in_array($direction, ['asc', 'desc'])) {
+            $query->orderBy($sortMapping[$field], $direction);
         } else {
-            $query->orderBy('room_no', 'asc'); // 預設排序
+            $query->orderBy('rooms.room_no', 'asc'); // 預設排序
         }
 
-        // 4. 分頁並保留 URL 參數 (withQueryString 會自動帶上 ?sort=...&search=...)
-        $rooms = $query->paginate(10)->onEachSide(1)->withQueryString();
+        // 4. 分頁並保留 URL 參數
+        $rooms = $query->paginate(10)->onEachSide(1)->appends($request->query());
         
         // 將結果綁定回 $unit
         $unit->setRelation('rooms', $rooms);

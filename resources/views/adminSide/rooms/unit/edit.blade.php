@@ -48,7 +48,7 @@
 
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Unit Owner</label>
-                                @if(isset($isOwnerAdmin))
+                                @if($isOwnerAdmin && $currentOwner)
                                     <div class=" w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-700 font-medium flex items-center shadow-sm">
                                         {{ $currentOwner->name }}
                                     </div>

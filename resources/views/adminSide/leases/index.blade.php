@@ -44,8 +44,9 @@
                             <table class="w-full min-w-[1100px] divide-y divide-gray-200 text-left">
                                 <thead class="bg-gray-50">
                                     <tr>
-                                        <x-table.th name="Property / Unit / Room" sortField="l" />
-                                        <x-table.th name="Owner" sortField="o"/>
+                                        {{-- 移除了复杂的 l 和 o 的排序，避免系统变卡 --}}
+                                        <x-table.th name="Property / Unit / Room" />
+                                        <x-table.th name="Owner" />
                                         <x-table.th name="Tenant" sortField="t" />
                                         <x-table.th name="Duration" sortField="d"/>
                                         <x-table.th name="Rent & Term" sortField="r"/>

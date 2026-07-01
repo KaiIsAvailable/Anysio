@@ -52,14 +52,46 @@ class PaymentsController extends Controller
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
-                $q->where('invoice_no', 'like', "%{$search}%")
+                $q->where('payments.invoice_no', 'like', "%{$search}%")
+                ->orWhere('payments.status', 'like', "%{$search}%")
+                ->orWhere('payments.amount_due', 'like', "%{$search}%")
+                ->orWhere('payments.payment_type', 'like', "%{$search}%")
                 ->orWhereHas('tenant.user', function($sub) use ($search) {
-                    $sub->where('name', 'like', "%{$search}%");
+                    $sub->where('users.name', 'like', "%{$search}%")
+                       ->orWhere('users.email', 'like', "%{$search}%");
                 });
             });
         }
 
-        $payments = $query->latest()->paginate(10)->onEachSide(1)->withQueryString();
+        // 排序逻辑 (Invoice: inv, Tenant Details: t, Amount: a, Status: s, Date: d)
+        $sort = $request->get('sort');
+        if ($sort) {
+            if (str_starts_with($sort, 'inv_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('payments.invoice_no', $direction);
+            } elseif (str_starts_with($sort, 't_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->join('tenants', 'payments.tenant_id', '=', 'tenants.id')
+                      ->join('users', 'tenants.user_id', '=', 'users.id')
+                      ->select('payments.*')
+                      ->orderBy('users.name', $direction);
+            } elseif (str_starts_with($sort, 'a_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('payments.amount_due', $direction);
+            } elseif (str_starts_with($sort, 's_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('payments.status', $direction);
+            } elseif (str_starts_with($sort, 'd_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('payments.created_at', $direction);
+            } else {
+                $query->orderBy('payments.created_at', 'desc');
+            }
+        } else {
+            $query->orderBy('payments.created_at', 'desc');
+        }
+
+        $payments = $query->paginate(10)->onEachSide(1)->withQueryString();
         return view('adminSide.tenants.payments.index', compact('payments'));
     }
 

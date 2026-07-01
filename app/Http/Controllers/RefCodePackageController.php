@@ -12,11 +12,41 @@ class RefCodePackageController extends Controller
         $query = RefCodePackage::query();
 
         if ($request->filled('search')) {
-            $query->where('name', 'like', '%' . $request->search . '%')
-                ->orWhere('ref_code', 'like', '%' . $request->search . '%');
+            $search = $request->search;
+            $query->where(function($q) use ($search) {
+                $q->where('name', 'like', '%' . $search . '%')
+                    ->orWhere('ref_code', 'like', '%' . $search . '%')
+                    ->orWhere('price_mode', 'like', '%' . $search . '%')
+                    ->orWhere('price', 'like', '%' . $search . '%')
+                    ->orWhere('commission_rate', 'like', '%' . $search . '%')
+                    ->orWhere('status', 'like', '%' . $search . '%');
+            });
         }
 
-        $packages = $query->orderBy('ref_code')->get();
+        // Sorting (Plan Details: pd, Billing Mode: bm, Pricing: pr, Base Lease: bl, Usage Limits: ul, Status: st)
+        $sort = $request->get('sort');
+        if ($sort) {
+            $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+            if (str_starts_with($sort, 'pd_')) {
+                $query->orderBy('name', $direction);
+            } elseif (str_starts_with($sort, 'bm_')) {
+                $query->orderBy('price_mode', $direction);
+            } elseif (str_starts_with($sort, 'pr_')) {
+                $query->orderBy('price', $direction)->orderBy('commission_rate', $direction);
+            } elseif (str_starts_with($sort, 'bl_')) {
+                $query->orderBy('base_lease', $direction);
+            } elseif (str_starts_with($sort, 'ul_')) {
+                $query->orderBy('max_lease_limit', $direction);
+            } elseif (str_starts_with($sort, 'st_')) {
+                $query->orderBy('status', $direction);
+            } else {
+                $query->orderBy('ref_code', 'asc');
+            }
+        } else {
+            $query->orderBy('ref_code', 'asc');
+        }
+
+        $packages = $query->paginate(10)->onEachSide(1)->withQueryString();
 
         return view('adminSide.packages.index', compact('packages'));
     }

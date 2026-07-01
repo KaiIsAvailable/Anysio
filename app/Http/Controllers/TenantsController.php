@@ -35,45 +35,52 @@ class TenantsController extends Controller
 
         // 1. 预加载关联
         $query = Tenants::with(['user', 'emergencyContacts', 'leases.room'])
-            ->where('status', 'active');
+            ->where('tenants.status', 'active');
 
         // --- 权限范围过滤重构 ---
         if (in_array($user->role, ['agent', 'agentAdmin', 'ownerAdmin'])) {
-            $query->where('created_by', $user->id);
+            $query->where('tenants.created_by', $user->id);
         } elseif ($user->role === ['owner']) {
-            $query->where('owner_id', $user->id);
+            $query->where('tenants.owner_id', $user->id);
         }
         // ----------------------------
 
-        // 2. 搜索逻辑 (保持不变)
+        // 2. 搜索逻辑 (包含展示的所有字段)
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->whereHas('user', function ($q) use ($search) {
-                $q->where('name', 'like', '%' . $search . '%');
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('user', function ($uq) use ($search) {
+                    $uq->where('users.name', 'like', '%' . $search . '%')
+                       ->orWhere('users.email', 'like', '%' . $search . '%');
+                })
+                ->orWhere('tenants.phone', 'like', '%' . $search . '%')
+                ->orWhere('tenants.ic_number', 'like', '%' . $search . '%')
+                ->orWhere('tenants.passport', 'like', '%' . $search . '%')
+                ->orWhere('tenants.nationality', 'like', '%' . $search . '%')
+                ->orWhere('tenants.gender', 'like', '%' . $search . '%')
+                ->orWhere('tenants.occupation', 'like', '%' . $search . '%');
             });
         }
 
-        // 3. 排序逻辑 (保持不变)
-        $sort = $request->get('sort', 'oldest');
-        if (in_array($sort, ['name_asc', 'name_desc'])) {
-            // 注意：Join 的时候 select tenants.* 避免 ID 冲突
-            $query->join('users', 'tenants.user_id', '=', 'users.id')
-                ->select('tenants.*');
-        }
-
-        switch ($sort) {
-            case 'name_asc':
-                $query->orderBy('users.name', 'asc');
-                break;
-            case 'name_desc':
-                $query->orderBy('users.name', 'desc');
-                break;
-            case 'newest':
-                $query->orderBy('tenants.created_at', 'desc');
-                break;
-            default:
+        // 3. 排序逻辑 (Details: n, Contact Info: p, Joined Date: jd)
+        $sort = $request->get('sort');
+        if ($sort) {
+            if (str_starts_with($sort, 'n_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->join('users', 'tenants.user_id', '=', 'users.id')
+                    ->select('tenants.*')
+                    ->orderBy('users.name', $direction);
+            } elseif (str_starts_with($sort, 'p_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('tenants.phone', $direction);
+            } elseif (str_starts_with($sort, 'jd_')) {
+                $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+                $query->orderBy('tenants.created_at', $direction);
+            } else {
                 $query->orderBy('tenants.created_at', 'asc');
-                break;
+            }
+        } else {
+            $query->orderBy('tenants.created_at', 'asc');
         }
 
         $tenants = $query->paginate(10)->withQueryString();

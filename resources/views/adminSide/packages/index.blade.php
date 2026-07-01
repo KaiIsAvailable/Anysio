@@ -27,11 +27,10 @@
             {{-- Table Card --}}
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
                 
-                {{-- Search/Filter (保留你的设计样式) --}}
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
-                        <x-form.form method="GET" action="{{ route('admin.packages.index') }}" class="flex items-stretch gap-2">
-                            <div class="flex items-stretch">
+                        <x-form.form method="GET" action="{{ route('admin.packages.index') }}" class="flex flex-wrap items-center gap-4">
+                            <div class="flex items-stretch justify-between">
                                 <x-table.search placeholder="Search by package name..." />
                             </div>
                         </x-form.form>
@@ -41,15 +40,15 @@
                 {{-- Packages Table --}}
                 <div class="overflow-x-auto">
                     @if($packages && $packages->count() > 0)
-                        <table class="w-full divide-y divide-gray-200 text-left">
+                        <table class="table-auto w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Plan Details</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Billing Mode</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Pricing</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Base Lease</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Usage Limits</th>
-                                    <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Status</th>
+                                    <x-table.th name="Plan Details" sortField="pd" />
+                                    <x-table.th name="Billing Mode" sortField="bm" />
+                                    <x-table.th name="Pricing" sortField="pr" />
+                                    <x-table.th name="Base Lease" sortField="bl" />
+                                    <x-table.th name="Usage Limits" sortField="ul" />
+                                    <x-table.th name="Status" sortField="st" />
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
                             </thead>
@@ -151,8 +150,8 @@
                                         </td>
                                         
                                         {{-- 6. Actions --}}
-                                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                            <div class="flex justify-end items-center gap-3">
+                                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                            <div class="flex items-center justify-center space-x-2">
                                                 {{-- Edit 按钮 --}}
                                                 <a href="{{ route('admin.packages.edit', $package->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"> <!-- transition-transform hover:scale-110 -->
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
@@ -160,7 +159,7 @@
 
                                                 @if($package->status === 'active')
                                                     {{-- 禁用按钮 (Destroy) --}}
-                                                    <form action="{{ route('admin.packages.destroy', $package->id) }}" method="POST" onsubmit="return confirm('Disable this package? New users won\'t be able to subscribe to it.');" class="inline">
+                                                    <form action="{{ route('admin.packages.destroy', $package->id) }}" method="POST" onsubmit="return confirm('Disable this package? New users won\'t be able to subscribe to it.');" class="inline-block">
                                                         @csrf
                                                         @method('DELETE')
                                                         <button type="submit" class="p-2 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 rounded-lg transition-colors">
@@ -171,7 +170,7 @@
                                                     </form>
                                                 @else
                                                     {{-- 恢复按钮 (Restore) --}}
-                                                    <form action="{{ route('admin.packages.restore', $package->id) }}" method="POST" class="inline">
+                                                    <form action="{{ route('admin.packages.restore', $package->id) }}" method="POST" class="inline-block">
                                                         @csrf
                                                         @method('PATCH')
                                                         <button type="submit" class="p-2 text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 rounded-lg transition-colors" title="Restore Package">

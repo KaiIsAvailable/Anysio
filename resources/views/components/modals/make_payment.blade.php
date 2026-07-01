@@ -76,14 +76,12 @@
                             </div>
                         </div>
 
-                        <form method="POST" action="{{ route('logout') }}" x-data="{ loading: false }"
-                            @submit="loading = true" class="w-full md:w-auto text-center md:text-right">
-                            @csrf
+                        <x-form.form method="POST" action="{{ route('logout') }}" class="w-full md:w-auto text-center md:text-right">
                             <x-form.secondary-button loading="loading" type="submit"
                                 class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
                                 {{ __('Log Out') }}
                             </x-form.secondary-button>
-                        </form>
+                        </x-form.form>
 
                         <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
                             Usually approved within 1 - 2 hours
@@ -113,25 +111,21 @@
                     </div>
 
                     {{-- 2. 重新上传表单 (加入了滚动高度限制) --}}
-                    <form action="{{ $actionUrl }}" 
-                        method="POST" 
+                    <x-form.form action="{{ $actionUrl }}" 
                         enctype="multipart/form-data" 
-                        class="flex flex-col h-full overflow-hidden"
-                        x-data="{ loading: false }"
-                        @submit="loading = true">
-                        @csrf
+                        class="flex flex-col h-full overflow-hidden">
 
                         {{-- 中间滚动区 --}}
                         <div class="flex-1 overflow-y-auto p-8 space-y-6">
                             <div class="bg-white border-2 border-dashed border-rose-200 rounded-3xl p-6">
                                 <div class="space-y-4">
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Re-upload Bank Receipt</label>
-                                        <input type="file" name="attachment" required class="block w-full text-sm text-slate-500 file:mr-4 file:py-3 file:px-6 file:rounded-xl file:border-0 file:text-sm file:font-bold file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100 border border-gray-100 rounded-2xl p-2 bg-gray-50/50 cursor-pointer transition-all" />
+                                        <x-form.input-label value="Re-upload Bank Receipt" class="mb-2" />
+                                        <x-form.file-input name="attachment" required class="file:bg-rose-50 file:text-rose-700 hover:file:bg-rose-100 border-gray-100" />
                                     </div>
                                     <div>
-                                        <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Updated Transaction Ref (Optional)</label>
-                                        <input type="text" name="transaction_ref" placeholder="e.g. 123456789" class="block w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-rose-500 text-sm font-medium">
+                                        <x-form.input-label value="Updated Transaction Ref (Optional)" class="mb-2" />
+                                        <x-form.text-input name="transaction_ref" placeholder="e.g. 123456789" class="block w-full px-5 py-4 bg-gray-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-rose-500 text-sm font-medium" />
                                     </div>
                                 </div>
                             </div>
@@ -146,7 +140,6 @@
                         <div class="flex-none p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
                             {{-- 登出按钮：去掉了会导致渲染冲突的 loading 属性 --}}
                             <x-form.form method="POST" action="{{ route('logout') }}" class="w-full md:w-auto text-center md:text-right">
-                                @csrf
                                 <x-form.secondary-button type="submit" loading="loading"
                                     class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
                                     {{ __('Log Out') }}
@@ -154,26 +147,18 @@
                             </x-form.form>
 
                             {{-- 提交按钮：统一使用 loading 变量 --}}
-                            <x-form.primary-button type="submit"
+                            <x-form.primary-button type="submit" loading="loading"
                                 class="w-full px-4 py-3 bg-rose-600 text-white rounded-2xl font-black text-base hover:bg-rose-700 shadow-xl shadow-rose-200 transition-all active:scale-[0.98] disabled:opacity-70 flex items-center justify-center">
                                 <span x-show="!loading">Update & Resubmit Proof</span>
-                                <span x-show="loading" class="flex items-center" x-cloak>
-                                    <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
-                                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
-                                    </svg>
-                                    Uploading...
-                                </span>
+                                <span x-show="loading" x-cloak>Uploading...</span>
                             </x-form.primary-button>
                         </div>
-                    </form>
+                    </x-form.form>
 
                     {{-- 情况 B：还没上传，显示支付表单 --}}
                 @else
-                    <form action="{{ $actionUrl }}" method="POST" enctype="multipart/form-data" x-data="{ loading: false }"
-                        @submit="loading = true" x-latest-amount-due="{{$latestPayment?->amount_due}}"
+                    <x-form.form action="{{ $actionUrl }}" enctype="multipart/form-data" x-latest-amount-due="{{$latestPayment?->amount_due}}"
                         class="flex flex-col h-full overflow-hidden"> {{-- 改动 1：表单设为 flex-col 且占满高度 --}}
-                        @csrf
 
                         {{-- 改动 2：中间内容区添加 flex-1 overflow-y-auto --}}
                         <div class="flex-1 overflow-y-auto p-1 space-y-8 min-h-0">
@@ -219,7 +204,6 @@
                         <div
                             class="flex-none p-6 bg-gray-50/80 border-t border-gray-100 flex flex-col sm:flex-row justify-between items-center gap-4">
                             <x-form.form method="POST" action="{{ route('logout') }}" class="w-full sm:flex-1">
-                                @csrf
                                 <x-form.secondary-button loading="loading" type="submit"
                                     class="w-full px-4 py-3 bg-white border border-slate-200 text-slate-400 font-black text-[10px] rounded-xl hover:text-rose-500 hover:border-rose-100 transition-all uppercase tracking-widest disabled:opacity-50">
                                     {{ __('Log Out') }}
@@ -233,7 +217,7 @@
                                 </x-form.primary-button>
                             </div>
                         </div>
-                    </form>
+                    </x-form.form>
                 @endif
             </div>
         </div>

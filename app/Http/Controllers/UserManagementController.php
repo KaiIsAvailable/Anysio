@@ -48,12 +48,36 @@ class UserManagementController extends Controller
             $query->where(function($q) use ($search) {
                 $q->where('users.name', 'like', "%{$search}%")
                 ->orWhere('users.email', 'like', "%{$search}%")
-                ->orWhere('ref_code_packages.ref_code', 'like', "%{$search}%");
+                ->orWhere('user_management.role', 'like', "%{$search}%")
+                ->orWhere('ref_code_packages.ref_code', 'like', "%{$search}%")
+                ->orWhere('user_management.subscription_status', 'like', "%{$search}%")
+                ->orWhere('user_management.usage_count', 'like', "%{$search}%")
+                ->orWhere('user_management.discount_rate', 'like', "%{$search}%");
             });
         }
 
-        // 注意：latest() 里的字段要写全表名
-        $userManagement = $query->orderBy('user_management.created_at', 'desc')->paginate(5)->onEachSide(1);
+        // Sorting (User Details: u, Role & Referral: r, Subscription: s, Usage/Discount: ud, Joined Date: jd)
+        $sort = $request->get('sort');
+        if ($sort) {
+            $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
+            if (str_starts_with($sort, 'u_')) {
+                $query->orderBy('users.name', $direction);
+            } elseif (str_starts_with($sort, 'r_')) {
+                $query->orderBy('user_management.role', $direction);
+            } elseif (str_starts_with($sort, 's_')) {
+                $query->orderBy('user_management.subscription_status', $direction);
+            } elseif (str_starts_with($sort, 'ud_')) {
+                $query->orderBy('user_management.usage_count', $direction)->orderBy('user_management.discount_rate', $direction);
+            } elseif (str_starts_with($sort, 'jd_')) {
+                $query->orderBy('user_management.created_at', $direction);
+            } else {
+                $query->orderBy('user_management.created_at', 'desc');
+            }
+        } else {
+            $query->orderBy('user_management.created_at', 'desc');
+        }
+
+        $userManagement = $query->paginate(5)->onEachSide(1)->withQueryString();
         //dd($userManagement->toArray());
         return view('adminSide.userManagement.index', compact('userManagement', 'pendingPayments'));
     }

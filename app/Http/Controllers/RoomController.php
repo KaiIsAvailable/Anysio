@@ -134,7 +134,7 @@ class RoomController extends Controller
             'unit_id'   => 'required|exists:units,id',
             'room_no'   => 'required|string|max:255',
             'room_type' => 'required|string|max:255',
-            'status'    => 'required|',
+            'status'    => 'required',
             'address'   => 'nullable|string',
             'assets'    => 'nullable|array',
             'assets.*.id'  => 'required_with:assets|exists:assets,id',

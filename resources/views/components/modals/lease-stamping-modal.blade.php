@@ -61,16 +61,12 @@
 
                     {{-- Reference Number --}}
                     <div>
-                        <label class="block text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-2">
-                            Adjudication No (Reference)
-                        </label>
-                        <input type="text" name="stamping_reference_no" required
-                               :value="activeLease?.stamping_reference_no || ''"
+                        <x-form.input-label value="Adjudication No (Reference)" class="!text-[10px] !font-black !text-gray-400 uppercase tracking-[0.2em] mb-2" />
+                        <x-form.text-input type="text" name="stamping_reference_no" required
+                               x-bind:value="activeLease?.stamping_reference_no || ''"
                                placeholder="e.g. J1234567890"
-                               class="w-full px-4 py-4 bg-slate-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-700">
-                        @error('stamping_reference_no')
-                            <p class="mt-1 text-xs text-rose-500 font-bold">{{ $message }}</p>
-                        @enderror
+                               class="w-full px-4 py-4 bg-slate-50 border border-gray-100 rounded-2xl focus:ring-2 focus:ring-indigo-500 outline-none transition-all font-bold text-slate-700" />
+                        <x-form.input-error :messages="$errors->get('stamping_reference_no')" class="mt-1" />
                     </div>
 
                     {{-- 文件上传 --}}

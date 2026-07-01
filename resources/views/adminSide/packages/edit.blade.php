@@ -20,19 +20,20 @@
                     
                     <div class="space-y-8">
                         {{-- Section 1: Basic Info --}}
+                        {{-- Section 1: Basic Info --}}
                         <div>
                             <h3 class="text-sm font-bold text-indigo-600 uppercase tracking-wider mb-4">Basic Information</h3>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
-                                    <label for="name" class="block text-sm font-semibold text-gray-700">Package Name</label>
-                                    <input type="text" name="name" id="name" value="{{ old('name', $package->name) }}" required 
-                                           class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 uppercase">
+                                    <x-form.input-label for="name" value="Package Name" />
+                                    <x-form.text-input name="name" id="name" value="{{ old('name', $package->name) }}" required 
+                                           class="mt-1 block w-full uppercase" />
                                 </div>
 
                                 <div>
-                                    <label for="ref_code" class="block text-sm font-semibold text-gray-700">Reference Code</label>
-                                    <input type="text" value="{{ $package->ref_code }}" readonly 
-                                           class="mt-1 block w-full rounded-lg border-gray-200 bg-gray-50 shadow-sm font-mono uppercase cursor-not-allowed">
+                                    <x-form.input-label for="ref_code" value="Reference Code" />
+                                    <x-form.text-input value="{{ $package->ref_code }}" readonly 
+                                           class="mt-1 block w-full bg-gray-50 font-mono uppercase cursor-not-allowed" />
                                     <p class="mt-1 text-[10px] text-gray-400">Reference code cannot be changed.</p>
                                 </div>
                             </div>
@@ -43,12 +44,12 @@
                             
                             {{-- 1. 周期选择 --}}
                             <div class="mb-6 w-1/2">
-                                <label for="price_mode" class="block text-sm font-semibold text-gray-700">Billing Cycle</label>
-                                <select name="price_mode" id="price_mode" required 
-                                        class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 uppercase text-sm">
-                                    <option value="MONTHLY" {{ old('price_mode', $package->price_mode) == 'MONTHLY' ? 'selected' : '' }}>MONTHLY</option>
-                                    <option value="YEARLY" {{ old('price_mode', $package->price_mode) == 'YEARLY' ? 'selected' : '' }}>YEARLY</option>
-                                </select>
+                                <x-form.input-label for="price_mode" value="Billing Cycle" />
+                                <x-form.input-select name="price_mode" id="price_mode" 
+                                    :value="old('price_mode', $package->price_mode)"
+                                    :options="['MONTHLY' => 'MONTHLY', 'YEARLY' => 'YEARLY']" 
+                                    required 
+                                    class="mt-1 block w-full uppercase text-sm" />
                             </div>
 
                             {{-- 2. 模式切换 --}}
@@ -71,15 +72,15 @@
 
                             {{-- 3. 动态输入框 --}}
                             <div class="grid grid-cols-1 md:grid-cols-1 gap-6">
-                                {{-- 💡 修复：初始化时根据 $isFixed 动态赋予 disabled 属性 --}}
+                                {{-- 💡 单元：初始化时根据 $isFixed 动态赋予 disabled 属性 --}}
                                 <div id="section_percentage" class="{{ $isFixed ? 'hidden' : '' }} animate-fadeIn">
                                     <label class="block text-sm font-semibold text-gray-700">Billing Rate (%)</label>
                                     <div class="mt-1 relative w-full">
-                                        <input type="number" name="commission_display" id="commission_display" 
+                                        <x-form.text-input type="number" name="commission_display" id="commission_display" 
                                             value="{{ old('commission_display', $package->commission_rate / 100) }}"
                                             {{ $isFixed ? 'disabled' : '' }}
-                                            min="1" max="100" step="0.01" class="block w-full rounded-lg border-gray-300 pr-10 focus:ring-indigo-500"
-                                            onwheel="this.blur()">
+                                            min="1" max="100" step="0.01" class="block w-full pr-10 focus:ring-indigo-500"
+                                            onwheel="this.blur()" />
                                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
                                             <span class="text-gray-500 text-sm">%</span>
                                         </div>
@@ -89,11 +90,11 @@
                                 <div id="section_fixed" class="{{ !$isFixed ? 'hidden' : '' }} animate-fadeIn">
                                     <label class="block text-sm font-semibold text-gray-700">Fixed Price (RM)</label>
                                     <div class="mt-1 relative w-full">
-                                        <input type="number" step="0.01" name="price_display" id="price_display" 
+                                        <x-form.text-input type="number" step="0.01" name="price_display" id="price_display" 
                                             value="{{ old('price_display', $package->price / 100) }}"
                                             {{ !$isFixed ? 'disabled' : '' }}
-                                            class="block w-full rounded-lg border-gray-300 pl-4 focus:ring-indigo-500"
-                                            onwheel="this.blur()">
+                                            class="block w-full focus:ring-indigo-500"
+                                            onwheel="this.blur()" />
                                     </div>
                                 </div>
                             </div>
@@ -104,25 +105,25 @@
                             <h3 class="text-sm font-bold text-indigo-600 uppercase tracking-wider mb-4">Lease Expansion Logic</h3>
                             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 p-6 bg-indigo-50/50 rounded-xl border border-indigo-100">
                                 <div>
-                                    <label for="base_lease" class="block text-sm font-semibold text-slate-700">Base Lease Quota</label>
-                                    <input type="number" name="base_lease" id="base_lease" 
+                                    <x-form.input-label for="base_lease" value="Base Lease Quota" />
+                                    <x-form.text-input type="number" name="base_lease" id="base_lease" 
                                            value="{{ old('base_lease', $package->base_lease) }}" required 
-                                           class="mt-1 block w-full rounded-lg border-gray-300"
-                                           oninput="if(this.value.length > 9) this.value = this.value.slice(0, 9);">
+                                           class="mt-1 block w-full"
+                                           oninput="if(this.value.length > 9) this.value = this.value.slice(0, 9);" />
                                 </div>
 
                                 <div>
-                                    <label for="add_on_price_display" class="block text-sm font-semibold text-slate-700">Add-on Price (RM)</label>
-                                    <input type="number" step="0.01" name="add_on_price_display" id="add_on_price_display"
+                                    <x-form.input-label for="add_on_price_display" value="Add-on Price (RM)" />
+                                    <x-form.text-input type="number" step="0.01" name="add_on_price_display" id="add_on_price_display"
                                            value="{{ old('add_on_price_display', $package->extra_lease_price / 100) }}" required
-                                           class="mt-1 block w-full rounded-lg border-gray-300">
+                                           class="mt-1 block w-full" />
                                 </div>
 
                                 <div>
-                                    <label for="add_on_limit" class="block text-sm font-semibold text-slate-700">Max Add-on Limit</label>
-                                    <input type="number" name="add_on_limit" id="add_on_limit" 
+                                    <x-form.input-label for="add_on_limit" value="Max Add-on Limit" />
+                                    <x-form.text-input type="number" name="add_on_limit" id="add_on_limit" 
                                            value="{{ old('add_on_limit', $package->max_lease_limit) }}" required 
-                                           class="mt-1 block w-full rounded-lg border-gray-300">
+                                           class="mt-1 block w-full" />
                                 </div>
                             </div>
                         </div>

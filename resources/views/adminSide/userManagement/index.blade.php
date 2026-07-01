@@ -28,27 +28,35 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">User Management</h1>
                     <p class="mt-2 text-sm text-gray-500">Managing subscriptions, usage, and roles for system users.</p>
                 </div>
-                <div class="flex-shrink-0">
-                    <a href="{{ route('admin.userManagement.create') }}" 
-                       class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex-shrink-0" x-data="{loading: false}">
+                    <x-form.primary-button
+                        type="button"
+                        loading="loading"
+                        @click="loading = true; window.location.href = '{{ route('admin.userManagement.create') }}'"
+                        >
+                        <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                         Add New Manager
-                    </a>
+                    </x-form.primary-button>
                 </div>
             </div>
 
             {{-- DataTable Component Apply --}}
             <x-data-table 
                 :collection="$userManagement" 
-                :columns="['User Details', 'Role & Referral', 'Subscription', 'Usage/Discount', 'Joined Date']"
+                :columns="[
+                    ['name' => 'User Details', 'sortField' => 'u'],
+                    ['name' => 'Role & Referral', 'sortField' => 'r'],
+                    ['name' => 'Subscription', 'sortField' => 's'],
+                    ['name' => 'Usage/Discount', 'sortField' => 'ud'],
+                    ['name' => 'Joined Date', 'sortField' => 'jd']
+                ]"
             >
-                {{-- Search Bar Slot --}}
                 <x-slot name="header">
                     <div class="flex justify-end">
-                        <x-form.form method="GET" action="{{ route('admin.userManagement.index') }}" class="flex items-stretch gap-2">
-                            <div class="flex items-stretch relative">
+                        <x-form.form method="GET" action="{{ route('admin.userManagement.index') }}" class="flex flex-wrap items-center gap-4">
+                            <div class="flex items-stretch justify-between">
                                 <x-table.search placeholder="Search by user name..." />
                             </div>
                         </x-form.form>
@@ -57,7 +65,7 @@
 
                 {{-- Table Body Row Content --}}
                 @foreach($userManagement as $user)
-                    <tr class="hover:!bg-indigo-50/50 transition-colors cursor-pointer group duration-150" 
+                    <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150" 
                         onclick="window.location='{{ route('admin.userManagement.show', $user->id) }}'">
                         
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -108,15 +116,15 @@
                         </td>
 
                         {{-- 操作列 --}}
-                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium" onclick="event.stopPropagation()">
-                            <div class="flex items-center justify-end space-x-2">
-                                <a href="{{ route('admin.userManagement.edit', $user->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-white border border-gray-200 rounded-lg hover:border-indigo-300 shadow-sm transition-all">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium" onclick="event.stopPropagation()">
+                            <div class="flex items-center justify-center space-x-2">
+                                <a href="{{ route('admin.userManagement.edit', $user->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors" title="Edit">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                 </a>
                                 <form action="{{ route('admin.userManagement.destroy', $user->id) }}" method="POST" onsubmit="return confirm('Delete this manager?');" class="inline">
                                     @csrf @method('DELETE')
-                                    <button type="submit" class="p-2 text-rose-600 hover:text-rose-900 bg-white border border-gray-200 rounded-lg hover:border-rose-300 shadow-sm transition-all">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                                    <button type="submit" class="p-2 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 rounded-lg transition-colors" title="Delete">
+                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                     </button>
                                 </form>
                             </div>

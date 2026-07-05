@@ -1,61 +1,4 @@
 <x-app-layout>
-    @php
-    $paymentsController = new \App\Http\Controllers\PaymentsController();
-    // 将历史记录转换为 JS 容易读取的对象，Key 是 ID
-    $historyJson = $leaseHistory->keyBy('id')->map(function($item) use ($paymentsController) {
-        return [
-            'status' => $item->status,
-            'checked_out_at' => $item->checked_out_at ? $item->checked_out_at_formatted : null,
-            'agreement_ended_at' => $item->agreement_ended_at ? $item->agreement_ended_at_formatted : null,
-            'start_date' => $item->start_date_formatted ?? null,
-            'end_date' => $item->end_date_formatted ?? null,
-            'term_type' => strtoupper($item->term_type) ?? 'N/A',
-            'rent_price' => number_format($item->rent_price, 2),
-            'deposit_mode' => strtoupper($item->deposit_mode) ?? 'SECURITY',
-            'security_deposit' => ($item->security_deposit > 0)
-                ? number_format($item->security_deposit, 2)
-                : null,
-            'utilities_deposit' => ($item->utilities_deposit > 0)
-                ? number_format($item->utilities_deposit, 2)
-                : null,
-            'edit_url' => route('admin.leases.edit', $item->id),
-            'stamping_status' => (bool)$item->stamping_status,
-            'stamping_cert_path' => $item->stamping_cert_path,
-            'stamping_reference_no' => $item->stamping_reference_no,
-            'stamped_at' => $item->stamped_at ? $item->stamped_at_formatted : null,
-            'can_stamp' => in_array($item->status, ['New', 'Renew']),
-            'upload_url' => route('admin.leases.upload-stamping', $item->id),
-            'view_url' => route('admin.leases.cert-file', $item->id),
-            'agreement' => [
-                'title' => $item->agreement?->title ?? 'Agreement',
-                'content' => $item->agreement?->content ?? '',
-            ],
-            'agreement_id' => $item->agreement_id,
-            'tenant_name' => $item->tenant?->user?->name ?? 'N/A',
-            'tenant_ic' => $item->tenant?->ic_number ?? 'N/A',
-            
-            // 💡 修复点 1：安全获取 Owner Name
-            'owner_name' => ($item->leasable instanceof \App\Models\Room)
-                ? ($item->leasable->unit?->owner?->name ?? 'N/A')
-                : ($item->leasable->owner?->name ?? 'N/A'),
-
-            // 💡 修复点 2：连跳两级，去真正的 Owner 表里抓取 IC Number
-            'owner_ic' => ($item->leasable instanceof \App\Models\Room)
-                ? ($item->leasable->unit?->owner?->owner?->ic_number ?? 'N/A')
-                : ($item->leasable->owner?->owner?->ic_number ?? 'N/A'),
-                
-            'property_address' => $item->leasable?->full_address ?? 'N/A',
-            'property_type' => strtolower(class_basename($item->leasable_type)) ?? 'N/A',
-            'property_name' => $item->leasableName ?? 'N/A',
-            'rent_mode' => strtoupper($item->term_type ?? 'N/A'),
-            'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
-            'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
-            'can_generate' => !is_null($paymentsController->calculateNextPendingPeriod($item)),
-        ];
-    });
-    $historyData = $historyJson->toArray();
-    @endphp
-
     {{-- 1. 初始化数据，注意 activeId 加了单引号 --}}
     <div class="py-12 bg-gray-50 min-h-screen font-sans"
         x-data="{ 
@@ -396,7 +339,7 @@
 
                             <div x-show="activeLease && activeLease.can_generate" x-cloak>
                                 <form x-ref="generateForm"
-                                    :action="'{{ url('admin/tenants') }}/' + activeId + '/payments/generate-rent'"
+                                    :action="'/admin/leases/' + activeId + '/invoices/generate'"
                                     method="POST"
                                     class="inline-block">
                                     @csrf
@@ -433,16 +376,16 @@
                                     </tr>
                                 </thead>
                                 <tbody id="rent-payments-container" class="bg-white divide-y divide-gray-200">
-                                    @include('adminSide.tenants.payments.paymentTable', [
-                                    'payments' => $rentPayments,
+                                    @include('adminSide.leases.invoices.invoicesTable', [
+                                    'invoices' => $rentInvoices,
                                     'emptyMessage' => 'No outstanding rent found.'
                                     ])
                                 </tbody>
                             </table>
                         </div>
-                        @if($rentPayments->hasPages())
+                        @if($rentInvoices->hasPages())
                         <div class="mt-4">
-                            {{ $rentPayments->appends(['other_page' => request('other_page')])->links() }}
+                            {{ $rentInvoices->appends(['other_page' => request('other_page')])->links() }}
                         </div>
                         @endif
                     </div>
@@ -468,16 +411,16 @@
                                     </tr>
                                 </thead>
                                 <tbody id="other-payments-container" class="bg-white divide-y divide-gray-200">
-                                    @include('adminSide.tenants.payments.paymentTable', [
-                                    'payments' => $otherPayments,
+                                    @include('adminSide.leases.invoices.invoicesTable', [
+                                    'invoices' => $otherInvoices,
                                     'emptyMessage' => 'No miscellaneous records found.'
                                     ])
                                 </tbody>
                             </table>
                         </div>
-                        @if($otherPayments->hasPages())
+                        @if($otherInvoices->hasPages())
                         <div class="mt-4">
-                            {{ $otherPayments->appends(['rent_page' => request('rent_page')])->links() }}
+                            {{ $otherInvoices->appends(['rent_page' => request('rent_page')])->links() }}
                         </div>
                         @endif
                     </div>

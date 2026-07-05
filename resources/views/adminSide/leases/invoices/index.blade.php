@@ -18,8 +18,8 @@
             
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
-                    <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Payment Records</h1>
-                    <p class="mt-2 text-sm text-gray-500">View and process tenant invoices and payments.</p>
+                    <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Invoices</h1>
+                    <p class="mt-2 text-sm text-gray-500">View and process tenant invoices and payment records.</p>
                 </div>
             </div>
 
@@ -27,16 +27,16 @@
                 
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
-                        <x-form.form method="GET" action="{{ route('admin.payments.index') }}" class="flex flex-wrap items-center gap-4">
+                        <x-form.form method="GET" action="{{ route('admin.invoices.index') }}" class="flex flex-wrap items-center gap-4">
                             <div class="flex items-stretch justify-between">
-                                <x-table.search placeholder="Search payments..." />
+                                <x-table.search placeholder="Search invoices..." />
                             </div>
                         </x-form.form>
                     </div>
                 </div>
 
                 <div class="overflow-x-auto">
-                    @if($payments->count() > 0)
+                    @if($invoices->count() > 0)
                         <table class="table-auto w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                             <thead class="bg-gray-50">
                                 <tr>
@@ -49,17 +49,17 @@
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
-                                @foreach($payments as $payment)
+                                @foreach($invoices as $invoice)
                                     <tr class="hover:!bg-indigo-50 transition-colors duration-150">
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <span class="text-sm font-bold text-indigo-600">{{ $payment->invoice_no }}</span>
+                                            <span class="text-sm font-bold text-indigo-600">{{ $invoice->invoice_no }}</span>
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm font-medium text-slate-900">{{ $payment->tenant->user->name ?? 'N/A' }}</div>
+                                            <div class="text-sm font-medium text-slate-900">{{ $invoice->tenant->user->name ?? 'N/A' }}</div>
                                             <div class="text-xs text-gray-500">
                                                 @php
-                                                    $leasable = $payment->lease->leasable ?? null;
+                                                    $leasable = $invoice->lease->leasable ?? null;
                                                 @endphp
 
                                                 @if($leasable instanceof \App\Models\Room)
@@ -75,35 +75,35 @@
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-slate-900 font-semibold">{{ number_format($payment->amount_due, 2) }}</div>
-                                            @if($payment->amount_paid > 0)
-                                                <div class="text-[10px] text-green-600">Paid: {{ number_format($payment->amount_paid, 2) }}</div>
+                                            <div class="text-sm text-slate-900 font-semibold">{{ number_format($invoice->amount_due, 2) }}</div>
+                                            @if($invoice->amount_paid > 0)
+                                                <div class="text-[10px] text-green-600">Paid: {{ number_format($invoice->amount_paid, 2) }}</div>
                                             @endif
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border 
-                                                {{ $payment->status === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-yellow-100 text-yellow-700 border-yellow-200' }}">
-                                                {{ strtoupper($payment->status) }}
+                                                {{ $invoice->status === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-yellow-100 text-yellow-700 border-yellow-200' }}">
+                                                {{ strtoupper($invoice->status) }}
                                             </span>
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {{ $payment->created_at->format('d M Y') }}
+                                            {{ $invoice->created_at->format('d M Y') }}
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex justify-center items-center gap-2">
-                                                @if($payment->status === 'unpaid')
+                                                @if($invoice->status === 'unpaid')
                                                     <button type="button" 
                                                             {{-- 1. 改为 @click --}}
                                                             {{-- 2. 函数名改为 openMakePayment --}}
                                                             {{-- 3. 直接传数据对象 --}}
                                                             @click="openMakePayment({
-                                                                id: '{{ $payment->id }}',
-                                                                invoice_no: '{{ $payment->invoice_no }}',
-                                                                amount_due: '{{ number_format($payment->amount_due, 2, '.', '') }}',
-                                                                action: '{{ route('admin.payments.update', $payment->id) }}'
+                                                                id: '{{ $invoice->id }}',
+                                                                invoice_no: '{{ $invoice->invoice_no }}',
+                                                                amount_due: '{{ number_format($invoice->amount_due, 2, '.', '') }}',
+                                                                action: '{{ route('admin.invoices.update', $invoice->id) }}'
                                                             })"
                                                             class="inline-flex items-center justify-center p-2 text-emerald-600 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors shrink-0 leading-none" 
                                                             title="Pay Now">
@@ -114,7 +114,7 @@
                                                     </button>
                                                 @endif
 
-                                                <form action="{{ route('admin.payments.voidPayment', $payment->id) }}" 
+                                                <form action="{{ route('admin.invoices.void', $invoice) }}" 
                                                     method="POST" 
                                                     onsubmit="return confirm('Void this invoice?');" 
                                                     class="inline-flex items-center m-0 p-0"> @csrf
@@ -140,10 +140,8 @@
                     @endif
                 </div>
 
-                @if($payments->hasPages())
-                    <div class="bg-white px-6 py-4 border-t border-gray-100">
-                        {{ $payments->links() }}
-                    </div>
+                @if($invoices->hasPages())
+                    {{ $invoices->links() }}
                 @endif
             </div>
         </div>

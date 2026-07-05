@@ -6,7 +6,8 @@
 }" x-init="$watch('openPayment', value => document.body.style.overflow = value ? 'hidden' : '')" x-cloak>
 
     @php
-        $actionUrl = ($latestPayment ?? null) ? route('admin.payments.upload-proof', $latestPayment->id) : '#';
+        $payment = $invoice->latestPayment;
+        $actionUrl = route('tenant.payments.store', $invoice);
     @endphp
 
     <template x-teleport="body">
@@ -31,17 +32,17 @@
                     <div>
                         <h3 class="text-xl font-black text-slate-800">Subscription Status</h3>
                         <p class="text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">Invoice: <span
-                                class="text-indigo-600">{{ $latestPayment?->invoice_no }}</span></p>
+                                class="text-indigo-600">{{ $invoice?->invoice_no }}</span></p>
                     </div>
                     <div class="text-right">
                         <span class="block text-[10px] font-bold text-gray-400 uppercase">Total Amount</span>
                         <span class="text-2xl font-black text-indigo-600">RM
-                            {{ number_format($latestPayment?->amount_due / 100, 2) }}</span>
+                            {{ number_format($invoice?->amount_due / 100, 2) }}</span>
                     </div>
                 </div>
 
                 {{-- 情况 A：已经上传了收据，等待审核 --}}
-                @if($latestPayment?->attachment && $latestPayment?->status === 'pending')
+                @if($payment && $payment->status === 'pending')
                     <div class="p-12 flex flex-col items-center text-center space-y-6">
                         {{-- 这里的动画效果 --}}
                         <div class="relative">
@@ -58,7 +59,7 @@
                         <div class="space-y-2">
                             <h4 class="text-2xl font-black text-slate-800 tracking-tight">Waiting for Approval</h4>
                             <p class="text-slate-500 text-sm max-w-xs mx-auto">
-                                We've received your payment proof! Our team is currently verifying it.
+                                We've received your payment receipt. Our finance team is verifying it. You'll be notified once verification is complete. Our team is currently verifying it.
                             </p>
                         </div>
 
@@ -88,7 +89,7 @@
                         </p>
                     </div>
 
-                @elseif($latestPayment?->status === 'rejected')
+                @elseif($payment && $payment->status === 'rejected')
                     {{-- 1. 拒绝提示区域 --}}
                     <div class="p-1 flex flex-col items-center text-center space-y-6 bg-rose-50/30">
                         <div class="relative">
@@ -107,6 +108,17 @@
                                 We couldn't verify your previous receipt. Please review the details below and 
                                 <span class="text-rose-600 font-bold">re-upload</span> a valid proof.
                             </p>
+                            @if($payment?->remark)
+                                <div class="bg-red-50 border border-red-200 rounded-xl p-4">
+                                    <div class="text-xs text-red-500 uppercase font-bold">
+                                        Rejection Reason
+                                    </div>
+
+                                    <div class="text-sm text-red-700 mt-2">
+                                        {{ $payment->remark }}
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                     </div>
 
@@ -157,9 +169,7 @@
 
                     {{-- 情况 B：还没上传，显示支付表单 --}}
                 @else
-                    <x-form.form action="{{ $actionUrl }}" enctype="multipart/form-data" x-latest-amount-due="{{$latestPayment?->amount_due}}"
-                        class="flex flex-col h-full overflow-hidden"> {{-- 改动 1：表单设为 flex-col 且占满高度 --}}
-
+                    <x-form.form action="{{ $actionUrl }}" enctype="multipart/form-data" class="flex flex-col h-full overflow-hidden"> {{-- 改动 1：表单设为 flex-col 且占满高度 --}}
                         {{-- 改动 2：中间内容区添加 flex-1 overflow-y-auto --}}
                         <div class="flex-1 overflow-y-auto p-1 space-y-8 min-h-0">
                             {{-- QR Section --}}

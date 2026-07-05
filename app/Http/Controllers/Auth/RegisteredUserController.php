@@ -3,15 +3,8 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use App\Http\Controllers\PaymentsController;
-use App\Models\User;
-use App\Models\UserPayment;
-use App\Models\Agreements;
-use App\Models\DocumentTemplate;
-use App\Models\Owners;
-use App\Models\Tenants;
-use App\Models\UserManagement;
-use App\Models\RefCodePackage;
+use App\Models\{User, DocumentTemplate, Owners, Tenants, RefCodePackage};
+use App\Services\SubscriptionService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -26,9 +19,10 @@ use Carbon\Carbon;
 
 class RegisteredUserController extends Controller
 {
-    /**
-     * Display the registration view.
-     */
+    public function __construct(
+        private readonly SubscriptionService $subscriptionService
+    ) {}
+
     public function create(): View
     {
         return view('auth.register');
@@ -74,13 +68,12 @@ class RegisteredUserController extends Controller
 
         return DB::transaction(function () use ($request, $latestTos, $latestPrivacy) {
             $user = null;
-            $packageId = null;
             $existingUser = User::where('email', $request->email)->first();
+            $package = null;
             if ($request->filled('ref_code')) {
                 $package = RefCodePackage::where('ref_code', $request->ref_code)
-                            ->where('status', 'active')
-                            ->first();
-                $packageId = $package ? $package->id : null;
+                    ->where('status', 'active')
+                    ->first();
             }
 
             $complianceData = [
@@ -126,10 +119,6 @@ class RegisteredUserController extends Controller
             // --- 逻辑 C：全新的注册 (ownerAdmin 或 agentAdmin) ---
             else {
                 $finalRole = ($request->role === 'owner') ? 'ownerAdmin' : 'agentAdmin';
-
-                $packageDetails = DB::table('ref_code_packages')
-                        ->where('ref_code', $request->ref_code)
-                        ->first();
                 
                 $user = $existingUser ?: User::create(array_merge([
                     'name'     => $request->name,
@@ -149,49 +138,13 @@ class RegisteredUserController extends Controller
                     ], $complianceData));
                 }
 
-                $commissionRate = $packageDetails->commission_rate ?? 0;
-                $price = $packageDetails->price ?? 0;
-                $startDate = null;
-                $endDate = null;
-
-                if ($commissionRate > 0) {
-                    $startDate = now();
-                    $endDate = (strtolower($packageDetails->price_mode) === 'monthly') 
-                                ? $startDate->copy()->addMonth() 
-                                : $startDate->copy()->addYear();
+                if ($package) {
+                    $this->subscriptionService->setupSubscription(
+                        $user,
+                        $package,
+                        $finalRole
+                    );
                 }
-
-                $subscriptionStatus = (isset($packageDetails) && $price > 0) ? 'pending' : 'active';
-
-                // 同时也要在 UserManagement 创建记录
-                UserManagement::create([
-                    'user_id' => $user->id,
-                    'package_id' => $packageId,
-                    'role' => $finalRole,
-                    'start_date' => $startDate,
-                    'end_date' => $endDate,
-                    'extra_lease' => 0,
-                    'tot_price' => $packageDetails->price,
-                    'subscription_status' => $subscriptionStatus, // 这些人是要付钱的
-                ]);
-            }
-
-            // 3. 生成订阅账单 (套用你的 Payment 逻辑)
-            if (isset($packageDetails) && $price > 0) {
-    
-                $subscriptionType = 'SUBSCRIPTION';
-                $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType, UserPayment::class);
-
-                UserPayment::create([
-                    'id'           => (string) Str::ulid(),
-                    'user_id'      => $user->id,
-                    'ref_code'     => $request->ref_code,
-                    'invoice_no'   => $newInvoiceNo,
-                    'payment_type' => strtolower($subscriptionType),
-                    'amount_due'   => $packageDetails->price,
-                    'amount_paid'  => 0,
-                    'status'       => 'unpaid',
-                ]);
             }
 
             event(new Registered($user));

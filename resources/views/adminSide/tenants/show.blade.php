@@ -185,7 +185,6 @@
                                         <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Monthly Rent</th>
                                         <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Duration</th>
                                         <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                                        <th class="px-6 py-3 text-center text-[10px] font-bold text-gray-400 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="bg-white divide-y divide-gray-200">
@@ -215,40 +214,6 @@
                                                 @if($isExpired)
                                                     <span class="ml-2 text-[10px] font-bold text-gray-400 uppercase">Expired</span>
                                                 @endif
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-center" onclick="event.stopPropagation()">
-                                                <div class="flex justify-center items-center gap-2">
-                                                    @if ($lease->status === 'New' || $lease->status === 'Renew')
-                                                        {{-- Generate Invoice 逻辑 --}}
-                                                        @if($lease->can_generate)
-                                                            <x-form.form action="{{ route('admin.payments.generateMonthlyInvoice', $lease->id) }}" method="POST" class="m-0">
-                                                                @csrf
-                                                                <x-form.primary-button 
-                                                                    type="submit" 
-                                                                    loading="loading" 
-                                                                    size="sm"
-                                                                    class="text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-all"
-                                                                >
-                                                                    Generate Invoice
-                                                                </x-form.primary-button>
-                                                            </x-form.form>
-                                                        @else
-                                                            <button disabled class="uppercase text-xs font-bold text-gray-400 bg-gray-100 px-3 py-1.5 rounded-lg cursor-not-allowed">
-                                                                Done
-                                                            </button>
-                                                        @endif
-
-                                                        {{-- Manual Invoice 按钮 --}}
-                                                        <button type="button" 
-                                                                @click="$dispatch('open-manual-modal', { 
-                                                                    action: '{{ route('admin.payments.storeManualInvoice', $lease->id) }}',
-                                                                    leaseId: '{{ $lease->id }}' 
-                                                                })"
-                                                                class="uppercase text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-all">
-                                                            Add Manual Invoice
-                                                        </button>
-                                                    @endif
-                                                </div>
                                             </td>
                                         </tr>
                                     @empty

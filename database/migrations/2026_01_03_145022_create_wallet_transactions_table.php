@@ -10,11 +10,11 @@ return new class extends Migration
     {
         Schema::create('wallet_transactions', function (Blueprint $table) {
             $table->ulid('id')->primary();
-            $table->foreignUlid('wallet_id')->constrained('wallets')->cascadeOnDelete();
-            $table->bigInteger('amount'); // 正数存入，负数支出
-            $table->string('type'); // 'overpayment_credit', 'invoice_offset', 'refund_payout'
-            $table->string('reference_id')->nullable(); // 关联 Invoice 或 Transaction ID
-            $table->text('remarks')->nullable();
+            $table->foreignUlid('wallet_id')->constrained()->cascadeOnDelete();
+            $table->bigInteger('amount'); // signed — positive = credit, negative = debit
+            $table->string('type');       // overpayment_credit | payment_debit | manual_credit | refund
+            $table->string('reference_id')->nullable(); // invoice_id or transaction_id
+            $table->string('remarks')->nullable();
             $table->timestamps();
         });
     }

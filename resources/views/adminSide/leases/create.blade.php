@@ -20,86 +20,116 @@
                 <x-form.form method="POST" action="{{ route('admin.leases.store') }}">
                     @csrf
                     <div class="p-8 space-y-8">
-                        {{-- 1. Status 选择 --}}
-                        <div class="grid grid-cols-1 md:grid-cols-1 gap-6 mb-6">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Status</label>
-                                <select name="status" id="lease-status" onchange="toggleLeaseSelect()" class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
-                                    data-preview="{status}">
+                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                            <!-- Status -->
+                            <div class="md:col-span-1">
+                                <x-form.input-label value="Status" class="mb-1" />
+                                <select
+                                    name="status"
+                                    id="lease-status"
+                                    onchange="toggleLeaseSelect()"
+                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
+                                    data-preview="{status}"
+                                >
                                     <option value="New" {{ request('status') == 'New' ? 'selected' : '' }}>New</option>
                                     <option value="Renew" {{ request('status') == 'Renew' ? 'selected' : '' }}>Renew</option>
                                     <option value="Check Out" {{ request('status') == 'Check Out' ? 'selected' : '' }}>Check Out</option>
                                     <option value="End Agreement" {{ request('status') == 'End Agreement' ? 'selected' : '' }}>End Agreement</option>
                                 </select>
+
                                 @error('status')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                 @enderror
                             </div>
-                        </div>
 
-                        {{-- 2. Select Lease --}}
-                        <div id="lease_select_container" class="grid grid-cols-1 md:grid-cols-1 gap-6 hidden">
-                            <div class="relative">
-                                <label class="block text-sm font-medium text-gray-700">Select Existing Lease</label>
-                                <select name="lease_id" id="lease_id"
-                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                    <option value="">-- Choose Lease --</option>
-                                    @foreach($leases as $lease)
-                                    @php
-                                    $leasePropertyType = '';
-                                    $leasePropertyName = '';
-                                    $leaseOwnerName = '';
-                                    $leaseOwnerIc = '';
-                                    $leaseOwnerId = '';
+                            <!-- Tenant -->
+                            <div id="tenant_field" class="md:col-span-3">
+                                <x-form.input-label value="Select Tenant" class="mb-1" />
+                                <select
+                                    name="tenant_id"
+                                    id="tenant_id"
+                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                >
+                                    <option value="">-- Choose Tenant --</option>
 
-                                    // 💡 修复点：连跳两层关联找到真实的 Owner IC
-                                    if ($lease->leasable instanceof \App\Models\Property) {
-                                        $leasePropertyType = 'property';
-                                        $leasePropertyName = $lease->leasable->name ?? '';
-                                        $leaseOwnerName = $lease->leasable->owner?->name ?? '';
-                                        $leaseOwnerIc = $lease->leasable->owner?->owner?->ic_number ?? '';
-                                        $leaseOwnerId = $lease->leasable->owner?->id ?? '';
-                                    } elseif ($lease->leasable instanceof \App\Models\Unit) {
-                                        $leasePropertyType = 'unit';
-                                        $leasePropertyName = $lease->leasable->unit_no ?? '';
-                                        $leaseOwnerName = $lease->leasable->owner?->name ?? '';
-                                        $leaseOwnerIc = $lease->leasable->owner?->owner?->ic_number ?? '';
-                                        $leaseOwnerId = $lease->leasable->owner?->id ?? '';
-                                    } elseif ($lease->leasable instanceof \App\Models\Room) {
-                                        $leasePropertyType = 'room';
-                                        $leasePropertyName = $lease->leasable->room_no ?? '';
-                                        $leaseOwnerName = $lease->leasable->unit?->owner?->name ?? '';
-                                        $leaseOwnerIc = $lease->leasable->unit?->owner?->owner?->ic_number ?? '';
-                                        $leaseOwnerId = $lease->leasable->unit?->owner?->id ?? '';
-                                    }
-                                    @endphp
-                                    <option value="{{ $lease->id }}"
-                                        data-property-type="{{ $leasePropertyType }}"
-                                        data-property-name="{{ $leasePropertyName }}"
-                                        data-property-address="{{ optional($lease->leasable)->full_address ?? '' }}"
-                                        data-owner-name="{{ $leaseOwnerName }}"
-                                        data-owner-ic="{{ $leaseOwnerIc }}"
-                                        data-owner-id="{{ $leaseOwnerId }}"
-                                        @selected(old('lease_id')==$lease->id)>
-                                        {{ $lease->tenant->user->name ?? 'Tenant' }}
-                                        ({{ $lease->tenant->ic_number ?? 'IC' }}) -
-                                        @if($lease->leasable instanceof \App\Models\Property)
-                                        {{ $lease->leasable->name }} (Entire)
-                                        @elseif($lease->leasable instanceof \App\Models\Unit)
-                                        {{ $lease->leasable->unit_no }} (Unit)
-                                        @elseif($lease->leasable instanceof \App\Models\Room)
-                                        {{ $lease->leasable->room_no }} (Room)
-                                        @else
-                                        N/A
-                                        @endif
-                                        {{ dateFormat($lease->start_date) . ' - ' . dateFormat($lease->end_date) ?? '' }}
-                                    </option>
+                                    @foreach($tenants as $tenant)
+                                        <option value="{{ $tenant->id }}" @selected(old('tenant_id') == $tenant->id)>
+                                            {{ $tenant->user?->name ?? 'Unknown' }}
+                                            ({{ $tenant->ic_number ?? $tenant->passport ?? 'N/A' }})
+                                        </option>
                                     @endforeach
                                 </select>
-                                @error('lease_id')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+
+                                @error('tenant_id')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                 @enderror
                             </div>
+
+                            {{-- 2. Select Lease --}}
+                            <div id="lease_select_container" class="md:col-span-3 hidden">
+                                <div class="relative">
+                                    <label class="block text-sm font-medium text-gray-700">Select Existing Lease</label>
+                                    <select name="lease_id" id="lease_id"
+                                        class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                                        <option value="">-- Choose Lease --</option>
+                                        @foreach($leases as $lease)
+                                        @php
+                                        $leasePropertyType = '';
+                                        $leasePropertyName = '';
+                                        $leaseOwnerName = '';
+                                        $leaseOwnerIc = '';
+                                        $leaseOwnerId = '';
+
+                                        // 💡 修复点：连跳两层关联找到真实的 Owner IC
+                                        if ($lease->leasable instanceof \App\Models\Property) {
+                                            $leasePropertyType = 'property';
+                                            $leasePropertyName = $lease->leasable->name ?? '';
+                                            $leaseOwnerName = $lease->leasable->owner?->name ?? '';
+                                            $leaseOwnerIc = $lease->leasable->owner?->owner?->ic_number ?? '';
+                                            $leaseOwnerId = $lease->leasable->owner?->id ?? '';
+                                        } elseif ($lease->leasable instanceof \App\Models\Unit) {
+                                            $leasePropertyType = 'unit';
+                                            $leasePropertyName = $lease->leasable->unit_no ?? '';
+                                            $leaseOwnerName = $lease->leasable->owner?->name ?? '';
+                                            $leaseOwnerIc = $lease->leasable->owner?->owner?->ic_number ?? '';
+                                            $leaseOwnerId = $lease->leasable->owner?->id ?? '';
+                                        } elseif ($lease->leasable instanceof \App\Models\Room) {
+                                            $leasePropertyType = 'room';
+                                            $leasePropertyName = $lease->leasable->room_no ?? '';
+                                            $leaseOwnerName = $lease->leasable->unit?->owner?->name ?? '';
+                                            $leaseOwnerIc = $lease->leasable->unit?->owner?->owner?->ic_number ?? '';
+                                            $leaseOwnerId = $lease->leasable->unit?->owner?->id ?? '';
+                                        }
+                                        @endphp
+                                        <option value="{{ $lease->id }}"
+                                            data-property-type="{{ $leasePropertyType }}"
+                                            data-property-name="{{ $leasePropertyName }}"
+                                            data-property-address="{{ optional($lease->leasable)->full_address ?? '' }}"
+                                            data-owner-name="{{ $leaseOwnerName }}"
+                                            data-owner-ic="{{ $leaseOwnerIc }}"
+                                            data-owner-id="{{ $leaseOwnerId }}"
+                                            @selected(old('lease_id')==$lease->id)>
+                                            {{ $lease->tenant->user->name ?? 'Tenant' }}
+                                            ({{ $lease->tenant->ic_number ?? 'IC' }}) -
+                                            @if($lease->leasable instanceof \App\Models\Property)
+                                            {{ $lease->leasable->name }} (Entire)
+                                            @elseif($lease->leasable instanceof \App\Models\Unit)
+                                            {{ $lease->leasable->unit_no }} (Unit)
+                                            @elseif($lease->leasable instanceof \App\Models\Room)
+                                            {{ $lease->leasable->room_no }} (Room)
+                                            @else
+                                            N/A
+                                            @endif
+                                            {{ dateFormat($lease->start_date) . ' - ' . dateFormat($lease->end_date) ?? '' }}
+                                        </option>
+                                        @endforeach
+                                    </select>
+                                    @error('lease_id')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                    @enderror
+                                </div>
+                            </div>
+
                         </div>
 
                         <div id="property_select_type" class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -158,26 +188,6 @@
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                     @enderror
                                 </div>
-                            </div>
-                        </div>
-
-                        <div id="tenant_field" class="grid grid-cols-1 md:grid-cols-1 gap-6">
-                            <div class="relative">
-                                <label class="block text-sm font-medium text-gray-700">Select Tenant</label>
-
-                                <select name="tenant_id" id="tenant_id"
-                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                    <option value="">-- Choose Tenant --</option>
-                                    @foreach($tenants as $tenant)
-                                    <option value="{{ $tenant->id }}" @selected(old('tenant_id')==$tenant->id)>
-                                        {{ $tenant->user?->name ?? 'Unknown' }} ({{ $tenant->ic_number ?? $tenant->passport ?? 'N/A' }})
-                                    </option>
-                                    @endforeach
-                                </select>
-
-                                @error('tenant_id')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
                             </div>
                         </div>
 
@@ -278,23 +288,23 @@
 
                         <div id="agreement_template_section" class="mt-4">
                             <div class="flex justify-between items-center mb-1">
-                                <label for="agreement_id" class="block text-sm font-medium text-gray-700">
+                                <label for="document_id" class="block text-sm font-medium text-gray-700">
                                     Agreements Template
                                 </label>
                                 <button type="button" id="preview-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
                                     Preview Template
                                 </button>
                             </div>
-                            <select id="agreement_id" name="agreement_id"
+                            <select id="document_id" name="document_id"
                                 class="block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                                 <option value="">-- Select Template --</option>
                                 @foreach($templates as $template)
-                                <option value="{{ $template->id }}" data-agreement-user-id="{{$template->user->id}}" data-content="{{ $template->content }}" data-title="{{ $template->title }}" {{ old('agreement_id') == $template->id ? 'selected' : '' }}>
+                                <option value="{{ $template->id }}" data-agreement-user-id="{{$template->user->id}}" data-content="{{ $template->content }}" data-title="{{ $template->title }}" {{ old('document_id') == $template->id ? 'selected' : '' }}>
                                     {{ $template->title }} (v{{ $template->version }}) - {{ $template->user->name }}
                                 </option>
                                 @endforeach
                             </select>
-                            @error('agreement_id')
+                            @error('document_id')
                             <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
@@ -602,7 +612,7 @@
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
             const previewBtn = document.getElementById('preview-btn');
-            const agreementSelect = document.getElementById('agreement_id');
+            const agreementSelect = document.getElementById('document_id');
 
             if (!previewBtn) return;
 
@@ -802,7 +812,7 @@
 
             if (!ownerId) return;
 
-            const agreementSelect = document.getElementById('agreement_id');
+            const agreementSelect = document.getElementById('document_id');
             if (!agreementSelect) return;
 
             Array.from(agreementSelect.options).forEach(option => {

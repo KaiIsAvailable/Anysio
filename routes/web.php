@@ -41,7 +41,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::name('admin.')->prefix('admin')->group(function () {
         
         // --- 所有人(登录后)都能访问的基础资源 ---
-        require __DIR__.'/paymentRoute.php';
         require __DIR__.'/leasesRoute.php';
         require __DIR__.'/maintenanceRoute.php';
         require __DIR__.'/propertyRoute.php';
@@ -57,6 +56,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/packageRoute.php';
         require __DIR__.'/auditLogRoute.php';
         require __DIR__.'/notificationRoute.php';
+        require __DIR__.'/invoiceRoute.php';
 
         // --- 只有管理员 (owner-admin) 权限能进的路由 ---
         Route::middleware('can:owner-admin')->group(function () {

@@ -42,17 +42,13 @@
                     // 1. 检查 User Management 状态
                     $userMgmt = \App\Models\UserManagement::where('user_id', auth()->id())->first();
                     // 2. 获取支付记录（用于拿到金额和 Invoice No）
-                    $latestPayment = \App\Models\UserPayment::where('user_id', auth()->id())
-                                        ->where(function ($query) {
-                                            $query->where('payment_type', 'subscription')
-                                                ->orWhere('payment_type', 'like', 'boost_lease_%');
-                                        })
-                                        ->whereNot('status', 'approved')
-                                        ->latest()
-                                        ->first();
-                    
-                    // 判断是否需要强制弹窗：状态是 pending 且不是 Admin (假设 Admin 角色叫 'admin')
-                    $mustPay = ($userMgmt && $userMgmt->subscription_status !== 'active' && $latestPayment && auth()->user()->role !== 'admin');
+                    $latestInvoice = \App\Models\Invoice::where('user_id', auth()->id())
+                        ->whereIn('status', ['draft', 'issued', 'partial', 'overdue'])
+                        ->latest()
+                        ->first();
+
+                    // Show payment modal if there is an unpaid invoice
+                    $mustPay = $latestInvoice && auth()->user()->role !== 'admin';
                 @endphp
             @endauth
 
@@ -61,7 +57,7 @@
                 <div x-init="openPayment = true"></div>
 
                 {{-- 引入你刚才那个高颜值的 Payment Modal Component --}}
-                @include('components.modals.make_payment', ['latestPayment' => $latestPayment])
+                @include('components.modals.make_payment', ['invoice' => $latestInvoice])
             @endif
 
             <x-auth-session-status class="mb-4" :status="session('status')" />

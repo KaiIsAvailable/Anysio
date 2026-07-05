@@ -69,8 +69,8 @@
                         {{ __('Leases') }}
                     </x-nav-link>
 
-                    <x-nav-link :href="route('admin.payments.index')" :active="request()->routeIs('admin.payments.*')">
-                        {{ __('Payments') }}
+                    <x-nav-link :href="route('admin.invoices.index')" :active="request()->routeIs('admin.invoices.*')">
+                        {{ __('Invoices') }}
                     </x-nav-link>
                     
                     <!--<x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
@@ -271,8 +271,8 @@
                 {{ __('Leases') }}
             </x-responsive-nav-link>
 
-            <x-responsive-nav-link :href="route('admin.payments.index')" :active="request()->routeIs('admin.payments.*')">
-                {{ __('Payments') }}
+            <x-responsive-nav-link :href="route('admin.invoices.index')" :active="request()->routeIs('admin.invoices.*')">
+                {{ __('Invoices') }}
             </x-responsive-nav-link>
 
             @can('super-admin')

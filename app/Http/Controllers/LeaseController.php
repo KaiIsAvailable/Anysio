@@ -7,27 +7,29 @@ use App\Models\Room;
 use App\Models\Unit;
 use App\Models\Property;
 use App\Models\Tenants;
-use App\Models\Agreements;
 use App\Models\User;
-use App\Models\Owners;
-use App\Models\Utility;
-use App\Models\Payment;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 use App\Traits\RoleBasedDataTrait;
-use App\Http\Controllers\PaymentsController;
+use App\Models\DocumentTemplate;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use App\Services\FileService;
+use App\Services\InvoiceService;
 
 class LeaseController extends Controller
 {
     use RoleBasedDataTrait;
+    protected InvoiceService $invoiceService;
+
+    public function __construct(InvoiceService $invoiceService)
+    {
+        $this->invoiceService = $invoiceService;
+    }
     public function index(Request $request)
     {
         $userId = Auth::id();
@@ -216,7 +218,7 @@ class LeaseController extends Controller
         });
 
         $templates = $this->applyOwnershipFilter(
-            Agreements::withTrashed()->where('type', 'rental_lease')->where('status', 'active'),
+            DocumentTemplate::where('category', 'agreement')->where('status', 'active'),
             $user,
             'user_id' // 明确指定过滤字段为 user_id
         )->get();
@@ -325,7 +327,7 @@ class LeaseController extends Controller
             'term_type' => 'required_if:status,New,Renew|nullable|string',
             'security_deposit' => 'nullable|numeric|min:1',
             'utilities_deposit' => 'nullable|numeric|min:1',
-            'agreement_id' => 'required_if:status,New,Renew',
+            'document_id' => 'required_if:status,New,Renew',
         ]);
 
         // 💡 修复点 2: 后端二次校验 Fee Type 是否合法，防止恶意绕过前端
@@ -532,9 +534,9 @@ class LeaseController extends Controller
             // 创建新记录
             $newLease = Lease::create([
                 'parent_lease_id' => $oldLease?->id,
-                'agreement_id' => in_array($validated['status'], ['New', 'Renew'])
-                    ? ($validated['agreement_id'] ?? null)
-                    : $oldLease?->agreement_id,
+                'document_id' => in_array($validated['status'], ['New', 'Renew'])
+                    ? ($validated['document_id'] ?? null)
+                    : $oldLease?->document_id,
                 'is_current' => true,
                 'leasable_type' => $leasableType,
                 'leasable_id' => $leasableId,
@@ -554,24 +556,7 @@ class LeaseController extends Controller
             ]);
 
             if (in_array($validated['status'], ['New', 'Renew'])) {
-                $paymentController = new PaymentsController();
-                $paymentController->generateMonthlyInvoice($newLease->id);
-
-                $depositTypes = [
-                    'Security Deposit'  => $sDep,
-                    'Utilities Deposit' => $uDep,
-                ];
-
-                foreach ($depositTypes as $type => $amount) {
-                    if ($amount > 0) {
-                        $paymentController->storeManualInvoiceLogic($newLease, [
-                            'payment_type' => $type,
-                            'amount_due'   => $amount,
-                            'period'       => $newLease->start_date,
-                            'remarks'      => 'Initial ' . $type
-                        ]);
-                    }
-                }
+                $this->invoiceService->createRentInvoice($newLease, Carbon::parse($newLease->start_date));
             }
         });
 
@@ -586,16 +571,15 @@ class LeaseController extends Controller
             // 查找特定的 Lease，确保它属于当前链条（安全起见）
             $targetLease = Lease::findOrFail($targetId);
 
-            $rentPayments = $targetLease->payments()
-                ->where('payment_type', 'rent')
+            $rentInvoices = $lease->invoices()
+                ->where('type', 'rent')
                 ->where('status', '!=', 'void')
-                ->orderBy('period', 'desc')
-                ->latest()
+                ->orderByDesc('period')
                 ->paginate(5, ['*'], 'rent_page')
                 ->onEachSide(1);
 
-            $otherPayments = $targetLease->payments()
-                ->where('payment_type', '!=', 'rent')
+            $otherInvoices = $lease->invoices()
+                ->where('type', '!=', 'rent')
                 ->where('status', '!=', 'void')
                 ->latest()
                 ->paginate(5, ['*'], 'other_page')
@@ -604,8 +588,8 @@ class LeaseController extends Controller
             // 返回专门的局部视图
             return  view('adminSide.tenants.payments.partial_overview', [
                 'lease' => $targetLease,
-                'rentPayments' => $rentPayments,
-                'otherPayments' => $otherPayments
+                'rentPayments' => $rentInvoices,
+                'otherPayments' => $otherInvoices
             ])->render();
         }
 
@@ -613,7 +597,7 @@ class LeaseController extends Controller
         $lease->load([
             'tenant.user',
             'utilities',
-            'agreement', // 别忘了加载合同模板
+            'documentTemplate',
             'leasable' => function ($morphTo) {
                 $morphTo->morphWith([
                     Room::class => ['owner', 'assets'],
@@ -638,17 +622,15 @@ class LeaseController extends Controller
             }
         }
 
-        $rentPayments = $lease->payments()
-            ->where('payment_type', 'rent')
+        $rentInvoices = $lease->invoices()
+            ->where('type', 'rent')
             ->where('status', '!=', 'void')
-            ->orderBy('period', 'desc')
-            ->latest()
+            ->orderByDesc('period')
             ->paginate(5, ['*'], 'rent_page')
             ->onEachSide(1);
 
-        // 2. 如果你还想显示其他类型的费用（比如押金、水电费）
-        $otherPayments = $lease->payments()
-            ->where('payment_type', '!=', 'rent')
+        $otherInvoices = $lease->invoices()
+            ->where('type', '!=', 'rent')
             ->where('status', '!=', 'void')
             ->latest()
             ->paginate(5, ['*'], 'other_page')
@@ -657,7 +639,59 @@ class LeaseController extends Controller
         // 将结果按时间正序排列（从最老的到最新的）
         $leaseHistory = $leaseHistory->reverse();
 
-        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'rentPayments', 'otherPayments'));
+        $historyJson = $leaseHistory->keyBy('id')->map(function ($item) {
+            return [
+                'status' => $item->status,
+                'checked_out_at' => $item->checked_out_at ? $item->checked_out_at_formatted : null,
+                'agreement_ended_at' => $item->agreement_ended_at ? $item->agreement_ended_at_formatted : null,
+                'start_date' => $item->start_date_formatted ?? null,
+                'end_date' => $item->end_date_formatted ?? null,
+                'term_type' => strtoupper($item->term_type) ?? 'N/A',
+                'rent_price' => number_format($item->rent_price, 2),
+                'deposit_mode' => strtoupper($item->deposit_mode) ?? 'SECURITY',
+                'security_deposit' => $item->security_deposit > 0
+                    ? number_format($item->security_deposit, 2)
+                    : null,
+                'utilities_deposit' => $item->utilities_deposit > 0
+                    ? number_format($item->utilities_deposit, 2)
+                    : null,
+                'edit_url' => route('admin.leases.edit', $item->id),
+                'stamping_status' => (bool) $item->stamping_status,
+                'stamping_cert_path' => $item->stamping_cert_path,
+                'stamping_reference_no' => $item->stamping_reference_no,
+                'stamped_at' => $item->stamped_at ? $item->stamped_at_formatted : null,
+                'can_stamp' => in_array($item->status, ['New', 'Renew']),
+                'upload_url' => route('admin.leases.upload-stamping', $item->id),
+                'view_url' => route('admin.leases.cert-file', $item->id),
+                'agreement' => [
+                    'title' => $item->agreement?->title ?? 'Agreement',
+                    'content' => $item->agreement?->content ?? '',
+                ],
+                'agreement_id' => $item->agreement_id,
+                'tenant_name' => $item->tenant?->user?->name ?? 'N/A',
+                'tenant_ic' => $item->tenant?->ic_number ?? 'N/A',
+
+                'owner_name' => ($item->leasable instanceof Room)
+                    ? ($item->leasable->unit?->owner?->name ?? 'N/A')
+                    : ($item->leasable->owner?->name ?? 'N/A'),
+
+                'owner_ic' => ($item->leasable instanceof Room)
+                    ? ($item->leasable->unit?->owner?->owner?->ic_number ?? 'N/A')
+                    : ($item->leasable->owner?->owner?->ic_number ?? 'N/A'),
+
+                'property_address' => $item->leasable?->full_address ?? 'N/A',
+                'property_type' => strtolower(class_basename($item->leasable_type)),
+                'property_name' => $item->leasableName ?? 'N/A',
+                'rent_mode' => strtoupper($item->term_type ?? 'N/A'),
+                'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
+                'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
+
+                // This now works because we're inside the controller
+                'can_generate' => $this->invoiceService->nextBillingPeriod($item) !== null,
+            ];
+        });
+
+        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'rentInvoices', 'otherInvoices', 'historyJson'));
     }
 
     public function edit()

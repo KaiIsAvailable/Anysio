@@ -5,10 +5,13 @@ namespace App\Observers;
 use App\Models\Lease;
 use Illuminate\Support\Facades\Auth;
 use App\Services\NotificationService;
+use App\Services\InvoiceService;
+use Carbon\Carbon;
 
 class LeaseObserver
 {
-    public function __construct(protected NotificationService $notificationService) {}
+    public function __construct(protected NotificationService $notificationService, private readonly InvoiceService $invoiceService) {}
+
     public function created(Lease $lease)
     {
         $status = ucfirst($lease->status);
@@ -31,6 +34,11 @@ class LeaseObserver
                 Auth::id()
             ] 
         );
+
+        if (in_array($lease->status, ['active', 'new'])) {
+            $firstPeriod = Carbon::parse($lease->start_date)->startOfMonth();
+            $this->invoiceService->createInvoice($lease, $firstPeriod);
+        }
     }
 
     /**

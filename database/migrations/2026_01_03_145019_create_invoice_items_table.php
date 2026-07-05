@@ -10,10 +10,10 @@ return new class extends Migration
     {
         Schema::create('invoice_items', function (Blueprint $table) {
             $table->ulid('id')->primary();
-            $table->foreignUlid('invoice_id')->constrained('invoices')->cascadeOnDelete();
-            $table->foreignUlid('fee_type_id')->nullable()->constrained('fee_types')->nullOnDelete();
+            $table->foreignUlid('invoice_id')->constrained()->cascadeOnDelete();
+            $table->foreignUlid('fee_type_id')->nullable()->constrained()->nullOnDelete();
             $table->string('description');
-            $table->bigInteger('amount')->unsigned();
+            $table->unsignedBigInteger('amount'); // cents
             $table->timestamps();
         });
     }

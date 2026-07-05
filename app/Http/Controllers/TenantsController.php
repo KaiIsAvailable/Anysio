@@ -3,17 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Tenants;
-use App\Models\Owners;
 use App\Models\User;
 use App\Models\Room;
 use App\Models\Unit;
 use App\Models\Property;
-use App\Http\Controllers\PaymentsController;
+use App\Http\Controllers\InvoiceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Response;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
@@ -25,6 +21,7 @@ use App\Services\FileService;
 class TenantsController extends Controller
 {
     use RoleBasedDataTrait;
+
     public function index(Request $request)
     {
         $user = Auth::user();
@@ -267,8 +264,6 @@ class TenantsController extends Controller
 
     public function show(Tenants $tenant)
     {
-        $paymentsController = new PaymentsController();
-
         // 1. 先加载租户的基础关联（不需要分页的）
         $tenant->load([
             'emergencyContacts', 
@@ -287,11 +282,6 @@ class TenantsController extends Controller
             ->orderBy('start_date', 'desc')
             ->paginate(5, ['*'], 'lease_page')
             ->onEachSide(1);
-
-        // 3. 计算 can_generate (仅针对当前页面的 5 个 lease)
-        foreach ($leases as $lease) {
-            $lease->can_generate = !is_null($paymentsController->calculateNextPendingPeriod($lease));
-        }
 
         $latestLease = $leases->first(); // 注意：从分页结果中获取第一个
 

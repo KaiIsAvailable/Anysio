@@ -10,12 +10,30 @@ return new class extends Migration
     {
         Schema::create('invoices', function (Blueprint $table) {
             $table->ulid('id')->primary();
-            $table->foreignUlid('lease_id')->constrained('leases')->cascadeOnDelete();
-            $table->string('invoice_no')->unique();
-            $table->bigInteger('total_amount')->unsigned(); // 总金额 (Cents)
-            $table->date('due_date')->index();
-            $table->string('status')->default('unpaid')->index(); // unpaid, partial, paid
+            $table->string('context')->default('tenant');
+            $table->string('billable_type')->nullable();
+            $table->ulid('billable_id')->nullable();
+            $table->ulid('lease_id')->nullable();          
+            $table->foreign('lease_id')->references('id')->on('leases')->nullOnDelete();
+            $table->foreignUlid('user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->string('invoice_no', 40)->unique();
+            $table->string('type')->default('rent');
+            $table->date('period');
+            $table->date('due_date');
+            $table->unsignedBigInteger('total_amount');
+            $table->unsignedBigInteger('amount_paid')->default(0);
+            $table->unsignedBigInteger('amount_balance')->default(0);
+            $table->string('status')->default('unpaid');
+            $table->string('remarks')->nullable();
             $table->timestamps();
+            $table->softDeletes();
+
+            // --- Indexes ---
+            $table->index(['context', 'status']);
+            $table->index(['context', 'user_id']);
+            $table->index(['lease_id', 'status']);
+            $table->index(['status', 'due_date']);          
+            $table->index(['billable_type', 'billable_id']);
         });
     }
 

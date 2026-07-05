@@ -101,17 +101,16 @@ class Lease extends Model
     {
         return $this->hasMany(Maintenance::class);
     }
-    public function payments(): HasMany
+    public function invoices(): HasMany
     {
-        // 假设你的 Payment 模型中有一个 lease_id 外键
-        return $this->hasMany(Payment::class);
+        return $this->hasMany(Invoice::class);
     }
 
-    public function agreement(): BelongsTo
+    public function documentTemplate(): BelongsTo
     {
         // 参数 1: 关联的模型类名
         // 参数 2: 你 Lease 表里的外键名 (agreement_id)
-        return $this->belongsTo(Agreements::class, 'agreement_id');
+        return $this->belongsTo(DocumentTemplate::class, 'agreement_id');
     }
 
     public function leasable()
@@ -223,5 +222,47 @@ class Lease extends Model
         return Attribute::make(
             get: fn () => $this->stamped_at ? $this->stamped_at->format('d/m/Y') : '-',
         );
+    }
+
+    // All charges
+    public function charges(): HasMany
+    {
+        return $this->hasMany(LeaseCharge::class)->orderBy('sort_order');
+    }
+
+    // Scoped shortcuts
+    public function recurringCharges(): HasMany
+    {
+        return $this->hasMany(LeaseCharge::class)
+                    ->where('charge_type', LeaseCharge::TYPE_RECURRING)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order');
+    }
+
+    public function refundableCharges(): HasMany
+    {
+        return $this->hasMany(LeaseCharge::class)
+                    ->where('charge_type', LeaseCharge::TYPE_REFUNDABLE)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order');
+    }
+
+    public function oneTimeCharges(): HasMany
+    {
+        return $this->hasMany(LeaseCharge::class)
+                    ->where('charge_type', LeaseCharge::TYPE_ONE_TIME)
+                    ->where('is_active', true)
+                    ->orderBy('sort_order');
+    }
+
+    // Financial summaries
+    public function getTotalMonthlyAmountAttribute(): int
+    {
+        return $this->recurringCharges()->sum('amount');
+    }
+
+    public function getTotalDepositAmountAttribute(): int
+    {
+        return $this->refundableCharges()->sum('amount');
     }
 }

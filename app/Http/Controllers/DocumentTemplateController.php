@@ -56,14 +56,14 @@ class DocumentTemplateController extends Controller
 
         // 💡 2. 獲取本頁所有協議的「始祖 ID」 (Root Parent ID)
         $rootIds = $agreements->map(function ($a) {
-            return $a->parent_agreement_id ?: $a->id;
+            return $a->parent_id ?: $a->id;
         })->unique()->toArray();
 
         // 💡 3. 一次性把這些家族的所有成員（包含始祖 v1.0）全部撈出來，完美解決 N+1 效能問題
         $allHistories = collect();
         if (!empty($rootIds)) {
             $allHistories = DocumentTemplate::whereIn('id', $rootIds)
-                ->orWhereIn('parent_agreement_id', $rootIds)
+                ->orWhereIn('parent_id', $rootIds)
                 ->orderBy('created_at', 'desc')
                 ->get();
         }
@@ -73,9 +73,9 @@ class DocumentTemplateController extends Controller
             $agreement->content = preg_replace("/(\r\n|\r|\n){3,}/", "\n\n", $agreement->content);
             
             // 將屬於這個家族的成員（含始祖）過濾出來，綁定到自定義的 full_history 屬性
-            $rootId = $agreement->parent_agreement_id ?: $agreement->id;
+            $rootId = $agreement->parent_id ?: $agreement->id;
             $agreement->full_history = $allHistories->filter(function ($h) use ($rootId) {
-                return $h->id == $rootId || $h->parent_agreement_id == $rootId;
+                return $h->id == $rootId || $h->parent_id == $rootId;
             })->values();
 
             return $agreement;
@@ -101,7 +101,7 @@ class DocumentTemplateController extends Controller
             $ownerOptions = $this->getAuthorizedOwners();
 
             $ownerOptions->prepend((object) [
-                'id' => '',
+                'id' => Auth::id(),
                 'name' => 'System Admin',
             ]);
         }

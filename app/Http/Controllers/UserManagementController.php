@@ -36,13 +36,6 @@ class UserManagementController extends Controller
                 'ref_code_packages.ref_code as applied_ref_code', // 确保这个字段名在表里存在
             );
 
-        $pendingPayments = UserPayment::with('user')
-            ->where('status', 'pending') 
-            ->whereNotNull('attachment')
-            ->latest()
-            ->get();
-        //dd($pendingPayments->toArray());
-
         if ($request->filled('search')) {
             $search = $request->get('search');
             $query->where(function($q) use ($search) {
@@ -79,7 +72,7 @@ class UserManagementController extends Controller
 
         $userManagement = $query->paginate(5)->onEachSide(1)->withQueryString();
         //dd($userManagement->toArray());
-        return view('adminSide.userManagement.index', compact('userManagement', 'pendingPayments'));
+        return view('adminSide.userManagement.index', compact('userManagement'));
     }
 
     /**

@@ -42,13 +42,14 @@
                     // 1. 检查 User Management 状态
                     $userMgmt = \App\Models\UserManagement::where('user_id', auth()->id())->first();
                     // 2. 获取支付记录（用于拿到金额和 Invoice No）
-                    $latestInvoice = \App\Models\Invoice::where('user_id', auth()->id())
-                        ->whereIn('status', ['draft', 'issued', 'partial', 'overdue'])
+                    $latestSubscriptionInvoice = \App\Models\Invoice::where('user_id', auth()->id())
+                        ->where('context', 'subscription')
+                        ->whereIn('status', ['unpaid', 'partial', 'overdue'])
                         ->latest()
                         ->first();
 
-                    // Show payment modal if there is an unpaid invoice
-                    $mustPay = $latestInvoice && auth()->user()->role !== 'admin';
+                    $mustPay = $latestSubscriptionInvoice !== null
+                        && auth()->user()->role !== 'admin';
                 @endphp
             @endauth
 
@@ -57,7 +58,7 @@
                 <div x-init="openPayment = true"></div>
 
                 {{-- 引入你刚才那个高颜值的 Payment Modal Component --}}
-                @include('components.modals.make_payment', ['invoice' => $latestInvoice])
+                @include('components.modals.make_payment', ['invoice' => $latestSubscriptionInvoice])
             @endif
 
             <x-auth-session-status class="mb-4" :status="session('status')" />
@@ -73,7 +74,7 @@
             <main x-data="{ openPayment: @js((bool)($mustPay ?? false)) }">
                 @auth
                     @if(isset($mustPay) && $mustPay)
-                        @include('components.modals.make_payment', ['latestPayment' => $latestPayment])
+                        @include('components.modals.make_payment', ['invoice' => $latestSubscriptionInvoice])
                     @endif
                 @endauth
 

@@ -7,7 +7,9 @@
 
     @php
         $payment = $invoice->latestPayment;
-        $actionUrl = route('tenant.payments.store', $invoice);
+        $actionUrl = route('admin.payments.store', [
+            'invoice' => $invoice,
+        ]);
     @endphp
 
     <template x-teleport="body">
@@ -37,7 +39,7 @@
                     <div class="text-right">
                         <span class="block text-[10px] font-bold text-gray-400 uppercase">Total Amount</span>
                         <span class="text-2xl font-black text-indigo-600">RM
-                            {{ number_format($invoice?->amount_due / 100, 2) }}</span>
+                            {{ number_format($invoice?->total_amount / 100, 2) }}</span>
                     </div>
                 </div>
 
@@ -194,7 +196,7 @@
                             <div class="flex-none p-6 bg-gray-50/80 border-t border-gray-100 space-y-4 px-4">
                                 <div>
                                     <x-form.input-label value="1. Upload Bank Receipt" class="mb-3 ml-3" />
-                                    <x-form.file-input name="attachment" :required="$latestPayment->amount_due > 0" />
+                                    <x-form.file-input name="attachment" :required="$invoice->total_amount > 0" />
                                     <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">If amount is 0 you can
                                         press "Confirm & Submit Receipt".</p>
                                     <x-form.input-error :messages="$errors->get('attachment')" class="mt-1" />

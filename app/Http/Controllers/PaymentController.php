@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\UploadPaymentReceiptRequest;
+use App\Http\Requests\Payment\UploadPaymentReceiptRequest;
 use App\Models\Invoice;
 use App\Models\Payment;
 use Illuminate\Http\Request;

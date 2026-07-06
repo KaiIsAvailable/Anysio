@@ -1,10 +1,8 @@
 <?php
 namespace App\Services;
 
-use App\Models\{User, UserManagement, UserPayment, RefCodePackage};
-use App\Events\SubscriptionInvoiceCreated;
+use App\Models\{User, UserManagement, Invoice, RefCodePackage, DocumentSequence};
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
 
 class SubscriptionService
 {
@@ -37,19 +35,22 @@ class SubscriptionService
         });
     }
 
-    public function generateInvoice(User $user, RefCodePackage $package): UserPayment
+    public function generateInvoice(User $user, RefCodePackage $package): Invoice
     {
-        $invoice = UserPayment::create([
-            'user_id'      => $user->id,
-            'ref_code'     => $package->ref_code,
-            'invoice_no'   => $this->generateInvoiceNo(),
-            'payment_type' => 'subscription',
-            'amount_due'   => $package->price,   // cents
-            'amount_paid'  => 0,
-            'status'       => 'unpaid',
+        return Invoice::create([
+            'context'        => 'subscription',
+            'billable_type'  => UserManagement::class,
+            'billable_id'    => $user->user_management->id,
+            'user_id'        => $user->id,
+            'invoice_no'     => $this->generateInvoiceNo(),
+            'type'           => 'subscription',
+            'period'         => now()->startOfMonth()->toDateString(),
+            'due_date'       => now()->addDays(7)->toDateString(),
+            'total_amount'   => $package->price,
+            'amount_paid'    => 0,
+            'amount_balance' => $package->price,
+            'status'         => 'unpaid',
         ]);
-        
-        return $invoice;
     }
 
     private function resolveDates(RefCodePackage $package): array
@@ -68,12 +69,26 @@ class SubscriptionService
 
     private function generateInvoiceNo(): string
     {
-        $prefix = 'SUB-' . now()->format('Y');
-        $last = UserPayment::where('invoice_no', 'like', $prefix . '%')
-            ->orderByDesc('invoice_no')
-            ->value('invoice_no');
+        $admin = User::where('role', 'admin')->firstOrFail();
+        $sequence = DocumentSequence::firstOrCreate(
+            [
+                'user_id' => $admin->id,
+                'category' => 'invoice',
+            ],
+            [
+                'sequence' => [
+                    'prefix' => 'INV',
+                    'next_number' => 1,
+                    'padding' => 5,
+                ],
+            ]
+        );
+        $config = $sequence->sequence;
+        $invoiceNo = $config['prefix'] . str_pad($config['next_number'], $config['padding'], '0', STR_PAD_LEFT);
+        $config['next_number']++;
+        $sequence->sequence = $config;
+        $sequence->save();
 
-        $next = $last ? (int) substr($last, -5) + 1 : 1;
-        return $prefix . now()->format('md') . '-' . str_pad($next, 5, '0', STR_PAD_LEFT);
+        return $invoiceNo;
     }
 }

@@ -63,9 +63,9 @@
                             <div>
                                 <x-form.input-label value="Amount Paid (RM)" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
                                 <x-form.text-input type="number" step="0.01" name="amount_paid"
-                                    x-bind:value="paymentData.amountDue" required
+                                    x-bind:value="paymentData.totalAmount" required
                                     class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-lg" />
-                                <p class="text-xs text-gray-400 mt-2">Outstanding: RM <span x-text="paymentData.amountDue"></span></p>
+                                <p class="text-xs text-gray-400 mt-2">Outstanding: RM <span x-text="paymentData.totalAmount"></span></p>
                                 <x-form.input-error :messages="$errors->get('amount_paid')" class="mt-1" />
                             </div>
 
@@ -73,8 +73,7 @@
                             <div class="grid grid-cols-2 gap-4">
                                 <div>
                                     <x-form.input-label value="Payment Date" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
-                                    <x-form.text-input type="date" name="payment_date" value="{{ date('Y-m-d') }}" required
-                                        class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm" />
+                                    <x-form.date-input id="payment-date" name="payment_date" label="Payment Date" value="{{ date('Y-m-d') }}" />
                                     <x-form.input-error :messages="$errors->get('payment_date')" class="mt-1" />
                                 </div>
 

@@ -8,7 +8,7 @@ use App\Models\User;
 use App\Models\Lease;
 use App\Models\Invoice;
 use App\Observers\LeaseObserver;
-use App\Observers\PaymentObserver;
+use App\Observers\InvoiceObserver;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -28,7 +28,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Lease::observe(LeaseObserver::class);
-        //Invoice::observe(InvoiceObserver::class);
+        Invoice::observe(InvoiceObserver::class);
 
         // 定义角色等级
         $levels = [

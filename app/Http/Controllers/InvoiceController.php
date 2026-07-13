@@ -2,7 +2,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Invoice\{StoreInvoiceRequest, RecordPaymentRequest, VoidInvoiceRequest};
-use App\Models\{Invoice, Lease};
+use App\Models\{Invoice, Lease, Payment};
 use App\Services\InvoiceService;
 use Illuminate\Support\Facades\Gate;
 
@@ -14,9 +14,9 @@ class InvoiceController extends Controller
     {
         Gate::authorize('owner-admin');
         $invoices = Invoice::with(['lease','items.feeType','transactions'])
-        ->latest()
-        ->paginate(20)
-        ->onEachSide(1);
+            ->latest()
+            ->paginate(20)
+            ->onEachSide(1);
 
         return view('adminSide.leases.invoices.index', compact('invoices'));
     }

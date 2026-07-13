@@ -37,7 +37,7 @@ class SubscriptionService
 
     public function generateInvoice(User $user, RefCodePackage $package): Invoice
     {
-        return Invoice::create([
+        $invoice = Invoice::create([
             'context'        => 'subscription',
             'billable_type'  => UserManagement::class,
             'billable_id'    => $user->user_management->id,
@@ -51,6 +51,14 @@ class SubscriptionService
             'amount_balance' => $package->price,
             'status'         => 'unpaid',
         ]);
+
+        $invoice->items()->create([
+            'fee_type_id' => null,
+            'description' => "{$package->name} Subscription ({$package->price_mode})",
+            'amount'      => $package->price,
+        ]);
+
+        return $invoice;
     }
 
     private function resolveDates(RefCodePackage $package): array

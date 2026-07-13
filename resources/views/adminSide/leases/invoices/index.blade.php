@@ -1,17 +1,30 @@
 <x-app-layout>
     <div x-data="{ 
+            loading: false,
             openPayment: false, 
             shakePayment: false,
-            paymentData: { id: '', invoiceNo: '', amountDue: 0, actionUrl: '' },
+            openReceipt: false,
+            paymentData: { id: '', invoiceNo: '', totalAmount: 0, actionUrl: '' },
             openMakePayment(data) {
                 this.paymentData = {
                     id: data.id,
                     invoiceNo: data.invoice_no,
-                    amountDue: data.amount_due,
+                    totalAmount: data.total_amount,
                     actionUrl: data.action
                 };
                 this.openPayment = true;
-            }
+            },
+
+            receiptImage: '',
+            receiptUser: '',
+            receiptDate: '',
+            openReceiptModal(data) {
+                this.receiptImage = data.image;
+                this.receiptUser = data.user;
+                this.receiptDate = data.date;
+
+                this.openReceipt = true;
+            },
          }" 
          class="py-12 bg-gray-50 min-h-screen font-sans text-slate-900">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -44,6 +57,7 @@
                                     <x-table.th name="Tenant Details" sortField="t" />
                                     <x-table.th name="Amount (RM)" sortField="a" />
                                     <x-table.th name="Status" sortField="s" />
+                                    <x-table.th name="Receipt" />
                                     <x-table.th name="Date" sortField="d" />
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                 </tr>
@@ -56,7 +70,7 @@
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm font-medium text-slate-900">{{ $invoice->tenant->user->name ?? 'N/A' }}</div>
+                                            <div class="text-sm font-medium text-slate-900">{{ $invoice->user->name ?? 'N/A' }}</div>
                                             <div class="text-xs text-gray-500">
                                                 @php
                                                     $leasable = $invoice->lease->leasable ?? null;
@@ -69,15 +83,15 @@
                                                 @elseif($leasable instanceof \App\Models\Property)
                                                     Property: {{ $leasable->name }}
                                                 @else
-                                                    N/A
+                                                    Subscription: {{ $invoice->context }}
                                                 @endif
                                             </div>
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-slate-900 font-semibold">{{ number_format($invoice->amount_due, 2) }}</div>
+                                            <div class="text-sm text-slate-900 font-semibold">{{ number_format($invoice->total_amount / 100, 2)}}</div>
                                             @if($invoice->amount_paid > 0)
-                                                <div class="text-[10px] text-green-600">Paid: {{ number_format($invoice->amount_paid, 2) }}</div>
+                                                <div class="text-[10px] text-green-600">Paid: {{ number_format($invoice->amount_paid / 100, 2) }}</div>
                                             @endif
                                         </td>
 
@@ -86,6 +100,64 @@
                                                 {{ $invoice->status === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-yellow-100 text-yellow-700 border-yellow-200' }}">
                                                 {{ strtoupper($invoice->status) }}
                                             </span>
+                                        </td>
+
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            @if($invoice->latestPayment?->receipt_path)
+                                                <button
+                                                    type="button"
+                                                    @click="openReceiptModal({
+                                                        image: '{{ route('admin.payments.view-receipt', $invoice->latestPayment) }}',
+                                                        user: '{{ $invoice->user->name ?? 'User' }}',
+                                                        date: '{{ $invoice->latestPayment->created_at->format('M d, Y @ H:i') }}'
+                                                    })"
+                                                    class="group inline-flex items-center gap-3 px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200"
+                                                >
+                                                    <div class="flex-shrink-0 w-8 h-8 bg-slate-100 group-hover:bg-white rounded-full flex items-center justify-center transition-colors">
+                                                        <svg class="w-4 h-4 text-slate-500 group-hover:text-indigo-600"
+                                                            fill="none"
+                                                            stroke="currentColor"
+                                                            viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round"
+                                                                stroke-linejoin="round"
+                                                                stroke-width="2"
+                                                                d="M9 12h6m-6 4h6M7 4h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V6a2 2 0 012-2z"/>
+                                                        </svg>
+                                                    </div>
+
+                                                    <div class="flex flex-col">
+                                                        <span class="text-[12px] font-bold text-slate-700 group-hover:text-indigo-800 uppercase tracking-tight">
+                                                            Payment Receipt
+                                                        </span>
+                                                        <span class="text-[10px] text-slate-400 group-hover:text-indigo-500 font-medium">
+                                                            Click to Preview
+                                                        </span>
+                                                    </div>
+
+                                                    <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 ml-2"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round"
+                                                            stroke-linejoin="round"
+                                                            stroke-width="2"
+                                                            d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                                                    </svg>
+                                                </a>
+                                            @else
+                                                <div class="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-400 italic text-sm">
+                                                    <svg class="w-4 h-4"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round"
+                                                            stroke-linejoin="round"
+                                                            stroke-width="2"
+                                                            d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                                    </svg>
+                                                    No receipt uploaded
+                                                </div>
+                                            @endif
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
@@ -102,7 +174,7 @@
                                                             @click="openMakePayment({
                                                                 id: '{{ $invoice->id }}',
                                                                 invoice_no: '{{ $invoice->invoice_no }}',
-                                                                amount_due: '{{ number_format($invoice->amount_due, 2, '.', '') }}',
+                                                                total_amount: '{{ number_format($invoice->total_amount / 100 , 2, '.', '') }}',
                                                                 action: '{{ route('admin.invoices.update', $invoice->id) }}'
                                                             })"
                                                             class="inline-flex items-center justify-center p-2 text-emerald-600 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors shrink-0 leading-none" 
@@ -146,5 +218,6 @@
             </div>
         </div>
         @include('components.modals.payment-modal')
+        @include('components.modals.receipt-preview-modal')
     </div>
 </x-app-layout>

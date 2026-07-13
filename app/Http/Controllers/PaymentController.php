@@ -41,4 +41,11 @@ class PaymentController extends Controller
     {
 
     }
+
+    public function viewReceipt(Payment $payment)
+    {
+        abort_unless($payment->receipt_path, 404);
+
+        return response()->file(storage_path('app/private/' . $payment->receipt_path));
+    }
 }

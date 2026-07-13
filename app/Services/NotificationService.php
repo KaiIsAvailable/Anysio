@@ -20,12 +20,15 @@ class NotificationService
      */
     public function send($senderId, $type, $title, $data, array $recipientIds)
     {
-        $sender = User::find($senderId);
-        $validRecipientIds = User::query()
-            ->whereIn('id', $recipientIds)
-            ->when($sender->role !== 'super-admin', function ($query) use ($sender) {
-                return $this->applyOwnershipFilter($query, $sender, 'id');
-            })
+        if (!$senderId) $senderId = User::where('role', 'admin')->value('id');
+
+        $senderId = User::find($senderId);
+
+        $query = User::query()->whereIn('id', $recipientIds);
+ 
+        if ($senderId && $senderId->role !== 'super-admin') $query = $this->applyOwnershipFilter($query, $senderId, 'id');
+
+        $validRecipientIds = $query
             ->pluck('id')
             ->toArray();
 
@@ -34,16 +37,16 @@ class NotificationService
         return DB::transaction(function () use ($senderId, $type, $title, $data, $validRecipientIds) {
             $notification = Notification::create([
                 'id'         => Str::ulid(),
-                'created_by' => $senderId,
+                'created_by' => $senderId, // null = System
                 'type'       => $type,
                 'title'      => $title,
                 'data'       => $data,
             ]);
 
-            $recipients = collect($validRecipientIds)->map(fn($userId) => [
+            $recipients = collect($validRecipientIds)->map(fn ($userId) => [
                 'id'              => Str::ulid(),
                 'notification_id' => $notification->id,
-                'user_id'         => $userId, // 确保这里的值是有效的
+                'user_id'         => $userId,
                 'created_at'      => now(),
                 'updated_at'      => now(),
             ])->toArray();

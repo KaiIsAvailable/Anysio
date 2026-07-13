@@ -74,7 +74,9 @@
                         </div>
                         <div class="flex-1 min-w-0">
                             <p class="text-sm font-bold text-gray-900 truncate" x-text="item.title"></p>
-                            <p class="text-xs text-gray-500 mt-0.5" x-text="`For ${item.data.entity_name}`"></p>
+                            <p class="text-xs text-gray-500 mt-0.5" x-text="`For: ${item.data.name}`"></p>
+                            <p class="text-xs text-gray-500 mt-0.5" x-text="`Details: ${item.data.details}`"></p>
+                            <p class="text-xs text-gray-500 mt-0.5" x-text="`Status: ${item.data.status}`"></p>
                             <p class="text-[10px] text-gray-400 mt-1 font-medium" x-text="item.time"></p>
                         </div>
                         <div x-show="!item.is_read" class="flex-shrink-0 self-center">

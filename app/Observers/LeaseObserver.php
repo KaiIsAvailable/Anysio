@@ -22,11 +22,11 @@ class LeaseObserver
             'lease_created',
             $title,
             [
-                'lease_id'    => $lease->id, // 补上这个 ID
-                'entity_name' => $lease->leasableName,
-                'details'     => 'A new lease has been generated and requires your review.',
-                'url'         => route('admin.leases.show', ['lease' => $lease->id]),
-                'status'      => ucfirst($lease->status), // 顺便加上状态，方便前端显示 Badge
+                'id'      => $lease->id, // 补上这个 ID
+                'name'    => $lease->leasableName,
+                'details' => 'A new lease has been generated and requires your review.',
+                'status'  => ucfirst($lease->status), // 顺便加上状态，方便前端显示 Badge
+                'url'     => route('admin.leases.show', ['lease' => $lease->id]),
             ],
             [
                 $lease->tenant->user_id, 

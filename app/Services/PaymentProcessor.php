@@ -57,12 +57,20 @@ class PaymentProcessor
 
     private function assertNoEarlierOutstanding(Invoice $invoice): void
     {
+        if (!$invoice->lease_id) {
+            return;
+        }
+
         $hasEarlier = Invoice::forLease($invoice->lease_id)
             ->unpaid()
             ->where('period', '<', $invoice->period)
             ->exists();
 
-        abort_if($hasEarlier, 422, 'Earlier outstanding invoices must be settled first.');
+        abort_if(
+            $hasEarlier,
+            422,
+            'Earlier outstanding invoices must be settled first.'
+        );
     }
 
     private function resolveStatus(int $total, int $balance): string

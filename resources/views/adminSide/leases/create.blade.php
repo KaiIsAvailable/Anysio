@@ -223,17 +223,24 @@
 
                         <div id="fee_section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Select Fee Type</label>
-                                <select name="term_type" id="term_type" onchange="toggleLeaseInput()" data-preview="{rent_mode}"
-                                    class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                    <option value="daily" @selected(old('term_type')=='daily' )>Daily Fee</option>
-                                    <option value="weekly" @selected(old('term_type')=='weekly' )>Weekly Fee</option>
-                                    <option value="monthly" @selected(old('term_type', 'monthly' )=='monthly' )>Monthly Fee</option>
-                                    <option value="yearly" @selected(old('term_type')=='yearly' )>Yearly Fee</option>
-                                </select>
-                                <p class="mt-1 text-xs text-gray-400 italic">Options auto-update based on date range.</p>
-                                @error('term_type')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                <label class="block text-sm font-medium text-gray-700">
+                                    Select Fee Type
+                                </label>
+
+                                <x-form.input-select
+                                    name="rent_fee_type_id"
+                                    id="rent_fee_type"
+                                    label="Select Fee Type"
+                                    :options="$rentFeeTypes->mapWithKeys(fn ($feeType) => [
+                                        $feeType->id => $feeType->name
+                                    ])->toArray()"
+                                    :value="old('rent_fee_type_id')"
+                                    data-preview="{rent_mode}"
+                                    help="Options auto-update based on date range."
+                                />
+
+                                @error('rent_fee_type_id')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                 @enderror
                             </div>
 
@@ -250,12 +257,15 @@
                         <div id="deposit_section" class="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div class="max-w-xs">
                                 <label class="block text-sm font-medium text-gray-700 mb-1">Deposit Collection Mode</label>
-                                <select id="deposit_mode" name="deposit_mode" onchange="toggleDepositVisibility()" data-preview="{deposit_mode}"
-                                    class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm text-sm">
-                                    <option value="security_only" selected>Security Deposit Only</option>
-                                    <option value="utilities_only">Utilities Deposit Only</option>
-                                    <option value="both">Both (Security & Utilities)</option>
-                                </select>
+                                <x-form.input-select
+                                    name="deposit_mode"
+                                    id="deposit_mode"
+                                    :options="$depositFeeTypes->mapWithKeys(fn ($feeType) => [
+                                        $feeType->id => $feeType->name
+                                    ])->toArray()"
+                                    :value="old('deposit_fee_type_id')"
+                                    onchange="toggleDepositVisibility()"
+                                />
                             </div>
 
                             <div id="security_container">
@@ -328,17 +338,39 @@
         // ==========================================
         // 1. 日期 & Fee Type 计算逻辑
         // ==========================================
+        const rentFeeTypes = @json(
+            $rentFeeTypes->map(fn ($feeType) => [
+                'id' => $feeType->id,
+                'name' => $feeType->name,
+            ])->values()
+        );
+
+        const depositFeeTypes = @json(
+            $depositFeeTypes->map(fn ($feeType) => [
+                'id' => $feeType->id,
+                'name' => $feeType->name,
+            ])->values()
+        );
+
+        function getFeeTypePeriod(feeTypeName) {
+            const name = feeTypeName.toLowerCase();
+            if (name.includes('daily')) return 'daily';
+            if (name.includes('weekly')) return 'weekly';
+            if (name.includes('monthly')) return 'monthly';
+            if (name.includes('yearly')) return 'yearly';
+            return null;
+        }
+
         function calculateAvailableFeeTypes() {
             const startInput = document.getElementById('start-date');
             const endInput = document.getElementById('end-date');
-            const termSelect = document.getElementById('term_type');
+            const feeTypeSelect = document.getElementById('rent_fee_type');
 
-            if (!startInput || !endInput || !termSelect) return;
+            if (!startInput || !endInput || !feeTypeSelect) return;
 
             const startVal = startInput.value;
             const endVal = endInput.value;
 
-            // 动态设置 End Date 的最小值为 Start Date (防止前端选错)
             if (startVal) {
                 endInput.min = startVal;
             }
@@ -348,63 +380,105 @@
             const start = new Date(startVal);
             const end = new Date(endVal);
 
-            // 前端拦截：如果 End Date 小于 Start Date，强制只给 daily 并退出
             if (end < start) {
-                updateTermOptions(['daily']);
+                updateFeeTypeOptions(['daily']);
                 return;
             }
 
-            // 计算差值
-            const diffTime = Math.abs(end - start);
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+            const diffTime = end - start;
+            const diffDays = Math.ceil(
+                diffTime / (1000 * 60 * 60 * 24)
+            );
 
-            let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+            let months =
+                (end.getFullYear() - start.getFullYear()) * 12 +
+                (end.getMonth() - start.getMonth());
+
             if (end.getDate() < start.getDate()) {
-                months--; // 天数没到，不算满一个月
+                months--;
             }
 
-            let years = end.getFullYear() - start.getFullYear();
-            if (end.getMonth() < start.getMonth() || (end.getMonth() === start.getMonth() && end.getDate() < start.getDate())) {
-                years--; // 月份或天数没到，不算满一年
+            let years =
+                end.getFullYear() - start.getFullYear();
+
+            if (
+                end.getMonth() < start.getMonth() ||
+                (
+                    end.getMonth() === start.getMonth() &&
+                    end.getDate() < start.getDate()
+                )
+            ) {
+                years--;
             }
 
-            // 根据业务逻辑推断可用选项
-            let allowed = ['daily']; // 任何情况都可以选 daily
+            let allowed = ['daily'];
 
             if (diffDays >= 7 && months < 1) {
                 allowed.push('weekly');
+
             } else if (months >= 1 && years < 1) {
                 allowed.push('weekly', 'monthly');
+
             } else if (years >= 1) {
                 allowed.push('weekly', 'monthly', 'yearly');
             }
 
-            updateTermOptions(allowed);
+            // console.log('Allowed Fee Types:', allowed); 
+
+            updateFeeTypeOptions(allowed);
         }
 
-        function updateTermOptions(allowedTypes) {
-            const termSelect = document.getElementById('term_type');
-            const options = Array.from(termSelect.options);
+        function updateFeeTypeOptions(allowedTypes) {
+            const feeTypeSelect = document.getElementById('rent_fee_type');
+
+            if (!feeTypeSelect) return;
+
+            const options = Array.from(feeTypeSelect.options);
+
             let selectedStillValid = false;
 
-            options.forEach(opt => {
-                if (allowedTypes.includes(opt.value)) {
-                    opt.style.display = ''; // 显示选项
-                    opt.disabled = false; // 启用选项
-                    if (opt.selected) selectedStillValid = true;
-                } else {
-                    opt.style.display = 'none'; // 隐藏选项
-                    opt.disabled = true; // 禁用选项
-                    if (opt.selected) opt.selected = false;
+            options.forEach(option => {
+
+                if (!option.value) return;
+
+                const feeType = rentFeeTypes.find(
+                    fee => String(fee.id) === String(option.value)
+                );
+
+                if (!feeType) return;
+
+                const feeTypePeriod = getFeeTypePeriod(feeType.name);
+
+                const isAllowed = allowedTypes.includes(feeTypePeriod);
+
+                option.hidden = !isAllowed;
+                option.disabled = !isAllowed;
+
+                if (option.selected && isAllowed) {
+                    selectedStillValid = true;
+                }
+
+                if (option.selected && !isAllowed) {
+                    option.selected = false;
                 }
             });
 
             if (!selectedStillValid) {
-                if (allowedTypes.includes('monthly')) termSelect.value = 'monthly';
-                else if (allowedTypes.includes('weekly')) termSelect.value = 'weekly';
-                else termSelect.value = 'daily';
 
-                if (typeof toggleLeaseInput === 'function') toggleLeaseInput();
+                const preferredType =
+                    allowedTypes.includes('monthly')
+                        ? 'monthly'
+                        : allowedTypes.includes('weekly')
+                            ? 'weekly'
+                            : 'daily';
+
+                const preferredFeeType = rentFeeTypes.find(
+                    fee => getFeeTypePeriod(fee.name) === preferredType
+                );
+
+                if (preferredFeeType) {
+                    feeTypeSelect.value = preferredFeeType.id;
+                }
             }
         }
 
@@ -528,42 +602,101 @@
         });
 
         function toggleLeaseInput() {
-            const selection = document.getElementById('lease_selection').value;
+            const leaseSelection = document.getElementById('lease_selection');
+
+            if (!leaseSelection) return;
+
+            const selectedType = leaseSelection.value;
+
             const fields = document.querySelectorAll('.lease-field');
 
             fields.forEach(field => {
                 const select = field.querySelector('select');
+                const input = field.querySelector('input');
 
-                if (field.id === selection + '_field') {
+                const isActive = field.id === `${selectedType}_field`;
+
+                if (isActive) {
                     field.classList.remove('hidden');
-                    if (select) select.disabled = false;
+
+                    if (select) {
+                        select.disabled = false;
+                    }
+
+                    if (input) {
+                        input.disabled = false;
+                    }
                 } else {
                     field.classList.add('hidden');
+
                     if (select) {
                         select.disabled = true;
-                        select.value = "";
+                        select.value = '';
+                    }
+
+                    if (input) {
+                        input.disabled = true;
+                        input.value = '';
                     }
                 }
             });
+
+            filterTemplates();
         }
 
         function toggleDepositVisibility() {
-            const mode = document.getElementById('deposit_mode').value;
+            const modeSelect = document.getElementById('deposit_mode');
+
+            if (!modeSelect) {
+                console.error('Deposit mode select not found.');
+                return;
+            }
+
+            const selectedId = modeSelect.value;
+
+            const selectedFeeType = depositFeeTypes.find(
+                fee => String(fee.id) === String(selectedId)
+            );
+
+            if (!selectedFeeType) {
+                console.error('Selected deposit fee type not found:', selectedId);
+                return;
+            }
+
+            const feeTypeName = selectedFeeType.name.toLowerCase();
+
             const securityDiv = document.getElementById('security_container');
             const utilitiesDiv = document.getElementById('utilities_container');
 
-            if (mode === 'both') {
+            if (!securityDiv || !utilitiesDiv) {
+                console.error('Deposit containers not found.');
+                return;
+            }
+
+            if (
+                feeTypeName.includes('both') ||
+                (
+                    feeTypeName.includes('security') &&
+                    feeTypeName.includes('utilities')
+                )
+            ) {
                 securityDiv.classList.remove('hidden');
                 utilitiesDiv.classList.remove('hidden');
-            } else if (mode === 'security_only') {
+
+            } else if (feeTypeName.includes('security')) {
                 securityDiv.classList.remove('hidden');
                 utilitiesDiv.classList.add('hidden');
+
                 document.getElementById('utilities-deposit').value = '';
-            } else if (mode === 'utilities_only') {
+
+            } else if (feeTypeName.includes('utilities')) {
                 securityDiv.classList.add('hidden');
                 utilitiesDiv.classList.remove('hidden');
+
                 document.getElementById('security-deposit').value = '';
             }
+
+            console.log('Selected Deposit Fee Type:', selectedFeeType);
         }
 
         function toggleLeaseSelect() {

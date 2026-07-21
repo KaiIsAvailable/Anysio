@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('payment_method');  // cash|bank_transfer|card|wallet
             $table->string('transaction_ref')->nullable();
             $table->string('receipt_no')->nullable();
+            $table->foreignUlid('document_template_id')->nullable()->constrained()->nullOnDelete();
             $table->date('payment_date');
             $table->foreignUlid('approved_by')->nullable()->constrained('users')->nullOnDelete();
             $table->timestamps();

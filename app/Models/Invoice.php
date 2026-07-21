@@ -48,6 +48,7 @@ class Invoice extends Model
         'lease_id',
         'user_id',
         'invoice_no',
+        'document_template_id',
         'type',
         'period',
         'due_date',

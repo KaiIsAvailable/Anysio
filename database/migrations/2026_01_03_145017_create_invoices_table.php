@@ -17,6 +17,7 @@ return new class extends Migration
             $table->foreign('lease_id')->references('id')->on('leases')->nullOnDelete();
             $table->foreignUlid('user_id')->nullable()->constrained('users')->nullOnDelete();
             $table->string('invoice_no', 40)->unique();
+            $table->foreignUlid('document_template_id')->nullable()->constrained()->nullOnDelete();
             $table->string('type')->default('rent');
             $table->date('period');
             $table->date('due_date');

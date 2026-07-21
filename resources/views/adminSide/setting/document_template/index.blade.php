@@ -46,7 +46,7 @@
                                 expanded: {{ request('expanded_id') == $agreement->id ? 'true' : 'false' }},
                                 currentVersion: '{{ $agreement->version }}',
                                 {{-- 默认显示当前 active 的内容 --}}
-                                currentContent: `{{ addslashes($agreement->content) }}`,
+                                currentContent: `{{ addslashes($agreement->html_template) }}`,
                                 currentId: '{{ $agreement->id }}',
                                 statusUpdating: false
                             }"

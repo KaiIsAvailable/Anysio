@@ -16,14 +16,8 @@ class PaymentService
     /**
      * Tenant submits payment receipt.
      */
-    public function submitReceipt(
-        Invoice $invoice,
-        User $user,
-        array $data
-    ): Payment {
-
+    public function submitReceipt(Invoice $invoice, User $user, array $data): Payment {
         return DB::transaction(function () use ($invoice, $user, $data) {
-
             // Prevent duplicate pending submission
             $existing = Payment::where('invoice_id', $invoice->id)
                 ->where('submitted_by', $user->id)
@@ -68,8 +62,8 @@ class PaymentService
 
             $payment->update([
                 'status' => 'approved',
-                'verified_by' => Auth::id(),
-                'verified_at' => now(),
+                'reviewed_by' => Auth::id(),
+                'reviewed_at' => now(),
             ]);
         });
     }

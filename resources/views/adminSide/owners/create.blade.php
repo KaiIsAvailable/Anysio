@@ -18,12 +18,11 @@
                     <div class="space-y-6">
                         {{-- Full Name --}}
                         <div>
-                            <x-form.input-label value="Full Name" class="mb-1" />
+                            <x-form.input-label value="Full Name" :required="true" class="mb-1" />
                             <x-form.text-input 
                                 name="name" 
                                 id="name" 
                                 value="{{ old('name') }}" 
-                                placeholder="Enter owner's full name" 
                                 class="w-full"
                                 required 
                             />
@@ -33,7 +32,7 @@
                         {{-- Email --}}
                         <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                             <div class="flex items-center justify-between mb-2">
-                                <x-form.input-label value="Email Address" class="mb-0" />
+                                <x-form.input-label value="Email Address" :required="true" class="mb-0" />
                                 <label class="inline-flex items-center cursor-pointer">
                                     <input type="checkbox" name="random_email" id="random_email" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
                                     <span class="ml-2 text-xs font-medium text-indigo-600 uppercase tracking-wider">Generate Random</span>
@@ -44,7 +43,6 @@
                                 name="email" 
                                 id="email_input" 
                                 value="{{ old('email') }}" 
-                                placeholder="example@mail.com"
                                 class="w-full transition-all" 
                             />
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">If random is selected, a temporary password will also be generated.</p>
@@ -59,7 +57,6 @@
                                     name="company_name" 
                                     id="company_name" 
                                     value="{{ old('company_name') }}" 
-                                    placeholder="Optional"
                                     class="w-full" 
                                 />
                                 <x-form.input-error :messages="$errors->get('company_name')" class="mt-1" />
@@ -67,12 +64,11 @@
 
                             {{-- IC Number --}}
                             <div>
-                                <x-form.input-label value="IC Number" class="mb-1" />
+                                <x-form.input-label value="IC Number" :required="true" class="mb-1" />
                                 <x-form.text-input 
                                     name="ic_number" 
                                     id="ic_number" 
                                     value="{{ old('ic_number') }}" 
-                                    placeholder="" 
                                     class="w-full"
                                     required 
                                     oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
@@ -85,12 +81,11 @@
 
                             {{-- Phone Number --}}
                             <div>
-                                <x-form.input-label value="Phone Number" class="mb-1" />
+                                <x-form.input-label value="Phone Number" :required="true" class="mb-1" />
                                 <x-form.text-input 
                                     name="phone" 
                                     id="phone" 
                                     value="{{ old('phone') }}" 
-                                    placeholder="" 
                                     class="w-full"
                                     required 
                                     oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
@@ -103,12 +98,11 @@
 
                             {{-- Gender --}}
                             <div>
-                                <x-form.input-label value="Gender" class="mb-1" />
+                                <x-form.input-label value="Gender" :required="true" class="mb-1" />
                                 <x-form.input-select 
                                     name="gender" 
                                     id="gender" 
-                                    :options="['Male' => 'Male', 'Female' => 'Female']"
-                                    placeholder="-- Select Gender --"
+                                    :options="['' => '', 'Male' => 'Male', 'Female' => 'Female']"
                                     class="w-full"
                                     required 
                                 />

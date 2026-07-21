@@ -13,11 +13,17 @@ class InvoiceController extends Controller
     public function index()
     {
         Gate::authorize('owner-admin');
-        $invoices = Invoice::with(['lease','items.feeType','transactions'])
-            ->latest()
-            ->paginate(20)
-            ->onEachSide(1);
-
+        $invoices = Invoice::with([
+            'lease',
+            'items.feeType',
+            'transactions', 
+            'payments' => function ($query) {
+                $query->where('status', 'pending');
+            },])
+                ->latest()
+                ->paginate(20)
+                ->onEachSide(1);
+                
         return view('adminSide.leases.invoices.index', compact('invoices'));
     }
 

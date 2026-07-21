@@ -57,9 +57,9 @@
                                     <x-table.th name="Tenant Details" sortField="t" />
                                     <x-table.th name="Amount (RM)" sortField="a" />
                                     <x-table.th name="Status" sortField="s" />
-                                    <x-table.th name="Receipt" />
                                     <x-table.th name="Date" sortField="d" />
-                                    <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <x-table.th name="Proof of Payment" />
+                                    <x-table.th name="Actions" />
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
@@ -100,6 +100,10 @@
                                                 {{ $invoice->status === 'paid' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-yellow-100 text-yellow-700 border-yellow-200' }}">
                                                 {{ strtoupper($invoice->status) }}
                                             </span>
+                                        </td>
+
+                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                            {{ $invoice->created_at->format('d M Y') }}
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">
@@ -155,50 +159,57 @@
                                                             stroke-width="2"
                                                             d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
                                                     </svg>
-                                                    No receipt uploaded
+                                                    No proof uploaded
                                                 </div>
                                             @endif
-                                        </td>
-
-                                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                            {{ $invoice->created_at->format('d M Y') }}
-                                        </td>
+                                        </td>   
 
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex justify-center items-center gap-2">
                                                 @if($invoice->status === 'unpaid')
-                                                    <button type="button" 
-                                                            {{-- 1. 改为 @click --}}
-                                                            {{-- 2. 函数名改为 openMakePayment --}}
-                                                            {{-- 3. 直接传数据对象 --}}
+                                                    {{-- Confirm Payment --}}
+                                                    <button type="button"
                                                             @click="openMakePayment({
                                                                 id: '{{ $invoice->id }}',
                                                                 invoice_no: '{{ $invoice->invoice_no }}',
-                                                                total_amount: '{{ number_format($invoice->total_amount / 100 , 2, '.', '') }}',
-                                                                action: '{{ route('admin.invoices.update', $invoice->id) }}'
+                                                                total_amount: '{{ number_format($invoice->total_amount / 100, 2, '.', '') }}',
+                                                                action: '{{ route('admin.payments.approve', $invoice->payments->first()) }}'
                                                             })"
-                                                            class="inline-flex items-center justify-center p-2 text-emerald-600 hover:text-emerald-900 bg-emerald-50 hover:bg-emerald-100 rounded-lg transition-colors shrink-0 leading-none" 
-                                                            title="Pay Now">
-                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                                            class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-600 transition hover:bg-emerald-100"
+                                                            title="Confirm Payment">
+                                                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"/>
                                                         </svg>
-                                                        <span class="ml-1 text-[10px] font-bold uppercase tracking-tighter">Pay</span>
+                                                        <span class="text-[10px] font-bold uppercase tracking-tighter">Confirm</span>
                                                     </button>
+
+                                                    {{-- Reject Payment --}}
+                                                    <form method="POST" action="{{ route('admin.invoices.reject-payment', $invoice) }}" onsubmit="return confirm('Reject this payment?')">
+                                                        @csrf
+                                                        @method('PATCH')
+                                                        <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-600 transition hover:bg-rose-100">
+                                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                                                            </svg>
+                                                            <span class="text-[10px] font-bold uppercase tracking-tighter">Reject</span>
+                                                        </button>
+                                                    </form>
                                                 @endif
 
-                                                <form action="{{ route('admin.invoices.void', $invoice) }}" 
-                                                    method="POST" 
-                                                    onsubmit="return confirm('Void this invoice?');" 
-                                                    class="inline-flex items-center m-0 p-0"> @csrf
-                                                    @method('DELETE')
-                                                    <button type="submit" 
-                                                            class="inline-flex items-center justify-center p-2 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 rounded-lg transition-colors shrink-0" 
-                                                            title="Void Invoice">
-                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                                        </svg>
-                                                    </button>
-                                                </form>
+                                                {{-- Void Invoice --}}
+                                                @if(!in_array($invoice->status, ['paid', 'void']))
+                                                    <form method="POST" action="{{ route('admin.invoices.void', $invoice) }}" onsubmit="return confirm('Void this invoice?')">
+                                                        @csrf
+                                                        @method('PATCH')
+                                                        <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
+                                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <circle cx="12" cy="12" r="9"/>
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.5 5.5l13 13"/>
+                                                            </svg>
+                                                            <span class="text-[10px] font-bold uppercase tracking-tighter">Void</span>
+                                                        </button>
+                                                    </form>
+                                                @endif
                                             </div>
                                         </td>
                                     </tr>

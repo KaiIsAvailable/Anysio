@@ -8,27 +8,31 @@ use App\Models\Unit;
 use App\Models\Property;
 use App\Models\Tenants;
 use App\Models\User;
+use App\Models\FeeType;
+use App\Models\Owners;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Traits\RoleBasedDataTrait;
 use App\Models\DocumentTemplate;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
 use App\Services\FileService;
 use App\Services\InvoiceService;
+use App\Services\LeaseService;
+use App\Http\Requests\Lease\{StoreLeaseRequest};
+use App\FeeTypeCategory;
 
 class LeaseController extends Controller
 {
     use RoleBasedDataTrait;
     protected InvoiceService $invoiceService;
+    protected LeaseService $leaseService;
 
-    public function __construct(InvoiceService $invoiceService)
+    public function __construct(InvoiceService $invoiceService, LeaseService $leaseService)
     {
         $this->invoiceService = $invoiceService;
+        $this->leaseService = $leaseService;
     }
     public function index(Request $request)
     {
@@ -39,7 +43,7 @@ class LeaseController extends Controller
         // 1. 使用 leasable 预加载多态关联
         // 同时保留 tenant 关联
         $query = Lease::with([
-            'leasable', // 这会自动加载 Room, Unit 或 Property
+            'leasable', // 这会自动加载 Room, Unit 或 
             'tenant.user',
         ]);
 
@@ -158,16 +162,70 @@ class LeaseController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
-        $properties = $this->getAuthorizedProperties()->where('status', 'Vacant')->get();
-        $units      = $this->getAuthorizedUnits()->where('status', 'Vacant')->get();
-        $rooms      = $this->getAuthorizedRooms()->where('status', 'Vacant')->get();
-        $tenants    = $this->applyOwnershipFilter(Tenants::query(), $user)->get();
+        $properties = $this->getAuthorizedProperties()
+            ->where('status', 'Vacant')
+            ->get();
+
+        $units = $this->getAuthorizedUnits()
+            ->where('status', 'Vacant')
+            ->get();
+
+        $rooms = $this->getAuthorizedRooms()
+            ->where('status', 'Vacant')
+            ->get();
+
+        $tenants = $this->applyOwnershipFilter(
+            Tenants::query(),
+            $user
+        )->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fee Types
+        |--------------------------------------------------------------------------
+        */
+
+        $feeTypesQuery = FeeType::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($user) {
+                // System fee types are visible to everyone
+                $query->where('is_system', true);
+                // User-owned fee types
+                if ($user->role === 'ownerAdmin') {
+                    $query->orWhere('user_id', $user->id);
+                } elseif ($user->role === 'agentAdmin') {
+                    $managedOwnerIds = Owners::where('agent_id', $user->id)
+                        ->select('user_id');
+
+                    $query->orWhere('user_id', $user->id)
+                        ->orWhereIn('user_id', $managedOwnerIds);
+                }
+            });
+
+        $feeTypes = $feeTypesQuery
+            ->orderBy('category')
+            ->orderBy('name')
+            ->get();
+
+        $rentFeeTypes = $feeTypes
+            ->where('category', FeeTypeCategory::RENT->value)
+            ->values();
+
+        $depositFeeTypes = $feeTypes
+            ->where('category', FeeTypeCategory::DEPOSIT->value)
+            ->values();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Existing Leases
+        |--------------------------------------------------------------------------
+        */
 
         $status = $request->query('status');
 
         $leases = Lease::with([
             'tenant.user',
-            // 👇 修复点：添加 leasable 的嵌套多态预加载，确保能拉取到深层 Owner 资料
+
             'leasable' => function ($morphTo) {
                 $morphTo->morphWith([
                     Room::class => ['unit.owner'],
@@ -176,70 +234,108 @@ class LeaseController extends Controller
                 ]);
             }
         ])
-            ->where('is_current', true)
-            ->when($status === 'End Agreement', 
-                fn($q) => $q->where('status', 'Check Out'),
-                fn($q) => $q->whereIn('status', ['New', 'Renew'])
-            )
-            // 直接调用 Trait 中的方法，完美解耦！
-            ->when($user->role !== 'admin', fn($query) => $this->applyLeaseOwnershipFilter($query, $user))
-            ->get();
+        ->where('is_current', true)
+        ->when(
+            $status === 'End Agreement',
+            fn ($q) => $q->where('status', 'Check Out'),
+            fn ($q) => $q->whereIn('status', ['New', 'Renew'])
+        )
+        ->when(
+            $user->role !== 'admin',
+            fn ($query) =>
+                $this->applyLeaseOwnershipFilter($query, $user)
+        )
+        ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Lease Preview Data
+        |--------------------------------------------------------------------------
+        */
 
         $leasePreviewData = $leases->map(function ($lease) {
             $leasable = $this->getLeasableWithOwner($lease);
 
-            // --- 新增：计算累计押金逻辑 ---
             $cumulativeSecurity = 0;
             $cumulativeUtilities = 0;
+
             $current = $lease;
 
-            // 循环向上累加
             while ($current) {
                 $cumulativeSecurity += $current->security_deposit ?? 0;
                 $cumulativeUtilities += $current->utilities_deposit ?? 0;
 
-                // 查找下一个父级租约
                 if ($current->parent_lease_id) {
-                    $current = Lease::find($current->parent_lease_id);
+                    $current = Lease::find(
+                        $current->parent_lease_id
+                    );
                 } else {
                     $current = null;
                 }
             }
-            // ----------------------------
 
-            return array_merge($lease->toArray(), [
-                'leasable_name' => $this->getLeasableName($leasable),
-                'leasable_address' => $this->getLeasableAddress($leasable),
-                'owner_data' => $this->getOwnerData($leasable),
-                // 将计算好的累计金额传给前端
-                'cumulative_security' => $cumulativeSecurity,
-                'cumulative_utilities' => $cumulativeUtilities,
-            ]);
+            return array_merge(
+                $lease->toArray(),
+                [
+                    'leasable_name' => $this->getLeasableName($leasable),
+                    'leasable_address' =>
+                        $this->getLeasableAddress($leasable),
+                    'owner_data' =>
+                        $this->getOwnerData($leasable),
+                    'cumulative_security' =>
+                        $cumulativeSecurity,
+                    'cumulative_utilities' =>
+                        $cumulativeUtilities,
+                ]
+            );
         });
 
+        /*
+        |--------------------------------------------------------------------------
+        | Agreement Templates
+        |--------------------------------------------------------------------------
+        */
+
         $templates = $this->applyOwnershipFilter(
-            DocumentTemplate::where('category', 'agreement')->where('status', 'active'),
+            DocumentTemplate::query()
+                ->where('category', 'agreement')
+                ->where('status', 'active'),
             $user,
-            'user_id' // 明确指定过滤字段为 user_id
+            'user_id'
         )->get();
 
-        // 初始变量
+        /*
+        |--------------------------------------------------------------------------
+        | Initial Variables
+        |--------------------------------------------------------------------------
+        */
+
         $selectedRoom = null;
         $selectedTenant = null;
-        $statuses = ['New', 'Renew', 'Check out', 'End Agreement'];
+        $statuses = [
+            'New',
+            'Renew',
+            'Check Out',
+            'End Agreement',
+        ];
 
-        return view('adminSide.leases.create', compact(
-            'properties',
-            'units',
-            'rooms',
-            'tenants',
-            'leases',
-            'leasePreviewData',
-            'statuses',
-            'selectedRoom',
-            'selectedTenant',
-            'templates'
-        ));
+        return view(
+            'adminSide.leases.create',
+            compact(
+                'properties',
+                'units',
+                'rooms',
+                'tenants',
+                'leases',
+                'leasePreviewData',
+                'templates',
+                'rentFeeTypes',
+                'depositFeeTypes',
+                'statuses',
+                'selectedRoom',
+                'selectedTenant'
+            )
+        );
     }
 
     private function getLeasableWithOwner($lease)
@@ -308,259 +404,17 @@ class LeaseController extends Controller
         return ['id' => '', 'name' => '', 'ic_number' => ''];
     }
 
-    public function store(Request $request)
-    {
-        // 1. 验证数据
-        $validated = $request->validate([
-            'status' => 'required|string|in:New,Renew,Check Out,End Agreement',
-            'lease_id' => 'required_unless:status,New|nullable|exists:leases,id',
+    public function store(StoreLeaseRequest $request, LeaseService $leaseService) {
+        Gate::authorize('owner-admin');
 
-            'lease_selection' => 'required_if:status,New|nullable|in:property,unit,room',
+        $leaseService->process(
+            Auth::user(),
+            $request->validated()
+        );
 
-            'tenant_id' => 'required_if:status,New|nullable|exists:tenants,id',
-
-            'start_date' => 'required_if:status,New,Renew|nullable|date',
-            'end_date'   => 'required_if:status,New,Renew|nullable|date|after_or_equal:start_date',
-            'checked_out_at' => 'required_if:status,Check Out|nullable|date',
-            'agreement_ended_at' => 'required_if:status,End Agreement|nullable|date',
-            'rent_price' => 'required_if:status,New,Renew|nullable|numeric|min:1',
-            'term_type' => 'required_if:status,New,Renew|nullable|string',
-            'security_deposit' => 'nullable|numeric|min:1',
-            'utilities_deposit' => 'nullable|numeric|min:1',
-            'document_id' => 'required_if:status,New,Renew',
-        ]);
-
-        // 💡 修复点 2: 后端二次校验 Fee Type 是否合法，防止恶意绕过前端
-        if (in_array($validated['status'], ['New', 'Renew']) && !empty($validated['start_date']) && !empty($validated['end_date'])) {
-            $start = Carbon::parse($validated['start_date']);
-            $end = Carbon::parse($validated['end_date']);
-
-            $diffDays = $start->diffInDays($end);
-            $diffMonths = $start->diffInMonths($end);
-            $diffYears = $start->diffInYears($end);
-
-            $allowedFeeTypes = ['daily']; // 永远可以选择 daily
-
-            if ($diffDays >= 7 && $diffMonths < 1) {
-                $allowedFeeTypes[] = 'weekly';
-            } elseif ($diffMonths >= 1 && $diffYears < 1) {
-                $allowedFeeTypes[] = 'weekly';
-                $allowedFeeTypes[] = 'monthly';
-            } elseif ($diffYears >= 1) {
-                $allowedFeeTypes = ['daily', 'weekly', 'monthly', 'yearly'];
-            }
-
-            if (!in_array($validated['term_type'], $allowedFeeTypes)) {
-                return back()->withErrors(['term_type' => 'The selected Fee Type is not valid for the chosen date range.'])->withInput();
-            }
-        }
-
-        /** @var \App\Models\User $user */
-        $user = Auth::user();
-
-        // 步骤 1：先紧急验证最基础的状态
-        $baseRules = [
-            'status' => 'required|string|in:New,Renew,Check Out,End Agreement',
-        ];
-        $baseValidated = $request->validate($baseRules);
-        $status = $baseValidated['status'];
-
-        // 步骤 2：仅当创建“新租约 (New)”时，才进行套餐限额拦截！
-        if ($status === 'New') {
-            $leasableId = $request->input($validated['lease_selection'] . '_id');
-            $leasableType = match ($validated['lease_selection']) {
-                'property' => Property::class,
-                'unit' => Unit::class,
-                'room' => Room::class,
-            };
-
-            // 动态查询该房源的 owner_id
-            $leasable = $leasableType::find($leasableId);
-            if (!$leasable) {
-                return back()->withErrors(['error' => 'Property/Unit/Room not found.']);
-            }
-
-            // 递归获取 owner
-            $ownerId = match ($validated['lease_selection']) {
-                'room' => $leasable->unit->owner_id,
-                'unit' => $leasable->owner_id,
-                'property' => $leasable->owner_id,
-            };
-
-            // 获取该业主的套餐进行限额校验
-            $owner = User::find($ownerId);
-
-            /** @var \App\Models\UserManagement|null $management */
-            if ($user->role === 'admin') {
-                $management = $owner->user_management;
-            } else {
-                $management = $user->user_management;
-            }
-
-            // 检查套餐是否存在
-            if ($user->role === 'admin') {
-            } else if (!$management || !$management->package) {
-                return back()->with('error', 'You do not have an active subscription package.');
-            }
-
-            $package = $management->package;
-            $baseLeaseLimit = $package->base_lease;
-            $extraLeaseLimit = $management->extra_lease;
-            $totalLeaseLimit = $baseLeaseLimit + $extraLeaseLimit;
-
-            // 计算当前活跃的主租约数量
-            $currentLeaseCount = Lease::where('is_current', 1)
-                ->whereIn('status', ['New', 'Renew', 'Check Out']) // 只要没到 End Agreement，都算占用
-                ->when($user->role !== 'admin', function ($query) use ($user) {
-                    return $query->whereHas('tenant', function ($q) use ($user) {
-                        $q->where('created_by', $user->id);
-                    });
-                })
-                ->count();
-
-            // 达到上限，拒绝创建新租约
-            if ($user->role !== 'admin' && $currentLeaseCount >= $totalLeaseLimit) {
-                return back()->with('error', "Limit Reached: Your current package ({$package->name}) only allows {$baseLeaseLimit} leases. You cannot create a NEW lease, but you can still Renew or Check Out existing ones.");
-            }
-        }
-
-        // 预提取旧租约 (仅 Renew/Check Out/End)
-        $oldLease = null;
-        if ($validated['status'] !== 'New') {
-            $oldLease = Lease::findOrFail($validated['lease_id']);
-        }
-
-        if ($validated['status'] === 'Renew' && $oldLease) {
-            $request->validate([
-                'start_date' => [
-                    'required',
-                    'date',
-                    'after_or_equal:' . Carbon::parse($oldLease->end_date)->toDateString(),
-                ],
-            ], [
-                'start_date.after_or_equal' => 'New lease must start on or after the previous lease ends.',
-            ]);
-        }
-
-        // 确定物理属性 (房产信息和租客)
-        if ($validated['status'] === 'New') {
-            $leasableId = match ($validated['lease_selection']) {
-                'property' => $request->property_id ?? null,
-                'unit' => $request->unit_id ?? null,
-                'room' => $request->room_id ?? null,
-            };
-
-            if (!$leasableId) {
-                return back()->withErrors(['lease_selection' => 'Please select a valid property/unit/room.'])->withInput();
-            }
-
-            $leasableType = match ($validated['lease_selection']) {
-                'property' => Property::class,
-                'unit' => Unit::class,
-                'room' => Room::class,
-            };
-
-            $tenantId = $validated['tenant_id'];
-        } else {
-            // Renew/Check Out 模式：直接从旧记录继承
-            $leasableId = $oldLease->leasable_id;
-            $leasableType = $oldLease->leasable_type;
-            $tenantId = $oldLease->tenant_id;
-        }
-
-        // 金额计算 (转为 Cents)
-        $sDep = $validated['security_deposit'] ?? 0;
-        $uDep = $validated['utilities_deposit'] ?? 0;
-
-        $depositMode = 'none';
-        if ($sDep > 0 && $uDep > 0)
-            $depositMode = 'both';
-        elseif ($sDep > 0)
-            $depositMode = 'security_only';
-        elseif ($uDep > 0)
-            $depositMode = 'utilities_only';
-
-        // 执行数据库事务
-        DB::transaction(function () use ($validated, $oldLease, $leasableType, $leasableId, $tenantId, $sDep, $uDep, $depositMode) {
-
-            $parseDate = function ($date) {
-                if (empty($date)) return null;
-                try {
-                    return Carbon::parse($date)->format('Y-m-d');
-                } catch (\Exception $e) {
-                    return null;
-                }
-            };
-
-            // 现在你可以安全地赋值了
-            $startDate = in_array($validated['status'], ['New', 'Renew'])
-                ? $parseDate($validated['start_date'])
-                : $oldLease?->start_date;
-
-            $endDate = in_array($validated['status'], ['New', 'Renew'])
-                ? $parseDate($validated['end_date'])
-                : $oldLease?->end_date;
-
-            $checkOutDate = ($validated['status'] === 'Check Out')
-                ? $parseDate($validated['checked_out_at'])
-                : null;
-
-            $endAgreementDate = ($validated['status'] === 'End Agreement')
-                ? $parseDate($validated['agreement_ended_at'])
-                : null;
-
-            if ($oldLease) {
-                $oldLease->update(['is_current' => false]);
-            }
-
-            // 1. 获取模型实例并更新状态 (这样内存中的对象 status 也是最新的)
-            $leasable = $leasableType::findOrFail($leasableId);
-
-            $targetRoomStatus = match ($validated['status']) {
-                'Check Out' => 'Cleaning',
-                'End Agreement' => 'Vacant',
-                default => 'Occupied',
-            };
-
-            $leasable->propagateStatus($targetRoomStatus);
-            $leasable->update(['status' => $targetRoomStatus]);
-
-            if (in_array($validated['status'], ['Check Out', 'End Agreement'])) {
-                $leasable->syncStatus();
-            }
-
-            Log::info("更新后的状态: " . $leasable->fresh()->status);
-
-            // 创建新记录
-            $newLease = Lease::create([
-                'parent_lease_id' => $oldLease?->id,
-                'document_id' => in_array($validated['status'], ['New', 'Renew'])
-                    ? ($validated['document_id'] ?? null)
-                    : $oldLease?->document_id,
-                'is_current' => true,
-                'leasable_type' => $leasableType,
-                'leasable_id' => $leasableId,
-                'tenant_id' => $tenantId,
-                'start_date' => $startDate,
-                'end_date' => $endDate,
-                'checked_out_at' => $checkOutDate,
-                'agreement_ended_at' => $endAgreementDate,
-                'term_type' => $validated['term_type'] ?? $oldLease?->term_type,
-                'rent_price' => ($validated['status'] === 'New' || $validated['status'] === 'Renew')
-                    ? ($validated['rent_price'] ?? 0)
-                    : ($oldLease?->rent_price ?? 0),
-                'deposit_mode' => $depositMode,
-                'security_deposit' => $sDep,
-                'utilities_deposit' => $uDep,
-                'status' => $validated['status'],
-            ]);
-
-            if (in_array($validated['status'], ['New', 'Renew'])) {
-                $this->invoiceService->createRentInvoice($newLease, Carbon::parse($newLease->start_date));
-            }
-        });
-
-        return redirect()->route('admin.leases.index')->with('success', 'Lease, first rent invoice and deposit invoice generated successfully.');
+        return redirect()
+            ->route('admin.leases.index')
+            ->with('success', 'Lease processed successfully.');
     }
 
     public function show(Request $request, Lease $lease)

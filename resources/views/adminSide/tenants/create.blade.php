@@ -21,7 +21,7 @@
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <!-- Name -->
                             <div>
-                                <x-form.input-label for="name" value="Full Name" class="mb-1" />
+                                <x-form.input-label for="name" value="Full Name" :required="true" class="mb-1" />
                                 <x-form.text-input name="name" id="name" value="{{ old('name') }}" class="w-full" required />
                                 <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                             </div>
@@ -29,7 +29,7 @@
                             <!-- Email (Owners Style) -->
                             <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
                                 <div class="flex items-center justify-between mb-2">
-                                    <x-form.input-label value="Email Address" class="mb-0" />
+                                    <x-form.input-label value="Email Address" :required="true" class="mb-0" />
                                     <label class="inline-flex items-center cursor-pointer">
                                         <input type="checkbox" name="random_email" id="random_email" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" value="1" {{ old('random_email') ? 'checked' : '' }}>
                                         <span class="ml-2 text-xs font-medium text-indigo-600 tracking-wider">Generate Random</span>
@@ -45,7 +45,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <!-- Phone -->
                         <div>
-                            <x-form.input-label for="phone" value="Phone" class="mb-1" />
+                            <x-form.input-label for="phone" value="Phone" :required="true" class="mb-1" />
                             <x-form.text-input name="phone" id="phone" value="{{ old('phone') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" inputmode="numeric" maxlength="20" class="w-full" required />
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 01xxxxxxxxx</p>
                             <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
@@ -53,7 +53,7 @@
 
                         <!-- Identity Type Selection -->
                         <div>
-                            <x-form.input-label value="Identity Document" class="mb-3" />
+                            <x-form.input-label value="Identity Document" :required="true" class="mb-3" />
                             <div class="flex gap-4">
                                 <label class="inline-flex items-center cursor-pointer">
                                     <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" checked onchange="toggleIdentityInputs(false)">
@@ -68,7 +68,7 @@
 
                         <!-- IC Number -->
                         <div id="ic_container">
-                            <x-form.input-label for="ic_number" value="IC Number" class="mb-1" />
+                            <x-form.input-label for="ic_number" value="IC Number" :required="true" class="mb-1" />
                             <x-form.text-input name="ic_number" id="ic_number" value="{{ old('ic_number') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full" />
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
                             <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
@@ -76,7 +76,7 @@
 
                         <!-- Passport -->
                         <div id="passport_container" class="hidden">
-                            <x-form.input-label for="passport" value="Passport Number" class="mb-1" />
+                            <x-form.input-label for="passport" value="Passport Number" :required="true" class="mb-1" />
                             <x-form.text-input name="passport" id="passport" value="{{ old('passport') }}" class="w-full" />
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: A12345678</p>
                             <x-form.input-error :messages="$errors->get('passport')" class="mt-1" />
@@ -84,20 +84,20 @@
 
                         <!-- Nationality -->
                         <div>
-                            <x-form.input-label for="nationality" value="Nationality" class="mb-1" />
+                            <x-form.input-label for="nationality" value="Nationality" :required="true" class="mb-1" />
                             <x-form.text-input name="nationality" id="nationality" value="{{ old('nationality', 'MALAYSIAN') }}" class="w-full bg-gray-100" readonly required />
                             <x-form.input-error :messages="$errors->get('nationality')" class="mt-1" />
                         </div>
 
                         <!-- Gender -->
                         <div>
-                            <x-form.input-label for="gender" value="Gender" class="mb-1" />
-                            <x-form.input-select name="gender" id="gender" :options="['Male' => 'Male', 'Female' => 'Female']" placeholder="-- Select Gender --" class="w-full shadow-sm" required />
+                            <x-form.input-label for="gender" value="Gender" :required="true" class="mb-1" />
+                            <x-form.input-select name="gender" id="gender" :options="['' => '', 'Male' => 'Male', 'Female' => 'Female']" class="w-full shadow-sm" required />
                             <x-form.input-error :messages="$errors->get('gender')" class="mt-1" />
                         </div>
 
                         <div class="col-span-1 md:col-span-2">
-                            <x-form.input-label for="occupation" value="Occupation" class="mb-1" />
+                            <x-form.input-label for="occupation" value="Occupation" :required="true" class="mb-1" />
                             <x-form.text-input name="occupation" id="occupation" value="{{ old('occupation') }}" class="w-full" />
                             <x-form.input-error :messages="$errors->get('occupation')" class="mt-1" />
                         </div>
@@ -117,15 +117,14 @@
 
                     <!-- Photo -->
                     <div class="mb-6">
-                        <x-form.input-label for="ic_photo_path" id="photo_label" value="IC Photo" class="mb-1" />
-                        
-                        <!-- Image Preview Container -->
-                        <div id="ic_preview_container" class="mb-3 hidden">
-                            <img id="ic_preview" src="#" alt="IC Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
-                        </div>
-
+                        <x-form.input-label for="ic_photo_path" id="photo_label" value="IC Photo" :required="true" class="mb-1" />
                         <x-form.file-input name="ic_photo_path" id="ic_photo_path" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full" />
                         <x-form.input-error :messages="$errors->get('ic_photo_path')" class="mt-1" />
+                        
+                        <!-- Image Preview Container -->
+                        <div id="ic_preview_container" class="mt-3 hidden">
+                            <img id="ic_preview" src="#" alt="IC Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
+                        </div>
                     </div>
 
                     <div class="flex justify-end pt-4 border-t border-gray-100">
@@ -226,7 +225,7 @@
                 const html = `
                     <div class="contact-row rounded-lg border border-gray-200 bg-gray-50 p-4">
                         <div class="flex justify-between items-center mb-2">
-                            <span class="text-xs font-semibold text-gray-500 tracking-wider">NEW CONTACT</span>
+                            <span class="text-xs font-semibold text-gray-500 tracking-wider"> <span style="color: red;">* </span>NEW CONTACT</span>
                             <button type="button" class="remove-contact text-sm text-red-600 hover:text-red-800" onclick="this.closest('.contact-row').remove()">
                                 Remove
                             </button>

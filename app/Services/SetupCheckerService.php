@@ -86,14 +86,22 @@ class SetupCheckerService
 
     private function checkAsset(User $user, string $userId, Collection $ownerIds)
     {
+        // System admin does not need asset setup
+        if ($user->hasRole('admin')) {
+            return true;
+        }
+    
         // Only owner-admin level roles manage assets
-        if (!$user->hasRole('admin') && !$user->hasRole('agentAdmin') && !$user->hasRole('ownerAdmin')) {
+        if (
+            !$user->hasRole('agentAdmin') &&
+            !$user->hasRole('ownerAdmin')
+        ) {
             return true;
         }
 
-        return Asset::where(function($q) use ($userId, $ownerIds, $user) {
+        return Asset::where(function ($q) use ($userId, $ownerIds, $user) {
             $q->where('user_id', $userId);
-            
+
             if ($user->hasRole('agentAdmin') && $ownerIds->isNotEmpty()) {
                 $q->orWhereIn('user_id', $ownerIds);
             }

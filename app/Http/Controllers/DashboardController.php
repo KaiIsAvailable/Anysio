@@ -3,77 +3,112 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Gate;
-use App\Models\Owners;
 use App\Models\Invoice;
+use App\Models\Owners;
 use App\Services\SetupCheckerService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Traits\RoleBasedDataTrait;
 
 class DashboardController extends Controller
 {
+    use RoleBasedDataTrait;
     public function index(SetupCheckerService $checker)
     {
         $user = Auth::user();
 
-        $stats = DB::table('properties')
-            ->leftJoin('units', 'properties.id', '=', 'units.property_id')
-            ->leftJoin('rooms', 'units.id', '=', 'rooms.unit_id')
-            // 核心：合并你的权限过滤逻辑
-            ->where(function ($q) use ($user) {
-                if (Gate::allows('super-admin')) return;
-                
-                if (Gate::allows('agent-admin')) {
-                    $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-                    $q->whereIn('properties.owner_id', $ownerIds);
-                } else {
-                    // Owner-Admin 的权限逻辑
-                    $q->where('properties.created_by', $user->id)
-                    ->orWhere('properties.owner_id', $user->id);
+        $statsQuery = DB::table('properties')
+            ->leftJoin('units', 'properties.id', '=', 'units.property_id' )
+            ->leftJoin('rooms', 'units.id', '=', 'rooms.unit_id' );
+
+        if (!Gate::allows('super-admin')) {
+            $statsQuery->where(function ($q) use ($user) {
+                if ($user->role === 'ownerAdmin') {
+                    $q->where('properties.owner_id', $user->id)
+                      ->orWhere('units.owner_id', $user->id);
+                } elseif ($user->role === 'agentAdmin') {
+                    $managedOwnerIds = Owners::where('agent_id', $user->id)
+                        ->select('user_id');
+
+                    $q->where(function ($sub) use ($user, $managedOwnerIds) {
+                        $sub->where('properties.owner_id', $user->id)
+                            ->orWhereIn('properties.owner_id', $managedOwnerIds)
+                            ->orWhere('units.owner_id', $user->id)
+                            ->orWhereIn('units.owner_id', $managedOwnerIds);
+                    });
                 }
-            })
+            });
+        }
+
+        $stats = $statsQuery
             ->selectRaw("
-                -- Property 统计 (使用 distinct 避免 join 导致计数膨胀)
-                count(DISTINCT properties.id) as total_properties,
-                count(DISTINCT CASE WHEN units.status = 'Vacant' THEN properties.id END) as vacant_properties,
-                count(DISTINCT CASE WHEN units.status = 'Occupied' THEN properties.id END) as occ_properties,
-                count(DISTINCT CASE WHEN units.status = 'Maintenance' THEN properties.id END) as main_properties,
-                count(DISTINCT CASE WHEN units.status = 'Cleaning' THEN properties.id END) as clean_properties,
+                /*
+                |--------------------------------------------------------------------------
+                | Property Statistics
+                |--------------------------------------------------------------------------
+                */
+                COUNT(DISTINCT properties.id) AS total_properties,
+                COUNT(DISTINCT CASE WHEN units.status = 'Vacant' THEN properties.id END) AS vacant_properties,
+                COUNT(DISTINCT CASE WHEN units.status = 'Occupied' THEN properties.id END) AS occ_properties,
+                COUNT(DISTINCT CASE WHEN units.status = 'Maintenance' THEN properties.id END) AS main_properties,
+                COUNT(DISTINCT CASE WHEN units.status = 'Cleaning' THEN properties.id END) AS clean_properties,
 
-                -- Unit 统计
-                count(DISTINCT units.id) as total_units,
-                count(DISTINCT CASE WHEN units.status = 'Vacant' THEN units.id END) as vacant_units,
-                count(DISTINCT CASE WHEN units.status = 'Occupied' THEN units.id END) as occ_units,
-                count(DISTINCT CASE WHEN units.status = 'Maintenance' THEN units.id END) as main_units,
-                count(DISTINCT CASE WHEN units.status = 'Cleaning' THEN units.id END) as clean_units,
+                /*
+                |--------------------------------------------------------------------------
+                | Unit Statistics
+                |--------------------------------------------------------------------------
+                */
+                COUNT(DISTINCT units.id) AS total_units,
+                COUNT(DISTINCT CASE WHEN units.status = 'Vacant' THEN units.id END) AS vacant_units,
+                COUNT(DISTINCT CASE WHEN units.status = 'Occupied' THEN units.id END) AS occ_units,
+                COUNT(DISTINCT CASE WHEN units.status = 'Maintenance' THEN units.id END) AS main_units,
+                COUNT(DISTINCT CASE WHEN units.status = 'Cleaning' THEN units.id END) AS clean_units,
 
-                -- Room 统计
-                count(DISTINCT rooms.id) as total_rooms,
-                count(DISTINCT CASE WHEN rooms.status = 'Vacant' THEN rooms.id END) as vacant_rooms,
-                count(DISTINCT CASE WHEN rooms.status = 'Occupied' THEN rooms.id END) as occ_rooms,
-                count(DISTINCT CASE WHEN rooms.status = 'Maintenance' THEN rooms.id END) as main_rooms,
-                count(DISTINCT CASE WHEN rooms.status = 'Cleaning' THEN rooms.id END) as clean_rooms
+                /*
+                |--------------------------------------------------------------------------
+                | Room Statistics
+                |--------------------------------------------------------------------------
+                */
+                COUNT(DISTINCT rooms.id) AS total_rooms,
+                COUNT(DISTINCT CASE WHEN rooms.status = 'Vacant' THEN rooms.id END) AS vacant_rooms,
+                COUNT(DISTINCT CASE WHEN rooms.status = 'Occupied' THEN rooms.id END) AS occ_rooms,
+                COUNT(DISTINCT CASE WHEN rooms.status = 'Maintenance' THEN rooms.id END) AS main_rooms,
+                COUNT(DISTINCT CASE WHEN rooms.status = 'Cleaning' THEN rooms.id END) AS clean_rooms
             ")
             ->first();
-
-        // 转换对象为数组以兼容你之前的视图逻辑
+        /*
+        |--------------------------------------------------------------------------
+        | Convert Statistics To Array
+        |--------------------------------------------------------------------------
+        */
         $counts = (array) $stats;
 
-        //Payment
+        /*
+        |--------------------------------------------------------------------------
+        | Overdue Invoices
+        |--------------------------------------------------------------------------
+        */
         $overdueInvoices = Invoice::with([
             'lease.tenant.user',
             'lease.unit',
             'lease.room',
-            'items'
+            'items',
         ])
-        ->where('status', 'unpaid') 
-        ->where('due_date', '<', now())
-        ->whereHas('lease.tenant', function ($query) {
-            $query->where('created_by', Auth::id()); 
-        })
-        ->orderBy('due_date', 'asc')
-        ->get();
+            ->where('status', 'unpaid')
+            ->where('due_date', '<', now())
+            ->whereHas('lease.tenant', function ($query) use ($user) {
+                $query->where('created_by', $user->id);
+            })
+            ->orderBy('due_date', 'asc')
+            ->get();
 
-        $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset'], 'exists');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Setup Checks
+        |--------------------------------------------------------------------------
+        */
+        $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset',], 'exists');
 
         return view('dashboard', compact('overdueInvoices', 'checks', 'counts'));
     }

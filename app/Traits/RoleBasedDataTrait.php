@@ -12,15 +12,22 @@ trait RoleBasedDataTrait
      */
     protected function applyOwnershipFilter($query, $user, $column = 'created_by')
     {
-        if (Gate::allows('super-admin')) return $query;
+        if (Gate::allows('super-admin')) {
+            return $query;
+        }
 
         return $query->where(function ($q) use ($user, $column) {
             if ($user->role === 'ownerAdmin') {
                 $q->where($column, $user->id);
             } elseif ($user->role === 'agentAdmin') {
-                $managedOwnerIds = Owners::where('agent_id', $user->id)->select('user_id');
-                
-                $q->where(function ($sub) use ($user, $column, $managedOwnerIds) {
+                $managedOwnerIds = Owners::where('agent_id', $user->id)
+                    ->select('user_id');
+
+                $q->where(function ($sub) use (
+                    $user,
+                    $column,
+                    $managedOwnerIds
+                ) {
                     $sub->where($column, $user->id)
                         ->orWhereIn($column, $managedOwnerIds);
                 });

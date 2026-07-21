@@ -22,11 +22,11 @@ class NotificationService
     {
         if (!$senderId) $senderId = User::where('role', 'admin')->value('id');
 
-        $senderId = User::find($senderId);
+        $sender = User::find($senderId);
 
         $query = User::query()->whereIn('id', $recipientIds);
  
-        if ($senderId && $senderId->role !== 'super-admin') $query = $this->applyOwnershipFilter($query, $senderId, 'id');
+        if ($sender && $sender->role !== 'super-admin') $query = $this->applyOwnershipFilter($query, $sender, 'id');
 
         $validRecipientIds = $query
             ->pluck('id')

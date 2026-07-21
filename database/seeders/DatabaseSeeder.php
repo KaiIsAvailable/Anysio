@@ -5,6 +5,8 @@ namespace Database\Seeders;
 use App\Models\User;
 use App\Models\UserManagement;
 use App\Models\RefCodePackage;
+use App\Models\FeeType;
+use App\FeeTypeCategory;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\DB;
@@ -14,25 +16,34 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         DB::transaction(function () {
-            // 只保留系统管理员 admin@anysio.com
-            $this->createPmsUserWithRefCode(
-                'System Admin', 
-                'admin@anysio.com', 
-                'admin', 
-                null, 
-                true  
+
+            // Create system admin
+            $admin = $this->createPmsUserWithRefCode(
+                'System Admin',
+                'admin@anysio.com',
+                'admin',
+                null,
+                true
             );
+
+            // Create default fee types
+            $this->createDefaultFeeTypes($admin);
         });
     }
 
-    private function createPmsUserWithRefCode($name, $email, $role, $referredBy = null, $isOfficial = false)
-    {
+    private function createPmsUserWithRefCode(
+        $name,
+        $email,
+        $role,
+        $referredBy = null,
+        $isOfficial = false
+    ) {
         $user = User::create([
             'name' => $name,
             'email' => $email,
-            'password' => Hash::make('password123'), // 你的登录密码
+            'password' => Hash::make('password123'),
             'role' => $role,
-            'email_verified_at' => now(), 
+            'email_verified_at' => now(),
         ]);
 
         UserManagement::create([
@@ -42,7 +53,6 @@ class DatabaseSeeder extends Seeder
             'subscription_status' => 'active',
         ]);
 
-        // 确保套餐存在，防止登录后读取数据报错
         RefCodePackage::updateOrCreate(
             ['ref_code' => 'P1_MONTHLY'],
             [
@@ -56,5 +66,57 @@ class DatabaseSeeder extends Seeder
         );
 
         return $user;
+    }
+
+    private function createDefaultFeeTypes(User $user): void
+    {
+        $feeTypes = [
+
+            // Rent
+            [
+                'name' => 'Daily Fee',
+                'category' => FeeTypeCategory::RENT,
+            ],
+            [
+                'name' => 'Weekly Fee',
+                'category' => FeeTypeCategory::RENT,
+            ],
+            [
+                'name' => 'Monthly Fee',
+                'category' => FeeTypeCategory::RENT,
+            ],
+            [
+                'name' => 'Yearly Fee',
+                'category' => FeeTypeCategory::RENT,
+            ],
+
+            // Deposits
+            [
+                'name' => 'Security Deposit',
+                'category' => FeeTypeCategory::DEPOSIT,
+            ],
+            [
+                'name' => 'Utilities Deposit',
+                'category' => FeeTypeCategory::DEPOSIT,
+            ],
+            [
+                'name' => 'Security & Utilities Deposit',
+                'category' => FeeTypeCategory::DEPOSIT,
+            ],
+        ];
+
+        foreach ($feeTypes as $feeType) {
+            FeeType::firstOrCreate(
+                [
+                    'user_id' => $user->id,
+                    'name' => $feeType['name'],
+                    'category' => $feeType['category'],
+                ],
+                [
+                    'is_system' => true,
+                    'is_active' => true,
+                ]
+            );
+        }
     }
 }

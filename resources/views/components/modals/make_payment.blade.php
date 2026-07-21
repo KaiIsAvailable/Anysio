@@ -42,43 +42,53 @@
                 @if($payment && $payment->status === 'pending')
                     <div class="flex-1 flex items-center justify-center p-8">
                         <div class="w-full max-w-sm">
-                            <div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-8 text-center">
-                                <div class="mx-auto w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center">
-                                    <svg class="w-10 h-10 text-amber-500 animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0"/>
-                                    </svg>
-                                </div>
-                                <h3 class="mt-6 text-xl font-bold text-slate-800">
-                                    Payment Submitted
-                                </h3>
-                                <p class="mt-3 text-sm text-slate-500 leading-relaxed">
-                                    Your receipt has been received successfully.
-                                    Our finance team is currently reviewing your payment.
-                                </p>
-                                <div class="mt-8 rounded-xl bg-slate-50 border border-slate-100">
-                                    <div class="flex justify-between px-5 py-4">
-                                        <span class="text-sm text-slate-500">Status</span>
-                                        <span class="inline-flex items-center gap-2 text-amber-600 font-semibold">
-                                            <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
-                                            Pending Review
-                                        </span>
-                                    </div>
-                                    <div class="border-t border-slate-100"></div>
-                                    <div class="flex justify-between px-5 py-4">
-                                        <span class="text-sm text-slate-500">
-                                            Payment Method
-                                        </span>
-                                        <span class="text-sm font-semibold text-slate-700">
-                                            Manual Transfer
-                                        </span>
-                                    </div>
-                                </div>
-                                <p class="mt-6 text-xs text-slate-400">
-                                    Verification usually takes between
-                                    <span class="font-semibold">
-                                        1–2 hours
+                            <div class="mx-auto w-20 h-20 rounded-full bg-amber-50 flex items-center justify-center">
+                                <svg class="w-10 h-10 text-amber-500 animate-spin-slow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0"/>
+                                </svg>
+                            </div>
+                            <h3 class="mt-6 text-xl font-bold text-slate-800">
+                                Payment Submitted
+                            </h3>
+                            <p class="mt-3 text-sm text-slate-500 leading-relaxed">
+                                Your receipt has been received successfully.
+                                Our finance team is currently reviewing your payment.
+                            </p>
+                            <div class="mt-8 rounded-xl bg-slate-50 border border-slate-100">
+                                <div class="flex justify-between px-5 py-4">
+                                    <span class="text-sm text-slate-500">Status</span>
+                                    <span class="inline-flex items-center gap-2 text-amber-600 font-semibold">
+                                        <span class="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></span>
+                                        Pending Review
                                     </span>
-                                </p>
+                                </div>
+                                <div class="border-t border-slate-100"></div>
+                                <div class="flex justify-between px-5 py-4">
+                                    <span class="text-sm text-slate-500">
+                                        Payment Method
+                                    </span>
+                                    <span class="text-sm font-semibold text-slate-700">
+                                        Manual Transfer
+                                    </span>
+                                </div>
+                            </div>
+                            <p class="mt-6 text-xs text-slate-400">
+                                Verification usually takes between
+                                <span class="font-semibold">
+                                    1–2 hours
+                                </span>
+                            </p>
+
+                            {{-- Logout Button --}}
+                            <div class="mt-8">
+                                <x-form.form method="POST" action="{{ route('logout') }}">
+                                    <x-form.secondary-button
+                                        type="submit"
+                                        class="w-full justify-center rounded-xl py-3">
+
+                                        Logout
+                                    </x-form.secondary-button>
+                                </x-form.form>
                             </div>
                         </div>
                     </div>

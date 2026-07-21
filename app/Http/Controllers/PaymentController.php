@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Payment\UploadPaymentReceiptRequest;
+use Illuminate\Http\RedirectResponse;
 use App\Models\Invoice;
 use App\Models\Payment;
 use Illuminate\Http\Request;
@@ -11,10 +12,8 @@ use App\Services\PaymentService;
 
 class PaymentController extends Controller
 {
-    public function __construct(protected PaymentService $paymentService)
-    {
-        //
-    }
+    public function __construct(protected PaymentService $paymentService) 
+    {}
 
     public function store(UploadPaymentReceiptRequest $request, Invoice $invoice)
     {
@@ -27,14 +26,18 @@ class PaymentController extends Controller
 
     }
 
-    public function approve(Request $request, Payment $payment)
+    public function approve(Payment $payment): RedirectResponse
     {
+        $this->paymentService->approve($payment);
 
+        return back()->with('success', 'Payment confirmed successfully.');
     }
 
-    public function reject(Request $request, Payment $payment)
+    public function reject(Payment $payment): RedirectResponse
     {
+        $this->paymentService->reject($payment);
 
+        return back()->with('success', 'Payment rejected successfully.');
     }
 
     public function destroy(Payment $payment)

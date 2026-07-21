@@ -5,6 +5,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use App\FeeTypeCategory;
 use App\Traits\Auditable;
 
 class FeeType extends Model
@@ -16,7 +17,14 @@ class FeeType extends Model
     protected $fillable = [
         'user_id',
         'name',
+        'category',
         'is_active',
+    ];
+
+    protected $casts = [
+        'category' => FeeTypeCategory::class,
+        'can_edit' => 'boolean',
+        'is_active' => 'boolean',
     ];
 
     /**

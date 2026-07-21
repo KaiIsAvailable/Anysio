@@ -152,7 +152,7 @@
                                     @endphp
                                     @if($tos)
                                         <div class="prose prose-indigo max-w-none quill-content"> {{-- 建议使用 Tailwind Typography 插件的 prose 类 --}}
-                                            {!! $tos->content !!}
+                                            {!! $tos->html_template !!}
                                         </div>
                                     @else
                                         <p class="italic text-gray-400">Terms of Service content is being updated...</p>
@@ -165,7 +165,7 @@
                                     @endphp
                                     @if($privacy)
                                         <div class="prose prose-indigo max-w-none quill-content"> {{-- 建议使用 Tailwind Typography 插件的 prose 类 --}}
-                                            {!! $privacy->content !!}
+                                            {!! $privacy->html_template !!}
                                         </div>
                                     @else
                                         <p class="italic text-gray-400">Privacy Policy content is being updated...</p>

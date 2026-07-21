@@ -16,9 +16,12 @@ class Transaction extends Model
     protected $fillable = [
         'invoice_id',
         'amount_paid',
+        'amount_applied',
+        'amount_excess',
         'payment_method',
         'transaction_ref',
         'receipt_no',
+        'document_template_id',
         'payment_date',
         'approved_by',
     ];

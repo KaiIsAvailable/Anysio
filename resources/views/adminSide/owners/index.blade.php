@@ -45,7 +45,7 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <x-table.th name="Owner Details" sortField="n" />
-                                    <x-table.th name="Company" sortField="c" />
+                                    <x-table.th name="Company / Identity" sortField="c" />
                                     <x-table.th name="Contact Info" />
                                     <x-table.th name="Joined Date" sortField="jd" />
                                     @can('owner-admin')
@@ -65,24 +65,24 @@
                                                 </div>
                                                 <div class="ml-4">
                                                     <div class="text-sm font-medium text-slate-900">{{ $owner->user->name ?? '—' }}</div>
+                                                    <div class="text-xs text-gray-400 capitalize">{{ $owner->gender ?? '—' }}</div>
                                                     <div class="text-xs text-gray-500">{{ $owner->user->email ?? '—' }}</div>
                                                 </div>
                                             </div>
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-slate-900 font-medium">{{ $owner->company_name ?? 'Individual' }}</div>
-                                            <div class="text-xs text-gray-400 capitalize">{{ $owner->gender }}</div>
-                                        </td>
-
-                                        <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-slate-700">{{ $owner->phone ?? '—' }}</div>
+                                            <div class="text-sm text-slate-900 font-medium">{{ $owner->company_name ?? '—' }}</div>
                                             <div class="text-xs text-indigo-600 font-medium">IC: {{ $owner->ic_number ?? '—' }}</div>
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">
+                                            <div class="text-sm text-slate-700">{{ $owner->phone ?? '—' }}</div>
+                                        </td>
+
+                                        <td class="px-6 py-4 whitespace-nowrap">
                                             <span class="text-sm text-slate-700 font-medium">
-                                                {{ $owner->created_at ? $owner->created_at->format('d M Y') : 'N/A' }}
+                                                {{ $owner->created_at ? $owner->created_at->format('d M Y') : '—' }}
                                             </span>
                                         </td>
                                         

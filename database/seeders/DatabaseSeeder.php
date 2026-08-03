@@ -25,9 +25,6 @@ class DatabaseSeeder extends Seeder
                 null,
                 true
             );
-
-            // Create default fee types
-            $this->createDefaultFeeTypes($admin);
         });
     }
 
@@ -66,57 +63,5 @@ class DatabaseSeeder extends Seeder
         );
 
         return $user;
-    }
-
-    private function createDefaultFeeTypes(User $user): void
-    {
-        $feeTypes = [
-
-            // Rent
-            [
-                'name' => 'Daily Fee',
-                'category' => FeeTypeCategory::RENT,
-            ],
-            [
-                'name' => 'Weekly Fee',
-                'category' => FeeTypeCategory::RENT,
-            ],
-            [
-                'name' => 'Monthly Fee',
-                'category' => FeeTypeCategory::RENT,
-            ],
-            [
-                'name' => 'Yearly Fee',
-                'category' => FeeTypeCategory::RENT,
-            ],
-
-            // Deposits
-            [
-                'name' => 'Security Deposit',
-                'category' => FeeTypeCategory::DEPOSIT,
-            ],
-            [
-                'name' => 'Utilities Deposit',
-                'category' => FeeTypeCategory::DEPOSIT,
-            ],
-            [
-                'name' => 'Security & Utilities Deposit',
-                'category' => FeeTypeCategory::DEPOSIT,
-            ],
-        ];
-
-        foreach ($feeTypes as $feeType) {
-            FeeType::firstOrCreate(
-                [
-                    'user_id' => $user->id,
-                    'name' => $feeType['name'],
-                    'category' => $feeType['category'],
-                ],
-                [
-                    'is_system' => true,
-                    'is_active' => true,
-                ]
-            );
-        }
     }
 }

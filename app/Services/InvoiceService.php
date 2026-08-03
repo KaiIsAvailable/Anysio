@@ -1,80 +1,104 @@
 <?php
+
 namespace App\Services;
 
-use App\Models\{Invoice, InvoiceItem, Lease, FeeType};
+use App\Models\{Invoice, Lease, FeeType, User};
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
 
 class InvoiceService
 {
     public function __construct(
         private readonly PaymentProcessor $paymentProcessor,
-        private readonly WalletService    $walletService,
+        private readonly WalletService $walletService,
+        private readonly DocumentSequenceService $documentSequenceService,
     ) {}
 
-    /** Called by LeaseObserver when a lease is created/renewed */
-    public function createInvoice(Lease $lease, Carbon $period): Invoice
-    {
-        return DB::transaction(function () use ($lease, $period) {
-            $rentFeeType = FeeType::where('user_id', Auth::id())
-                ->where('name', 'Rent')->firstOrFail();
+    /**
+     * Create an invoice for a lease containing multiple charge items.
+     */
+    public function createInvoice(
+        Lease $lease,
+        array $charges,
+        string $type = 'lease'
+    ): Invoice {
+        return DB::transaction(function () use ($lease, $charges, $type) {
+            if (empty($charges)) {
+                throw new \InvalidArgumentException('Invoice must contain at least one charge.');
+            }
 
+            $owner = $this->getLeaseOwner($lease);
+            ['validated_items' => $validatedCharges, 'total_cents' => $totalCents] = $this->processAndValidateItems($owner, $charges);
+
+            $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($owner);
+
+            // Period & Due Date Calculation
+            $period = Carbon::parse($lease->start_date)->startOfMonth();
+            $dueDate = Carbon::parse($lease->start_date);
+
+            if (!empty($lease->due_day)) {
+                $dueDate->day(min((int) $lease->due_day, $dueDate->daysInMonth));
+            }
+
+            // Create Invoice Header
             $invoice = Invoice::create([
-                'lease_id'     => $lease->id,
-                'invoice_no'   => $this->generateInvoiceNo('RENT'),
-                'type'         => 'rent',
-                'period'       => $period->startOfMonth()->toDateString(),
-                'due_date'     => $period->copy()->day($lease->due_day ?? 1)->toDateString(),
-                'total_amount' => (int) round($lease->rent_price * 100),
-                'amount_balance' => (int) round($lease->rent_price * 100),
-                'status'       => 'unpaid',
+                'lease_id'       => $lease->id,
+                'invoice_no'     => $invoiceNo,
+                'type'           => $type,
+                'period'         => $period->toDateString(),
+                'due_date'       => $dueDate->toDateString(),
+                'total_amount'   => $totalCents,
+                'amount_paid'    => 0,
+                'amount_balance' => $totalCents,
+                'status'         => 'unpaid',
             ]);
 
-            InvoiceItem::create([
-                'invoice_id'  => $invoice->id,
-                'fee_type_id' => $rentFeeType->id,
-                'description' => 'Rent — ' . $period->format('F Y'),
-                'amount'      => $invoice->total_amount,
-            ]);
+            // Create Invoice Items
+            $this->saveInvoiceItems($invoice, $validatedCharges);
 
-            return $invoice;
+            return $invoice->load('items.feeType');
         });
     }
 
-    /** Owner manually creates an invoice with multiple line items */
-    public function createManualInvoice(Lease $lease, array $data): Invoice
-    {
+    /**
+     * Owner manually creates an invoice containing multiple items after the lease exists.
+     */
+    public function createManualInvoice(
+        Lease $lease,
+        array $data
+    ): Invoice {
         return DB::transaction(function () use ($lease, $data) {
-            $totalCents = collect($data['items'])
-                ->sum(fn($item) => (int) round($item['amount'] * 100));
+            if (empty($data['items'])) {
+                throw new \InvalidArgumentException('Invoice must contain at least one item.');
+            }
+
+            $owner = $this->getLeaseOwner($lease);
+            ['validated_items' => $items, 'total_cents' => $totalCents] = $this->processAndValidateItems($owner, $data['items']);
+
+            $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($owner);
 
             $invoice = Invoice::create([
                 'lease_id'       => $lease->id,
-                'invoice_no'     => $this->generateInvoiceNo('INV'),
+                'invoice_no'     => $invoiceNo,
                 'type'           => 'manual',
                 'period'         => Carbon::parse($data['period'])->startOfMonth()->toDateString(),
                 'due_date'       => $data['due_date'],
                 'total_amount'   => $totalCents,
+                'amount_paid'    => 0,
                 'amount_balance' => $totalCents,
                 'status'         => 'unpaid',
                 'remarks'        => $data['remarks'] ?? null,
             ]);
 
-            foreach ($data['items'] as $item) {
-                InvoiceItem::create([
-                    'invoice_id'  => $invoice->id,
-                    'fee_type_id' => $item['fee_type_id'] ?? null,
-                    'description' => $item['description'],
-                    'amount'      => (int) round($item['amount'] * 100),
-                ]);
-            }
+            $this->saveInvoiceItems($invoice, $items);
 
-            return $invoice;
+            return $invoice->load('items.feeType');
         });
     }
 
-    /** Record a payment against an invoice */
+    /**
+     * Record a payment against an invoice.
+     */
     public function recordPayment(Invoice $invoice, array $data): void
     {
         DB::transaction(function () use ($invoice, $data) {
@@ -82,19 +106,29 @@ class InvoiceService
         });
     }
 
-    /** Soft-cancel an invoice, preserving audit trail */
+    /**
+     * Soft-cancel an invoice while preserving the audit trail.
+     */
     public function voidInvoice(Invoice $invoice, string $reason): void
     {
-        abort_if(! $invoice->isVoidable(), 422, 'Only unpaid or partial invoices can be voided.');
+        abort_if(
+            !$invoice->isVoidable(),
+            422,
+            'Only unpaid or partial invoices can be voided.'
+        );
+
+        $remarks = $invoice->remarks ? $invoice->remarks . "\n" : '';
+        $remarks .= '[VOIDED ' . now()->format('Y-m-d H:i') . '] ' . $reason;
 
         $invoice->update([
             'status'  => 'void',
-            'remarks' => ($invoice->remarks ? $invoice->remarks . "\n" : '') .
-                         '[VOIDED ' . now()->format('Y-m-d H:i') . '] ' . $reason,
+            'remarks' => $remarks,
         ]);
     }
 
-    /** Called by scheduler — marks all overdue invoices */
+    /**
+     * Mark all overdue invoices.
+     */
     public function markOverdueInvoices(): int
     {
         return Invoice::query()
@@ -103,50 +137,115 @@ class InvoiceService
             ->update(['status' => 'overdue']);
     }
 
-    public function generateInvoiceNo(string $type): string
-    {
-        $prefix = 'INV-' . strtoupper($type) . '-' . now()->format('Y');
-        $last = Invoice::where('invoice_no', 'like', $prefix . '%')
-            ->orderByDesc('invoice_no')
-            ->value('invoice_no');
-
-        $next = $last ? (int) substr($last, -5) + 1 : 1;
-        return $prefix . now()->format('md') . '-' . str_pad($next, 5, '0', STR_PAD_LEFT);
-    }
-
-    /** Calculate next ungenerated billing period for a lease */
+    /**
+     * Calculate the next ungenerated rent billing period.
+     */
     public function nextBillingPeriod(Lease $lease): ?Carbon
     {
         $existing = Invoice::forLease($lease->id)
             ->where('type', 'rent')
             ->where('status', '!=', 'void')
             ->pluck('period')
-            ->map(fn($d) => Carbon::parse($d)->format('Y-m'))
+            ->map(fn ($date) => Carbon::parse($date)->format('Y-m'))
             ->toArray();
 
         $cursor = Carbon::parse($lease->start_date)->startOfMonth();
-        $end    = Carbon::parse($lease->end_date)->startOfMonth();
+        $end = Carbon::parse($lease->end_date)->startOfMonth();
 
         while ($cursor->lte($end)) {
-            if (! in_array($cursor->format('Y-m'), $existing)) {
+            if (!in_array($cursor->format('Y-m'), $existing)) {
                 return $cursor->copy();
             }
             $cursor->addMonth();
         }
+
         return null;
     }
 
-    private function getFeeType(Lease $lease, string $name): FeeType
-    {
-        $owner = $lease->getOwner();
-
-        return FeeType::where('user_id', $owner->id)
-            ->where('name', $name)
-            ->firstOrFail();
-    }
-
+    /**
+     * Determine whether another recurring rent invoice can be generated.
+     */
     public function canGenerateInvoice(Lease $lease): bool
     {
         return !is_null($this->nextBillingPeriod($lease));
+    }
+
+    // =========================================================================
+    // Private Helper Methods
+    // =========================================================================
+
+    /**
+     * Retrieve and validate the owner of the given lease.
+     */
+    private function getLeaseOwner(Lease $lease): User
+    {
+        $owner = $lease->getOwner();
+
+        if (!$owner instanceof User) {
+            throw new \RuntimeException('Unable to determine the owner of this lease.');
+        }
+
+        return $owner;
+    }
+
+    /**
+     * Validate raw charge/item arrays and map them into cents and active fee types.
+     */
+    private function processAndValidateItems(User $owner, array $rawItems): array
+    {
+        $totalCents = 0;
+        $validatedItems = [];
+
+        foreach ($rawItems as $item) {
+            if (empty($item['fee_type_id']) || !isset($item['amount'])) {
+                throw new \InvalidArgumentException('Each invoice item must contain fee_type_id and amount.');
+            }
+
+            $amountCents = (int) round(((float) $item['amount']) * 100);
+
+            if ($amountCents <= 0) {
+                throw new \InvalidArgumentException('Invoice item amount must be greater than zero.');
+            }
+
+            $feeType = FeeType::query()
+                ->where('id', $item['fee_type_id'])
+                ->where('user_id', $owner->id)
+                ->where('is_active', true)
+                ->firstOrFail();
+
+            $validatedItems[] = [
+                'fee_type'     => $feeType,
+                'amount_cents' => $amountCents,
+                'description'  => $item['description'] ?? $feeType->name,
+            ];
+
+            $totalCents += $amountCents;
+        }
+
+        if ($totalCents <= 0) {
+            throw new \InvalidArgumentException('Invoice total must be greater than zero.');
+        }
+
+        return [
+            'validated_items' => $validatedItems,
+            'total_cents'     => $totalCents,
+        ];
+    }
+
+    /**
+     * Persist validated items to the invoice relationship.
+     */
+    private function saveInvoiceItems(Invoice $invoice, array $items): void
+    {
+        foreach ($items as $item) {
+            /** @var FeeType $feeType */
+            $feeType = $item['fee_type'];
+
+            $invoice->items()->create([
+                'fee_type_id' => $feeType->id,
+                'description' => $item['description'],
+                'amount'      => $item['amount_cents'],
+            ]);
+        }
     }
 }

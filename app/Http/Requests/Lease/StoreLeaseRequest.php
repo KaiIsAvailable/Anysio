@@ -36,16 +36,19 @@ class StoreLeaseRequest extends FormRequest
             'property_id' => [
                 'required_if:lease_selection,property',
                 'nullable',
+                'exists:properties,id',
             ],
 
             'unit_id' => [
                 'required_if:lease_selection,unit',
                 'nullable',
+                'exists:units,id',
             ],
 
             'room_id' => [
                 'required_if:lease_selection,room',
                 'nullable',
+                'exists:rooms,id',
             ],
 
             'tenant_id' => [
@@ -55,13 +58,13 @@ class StoreLeaseRequest extends FormRequest
             ],
 
             'start_date' => [
-                'required_if:status,New,Renew',
+                Rule::requiredIf(in_array($this->input('status'), ['New', 'Renew'])),
                 'nullable',
                 'date',
             ],
 
             'end_date' => [
-                'required_if:status,New,Renew',
+                Rule::requiredIf(in_array($this->input('status'), ['New', 'Renew'])),
                 'nullable',
                 'date',
                 'after_or_equal:start_date',
@@ -79,33 +82,25 @@ class StoreLeaseRequest extends FormRequest
                 'date',
             ],
 
-            'rent_price' => [
-                'required_if:status,New,Renew',
+            // Dynamic Charges Validation Rules
+            'charges' => [
+                Rule::requiredIf(in_array($this->input('status'), ['New', 'Renew'])),
                 'nullable',
-                'numeric',
+                'array',
                 'min:1',
             ],
-
-            'term_type' => [
-                'required_if:status,New,Renew',
-                'nullable',
-                'string',
+            'charges.*.fee_type_id' => [
+                'required_with:charges',
+                'exists:fee_types,id',
             ],
-
-            'security_deposit' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
-
-            'utilities_deposit' => [
-                'nullable',
+            'charges.*.amount' => [
+                'required_with:charges',
                 'numeric',
                 'min:0',
             ],
 
             'document_id' => [
-                'required_if:status,New,Renew',
+                Rule::requiredIf(in_array($this->input('status'), ['New', 'Renew'])),
                 'nullable',
                 'exists:document_templates,id',
             ],

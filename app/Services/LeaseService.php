@@ -5,11 +5,13 @@ namespace App\Services;
 use App\Models\{
     Lease,
     LeaseCharge,
+    FeeType,
     Property,
     Unit,
     Room,
     User
 };
+use App\FeeTypeCategory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -27,86 +29,91 @@ class LeaseService
      */
     public function process(User $user, array $data): Lease
     {
-        return DB::transaction(function () use ($user, $data) {
+        try {
+            return DB::transaction(function () use ($user, $data) {
 
-            $status = $data['status'];
+                $status = $data['status'];
 
-            // Get the previous lease when required
-            $oldLease = $this->getOldLease($data);
+                // Get the previous lease when required
+                $oldLease = $this->getOldLease($data);
 
-            // Only a NEW lease consumes the subscription limit
-            if ($status === 'New') {
-                $this->checkLeaseLimit($user);
-            }
+                // Only a NEW lease consumes the subscription limit
+                if ($status === 'New') {
+                    $this->checkLeaseLimit($user);
+                }
 
-            // Resolve property / unit / room and tenant
-            $context = $this->resolveLeaseContext($data, $oldLease);
+                // Resolve property / unit / room and tenant
+                $context = $this->resolveLeaseContext($data, $oldLease);
 
-            // For Renew / Check Out / End Agreement,
-            // the previous lease is no longer current
-            if ($oldLease) {
-                $oldLease->update([
-                    'is_current' => false,
+                // For Renew / Check Out / End Agreement,
+                // the previous lease is no longer current
+                if ($oldLease) {
+                    $oldLease->update([
+                        'is_current' => false,
+                    ]);
+                }
+
+                // Update property / unit / room status
+                $this->updateLeasableStatus(
+                    $context['leasable'],
+                    $status
+                );
+
+                // Create the new lease
+                $newLease = $this->createLease(
+                    $data,
+                    $oldLease,
+                    $context
+                );
+
+                // New and Renew require financial charges
+                if (in_array($status, ['New', 'Renew'])) {
+
+                    $this->createLeaseCharges(
+                        $newLease,
+                        $data
+                    );
+
+                    // Generate first rent invoice
+                    //$this->invoiceService->createInvoice(
+                    //    $lease,
+                    //    $data['charges'] ?? []
+                    //);
+                }
+
+                Log::info('Lease processed successfully.', [
+                    'status' => $status,
+                    'lease_id' => $newLease->id,
+                    'old_lease_id' => $oldLease?->id,
                 ]);
-            }
 
-            // Update property / unit / room status
-            $this->updateLeasableStatus(
-                $context['leasable'],
-                $status
-            );
+                return $newLease;
+            });
+        } catch (\Throwable $e) {
 
-            // Create the new lease
-            $newLease = $this->createLease(
-                $data,
-                $oldLease,
-                $context
-            );
-
-            // New and Renew require financial charges
-            if (in_array($status, ['New', 'Renew'])) {
-
-                $this->createLeaseCharges(
-                    $newLease,
-                    $data
-                );
-
-                // Generate first rent invoice
-                $this->invoiceService->createInvoice(
-                    $newLease,
-                    Carbon::parse($newLease->start_date)
-                );
-            }
-
-            Log::info('Lease processed successfully.', [
-                'status' => $status,
-                'lease_id' => $newLease->id,
-                'old_lease_id' => $oldLease?->id,
+            Log::error('Lease creation failed', [
+                'message' => $e->getMessage(),
+                'file'    => $e->getFile(),
+                'line'    => $e->getLine(),
+                'trace'   => $e->getTraceAsString(),
+                'data'    => $data,
             ]);
 
-            return $newLease;
-        });
+            throw $e;
+        }
     }
 
-    /**
-     * Get the old lease for Renew, Check Out and End Agreement.
-     */
     protected function getOldLease(array $data): ?Lease
     {
         if ($data['status'] === 'New') {
             return null;
         }
 
-        return Lease::with('leasable')
-            ->findOrFail($data['lease_id']);
+        return Lease::with('leasable')->findOrFail($data['lease_id']);
     }
 
-    /**
-     * Check whether the user can create another lease.
-     */
     protected function checkLeaseLimit(User $user): void
     {
-        // Admin has no subscription lease limit
         if ($user->role === 'admin') {
             return;
         }
@@ -120,18 +127,12 @@ class LeaseService
         }
 
         $package = $management->package;
-
         $baseLeaseLimit = (int) $package->base_lease;
         $extraLeaseLimit = (int) $management->extra_lease;
-
         $totalLeaseLimit = $baseLeaseLimit + $extraLeaseLimit;
 
         $currentLeaseCount = Lease::where('is_current', true)
-            ->whereIn('status', [
-                'New',
-                'Renew',
-                'Check Out',
-            ])
+            ->whereIn('status', ['New', 'Renew', 'Check Out'])
             ->whereHas('tenant', function ($query) use ($user) {
                 $query->where('created_by', $user->id);
             })
@@ -144,14 +145,8 @@ class LeaseService
         }
     }
 
-    /**
-     * Resolve the lease property / unit / room and tenant.
-     */
-    protected function resolveLeaseContext(
-        array $data,
-        ?Lease $oldLease
-    ): array {
-        // Renew / Check Out / End Agreement
+    protected function resolveLeaseContext(array $data, ?Lease $oldLease): array
+    {
         if ($data['status'] !== 'New') {
             return [
                 'leasable' => $oldLease->leasable,
@@ -197,13 +192,8 @@ class LeaseService
         ];
     }
 
-    /**
-     * Update property / unit / room status.
-     */
-    protected function updateLeasableStatus(
-        $leasable,
-        string $status
-    ): void {
+    protected function updateLeasableStatus($leasable, string $status): void
+    {
         $targetStatus = match ($status) {
             'Check Out' => 'Cleaning',
             'End Agreement' => 'Vacant',
@@ -219,22 +209,10 @@ class LeaseService
         if (in_array($status, ['Check Out', 'End Agreement'])) {
             $leasable->syncStatus();
         }
-
-        Log::info('Leasable status updated.', [
-            'type' => get_class($leasable),
-            'id' => $leasable->id,
-            'status' => $targetStatus,
-        ]);
     }
 
-    /**
-     * Create the Lease record.
-     */
-    protected function createLease(
-        array $data,
-        ?Lease $oldLease,
-        array $context
-    ): Lease {
+    protected function createLease(array $data, ?Lease $oldLease, array $context): Lease
+    {
         $status = $data['status'];
 
         $startDate = in_array($status, ['New', 'Renew'])
@@ -253,119 +231,78 @@ class LeaseService
             ? $this->parseDate($data['agreement_ended_at'] ?? null)
             : null;
 
-        $securityDeposit = (float) ($data['security_deposit'] ?? 0);
-        $utilitiesDeposit = (float) ($data['utilities_deposit'] ?? 0);
+        // Find if any charge fee type name contains daily, weekly, monthly, or yearly
+        $termType = 'monthly'; // default fallback
+        if (!empty($data['charges'])) {
+            foreach ($data['charges'] as $charge) {
+                $feeType = FeeType::find($charge['fee_type_id'] ?? null);
+                if ($feeType) {
+                    $name = strtolower($feeType->name);
+                    if (str_contains($name, 'daily')) { $termType = 'daily'; break; }
+                    if (str_contains($name, 'weekly')) { $termType = 'weekly'; break; }
+                    if (str_contains($name, 'monthly')) { $termType = 'monthly'; break; }
+                    if (str_contains($name, 'yearly')) { $termType = 'yearly'; break; }
+                }
+            }
+        }
 
         return Lease::create([
             'parent_lease_id' => $oldLease?->id,
-
-            // Database column from your Lease model
             'document_id' => in_array($status, ['New', 'Renew'])
                 ? ($data['document_id'] ?? null)
                 : $oldLease?->agreement_id,
-
             'is_current' => true,
-
             'leasable_type' => $context['leasable_type'],
             'leasable_id' => $context['leasable_id'],
             'tenant_id' => $context['tenant_id'],
-
             'start_date' => $startDate,
             'end_date' => $endDate,
             'checked_out_at' => $checkedOutAt,
             'agreement_ended_at' => $agreementEndedAt,
-
             'term_type' => in_array($status, ['New', 'Renew'])
-                ? ($data['term_type'] ?? null)
+                ? $termType
                 : $oldLease?->term_type,
-
-            'deposit_mode' => $this->resolveDepositMode(
-                $securityDeposit,
-                $utilitiesDeposit
-            ),
-
-            'security_deposit' => $securityDeposit,
-            'utilities_deposit' => $utilitiesDeposit,
-
             'status' => $status,
         ]);
     }
 
     /**
-     * Create rent and deposit charges.
+     * Create multiple dynamic charges and deposits from the form array.
      */
-    protected function createLeaseCharges(
-        Lease $lease,
-        array $data
-    ): void {
-        // Recurring Rent
-        $rentPrice = (float) ($data['rent_price'] ?? 0);
-
-        if ($rentPrice > 0) {
-            LeaseCharge::create([
-                'lease_id' => $lease->id,
-                'description' => 'Rent',
-                'amount' => (int) round($rentPrice * 100),
-                'charge_type' => LeaseCharge::TYPE_RECURRING,
-                'is_active' => true,
-                'sort_order' => 1,
-            ]);
+    protected function createLeaseCharges(Lease $lease, array $data): void
+    {
+        if (empty($data['charges']) || !is_array($data['charges'])) {
+            return;
         }
 
-        // Security Deposit
-        $securityDeposit = (float) ($data['security_deposit'] ?? 0);
+        foreach ($data['charges'] as $index => $chargeData) {
+            $amount = (float) ($chargeData['amount'] ?? 0);
 
-        if ($securityDeposit > 0) {
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $feeType = FeeType::find($chargeData['fee_type_id']);
+            $description = $feeType ? $feeType->name : 'Charge';
+
+            // Determine if it's refundable (deposit) or recurring/other fee
+            $chargeType = match ($feeType?->category) {
+                FeeTypeCategory::DEPOSIT => LeaseCharge::TYPE_REFUNDABLE,
+                default => LeaseCharge::TYPE_RECURRING,
+            };
+
             LeaseCharge::create([
                 'lease_id' => $lease->id,
-                'description' => 'Security Deposit',
-                'amount' => (int) round($securityDeposit * 100),
-                'charge_type' => LeaseCharge::TYPE_REFUNDABLE,
+                'fee_type_id' => $chargeData['fee_type_id'],
+                'description' => $description,
+                'amount' => (int) round($amount * 100), // Stored in cents
+                'charge_type' => $chargeType,
                 'is_active' => true,
-                'sort_order' => 2,
-            ]);
-        }
-
-        // Utilities Deposit
-        $utilitiesDeposit = (float) ($data['utilities_deposit'] ?? 0);
-
-        if ($utilitiesDeposit > 0) {
-            LeaseCharge::create([
-                'lease_id' => $lease->id,
-                'description' => 'Utilities Deposit',
-                'amount' => (int) round($utilitiesDeposit * 100),
-                'charge_type' => LeaseCharge::TYPE_REFUNDABLE,
-                'is_active' => true,
-                'sort_order' => 3,
+                'sort_order' => $index + 1,
             ]);
         }
     }
 
-    /**
-     * Resolve deposit mode.
-     */
-    protected function resolveDepositMode(
-        float $securityDeposit,
-        float $utilitiesDeposit
-    ): string {
-        if ($securityDeposit > 0 && $utilitiesDeposit > 0) {
-            return 'both';
-        }
-
-        if ($securityDeposit > 0) {
-            return 'security_only';
-        }
-
-        if ($utilitiesDeposit > 0) {
-            return 'utilities_only';
-        }
-
-        return 'none';
-    }
-
-    /**
-     * Convert date to database format.
-     */
     protected function parseDate(?string $date): ?string
     {
         if (!$date) {

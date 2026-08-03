@@ -23,46 +23,34 @@
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                             <!-- Status -->
                             <div class="md:col-span-1">
-                                <x-form.input-label value="Status" class="mb-1" />
-                                <select
+                                <x-form.input-label value="Status" :required="true" class="mb-1" />
+                                <x-form.input-select
                                     name="status"
                                     id="lease-status"
+                                    :options="[
+                                        'New' => 'New',
+                                        'Renew' => 'Renew',
+                                        'Check Out' => 'Check Out',
+                                        'End Agreement' => 'End Agreement'
+                                    ]"
+                                    :value="request('status', 'New')"
                                     onchange="toggleLeaseSelect()"
-                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500"
-                                    data-preview="{status}"
-                                >
-                                    <option value="New" {{ request('status') == 'New' ? 'selected' : '' }}>New</option>
-                                    <option value="Renew" {{ request('status') == 'Renew' ? 'selected' : '' }}>Renew</option>
-                                    <option value="Check Out" {{ request('status') == 'Check Out' ? 'selected' : '' }}>Check Out</option>
-                                    <option value="End Agreement" {{ request('status') == 'End Agreement' ? 'selected' : '' }}>End Agreement</option>
-                                </select>
-
-                                @error('status')
-                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
+                                />
+                                <x-form.input-error :messages="$errors->get('status')" class="mt-1" />
                             </div>
 
                             <!-- Tenant -->
                             <div id="tenant_field" class="md:col-span-3">
-                                <x-form.input-label value="Select Tenant" class="mb-1" />
-                                <select
+                                <x-form.input-label value="Select Tenant" :required="true" class="mb-1" />
+                                <x-form.input-select
                                     name="tenant_id"
                                     id="tenant_id"
-                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
-                                >
-                                    <option value="">-- Choose Tenant --</option>
-
-                                    @foreach($tenants as $tenant)
-                                        <option value="{{ $tenant->id }}" @selected(old('tenant_id') == $tenant->id)>
-                                            {{ $tenant->user?->name ?? 'Unknown' }}
-                                            ({{ $tenant->ic_number ?? $tenant->passport ?? 'N/A' }})
-                                        </option>
-                                    @endforeach
-                                </select>
-
-                                @error('tenant_id')
-                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
+                                    :options="$tenants"
+                                    valueField="id"
+                                    labelField="user.name"
+                                    :value="old('tenant_id')"
+                                />
+                                <x-form.input-error :messages="$errors->get('tenant_id')" class="mt-1" />
                             </div>
 
                             {{-- 2. Select Lease --}}
@@ -135,156 +123,162 @@
                         <div id="property_select_type" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {{-- 1. 左边：选择租赁类型 --}}
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Select Properties Type</label>
-                                <select name="lease_selection" id="lease_selection" onchange="toggleLeaseInput()"
-                                    class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm"
-                                    data-preview="{property_type}">
-                                    <option value="property" {{ old('lease_selection', 'property') == 'property' ? 'selected' : '' }}>Entire Property</option>
-                                    <option value="unit" {{ old('lease_selection') == 'unit' ? 'selected' : '' }}>Specific Unit</option>
-                                    <option value="room" {{ old('lease_selection') == 'room' ? 'selected' : '' }}>Specific Room</option>
-                                </select>
+                               <x-form.input-label value="Select Properties Type" :required="true" class="mb-1" />
+                                <x-form.input-select
+                                    name="lease_selection"
+                                    id="lease_selection"
+                                    :options="[
+                                        'property' => 'Entire Property',
+                                        'unit' => 'Specific Unit',
+                                        'room' => 'Specific Room'
+                                    ]"
+                                    :value="old('lease_selection', 'property')"
+                                    onchange="toggleLeaseInput()"
+                                />
                             </div>
 
                             {{-- 2. 右边：动态切换的 Select Fields --}}
                             <div>
                                 <div id="property_field" class="lease-field">
-                                    <label class="block text-sm font-medium text-gray-700">Select Property</label>
-                                    <select name="property_id" id="property_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                        <option value="">-- Choose Property --</option>
-                                        @foreach($properties as $p)
-                                        {{-- 💡 修复点：$p->owner?->owner?->ic_number --}}
-                                        <option value="{{ $p->id }}" data-owner="{{ $p->owner?->name ?? 'N/A' }}" data-owner-id="{{ $p->owner?->id }}" data-owner-ic="{{ $p->owner?->owner?->ic_number ?? 'N/A' }}" data-address="{{ $p->full_address }}" {{ old('property_id') == $p->id ? 'selected' : '' }}>{{ $p->name }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('property_id')
-                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                    @enderror
+                                    <x-form.input-label value="Select Property" :required="true" class="mb-1" />
+                                    <x-form.input-select
+                                        name="property_id"
+                                        id="property_select_input"
+                                        :options="$properties"
+                                        valueField="id"
+                                        labelField="name"
+                                        :value="old('property_id')"
+                                    />
+                                    <x-form.input-error :messages="$errors->get('property_id')" class="mt-1" />
                                 </div>
 
                                 <div id="unit_field" class="lease-field hidden">
-                                    <label class="block text-sm font-medium text-gray-700">Select Unit</label>
-                                    <select name="unit_id" id="unit_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                        <option value="">-- Choose Unit --</option>
-                                        @foreach($units as $u)
-                                        {{-- 💡 修复点：$u->owner?->owner?->ic_number --}}
-                                        <option value="{{ $u->id }}" data-owner="{{ $u->owner?->name ?? 'N/A' }}" data-owner-id="{{ $u->owner?->id }}" data-owner-ic="{{ $u->owner?->owner?->ic_number ?? 'N/A' }}" data-address="{{ $u->full_address }}" {{ old('unit_id') == $u->id ? 'selected' : '' }}>{{ $u->unit_no }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('unit_id')
-                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                    @enderror
+                                    <x-form.input-label value="Select Unit" :required="true" class="mb-1" />
+                                    <x-form.input-select
+                                        name="unit_id"
+                                        id="unit_select_input"
+                                        :options="$units"
+                                        valueField="id"
+                                        labelField="unit_no"
+                                        :value="old('unit_id')"
+                                    />
+                                    <x-form.input-error :messages="$errors->get('unit_id')"  class="mt-1" />
                                 </div>
 
                                 <div id="room_field" class="lease-field hidden">
-                                    <label class="block text-sm font-medium text-gray-700">Select Room</label>
-                                    <select name="room_id" id="room_select_input" class="mt-1 w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                        <option value="">-- Choose Room --</option>
-                                        @foreach($rooms as $r)
-                                        {{-- 💡 修复点：$r->unit?->owner?->owner?->ic_number --}}
-                                        <option value="{{ $r->id }}" data-owner="{{ $r->unit?->owner?->name ?? 'N/A' }}" data-owner-id="{{ $r->unit?->owner?->id }}" data-owner-ic="{{ $r->unit?->owner?->owner?->ic_number ?? 'N/A' }}" data-address="{{ $r->full_address }}" {{ old('room_id') == $r->id ? 'selected' : '' }}>{{ $r->room_no }}</option>
-                                        @endforeach
-                                    </select>
-                                    @error('room_id')
-                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                    @enderror
+                                    <x-form.input-label value="Select Room" :required="true" class="mb-1" />
+                                    <x-form.input-select
+                                        name="room_id"
+                                        id="room_select_input"
+                                        :options="$rooms"
+                                        valueField="id"
+                                        labelField="room_no"
+                                        :value="old('room_id')"
+                                    />
+                                    <x-form.input-error :messages="$errors->get('room_id')" class="mt-1" />
                                 </div>
                             </div>
                         </div>
 
                         <div id="date_section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">Start Date</label>
-                                <x-form.date-input id="start-date" name="start_date" label="Start Date" onchange="calculateAvailableFeeTypes()" />
-                                @error('start_date')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
+                                <x-form.input-label value="Start Date" :required="true" class="mb-1" />
+                                <x-form.date-input id="start-date" name="start_date" :value="old('start_date')" />
+                                <x-form.input-error :messages="$errors->get('start_date')" class="mt-1" />
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-gray-700">End Date</label>
-                                <x-form.date-input id="end-date" name="end_date" label="End Date" onchange="calculateAvailableFeeTypes()" />
-                                @error('end_date')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
+                                <x-form.input-label value="End Date" :required="true" class="mb-1" />
+                                <x-form.date-input id="end-date" name="end_date" :value="old('end_date')" />
+                                <x-form.input-error :messages="$errors->get('end_date')" class="mt-1" />
                             </div>
                         </div>
 
-                        <div id="check_out_section" class="mt-4">
-                            <label class="block text-sm font-medium text-gray-700">Check Out Date</label>
-                            <x-form.date-input id="check-out-date" name="checked_out_at" label="Check Out Date" />
-                            @error('checked_out_at') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        <!-- Check-out & Agreement End Dates -->
+                        <div id="check_out_section" class="mt-4 hidden">
+                            <x-form.input-label value="Check Out Date" class="mb-1" />
+                            <x-form.date-input id="check-out-date" name="checked_out_at" :value="old('checked_out_at')" />
+                            <x-form.input-error :messages="$errors->get('checked_out_at')" class="mt-1" />
                         </div>
 
-                        <div id="agreement_end_section" class="mt-4">
-                            <label class="block text-sm font-medium text-gray-700">Agreement Ended Date</label>
-                            <x-form.date-input id="agreement-end-date" name="agreement_ended_at" label="Agreement Ended Date" />
-                            @error('agreement_ended_at') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
+                        <div id="agreement_end_section" class="mt-4 hidden">
+                            <x-form.input-label value="Agreement Ended Date" class="mb-1" />
+                            <x-form.date-input id="agreement-end-date" name="agreement_ended_at" :value="old('agreement_ended_at')" />
+                            <x-form.input-error :messages="$errors->get('agreement_ended_at')" class="mt-1" />
                         </div>
 
-                        <div id="fee_section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">
-                                    Select Fee Type
-                                </label>
-
-                                <x-form.input-select
-                                    name="rent_fee_type_id"
-                                    id="rent_fee_type"
-                                    label="Select Fee Type"
-                                    :options="$rentFeeTypes->mapWithKeys(fn ($feeType) => [
-                                        $feeType->id => $feeType->name
-                                    ])->toArray()"
-                                    :value="old('rent_fee_type_id')"
-                                    data-preview="{rent_mode}"
-                                    help="Options auto-update based on date range."
-                                />
-
-                                @error('rent_fee_type_id')
-                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
+                        <div id="agreement_template_section" class="mt-4">
+                            <div class="flex justify-between items-center mb-1">
+                                <x-form.input-label value="Agreements Template" :required="true" />
+                                <button type="button" id="preview-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
+                                    Preview Template
+                                </button>
                             </div>
-
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700">Rent Price(RM)</label>
-                                <input type="text" id="monthly-rent" name="rent_price" value="{{ old('rent_price') }}" data-preview="{rent_price}"
-                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                                @error('rent_price')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
-                            </div>
+                            
+                            <select id="document_id" name="document_id"
+                                class="block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                                <option value="">-- Select Template --</option>
+                                @foreach($templates as $template)
+                                    <option value="{{ $template->id }}" data-agreement-user-id="{{$template->user->id}}" data-content="{{ $template->content }}" data-title="{{ $template->title }}" {{ old('document_id') == $template->id ? 'selected' : '' }}>
+                                        {{ $template->title }} (v{{ $template->version }}) - {{ $template->user->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                            <x-form.input-error :messages="$errors->get('document_id')" class="mt-1" />
                         </div>
 
-                        <div id="deposit_section" class="grid grid-cols-1 md:grid-cols-3 gap-6">
-                            <div class="max-w-xs">
-                                <label class="block text-sm font-medium text-gray-700 mb-1">Deposit Collection Mode</label>
-                                <x-form.input-select
-                                    name="deposit_mode"
-                                    id="deposit_mode"
-                                    :options="$depositFeeTypes->mapWithKeys(fn ($feeType) => [
-                                        $feeType->id => $feeType->name
-                                    ])->toArray()"
-                                    :value="old('deposit_fee_type_id')"
-                                    onchange="toggleDepositVisibility()"
-                                />
+                        <x-preview-agreement-modal />
+
+                        <!-- Dynamic Charges Section -->
+                        <div class="space-y-4 border-t border-gray-200 pt-6">
+                            <div class="flex justify-between items-center">
+                                <x-form.input-label value="Lease Charges & Deposits" :required="true" />
+                                <button type="button" onclick="addChargeRow()" class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-lg hover:bg-indigo-100 transition-colors">
+                                    + Add Charge Item
+                                </button>
                             </div>
 
-                            <div id="security_container">
-                                <label class="block text-sm font-medium text-gray-700">Security Deposit (RM)</label>
-                                <input type="text" id="security-deposit" name="security_deposit" value="{{ old('security_deposit') }}" data-preview="{security_deposit}"
-                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                                @error('security_deposit')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
-                            </div>
+                            <div id="charges-container" class="space-y-4">
+                                <!-- Initial First Row -->
+                                <div class="charge-row rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-xs font-semibold text-gray-500 tracking-wider">
+                                            <span style="color: red;">* </span>CHARGE ITEM #1
+                                        </span>
+                                    </div>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <x-form.input-label value="Charge Type" class="mb-1 text-xs" />
+                                            <select name="charges[0][fee_type_id]" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                                                <option value="">-- Select Fee Type --</option>
+                                                @foreach($rentFeeTypes as $feeType)
+                                                    @php
+                                                        $period = str_contains(strtolower($feeType->name), 'daily') ? 'daily' : 
+                                                                (str_contains(strtolower($feeType->name), 'weekly') ? 'weekly' : 
+                                                                (str_contains(strtolower($feeType->name), 'monthly') ? 'monthly' : 
+                                                                (str_contains(strtolower($feeType->name), 'yearly') ? 'yearly' : 'other')));
+                                                    @endphp
+                                                    <option value="{{ $feeType->id }}" data-type="rent" data-period="{{ $period }}">{{ $feeType->name }}</option>
+                                                @endforeach
 
-                            <div id="utilities_container">
-                                <label class="block text-sm font-medium text-gray-700">Utilities Deposit (RM)</label>
-                                <input type="text" id="utilities-deposit" name="utilities_deposit" value="{{ old('utilities_deposit') }}" data-preview="{utilities_deposit}"
-                                    class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500">
-                                @error('utilities_deposit')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                                @enderror
+                                                @foreach($depositFeeTypes as $depositType)
+                                                    <option value="{{ $depositType->id }}">{{ $depositType->name }} (Deposit)</option>
+                                                @endforeach
+
+                                                @foreach($managementFeeTypes as $managementType)
+                                                    <option value="{{ $managementType->id }}">{{ $managementType->name }} (Management)</option>
+                                                @endforeach
+                                            </select>
+                                        </div>
+
+                                        <div>
+                                            <x-form.input-label value="Amount (RM)" class="mb-1 text-xs" />
+                                            <x-form.text-input type="text" name="charges[0][amount]" placeholder="0.00" class="w-full text-sm" required />
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
+                            <x-form.input-error :messages="$errors->get('charges')" class="mt-1" />
                         </div>
 
                         <div id="bring_forward_notice" class="hidden col-span-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
@@ -296,36 +290,10 @@
                             </p>
                         </div>
 
-                        <div id="agreement_template_section" class="mt-4">
-                            <div class="flex justify-between items-center mb-1">
-                                <label for="document_id" class="block text-sm font-medium text-gray-700">
-                                    Agreements Template
-                                </label>
-                                <button type="button" id="preview-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
-                                    Preview Template
-                                </button>
-                            </div>
-                            <select id="document_id" name="document_id"
-                                class="block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                <option value="">-- Select Template --</option>
-                                @foreach($templates as $template)
-                                <option value="{{ $template->id }}" data-agreement-user-id="{{$template->user->id}}" data-content="{{ $template->content }}" data-title="{{ $template->title }}" {{ old('document_id') == $template->id ? 'selected' : '' }}>
-                                    {{ $template->title }} (v{{ $template->version }}) - {{ $template->user->name }}
-                                </option>
-                                @endforeach
-                            </select>
-                            @error('document_id')
-                            <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-                        </div>
-
-                        <x-preview-agreement-modal />
-
                     </div>
 
                     <div class="px-8 py-5 bg-white border-t border-gray-100 flex items-center justify-end">
-                        <x-form.primary-button type="submit" loading="loading"
-                            class="px-5 py-2.5">
+                        <x-form.primary-button type="submit" loading="loading" class="px-5 py-2.5">
                             Create Lease
                         </x-form.primary-button>
                     </div>
@@ -334,9 +302,58 @@
         </div>
     </div>
 
+    @push('scripts')
     <script>
         // ==========================================
-        // 1. 日期 & Fee Type 计算逻辑
+        // 1. Dynamic Charge Row Management
+        // ==========================================
+        let chargeIndex = 1;
+
+        function addChargeRow() {
+            const container = document.getElementById('charges-container');
+            const firstSelect = container.querySelector('select');
+            const optionsHtml = firstSelect ? firstSelect.innerHTML : '';
+
+            const newRow = document.createElement('div');
+            newRow.className = 'charge-row rounded-lg border border-gray-200 bg-gray-50 p-4';
+            newRow.innerHTML = `
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-xs font-semibold text-gray-500 tracking-wider">
+                        CHARGE ITEM #${container.querySelectorAll('.charge-row').length + 1}
+                    </span>
+                    <button type="button" class="text-sm text-red-600 hover:text-red-800" onclick="removeChargeRow(this)">
+                        Remove
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block uppercase font-medium text-sm text-gray-700 mb-1 text-xs">Charge Type</label>
+                        <select name="charges[${chargeIndex}][fee_type_id]" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                            ${optionsHtml}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block uppercase font-medium text-sm text-gray-700 mb-1 text-xs">Amount (RM)</label>
+                        <input type="text" name="charges[${chargeIndex}][amount]" placeholder="0.00" class="border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm w-full text-sm" required>
+                    </div>
+                </div>
+            `;
+            container.appendChild(newRow);
+            chargeIndex++;
+        }
+
+        function removeChargeRow(button) {
+            const row = button.closest('.charge-row');
+            const container = document.getElementById('charges-container');
+            if (container.querySelectorAll('.charge-row').length > 1) {
+                row.remove();
+            } else {
+                alert('You must have at least one charge item.');
+            }
+        }
+
+        // ==========================================
+        // 2. Date & Fee Type Calculations
         // ==========================================
         const rentFeeTypes = @json(
             $rentFeeTypes->map(fn ($feeType) => [
@@ -364,9 +381,8 @@
         function calculateAvailableFeeTypes() {
             const startInput = document.getElementById('start-date');
             const endInput = document.getElementById('end-date');
-            const feeTypeSelect = document.getElementById('rent_fee_type');
 
-            if (!startInput || !endInput || !feeTypeSelect) return;
+            if (!startInput || !endInput) return;
 
             const startVal = startInput.value;
             const endVal = endInput.value;
@@ -386,100 +402,71 @@
             }
 
             const diffTime = end - start;
-            const diffDays = Math.ceil(
-                diffTime / (1000 * 60 * 60 * 24)
-            );
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            let months =
-                (end.getFullYear() - start.getFullYear()) * 12 +
-                (end.getMonth() - start.getMonth());
+            let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+            if (end.getDate() < start.getDate()) months--;
 
-            if (end.getDate() < start.getDate()) {
-                months--;
-            }
-
-            let years =
-                end.getFullYear() - start.getFullYear();
-
-            if (
-                end.getMonth() < start.getMonth() ||
-                (
-                    end.getMonth() === start.getMonth() &&
-                    end.getDate() < start.getDate()
-                )
-            ) {
+            let years = end.getFullYear() - start.getFullYear();
+            if (end.getMonth() < start.getMonth() || (end.getMonth() === start.getMonth() && end.getDate() < start.getDate())) {
                 years--;
             }
 
+            // Determine allowed rental periods based on duration rules
             let allowed = ['daily'];
 
             if (diffDays >= 7 && months < 1) {
                 allowed.push('weekly');
-
             } else if (months >= 1 && years < 1) {
                 allowed.push('weekly', 'monthly');
-
             } else if (years >= 1) {
                 allowed.push('weekly', 'monthly', 'yearly');
             }
 
-            // console.log('Allowed Fee Types:', allowed); 
-
             updateFeeTypeOptions(allowed);
         }
 
-        function updateFeeTypeOptions(allowedTypes) {
-            const feeTypeSelect = document.getElementById('rent_fee_type');
+        function updateFeeTypeOptions(allowedPeriods) {
+            const selects = document.querySelectorAll('select[name$="[fee_type_id]"]');
 
-            if (!feeTypeSelect) return;
+            selects.forEach(select => {
+                const options = Array.from(select.options);
+                let selectedStillValid = false;
 
-            const options = Array.from(feeTypeSelect.options);
+                options.forEach(option => {
+                    if (!option.value) return; // Skip placeholder
 
-            let selectedStillValid = false;
+                    // Check if this option is a rent fee type
+                    const isRentType = option.getAttribute('data-type') === 'rent';
 
-            options.forEach(option => {
+                    if (isRentType) {
+                        const period = option.getAttribute('data-period');
+                        const isAllowed = allowedPeriods.includes(period);
 
-                if (!option.value) return;
+                        option.hidden = !isAllowed;
+                        option.disabled = !isAllowed;
 
-                const feeType = rentFeeTypes.find(
-                    fee => String(fee.id) === String(option.value)
-                );
+                        if (option.selected && isAllowed) {
+                            selectedStillValid = true;
+                        }
 
-                if (!feeType) return;
+                        if (option.selected && !isAllowed) {
+                            option.selected = false;
+                        }
+                    } else {
+                        // Non-rent options (deposits, management) are ALWAYS visible
+                        option.hidden = false;
+                        option.disabled = false;
+                        if (option.selected) {
+                            selectedStillValid = true;
+                        }
+                    }
+                });
 
-                const feeTypePeriod = getFeeTypePeriod(feeType.name);
-
-                const isAllowed = allowedTypes.includes(feeTypePeriod);
-
-                option.hidden = !isAllowed;
-                option.disabled = !isAllowed;
-
-                if (option.selected && isAllowed) {
-                    selectedStillValid = true;
-                }
-
-                if (option.selected && !isAllowed) {
-                    option.selected = false;
+                if (!selectedStillValid && select.value !== "") {
+                    select.value = ""; // Reset if selected option became invalid
                 }
             });
-
-            if (!selectedStillValid) {
-
-                const preferredType =
-                    allowedTypes.includes('monthly')
-                        ? 'monthly'
-                        : allowedTypes.includes('weekly')
-                            ? 'weekly'
-                            : 'daily';
-
-                const preferredFeeType = rentFeeTypes.find(
-                    fee => getFeeTypePeriod(fee.name) === preferredType
-                );
-
-                if (preferredFeeType) {
-                    feeTypeSelect.value = preferredFeeType.id;
-                }
-            }
         }
 
         document.addEventListener('DOMContentLoaded', function() {
@@ -501,202 +488,112 @@
                 startPicker.config.onChange.push(function(selectedDates) {
                     if (selectedDates.length > 0) {
                         endPicker.set('minDate', selectedDates[0]);
-                        if (typeof calculateAvailableFeeTypes === 'function') {
-                            calculateAvailableFeeTypes();
-                        }
+                        calculateAvailableFeeTypes();
                     }
                 });
 
                 endPicker.config.onChange.push(function() {
-                    if (typeof calculateAvailableFeeTypes === 'function') {
-                        calculateAvailableFeeTypes();
-                    }
+                    calculateAvailableFeeTypes();
                 });
             }
         });
 
         // ==========================================
-        // 2. 基础表单交互联动
+        // 3. Base Form Interactions & Preview Handler
         // ==========================================
-        const allLeases = @json($leases -> keyBy('id'));
-        const leasePreviewData = @json($leasePreviewData -> keyBy('id'));
+        const allLeases = @json($leases->keyBy('id'));
+        const leasePreviewData = @json($leasePreviewData->keyBy('id'));
 
         document.addEventListener('DOMContentLoaded', function() {
             calculateAvailableFeeTypes();
 
             const leaseSelect = document.getElementById('lease_id');
+            if (leaseSelect) {
+                leaseSelect.addEventListener('change', function() {
+                    const leaseId = this.value;
+                    if (!leaseId || !allLeases[leaseId]) return;
 
-            leaseSelect.addEventListener('change', function() {
-                const leaseId = this.value;
-                if (!leaseId || !allLeases[leaseId]) return;
+                    const lease = allLeases[leaseId];
 
-                const lease = allLeases[leaseId];
+                    let type = '';
+                    if (lease.leasable_type.includes('Property')) type = 'property';
+                    else if (lease.leasable_type.includes('Unit')) type = 'unit';
+                    else if (lease.leasable_type.includes('Room')) type = 'room';
 
-                let type = '';
-                if (lease.leasable_type.includes('Property')) type = 'property';
-                else if (lease.leasable_type.includes('Unit')) type = 'unit';
-                else if (lease.leasable_type.includes('Room')) type = 'room';
-
-                const selection = document.getElementById('lease_selection');
-                if (selection) {
-                    selection.value = type;
-                    toggleLeaseInput();
-                }
-
-                const targetSelect = document.getElementById(type + '_select_input');
-                if (targetSelect) {
-                    targetSelect.value = lease.leasable_id;
-                }
-
-                document.getElementById('term_type').value = lease.term_type || 'monthly';
-                document.getElementById('monthly-rent').value = lease.rent_price;
-
-                if (lease.end_date) {
-                    let startDateObj = new Date(lease.end_date);
-                    startDateObj.setDate(startDateObj.getDate() + 1);
-
-                    const startInput = document.getElementById('start-date');
-                    const endInput = document.getElementById('end-date');
-
-                    if (startInput._flatpickr) {
-                        startInput._flatpickr.setDate(startDateObj);
-                    } else {
-                        startInput.value = startDateObj.toISOString().split('T')[0];
+                    const selection = document.getElementById('lease_selection');
+                    if (selection) {
+                        selection.value = type;
+                        toggleLeaseInput();
                     }
 
-                    if (endInput._flatpickr) {
-                        endInput._flatpickr.set('minDate', startDateObj);
-                        if (endInput._flatpickr.selectedDates.length > 0 &&
-                            endInput._flatpickr.selectedDates[0] < startDateObj) {
-                            endInput._flatpickr.clear();
+                    const targetSelect = document.getElementById(type + '_select_input');
+                    if (targetSelect) {
+                        targetSelect.value = lease.leasable_id;
+                    }
+
+                    document.getElementById('term_type').value = lease.term_type || 'Monthly';
+
+                    // Populate first charge row amount if available
+                    const firstAmountInput = document.querySelector('input[name="charges[0][amount]"]');
+                    if (firstAmountInput) {
+                        firstAmountInput.value = lease.rent_price || '';
+                    }
+
+                    if (lease.end_date) {
+                        let startDateObj = new Date(lease.end_date);
+                        startDateObj.setDate(startDateObj.getDate() + 1);
+
+                        const startInput = document.getElementById('start-date');
+                        const endInput = document.getElementById('end-date');
+
+                        if (startInput._flatpickr) {
+                            startInput._flatpickr.setDate(startDateObj);
+                        } else {
+                            startInput.value = startDateObj.toISOString().split('T')[0];
                         }
+
+                        if (endInput._flatpickr) {
+                            endInput._flatpickr.set('minDate', startDateObj);
+                        }
+
+                        calculateAvailableFeeTypes();
                     }
 
-                    calculateAvailableFeeTypes();
-                }
+                    const leaseDataMap = @json($leasePreviewData->keyBy('id'));
+                    const leaseData = leaseDataMap[leaseId];
+                    const bfSec = document.getElementById('bf-security');
+                    const bfUtil = document.getElementById('bf-utilities');
 
-                document.getElementById('security-deposit').value = '';
-                document.getElementById('utilities-deposit').value = '';
-
-                const sDep = parseFloat(lease.security_deposit) || 0;
-                const uDep = parseFloat(lease.utilities_deposit) || 0;
-
-                const leaseDataMap = @json($leasePreviewData -> keyBy('id'));
-                const leaseData = leaseDataMap[leaseId];
-                const bfSec = document.getElementById('bf-security');
-                const bfUtil = document.getElementById('bf-utilities');
-
-                if (bfSec) bfSec.innerText = 'RM ' + parseFloat(leaseData.cumulative_security).toFixed(2);
-                if (bfUtil) bfUtil.innerText = 'RM ' + parseFloat(leaseData.cumulative_utilities).toFixed(2);
-
-                toggleDepositVisibility();
-
-                let utils = lease.utilities;
-                if (typeof utils === 'string') utils = JSON.parse(utils);
-
-                if (utils) {
-                    if (utils.water) document.getElementById('water-prev').value = utils.water.curr || 0;
-                    if (utils.electric) document.getElementById('electric-prev').value = utils.electric.curr || 0;
-                }
-            });
+                    if (bfSec && leaseData) bfSec.innerText = 'RM ' + parseFloat(leaseData.cumulative_security).toFixed(2);
+                    if (bfUtil && leaseData) bfUtil.innerText = 'RM ' + parseFloat(leaseData.cumulative_utilities).toFixed(2);
+                });
+            }
         });
 
         function toggleLeaseInput() {
             const leaseSelection = document.getElementById('lease_selection');
-
             if (!leaseSelection) return;
 
             const selectedType = leaseSelection.value;
-
             const fields = document.querySelectorAll('.lease-field');
 
             fields.forEach(field => {
                 const select = field.querySelector('select');
                 const input = field.querySelector('input');
-
                 const isActive = field.id === `${selectedType}_field`;
 
                 if (isActive) {
                     field.classList.remove('hidden');
-
-                    if (select) {
-                        select.disabled = false;
-                    }
-
-                    if (input) {
-                        input.disabled = false;
-                    }
+                    if (select) select.disabled = false;
+                    if (input) input.disabled = false;
                 } else {
                     field.classList.add('hidden');
-
-                    if (select) {
-                        select.disabled = true;
-                        select.value = '';
-                    }
-
-                    if (input) {
-                        input.disabled = true;
-                        input.value = '';
-                    }
+                    if (select) { select.disabled = true; select.value = ''; }
+                    if (input) { input.disabled = true; input.value = ''; }
                 }
             });
 
             filterTemplates();
-        }
-
-        function toggleDepositVisibility() {
-            const modeSelect = document.getElementById('deposit_mode');
-
-            if (!modeSelect) {
-                console.error('Deposit mode select not found.');
-                return;
-            }
-
-            const selectedId = modeSelect.value;
-
-            const selectedFeeType = depositFeeTypes.find(
-                fee => String(fee.id) === String(selectedId)
-            );
-
-            if (!selectedFeeType) {
-                console.error('Selected deposit fee type not found:', selectedId);
-                return;
-            }
-
-            const feeTypeName = selectedFeeType.name.toLowerCase();
-
-            const securityDiv = document.getElementById('security_container');
-            const utilitiesDiv = document.getElementById('utilities_container');
-
-            if (!securityDiv || !utilitiesDiv) {
-                console.error('Deposit containers not found.');
-                return;
-            }
-
-            if (
-                feeTypeName.includes('both') ||
-                (
-                    feeTypeName.includes('security') &&
-                    feeTypeName.includes('utilities')
-                )
-            ) {
-                securityDiv.classList.remove('hidden');
-                utilitiesDiv.classList.remove('hidden');
-
-            } else if (feeTypeName.includes('security')) {
-                securityDiv.classList.remove('hidden');
-                utilitiesDiv.classList.add('hidden');
-
-                document.getElementById('utilities-deposit').value = '';
-
-            } else if (feeTypeName.includes('utilities')) {
-                securityDiv.classList.add('hidden');
-                utilitiesDiv.classList.remove('hidden');
-
-                document.getElementById('security-deposit').value = '';
-            }
-
-            console.log('Selected Deposit Fee Type:', selectedFeeType);
         }
 
         function toggleLeaseSelect() {
@@ -727,8 +624,7 @@
                 if (!el) return;
                 const isVisible = sections[id];
                 el.classList.toggle('hidden', !isVisible);
-                const inputs = el.querySelectorAll('input, select, textarea');
-                inputs.forEach(input => {
+                el.querySelectorAll('input, select, textarea').forEach(input => {
                     input.disabled = !isVisible;
                 });
             });
@@ -736,20 +632,16 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             toggleLeaseInput();
-            toggleDepositVisibility();
             toggleLeaseSelect();
         });
 
-        // ==========================================
-        // 💡 预览模板的【统一控制中心】
-        // ==========================================
+        // Agreement Preview Template Handler
         document.addEventListener('DOMContentLoaded', function() {
             const previewBtn = document.getElementById('preview-btn');
             const agreementSelect = document.getElementById('document_id');
 
             if (!previewBtn) return;
 
-            // 彻底解决 Scroll 锁定防线：无论任何形式的弹窗消失，强制解锁滚动
             document.addEventListener('click', function() {
                 setTimeout(() => {
                     const modal = document.getElementById('preview-modal');
@@ -763,31 +655,12 @@
                 if (e.key === 'Escape') {
                     setTimeout(() => {
                         const modal = document.getElementById('preview-modal');
-                        if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none') {
-                            document.body.style.overflow = ''; 
-                        } else {
-                            if(modal) modal.classList.add('hidden'); 
-                            document.body.style.overflow = ''; 
-                        }
+                        if (modal) modal.classList.add('hidden');
+                        document.body.style.overflow = '';
                     }, 50);
                 }
             });
 
-            const modalEl = document.getElementById('preview-modal');
-            if (modalEl) {
-                const observer = new MutationObserver(function(mutations) {
-                    mutations.forEach(function(mutation) {
-                        if (mutation.attributeName === 'class' || mutation.attributeName === 'style') {
-                            if (modalEl.classList.contains('hidden') || getComputedStyle(modalEl).display === 'none') {
-                                document.body.style.overflow = ''; 
-                            }
-                        }
-                    });
-                });
-                observer.observe(modalEl, { attributes: true });
-            }
-
-            // 提取并替换资料的核心逻辑
             function generatePreviewContent() {
                 if (!agreementSelect || !agreementSelect.value) {
                     alert("Please select a template first.");
@@ -802,14 +675,11 @@
 
                 const replacements = {};
 
-                // 抓取基础表单数据
-                // 抓取基础表单数据
                 document.querySelectorAll('[data-preview]').forEach(el => {
                     const placeholder = el.getAttribute('data-preview');
                     replacements[placeholder] = el.value || '';
                 });
 
-                // 手动且精准地抓取日期
                 const sd = document.getElementById('start-date');
                 if (sd && sd.value) replacements['{start_date}'] = sd.value;
 
@@ -822,7 +692,12 @@
                 const aed = document.getElementById('agreement-end-date');
                 if (aed && aed.value) replacements['{end_agreement_date}'] = aed.value;
 
-                // 区分状态：提取房源、租客与业主资料
+                // Handle first row rent amount mapping for preview
+                const firstAmountInput = document.querySelector('input[name="charges[0][amount]"]');
+                if (firstAmountInput) {
+                    replacements['{rent_price}'] = firstAmountInput.value || '0.00';
+                }
+
                 const statusSelect = document.getElementById('lease-status');
                 const isRenew = statusSelect && statusSelect.value !== 'New';
 
@@ -860,36 +735,19 @@
 
                         if (activeSelect && activeSelect.value && activeSelect.selectedIndex > 0) {
                             const opt = activeSelect.options[activeSelect.selectedIndex];
-                            
                             replacements['{property_name}'] = opt.text.trim();
                             replacements['{property_address}'] = opt.getAttribute('data-address') || '';
                             replacements['{owner_name}'] = opt.getAttribute('data-owner') || '';
-                            
-                            // 💡 修复点：直接获取刚刚在 HTML 里修好的 data-owner-ic！
-                            replacements['{owner_ic}'] = opt.getAttribute('data-owner-ic') || ''; 
+                            replacements['{owner_ic}'] = opt.getAttribute('data-owner-ic') || '';
                         }
                     }
                 }
 
-                // 金额补全 0.00
-                const amounts = ['{utilities_deposit}', '{security_deposit}', '{rent_price}'];
-                amounts.forEach(key => {
-                    if (!replacements[key]) {
-                        replacements[key] = '0.00';
-                    } else {
-                        const normalized = String(replacements[key]).trim().replace(/[^0-9.\-]/g, '');
-                        const parsed = parseFloat(normalized);
-                        replacements[key] = Number.isNaN(parsed) ? String(replacements[key]) : String(parsed);
-                    }
-                });
-
-                // 空白内容统一变为 N/A
                 const strings = ['{start_date}', '{end_date}', '{check_out_date}', '{end_agreement_date}', '{owner_ic}', '{property_type}', '{owner_name}'];
                 strings.forEach(key => {
                     if (!replacements[key] || replacements[key].trim() === '') replacements[key] = 'N/A';
                 });
 
-                // 执行替换并添加高亮
                 Object.keys(replacements).forEach(placeholder => {
                     const val = replacements[placeholder];
                     const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
@@ -899,7 +757,6 @@
                 return { content, title };
             }
 
-            // 按钮点击事件（触发弹窗）
             previewBtn.addEventListener('click', function() {
                 try {
                     const result = generatePreviewContent();
@@ -911,14 +768,13 @@
                         if (modalTitle) modalTitle.innerText = "Preview: " + result.title;
                         if (modalContent) modalContent.innerHTML = result.content;
                         if (modal) modal.classList.remove('hidden');
-                        document.body.style.overflow = 'hidden'; // 禁止背景滚动
+                        document.body.style.overflow = 'hidden';
                         
-                        // 兼容 AlpineJS 组件
                         window.dispatchEvent(new CustomEvent('open-preview-modal'));
                     }
                 } catch (error) {
                     console.error("🚨 Preview Error: ", error);
-                    alert("Something went wrong while generating the preview. Check console for details.");
+                    alert("Something went wrong while generating the preview.");
                 }
             });
         });
@@ -968,4 +824,5 @@
             if (el) el.addEventListener('change', filterTemplates);
         });
     </script>
+    @endpush
 </x-app-layout>

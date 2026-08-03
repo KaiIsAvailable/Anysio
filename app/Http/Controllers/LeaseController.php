@@ -207,13 +207,9 @@ class LeaseController extends Controller
             ->orderBy('name')
             ->get();
 
-        $rentFeeTypes = $feeTypes
-            ->where('category', FeeTypeCategory::RENT->value)
-            ->values();
-
-        $depositFeeTypes = $feeTypes
-            ->where('category', FeeTypeCategory::DEPOSIT->value)
-            ->values();
+        $rentFeeTypes = $feeTypes->where('category', FeeTypeCategory::RENT->value)->values();
+        $depositFeeTypes = $feeTypes->where('category', FeeTypeCategory::DEPOSIT->value)->values();
+        $managementFeeTypes = $feeTypes->where('category', FeeTypeCategory::MANAGEMENT->value)->values();
 
         /*
         |--------------------------------------------------------------------------
@@ -331,6 +327,7 @@ class LeaseController extends Controller
                 'templates',
                 'rentFeeTypes',
                 'depositFeeTypes',
+                'managementFeeTypes',
                 'statuses',
                 'selectedRoom',
                 'selectedTenant'
@@ -412,9 +409,7 @@ class LeaseController extends Controller
             $request->validated()
         );
 
-        return redirect()
-            ->route('admin.leases.index')
-            ->with('success', 'Lease processed successfully.');
+        return redirect()->route('admin.leases.index')->with('success', 'Lease processed successfully.');
     }
 
     public function show(Request $request, Lease $lease)

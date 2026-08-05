@@ -21,7 +21,6 @@
                     @csrf
                     <div class="p-8 space-y-8">
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                            <!-- Status -->
                             <div class="md:col-span-1">
                                 <x-form.input-label value="Status" :required="true" class="mb-1" />
                                 <x-form.input-select
@@ -39,7 +38,6 @@
                                 <x-form.input-error :messages="$errors->get('status')" class="mt-1" />
                             </div>
 
-                            <!-- Tenant -->
                             <div id="tenant_field" class="md:col-span-3">
                                 <x-form.input-label value="Select Tenant" :required="true" class="mb-1" />
                                 <x-form.input-select
@@ -68,7 +66,6 @@
                                         $leaseOwnerIc = '';
                                         $leaseOwnerId = '';
 
-                                        // 💡 修复点：连跳两层关联找到真实的 Owner IC
                                         if ($lease->leasable instanceof \App\Models\Property) {
                                             $leasePropertyType = 'property';
                                             $leasePropertyName = $lease->leasable->name ?? '';
@@ -121,7 +118,7 @@
                         </div>
 
                         <div id="property_select_type" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {{-- 1. 左边：选择租赁类型 --}}
+                            {{-- 1. 左邊：選擇租賃類型 --}}
                             <div>
                                <x-form.input-label value="Select Properties Type" :required="true" class="mb-1" />
                                 <x-form.input-select
@@ -137,7 +134,7 @@
                                 />
                             </div>
 
-                            {{-- 2. 右边：动态切换的 Select Fields --}}
+                            {{-- 2. 右邊：動態切換的 Select Fields --}}
                             <div>
                                 <div id="property_field" class="lease-field">
                                     <x-form.input-label value="Select Property" :required="true" class="mb-1" />
@@ -194,7 +191,6 @@
                             </div>
                         </div>
 
-                        <!-- Check-out & Agreement End Dates -->
                         <div id="check_out_section" class="mt-4 hidden">
                             <x-form.input-label value="Check Out Date" class="mb-1" />
                             <x-form.date-input id="check-out-date" name="checked_out_at" :value="old('checked_out_at')" />
@@ -219,7 +215,7 @@
                                 class="block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                                 <option value="">-- Select Template --</option>
                                 @foreach($templates as $template)
-                                    <option value="{{ $template->id }}" data-agreement-user-id="{{$template->user->id}}" data-content="{{ $template->content }}" data-title="{{ $template->title }}" {{ old('document_id') == $template->id ? 'selected' : '' }}>
+                                    <option value="{{ $template->id }}" data-agreement-user-id="{{$template->user->id}}" {{ old('document_id') == $template->id ? 'selected' : '' }}>
                                         {{ $template->title }} (v{{ $template->version }}) - {{ $template->user->name }}
                                     </option>
                                 @endforeach
@@ -229,7 +225,6 @@
 
                         <x-preview-agreement-modal />
 
-                        <!-- Dynamic Charges Section -->
                         <div class="space-y-4 border-t border-gray-200 pt-6">
                             <div class="flex justify-between items-center">
                                 <x-form.input-label value="Lease Charges & Deposits" :required="true" />
@@ -239,7 +234,6 @@
                             </div>
 
                             <div id="charges-container" class="space-y-4">
-                                <!-- Initial First Row -->
                                 <div class="charge-row rounded-lg border border-gray-200 bg-gray-50 p-4">
                                     <div class="flex justify-between items-center mb-2">
                                         <span class="text-xs font-semibold text-gray-500 tracking-wider">
@@ -302,8 +296,87 @@
         </div>
     </div>
 
-    @push('scripts')
+@push('scripts')
+    @php
+        $jsRentFees = $rentFeeTypes->map(fn($f) => ['id' => $f->id, 'name' => $f->name])->values();
+        $jsDepositFees = $depositFeeTypes->map(fn($f) => ['id' => $f->id, 'name' => $f->name])->values();
+        
+        $jsTemplates = $templates->map(fn($t) => [
+            'id' => (string) $t->id, 
+            'title' => $t->title, 
+            'content' => $t->html_template
+        ])->keyBy('id');
+
+        // 🌟 修正點 1：加上 ?-> 確保多層關聯絕對不會報錯，並補上 owner_id
+        $jsTenants = $tenants->map(fn($t) => [
+            'id' => (string) $t->id,
+            'name' => $t->user?->name ?? 'N/A',
+            'ic_number' => $t->ic_number ?? 'N/A',
+        ])->keyBy('id');
+
+        $jsProperties = $properties->map(fn($p) => [
+            'id' => (string) $p->id,
+            'name' => $p->name ?? 'N/A',
+            'full_address' => $p->full_address ?? 'N/A',
+            'owner_name' => $p->owner?->name ?? 'N/A',
+            'owner_ic' => $p->owner?->owner?->ic_number ?? ($p->owner?->ic_number ?? 'N/A'),
+            'owner_id' => (string) ($p->owner?->id ?? 'N/A'),
+        ])->keyBy('id');
+
+        $jsUnits = $units->map(fn($u) => [
+            'id' => (string) $u->id,
+            'name' => $u->unit_no ?? 'N/A',
+            'full_address' => $u->full_address ?? 'N/A',
+            'owner_name' => $u->owner?->name ?? 'N/A',
+            'owner_ic' => $u->owner?->owner?->ic_number ?? ($u->owner?->ic_number ?? 'N/A'),
+            'owner_id' => (string) ($u->owner?->id ?? 'N/A'),
+        ])->keyBy('id');
+
+        $jsRooms = $rooms->map(fn($r) => [
+            'id' => (string) $r->id,
+            'name' => $r->room_no ?? 'N/A',
+            'full_address' => $r->full_address ?? 'N/A',
+            'owner_name' => $r->unit?->owner?->name ?? 'N/A',
+            'owner_ic' => $r->unit?->owner?->owner?->ic_number ?? ($r->unit?->owner?->ic_number ?? 'N/A'),
+            'owner_id' => (string) ($r->unit?->owner?->id ?? 'N/A'),
+        ])->keyBy('id');
+    @endphp
+
+    <script type="application/json" id="templates-json">
+        {!! json_encode($jsTemplates, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}
+    </script>
+
+    <div id="server-data" class="hidden" style="display: none;"
+        data-create-url="{{ route('admin.leases.create') }}"
+        data-rent-fees="{{ json_encode($jsRentFees) }}"
+        data-deposit-fees="{{ json_encode($jsDepositFees) }}"
+        data-all-leases="{{ json_encode($leases->keyBy('id')) }}"
+        data-preview-data="{{ json_encode($leasePreviewData->keyBy('id')) }}"
+        data-tenants="{{ json_encode($jsTenants) }}"
+        data-properties="{{ json_encode($jsProperties) }}"
+        data-units="{{ json_encode($jsUnits) }}"
+        data-rooms="{{ json_encode($jsRooms) }}">
+    </div>
+
     <script>
+        // ==========================================
+        // 0. 從 HTML 讀取安全的 Server 資料
+        // ==========================================
+        const serverDataEl = document.getElementById('server-data');
+        const createUrl = serverDataEl.getAttribute('data-create-url');
+        const rentFeeTypes = JSON.parse(serverDataEl.getAttribute('data-rent-fees') || '[]');
+        const depositFeeTypes = JSON.parse(serverDataEl.getAttribute('data-deposit-fees') || '[]');
+        const allLeases = JSON.parse(serverDataEl.getAttribute('data-all-leases') || '{}');
+        const leasePreviewData = JSON.parse(serverDataEl.getAttribute('data-preview-data') || '{}');
+        
+        const allTenants = JSON.parse(serverDataEl.getAttribute('data-tenants') || '{}');
+        const allProperties = JSON.parse(serverDataEl.getAttribute('data-properties') || '{}');
+        const allUnits = JSON.parse(serverDataEl.getAttribute('data-units') || '{}');
+        const allRooms = JSON.parse(serverDataEl.getAttribute('data-rooms') || '{}');
+
+        const templatesJsonEl = document.getElementById('templates-json');
+        const allTemplates = templatesJsonEl ? JSON.parse(templatesJsonEl.textContent) : {};
+
         // ==========================================
         // 1. Dynamic Charge Row Management
         // ==========================================
@@ -355,20 +428,6 @@
         // ==========================================
         // 2. Date & Fee Type Calculations
         // ==========================================
-        const rentFeeTypes = @json(
-            $rentFeeTypes->map(fn ($feeType) => [
-                'id' => $feeType->id,
-                'name' => $feeType->name,
-            ])->values()
-        );
-
-        const depositFeeTypes = @json(
-            $depositFeeTypes->map(fn ($feeType) => [
-                'id' => $feeType->id,
-                'name' => $feeType->name,
-            ])->values()
-        );
-
         function getFeeTypePeriod(feeTypeName) {
             const name = feeTypeName.toLowerCase();
             if (name.includes('daily')) return 'daily';
@@ -412,7 +471,6 @@
                 years--;
             }
 
-            // Determine allowed rental periods based on duration rules
             let allowed = ['daily'];
 
             if (diffDays >= 7 && months < 1) {
@@ -434,9 +492,8 @@
                 let selectedStillValid = false;
 
                 options.forEach(option => {
-                    if (!option.value) return; // Skip placeholder
+                    if (!option.value) return;
 
-                    // Check if this option is a rent fee type
                     const isRentType = option.getAttribute('data-type') === 'rent';
 
                     if (isRentType) {
@@ -454,7 +511,6 @@
                             option.selected = false;
                         }
                     } else {
-                        // Non-rent options (deposits, management) are ALWAYS visible
                         option.hidden = false;
                         option.disabled = false;
                         if (option.selected) {
@@ -464,7 +520,7 @@
                 });
 
                 if (!selectedStillValid && select.value !== "") {
-                    select.value = ""; // Reset if selected option became invalid
+                    select.value = "";
                 }
             });
         }
@@ -501,9 +557,6 @@
         // ==========================================
         // 3. Base Form Interactions & Preview Handler
         // ==========================================
-        const allLeases = @json($leases->keyBy('id'));
-        const leasePreviewData = @json($leasePreviewData->keyBy('id'));
-
         document.addEventListener('DOMContentLoaded', function() {
             calculateAvailableFeeTypes();
 
@@ -533,7 +586,6 @@
 
                     document.getElementById('term_type').value = lease.term_type || 'Monthly';
 
-                    // Populate first charge row amount if available
                     const firstAmountInput = document.querySelector('input[name="charges[0][amount]"]');
                     if (firstAmountInput) {
                         firstAmountInput.value = lease.rent_price || '';
@@ -559,8 +611,7 @@
                         calculateAvailableFeeTypes();
                     }
 
-                    const leaseDataMap = @json($leasePreviewData->keyBy('id'));
-                    const leaseData = leaseDataMap[leaseId];
+                    const leaseData = leasePreviewData[leaseId];
                     const bfSec = document.getElementById('bf-security');
                     const bfUtil = document.getElementById('bf-utilities');
 
@@ -602,7 +653,7 @@
 
             const urlParams = new URLSearchParams(window.location.search);
             if (newStatus !== urlParams.get('status')) {
-                window.location.href = `{{ route('admin.leases.create') }}?status=${newStatus}`;
+                window.location.href = `${createUrl}?status=${newStatus}`;
                 return;
             }
 
@@ -635,50 +686,77 @@
             toggleLeaseSelect();
         });
 
-        // Agreement Preview Template Handler
+        // ==========================================
+        // 🌟 4. 暴力且絕對有效的 Scroll 解鎖器
+        // 只要你在頁面上點擊（例如點擊關閉 X 按鈕或背景），0.15 秒後檢查 Modal，隱藏了就解鎖捲軸！
+        // ==========================================
+        document.addEventListener('click', function(e) {
+            setTimeout(() => {
+                const modalEl = document.getElementById('preview-modal');
+                if (!modalEl || modalEl.classList.contains('hidden') || getComputedStyle(modalEl).display === 'none') {
+                    if (document.body.style.overflow === 'hidden') {
+                        document.body.style.overflow = '';
+                    }
+                }
+            }, 150);
+        });
+
+        // ESC 鍵關閉的解鎖
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                setTimeout(() => {
+                    const modalEl = document.getElementById('preview-modal');
+                    if (modalEl) {
+                        modalEl.classList.add('hidden');
+                        modalEl.style.display = '';
+                    }
+                    document.body.style.overflow = '';
+                }, 100);
+            }
+        });
+
+        // ==========================================
+        // 5. Agreement Preview Template Handler
+        // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
             const previewBtn = document.getElementById('preview-btn');
             const agreementSelect = document.getElementById('document_id');
 
             if (!previewBtn) return;
 
-            document.addEventListener('click', function() {
-                setTimeout(() => {
-                    const modal = document.getElementById('preview-modal');
-                    if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none') {
-                        document.body.style.overflow = '';
-                    }
-                }, 50);
-            });
-
-            document.addEventListener('keydown', (e) => {
-                if (e.key === 'Escape') {
-                    setTimeout(() => {
-                        const modal = document.getElementById('preview-modal');
-                        if (modal) modal.classList.add('hidden');
-                        document.body.style.overflow = '';
-                    }, 50);
-                }
-            });
-
             function generatePreviewContent() {
                 if (!agreementSelect || !agreementSelect.value) {
-                    alert("Please select a template first.");
+                    alert("⚠️ Please select a template first.");
                     return null;
                 }
 
-                const selectedOption = agreementSelect.options[agreementSelect.selectedIndex];
-                let content = selectedOption.getAttribute('data-content');
-                const title = selectedOption.getAttribute('data-title');
+                const selectedTemplateId = String(agreementSelect.value);
+                const templateData = allTemplates[selectedTemplateId];
 
-                if (!content) return null;
+                if (!templateData || !templateData.content || templateData.content.trim() === '') {
+                    alert("⚠️ The selected template has no content!");
+                    return null;
+                }
 
-                const replacements = {};
+                let content = templateData.content;
+                const title = templateData.title;
 
-                document.querySelectorAll('[data-preview]').forEach(el => {
-                    const placeholder = el.getAttribute('data-preview');
-                    replacements[placeholder] = el.value || '';
-                });
+                // 🌟 修正點 2：補上 {owner_id} 在這裡，保證不漏接！
+                const replacements = {
+                    '{tenant_name}': 'N/A',
+                    '{tenant_ic}': 'N/A',
+                    '{owner_name}': 'N/A',
+                    '{owner_ic}': 'N/A',
+                    '{owner_id}': 'N/A', 
+                    '{property_name}': 'N/A',
+                    '{property_type}': 'N/A',
+                    '{property_address}': 'N/A',
+                    '{start_date}': 'N/A',
+                    '{end_date}': 'N/A',
+                    '{check_out_date}': 'N/A',
+                    '{end_agreement_date}': 'N/A',
+                    '{rent_price}': '0.00'
+                };
 
                 const sd = document.getElementById('start-date');
                 if (sd && sd.value) replacements['{start_date}'] = sd.value;
@@ -692,10 +770,9 @@
                 const aed = document.getElementById('agreement-end-date');
                 if (aed && aed.value) replacements['{end_agreement_date}'] = aed.value;
 
-                // Handle first row rent amount mapping for preview
                 const firstAmountInput = document.querySelector('input[name="charges[0][amount]"]');
-                if (firstAmountInput) {
-                    replacements['{rent_price}'] = firstAmountInput.value || '0.00';
+                if (firstAmountInput && firstAmountInput.value) {
+                    replacements['{rent_price}'] = firstAmountInput.value;
                 }
 
                 const statusSelect = document.getElementById('lease-status');
@@ -703,61 +780,86 @@
 
                 if (isRenew) {
                     const leaseIdSelect = document.getElementById('lease_id');
-                    if (leaseIdSelect && leaseIdSelect.value && leaseIdSelect.selectedIndex > 0) {
+                    if (leaseIdSelect && leaseIdSelect.value) {
+                        const leaseId = leaseIdSelect.value;
+                        const previewData = leasePreviewData[leaseId];
                         const opt = leaseIdSelect.options[leaseIdSelect.selectedIndex];
-                        
-                        if (opt.dataset.propertyName) replacements['{property_name}'] = opt.dataset.propertyName;
-                        if (opt.dataset.propertyAddress) replacements['{property_address}'] = opt.dataset.propertyAddress;
-                        if (opt.dataset.ownerName) replacements['{owner_name}'] = opt.dataset.ownerName;
-                        if (opt.dataset.ownerIc) replacements['{owner_ic}'] = opt.dataset.ownerIc;
-                        if (opt.dataset.ownerId) replacements['{owner_id}'] = opt.dataset.ownerId;
-                        if (opt.dataset.propertyType) replacements['{property_type}'] = opt.dataset.propertyType.toUpperCase();
 
-                        const match = opt.text.match(/^\s*(.+?)\s*\((.+?)\)/);
-                        if (match) {
-                            replacements['{tenant_name}'] = match[1].trim();
-                            replacements['{tenant_ic}'] = match[2].trim();
+                        if (opt) {
+                            replacements['{property_name}'] = opt.dataset.propertyName || previewData?.leasable_name || 'N/A';
+                            replacements['{property_address}'] = opt.dataset.propertyAddress || previewData?.leasable_address || 'N/A';
+                            replacements['{owner_name}'] = opt.dataset.ownerName || previewData?.owner_data?.name || 'N/A';
+                            replacements['{owner_ic}'] = opt.dataset.ownerIc || previewData?.owner_data?.ic_number || 'N/A';
+                            replacements['{owner_id}'] = opt.dataset.ownerId || previewData?.owner_data?.id || 'N/A';
+                            replacements['{property_type}'] = (opt.dataset.propertyType || '').toUpperCase();
+
+                            const match = opt.text.match(/^\s*(.+?)\s*\((.+?)\)/);
+                            if (match) {
+                                replacements['{tenant_name}'] = match[1].trim();
+                                replacements['{tenant_ic}'] = match[2].trim();
+                            }
                         }
                     }
                 } else {
                     const tenantSelect = document.getElementById('tenant_id');
-                    if (tenantSelect && tenantSelect.value && tenantSelect.selectedIndex > 0) {
-                        const fullText = tenantSelect.options[tenantSelect.selectedIndex].text;
-                        const match = fullText.match(/(.+?)\s*\((.+?)\)/);
-                        replacements['{tenant_name}'] = match ? match[1].trim() : fullText;
-                        replacements['{tenant_ic}'] = match ? match[2].trim() : '';
+                    if (tenantSelect && tenantSelect.value && allTenants[tenantSelect.value]) {
+                        const t = allTenants[tenantSelect.value];
+                        replacements['{tenant_name}'] = t.name || 'N/A';
+                        replacements['{tenant_ic}'] = t.ic_number || 'N/A';
                     }
 
                     const leaseSelectionEl = document.getElementById('lease_selection');
                     if (leaseSelectionEl) {
                         const leaseType = leaseSelectionEl.value;
-                        const activeSelect = document.getElementById(`${leaseType}_select_input`);
+                        replacements['{property_type}'] = leaseType.toUpperCase();
 
-                        if (activeSelect && activeSelect.value && activeSelect.selectedIndex > 0) {
-                            const opt = activeSelect.options[activeSelect.selectedIndex];
-                            replacements['{property_name}'] = opt.text.trim();
-                            replacements['{property_address}'] = opt.getAttribute('data-address') || '';
-                            replacements['{owner_name}'] = opt.getAttribute('data-owner') || '';
-                            replacements['{owner_ic}'] = opt.getAttribute('data-owner-ic') || '';
+                        const activeSelect = document.getElementById(`${leaseType}_select_input`);
+                        if (activeSelect && activeSelect.value) {
+                            const targetId = activeSelect.value;
+                            let targetData = null;
+
+                            if (leaseType === 'property') targetData = allProperties[targetId];
+                            else if (leaseType === 'unit') targetData = allUnits[targetId];
+                            else if (leaseType === 'room') targetData = allRooms[targetId];
+
+                            if (targetData) {
+                                replacements['{property_name}'] = targetData.name || 'N/A';
+                                replacements['{property_address}'] = targetData.full_address || 'N/A';
+                                replacements['{owner_name}'] = targetData.owner_name || 'N/A';
+                                replacements['{owner_ic}'] = targetData.owner_ic || 'N/A';
+                                replacements['{owner_id}'] = targetData.owner_id || 'N/A'; // 🌟 補上從 JSON 拿 owner_id
+                            }
                         }
                     }
                 }
 
-                const strings = ['{start_date}', '{end_date}', '{check_out_date}', '{end_agreement_date}', '{owner_ic}', '{property_type}', '{owner_name}'];
-                strings.forEach(key => {
-                    if (!replacements[key] || replacements[key].trim() === '') replacements[key] = 'N/A';
-                });
-
                 Object.keys(replacements).forEach(placeholder => {
-                    const val = replacements[placeholder];
-                    const regex = new RegExp(placeholder.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-                    content = content.replace(regex, `<span class="text-inherit font-semibold text-indigo-600">${val}</span>`);
+                    const val = replacements[placeholder] && replacements[placeholder].trim() !== '' 
+                                ? replacements[placeholder] 
+                                : 'N/A';
+                    
+                    const coreName = placeholder.replace(/[{}]/g, '').trim();
+                    
+                    // 🌟 修改：我們不用帶有靛藍色的 class，改用普通加粗字體
+                    const safeVal = `<strong>${val}</strong>`;
+
+                    // 武器 A：連同 GrapesJS 產生的帶有 id 顏色的外層 <span data-variable="..."> 整個吞掉替換！
+                    const dataVarRegex = new RegExp(`<[^>]+data-variable=["']${coreName}["'][^>]*>[\\s\\S]*?<\\/\\w+>`, 'gi');
+                    content = content.replace(dataVarRegex, safeVal);
+
+                    // 武器 B：對付純文字格式的
+                    const safeCoreName = coreName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                    const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${safeCoreName}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
+                    content = content.replace(textRegex, safeVal);
                 });
 
                 return { content, title };
             }
 
-            previewBtn.addEventListener('click', function() {
+            previewBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation(); 
+                
                 try {
                     const result = generatePreviewContent();
                     if (result) {
@@ -765,16 +867,42 @@
                         const modalContent = document.getElementById('modal-content');
                         const modalTitle = document.getElementById('modal-title');
                         
-                        if (modalTitle) modalTitle.innerText = "Preview: " + result.title;
-                        if (modalContent) modalContent.innerHTML = result.content;
-                        if (modal) modal.classList.remove('hidden');
+                       if (modalTitle) modalTitle.innerText = "Preview: " + result.title;
+                        
+                        if (modalContent) {
+                            // 🌟 注入還原 CSS：抵抗 Tailwind 的樣式重置，拯救標題與清單
+                            const resetStyles = `
+                                <style>
+                                    .grapes-preview-box h1 { font-size: 2.2em !important; font-weight: bold !important; margin: 0.67em 0 !important; line-height: 1.2 !important; }
+                                    .grapes-preview-box h2 { font-size: 1.6em !important; font-weight: bold !important; margin: 0.83em 0 !important; line-height: 1.3 !important; }
+                                    .grapes-preview-box h3 { font-size: 1.2em !important; font-weight: bold !important; margin: 1em 0 !important; }
+                                    .grapes-preview-box p { margin: 1em 0 !important; }
+                                    .grapes-preview-box ul { list-style-type: disc !important; padding-left: 40px !important; margin: 1em 0 !important; }
+                                    .grapes-preview-box ol { list-style-type: decimal !important; padding-left: 40px !important; margin: 1em 0 !important; }
+                                    .grapes-preview-box li { display: list-item !important; margin-bottom: 0.5em !important; }
+                                    .grapes-preview-box strong, .grapes-preview-box b { font-weight: bold !important; color: #000 !important; }
+                                    .grapes-preview-box hr { margin: 1.5em 0 !important; border-top: 1px solid #ccc !important; }
+                                </style>
+                            `;
+                            // 用 grapes-preview-box 把內容包起來
+                            modalContent.innerHTML = `<div class="grapes-preview-box">${resetStyles}${result.content}</div>`;
+                        }
+                        
+                        if (modal) {
+                            modal.classList.remove('hidden');
+                            modal.style.display = 'block'; 
+                        }
+
+                        // 鎖死背景捲軸
                         document.body.style.overflow = 'hidden';
                         
-                        window.dispatchEvent(new CustomEvent('open-preview-modal'));
+                        window.dispatchEvent(new CustomEvent('open-preview-modal', {
+                            detail: { title: result.title, content: result.content }
+                        }));
                     }
                 } catch (error) {
                     console.error("🚨 Preview Error: ", error);
-                    alert("Something went wrong while generating the preview.");
+                    alert("Something went wrong while generating the preview: " + error.message);
                 }
             });
         });

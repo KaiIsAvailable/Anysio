@@ -10,4 +10,5 @@ enum FeeTypeCategory: string
     case SERVICE = 'service';
     case PENALTY = 'penalty';
     case MANAGEMENT = 'management';
+    case INVOICE = 'invoice';
 }

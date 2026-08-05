@@ -25,7 +25,7 @@
 
             getManualInvoiceUrl() {
                 if (!this.activeId) return '#';
-                return `{{ url('admin/payments/store-manual') }}/${this.activeId}`;
+                return `{{ route('admin.invoices.store-manual', ':lease') }}`.replace(':lease', this.activeId);
             },
 
             refreshTable() {
@@ -225,10 +225,11 @@
                                             '{property_type}': activeLease.property_type,
                                             '{property_name}': activeLease.property_name,
                                             '{rent_mode}': activeLease.rent_mode,
-                                            '{rent_price}': activeLease.rent_price,
-                                            '{deposit_mode}': activeLease.deposit_mode,
-                                            '{security_deposit}': activeLease.security_deposit,
-                                            '{utilities_deposit}': activeLease.utilities_deposit,
+                                            '{rent_price}': formatMoney(activeLease.rent_price),
+                                            '{total_rent_price}': formatMoney(
+                                                parseFloat(activeLease.rent_price || 0) + 
+                                                (activeLease.charges ? activeLease.charges.reduce((sum, c) => sum + parseFloat(c.amount || 0), 0) : 0)
+                                            ),
                                             '{start_date}': activeLease.start_date,
                                             '{end_date}': activeLease.end_date,
                                             '{check_out_date}': activeLease.check_out_date,
@@ -267,6 +268,19 @@
                         <div class="p-4 bg-gray-50 rounded-lg">
                             <p class="text-xs text-gray-500 uppercase font-bold">Owner Name</p>
                             <p class="text-lg font-semibold" x-text="activeLease.owner_name"></p>
+                            <div class="flex items-center gap-1 mt-1 text-xs font-semibold text-gray-600">
+                                <span>IC:</span>
+                                <span x-text="activeLease.owner_ic"></span>
+                            </div>
+                        </div>
+
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <p class="text-xs text-gray-500 uppercase font-bold">Tenant Name</p>
+                            <p class="text-lg font-semibold" x-text="activeLease.tenant_name"></p>
+                            <div class="flex items-center gap-1 mt-1 text-xs font-semibold text-gray-600">
+                                <span>IC:</span>
+                                <span x-text="activeLease.tenant_ic"></span>
+                            </div>
                         </div>
                     </div>
 
@@ -279,26 +293,25 @@
                             <p class="text-xs text-gray-500 uppercase font-bold">End Date</p>
                             <p class="text-lg font-semibold" x-text="activeLease.end_date"></p>
                         </div>
-                        <div class="p-4 bg-gray-50 rounded-lg">
-                            <p class="text-xs text-gray-500 uppercase font-bold">Term Type</p>
-                            <p class="text-lg font-semibold" x-text="activeLease.term_type"></p>
-                        </div>
-                        <div class="p-4 bg-gray-50 rounded-lg">
-                            <p class="text-xs text-gray-500 uppercase font-bold">Rent Price</p>
-                            <p class="text-lg font-semibold text-indigo-600">RM <span x-text="activeLease.rent_price"></span></p>
-                        </div>
+                        <div class="p-4 bg-gray-50 rounded-lg md:col-span-1">
+                            <p class="text-xs text-gray-500 uppercase font-bold">Charges</p>
+                            
+                            {{-- Total Combined Rent & Charges (Using controller property or parsing clean numbers) --}}
+                            <div class="text-lg font-semibold text-indigo-600 mt-0.5">
+                                RM <span x-text="activeLease.total_rent_price"></span>
+                            </div>
 
-                        <div class="p-4 bg-gray-50 rounded-lg">
-                            <p class="text-xs text-gray-500 uppercase font-bold">Deposit Mode</p>
-                            <p class="text-lg font-semibold" x-text="activeLease.deposit_mode"></p>
-                        </div>
-                        <div x-show="activeLease.security_deposit" class="p-4 bg-gray-50 rounded-lg">
-                            <p class="text-xs text-gray-500 uppercase font-bold">Security Deposit</p>
-                            <p class="text-lg font-semibold" x-text="activeLease.security_deposit"></p>
-                        </div>
-                        <div x-show="activeLease.utilities_deposit" class="p-4 bg-gray-50 rounded-lg">
-                            <p class="text-xs text-gray-500 uppercase font-bold">Utilities Deposit</p>
-                            <p class="text-lg font-semibold" x-text="activeLease.utilities_deposit"></p>
+                            {{-- Loop through individual lease charges --}}
+                            <template x-if="activeLease.charges && activeLease.charges.length > 0">
+                                <div class="space-y-0.5 border-t border-gray-100 pt-1 mt-1">
+                                    <template x-for="charge in activeLease.charges" :key="charge.id">
+                                        <div class="text-[11px] text-slate-600 flex justify-between gap-2">
+                                            <span class="truncate" :title="charge.description" x-text="charge.description + ':'"></span>
+                                            <span class="font-medium text-slate-900 shrink-0">RM <span x-text="charge.amount"></span></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </template>
                         </div>
                     </div>
 
@@ -325,35 +338,12 @@
                         <div class="flex items-center gap-2">
                             {{-- Add Manual Invoice 按钮 --}}
                             <button type="button"
-                                @click="$dispatch('open-manual-modal', { 
-                                    action: `{{ url('admin/tenants') }}/${activeId}/payments/storeManualInvoice`
-                                })"
+                                @click="$dispatch('open-manual-modal', { action: getManualInvoiceUrl() })"
                                 class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                                </svg>
-                                Add Manual Invoice
+                                Generate Invoice
                             </button>
 
-                            <x-manual-invoice-modal />
-
-                            <div x-show="activeLease && activeLease.can_generate" x-cloak>
-                                <form x-ref="generateForm"
-                                    :action="'/admin/leases/' + activeId + '/invoices/generate'"
-                                    method="POST"
-                                    class="inline-block">
-                                    @csrf
-                                    <button type="submit" class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all">
-                                        Generate Invoice
-                                    </button>
-                                </form>
-                            </div>
-
-                            <div x-show="!activeLease || !activeLease.can_generate" x-cloak>
-                                <button disabled class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg uppercase text-gray-400 bg-gray-100 cursor-not-allowed shadow-sm">
-                                    Done
-                                </button>
-                            </div>
+                            <x-modals.manual-invoice-modal :feeTypes="$feeTypes" />
                         </div>
                     </div>
 

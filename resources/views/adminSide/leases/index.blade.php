@@ -49,8 +49,7 @@
                                         <x-table.th name="Owner" />
                                         <x-table.th name="Tenant" sortField="t" />
                                         <x-table.th name="Duration" sortField="d"/>
-                                        <x-table.th name="Rent & Term" sortField="r"/>
-                                        <x-table.th name="Deposits" sortField="de"/>
+                                        <x-table.th name="Charges"/>
                                         <x-table.th name="Status" sortField="s"/>
                                         <x-table.th name="Action" />
                                     </tr>
@@ -131,17 +130,23 @@
                                                 </div>
                                             </td>
 
-                                            {{-- term_type & rent_price --}}
+                                            {{-- term_type & charges breakdown --}}
                                             <td class="px-6 py-4">
-                                                <div class="text-sm font-semibold text-indigo-600">RM {{ number_format($lease->rent_price, 2) }}</div>
-                                                <div class="text-xs text-gray-500 capitalize">{{ $lease->term_type ?? 'N/A' }}</div>
-                                            </td>
+                                                <div class="text-sm font-semibold text-indigo-600">
+                                                    RM {{ number_format($lease->rent_price + $lease->charges->sum('amount') / 100, 2) }}
+                                                </div>
 
-                                            {{-- deposit_mode, security, utilities --}}
-                                            <td class="px-6 py-4">
-                                                <div class="text-xs font-medium text-slate-700">Sec: {{ number_format($lease->security_deposit, 2) }}</div>
-                                                <div class="text-xs font-medium text-slate-700">Util: {{ number_format($lease->utilities_deposit, 2) }}</div>
-                                                <div class="text-[10px] text-gray-400 mt-1 uppercase tracking-wider">{{ $lease->deposit_mode ?? 'Manual' }}</div>
+                                                {{-- Loop through individual lease charges --}}
+                                                @if($lease->charges && $lease->charges->count() > 0)
+                                                    <div class="space-y-0.5 border-t border-gray-100 pt-1 mt-1">
+                                                        @foreach($lease->charges as $charge)
+                                                            <div class="text-[11px] text-slate-600 flex justify-between gap-2">
+                                                                <span class="truncate" title="{{ $charge->description }}">{{ $charge->description }}:</span>
+                                                                <span class="font-medium text-slate-900 shrink-0">RM {{ number_format($charge->amount / 100, 2 ) }}</span>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
                                             </td>
 
                                             {{-- status --}}
@@ -166,8 +171,7 @@
                                                                 <span class="p-1 bg-emerald-100 text-emerald-600 rounded-full">
                                                                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
                                                                 </span>
-                                                                <a href="{{ route('admin.leases.cert-file', $lease->id) }}" 
-                                                                class="text-xs font-bold text-emerald-600 hover:underline">
+                                                                <a href="{{ route('admin.leases.view-cert', $lease->id) }}" class="text-xs font-bold text-emerald-600 hover:underline">
                                                                     View Cert
                                                                 </a>
                                                             </div>

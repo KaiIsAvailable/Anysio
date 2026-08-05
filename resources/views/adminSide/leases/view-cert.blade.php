@@ -30,7 +30,7 @@
                 <iframe 
                     src="{{ $pdfData }}" 
                     class="w-full h-full border-none block"
-                    style="display: block; width: %; height: 100%;"
+                    style="display: block; width: 100%; height: 100%;"
                     title="Stamping Certificate">
                 </iframe>
             </div>

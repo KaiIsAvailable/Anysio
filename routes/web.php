@@ -58,6 +58,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/notificationRoute.php';
         require __DIR__.'/invoiceRoute.php';
         require __DIR__.'/paymentRoute.php';
+        require __DIR__.'/feeTypeRoute.php';
 
         // --- 只有管理员 (owner-admin) 权限能进的路由 ---
         Route::middleware('can:owner-admin')->group(function () {

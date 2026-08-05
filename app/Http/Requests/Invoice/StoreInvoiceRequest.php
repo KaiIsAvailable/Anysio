@@ -12,8 +12,8 @@ class StoreInvoiceRequest extends FormRequest
             'due_date'            => ['required', 'date', 'after_or_equal:period'],
             'remarks'             => ['nullable', 'string', 'max:500'],
             'items'               => ['required', 'array', 'min:1'],
-            'items.*.fee_type_id' => ['nullable', 'ulid', 'exists:fee_types,id'],
-            'items.*.description' => ['required', 'string', 'max:255'],
+            'items.*.fee_type_id' => ['required', 'ulid', 'exists:fee_types,id'],
+            'items.*.description' => ['nullable', 'string', 'max:255'],
             'items.*.amount'      => ['required', 'numeric', 'min:0.01'],
         ];
     }

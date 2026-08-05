@@ -34,14 +34,6 @@ class InvoiceController extends Controller
         return view('invoices.show', compact('lease', 'invoice'));
     }
 
-    public function store(StoreInvoiceRequest $request, Lease $lease)
-    {
-        Gate::authorize('owner-admin', $lease);
-        $invoice = $this->invoiceService->createManualInvoice($lease, $request->validated());
-        return redirect()->route('leases.invoices.show', [$lease, $invoice])
-                         ->with('success', "Invoice {$invoice->invoice_no} created.");
-    }
-
     public function recordPayment(RecordPaymentRequest $request, Invoice $invoice)
     {
         Gate::authorize('owner-admin', $invoice->lease);
@@ -56,12 +48,20 @@ class InvoiceController extends Controller
         return back()->with('success', 'Invoice voided.');
     }
 
-    public function generateInvoice(Lease $lease)
+    public function storeManualInvoice(StoreInvoiceRequest $request, Lease $lease)
     {
         Gate::authorize('owner-admin', $lease);
-        $period = $this->invoiceService->nextBillingPeriod($lease);
-        abort_unless($period !== null, 422, 'All billing periods already generated.');
-        $invoice = $this->invoiceService->createInvoice($lease, $period);
-        return back()->with('success', "Invoice {$invoice->invoice_no} for {$period->format('M Y')} generated.");
+        $invoice = $this->invoiceService->createManualInvoice($lease, $request->validated());
+        
+        if ($request->expectsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => "Invoice {$invoice->invoice_no} created.",
+                'invoice' => $invoice
+            ]);
+        }
+
+        return redirect()->route('leases.invoices.show', [$lease, $invoice])
+                        ->with('success', "Invoice {$invoice->invoice_no} created.");
     }
 }

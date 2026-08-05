@@ -489,6 +489,10 @@ class LeaseController extends Controller
         $leaseHistory = $leaseHistory->reverse();
 
         $historyJson = $leaseHistory->keyBy('id')->map(function ($item) {
+
+            $chargesSum = $item->charges->sum('amount');
+            $totalRentPrice = $item->rent_price + $chargesSum;
+
             return [
                 'status' => $item->status,
                 'checked_out_at' => $item->checked_out_at ? $item->checked_out_at_formatted : null,
@@ -496,14 +500,14 @@ class LeaseController extends Controller
                 'start_date' => $item->start_date_formatted ?? null,
                 'end_date' => $item->end_date_formatted ?? null,
                 'term_type' => strtoupper($item->term_type) ?? 'N/A',
-                'rent_price' => number_format($item->rent_price, 2),
-                'deposit_mode' => strtoupper($item->deposit_mode) ?? 'SECURITY',
-                'security_deposit' => $item->security_deposit > 0
-                    ? number_format($item->security_deposit, 2)
-                    : null,
-                'utilities_deposit' => $item->utilities_deposit > 0
-                    ? number_format($item->utilities_deposit, 2)
-                    : null,
+                'total_rent_price' => number_format($totalRentPrice / 100, 2),
+                'charges' => $item->charges->map(function ($charge) {
+                    return [
+                        'id' => $charge->id,
+                        'description' => $charge->description,
+                        'amount' => number_format($charge->amount / 100, 2),
+                    ];
+                }),
                 'edit_url' => route('admin.leases.edit', $item->id),
                 'stamping_status' => (bool) $item->stamping_status,
                 'stamping_cert_path' => $item->stamping_cert_path,
@@ -511,7 +515,7 @@ class LeaseController extends Controller
                 'stamped_at' => $item->stamped_at ? $item->stamped_at_formatted : null,
                 'can_stamp' => in_array($item->status, ['New', 'Renew']),
                 'upload_url' => route('admin.leases.upload-stamping', $item->id),
-                'view_url' => route('admin.leases.cert-file', $item->id),
+                'view_url' => route('admin.leases.view-cert', $item->id),
                 'agreement' => [
                     'title' => $item->agreement?->title ?? 'Agreement',
                     'content' => $item->agreement?->content ?? '',
@@ -534,13 +538,16 @@ class LeaseController extends Controller
                 'rent_mode' => strtoupper($item->term_type ?? 'N/A'),
                 'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
                 'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
-
-                // This now works because we're inside the controller
-                'can_generate' => $this->invoiceService->nextBillingPeriod($item) !== null,
             ];
         });
 
-        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'rentInvoices', 'otherInvoices', 'historyJson'));
+        $feeTypes = FeeType::where('user_id', Auth::id())
+            ->where('category', 'invoice')
+            ->where('is_active', true)
+            ->where('is_system', false)
+            ->get();
+
+        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'rentInvoices', 'otherInvoices', 'historyJson', 'feeTypes'));
     }
 
     public function edit()
@@ -608,13 +615,17 @@ class LeaseController extends Controller
         }
     }
 
+    // Returns the Blade view wrapper with the header and iframe
     public function viewCert(Lease $lease)
     {
         if (empty($lease->stamping_cert_path)) {
             abort(404, 'No certificate path record.');
         }
 
-        return view('adminSide.leases.view-cert', compact('lease'));
+        // Pass the stream route URL to the blade so the iframe can load it
+        $pdfData = route('admin.leases.cert-file', $lease->id);
+
+        return view('adminSide.leases.view-cert', compact('lease', 'pdfData'));
     }
 
     public function showCertFile(Lease $lease, FileService $fileService)

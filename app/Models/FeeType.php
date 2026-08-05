@@ -18,12 +18,13 @@ class FeeType extends Model
         'user_id',
         'name',
         'category',
+        'is_system',
         'is_active',
     ];
 
     protected $casts = [
         'category' => FeeTypeCategory::class,
-        'can_edit' => 'boolean',
+        'is_system' => 'boolean',
         'is_active' => 'boolean',
     ];
 

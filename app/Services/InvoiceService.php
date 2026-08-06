@@ -156,6 +156,72 @@ class InvoiceService
     }
 
     /**
+     * 🌟 自動為新租約 (New/Renew) 產生第一期帳單，並自動關聯 Active 的 Invoice Template
+     */
+    public function createInitialInvoiceForLease(Lease $lease, User $currentUser): ?Invoice
+    {
+        return DB::transaction(function () use ($lease, $currentUser) {
+            // 1. 抓取這張租約建立好的所有 Charges
+            $charges = $lease->charges()->with('feeType')->get();
+            
+            if ($charges->isEmpty()) {
+                return null;
+            }
+
+            // 🌟 2. 自動搜尋該房東名下啟用的 Invoice Template
+            $template = DocumentTemplate::where('user_id', $currentUser->id)
+                ->where('category', 'invoice')
+                ->where('status', 'active')
+                ->first();
+
+            // 3. 整理明細與計算總額
+            $totalCents = 0;
+            $items = [];
+
+            foreach ($charges as $charge) {
+                $items[] = [
+                    'fee_type'     => $charge->feeType,
+                    'amount_cents' => $charge->amount,
+                    'description'  => $charge->description,
+                ];
+                $totalCents += $charge->amount;
+            }
+
+            if ($totalCents <= 0) {
+                return null;
+            }
+
+            // 4. 產生編號與日期
+            $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
+            $dueDate = $lease->start_date ?? now()->toDateString();
+            $periodDate = Carbon::parse($lease->start_date ?? now())->startOfMonth()->toDateString();
+
+            // 5. 建立 Invoice，自動填入 document_template_id
+            $invoice = Invoice::create([
+                'user_id'              => $currentUser->id,
+                'billable_type'        => User::class,
+                'billable_id'          => $currentUser->id,
+                'lease_id'             => $lease->id,
+                'document_template_id' => $template?->id, // 🌟 自動綁定抓到的 Template ID
+                'invoice_no'           => $invoiceNo,
+                'type'                 => 'rent',
+                'period'               => $periodDate,
+                'due_date'             => $dueDate,
+                'total_amount'         => $totalCents,
+                'amount_paid'          => 0,
+                'amount_balance'       => $totalCents,
+                'status'               => 'unpaid',
+                'remarks'              => 'Initial Invoice for Lease (Includes Deposits & First Rent)',
+            ]);
+
+            // 6. 寫入明細
+            $this->saveInvoiceItems($invoice, $items);
+
+            return $invoice->load('items.feeType', 'documentTemplate');
+        });
+    }
+
+    /**
      * Persist validated items to the invoice relationship.
      */
     private function saveInvoiceItems(Invoice $invoice, array $items): void

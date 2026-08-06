@@ -4,10 +4,13 @@
         x-data="{ 
             activeId: '{{ old('active_id', $lease->id) }}',
             source: {{ $historyJson->isNotEmpty() ? $historyJson->toJson() : '{}' }},
+            
+            // --- 新增：初始化 loading 状态 ---
             loading: false, 
+
             openUpload: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }},
             shake: {{ $errors->any() ? 'true' : 'false' }},
-
+            
             get activeLease() { 
                 return (this.source && this.activeId) ? (this.source[this.activeId] || {}) : {} 
             },
@@ -15,7 +18,7 @@
             openPayment: false, 
             shakePayment: false,
             openPreview: false, 
-            paymentData: { id: '', invoiceNo: '', totalAmount: 0, invoiceItems: [], actionUrl: '' },
+            paymentData: { id: '', invoice_no: '', amount_due: 0, actionUrl: '' },
 
             openManual: false,
             manualActionUrl: '',
@@ -23,8 +26,55 @@
             getManualInvoiceUrl() {
                 if (!this.activeId) return '#';
                 return `{{ route('admin.invoices.store-manual', ':lease') }}`.replace(':lease', this.activeId);
+            },
+
+            refreshTable() {
+                if (!this.activeId || this.loading) return; // 防止重复点击
+                
+                // --- 修改：开始加载 ---
+                this.loading = true;
+                console.log('Fetching data for:', this.activeId);
+
+                const url = `{{ url('/') }}/admin/leases/${this.activeId}/refresh-payments`;
+
+                fetch(url, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                })
+                .then(response => {
+                    if (!response.ok) throw new Error('Status: ' + response.status);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('--- API Response Data ---');
+                    console.log('Full Data:', data);
+                    console.log('Can Generate Status:', data.can_generate);
+                    console.log('-------------------------');
+                    const rentEl = document.getElementById('rent-payments-container');
+                    const otherEl = document.getElementById('other-payments-container');
+                    if (rentEl) rentEl.innerHTML = data.rentHtml;
+                    if (otherEl) otherEl.innerHTML = data.otherHtml;
+                    if (this.activeLease) {
+                        this.activeLease.can_generate = data.can_generate;
+                    }
+                })
+                .catch(e => {
+                    console.error('Table refresh failed:', e);
+                })
+                .finally(() => {
+                    // --- 修改：无论成功或失败，停止加载 ---
+                    this.loading = false; 
+                });
+            },
+
+            init() {
+                this.$watch('activeId', (newVal) => {
+                    if (newVal) this.refreshTable();
+                });
             }
-        }">
+        }"
+        @click.stop
+        @open-payment.window="paymentData = $event.detail; openPayment = true;"
+        @open-manual-modal.window="openManual = true; manualActionUrl = $event.detail.action;">
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <a href="{{ route('admin.leases.index') }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center transition-colors">
@@ -274,10 +324,14 @@
                     <div class="flex items-center justify-between">
                         <h3 class="text-lg font-bold text-slate-800">Payment Overview</h3>
                         <div class="flex items-center gap-2">
+                            {{-- 🌟 修改點 1：按鈕名稱和圖標更新 --}}
                             <button type="button"
                                 @click="$dispatch('open-manual-modal', { action: getManualInvoiceUrl() })"
                                 class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
-                                Generate Invoice
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                Create Manual Invoice
                             </button>
 
                             <x-modals.manual-invoice-modal :feeTypes="$feeTypes" />
@@ -295,7 +349,7 @@
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice No</th>
-                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Template ID</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Template</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Due Date</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount Details</th>
@@ -306,22 +360,38 @@
                                     </tr>
                                 </thead>
                                 <tbody id="other-payments-container" class="bg-white divide-y divide-gray-200">
-                                    <!-- Loop through active lease's invoices -->
                                     <template x-for="invoice in (activeLease.invoices || [])" :key="invoice.id">
                                         <tr class="hover:bg-gray-50 transition-colors">
-                                            <!-- Invoice No -->
                                             <td class="px-4 py-4 whitespace-nowrap text-sm font-bold text-indigo-600" x-text="invoice.invoice_no"></td>
 
-                                            <!-- Document Template ID -->
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600" x-text="invoice.document_template_id"></td>
+                                            {{-- 🌟 修改點 2：Template ID 變成可點擊的預覽按鈕 --}}
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                                                <template x-if="invoice.document_template_id !== '—' && invoice.template_title">
+                                                    <button type="button" 
+                                                        class="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded-md border border-indigo-200 transition-all"
+                                                        @click="
+                                                            $dispatch('open-preview-modal', { 
+                                                                title: 'Invoice Template: ' + invoice.template_title, 
+                                                                content: invoice.template_html 
+                                                            });
+                                                            document.body.style.overflow = 'hidden';
+                                                        ">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                        <span x-text="invoice.template_title"></span>
+                                                    </button>
+                                                </template>
+                                                <template x-if="invoice.document_template_id === '—' || !invoice.template_title">
+                                                    <span class="text-xs text-gray-400 italic">- None -</span>
+                                                </template>
+                                            </td>
 
-                                            <!-- Period -->
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900" x-text="invoice.period"></td>
 
-                                            <!-- Due Date -->
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600" x-text="invoice.due_date"></td>
 
-                                            <!-- Combined Amount Details Column -->
                                             <td class="px-4 py-4 whitespace-nowrap text-sm">
                                                 <div class="space-y-1">
                                                     <div class="text-gray-900 font-semibold">
@@ -336,7 +406,6 @@
                                                 </div>
                                             </td>
 
-                                            <!-- Invoice Items -->
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                                 <template x-if="invoice.invoice_items && invoice.invoice_items.length > 0">
                                                     <div class="space-y-1">
@@ -353,7 +422,6 @@
                                                 </template>
                                             </td>
 
-                                            <!-- Status Badge -->
                                             <td class="px-4 py-4 whitespace-nowrap text-sm">
                                                 <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase"
                                                     :class="{
@@ -366,10 +434,8 @@
                                                 </span>
                                             </td>
 
-                                            <!-- Remarks -->
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-500 italic max-w-xs truncate" x-text="invoice.remarks"></td>
 
-                                            <!-- Actions -->
                                             <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
                                                 <div class="flex justify-center items-center gap-2">
                                                     <template x-if="invoice.status === 'unpaid'">
@@ -382,7 +448,6 @@
                                                                 actionUrl: `/admin/invoices/${invoice.id}`
                                                             })"
                                                             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 rounded-lg transition-all shadow-sm">
-                                                            <!-- Payment / Credit Card Icon -->
                                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
                                                             </svg>
@@ -396,7 +461,6 @@
 
                                     <x-modals.payment-modal />
 
-                                    <!-- Empty State -->
                                     <template x-if="!activeLease.invoices || activeLease.invoices.length === 0">
                                         <tr>
                                             <td colspan="10" class="px-6 py-12 text-center text-sm text-gray-500 italic">No invoices found for this lease.</td>

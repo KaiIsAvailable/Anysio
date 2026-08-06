@@ -178,6 +178,14 @@ class Invoice extends Model
         return $q->orderByDesc('period');
     }
 
+    /**
+     * 關聯到發票所使用的 Document Template
+     */
+    public function documentTemplate()
+    {
+        return $this->belongsTo(DocumentTemplate::class, 'document_template_id');
+    }
+    
     // -------------------------------------------------------------------------
     // Computed Attributes — modern Attribute::make() style
     // -------------------------------------------------------------------------

@@ -162,15 +162,22 @@ class LeaseController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
+        // ✅ 強制加上 ->select('properties.*')，防止 owner_id 遺失！
         $properties = $this->getAuthorizedProperties()
+            ->select('properties.*') 
+            ->with(['owner.owner'])
             ->where('status', 'Vacant')
             ->get();
 
         $units = $this->getAuthorizedUnits()
+            ->select('units.*') // ✅ 強制撈出 unit 的所有欄位
+            ->with(['owner.owner']) 
             ->where('status', 'Vacant')
             ->get();
 
         $rooms = $this->getAuthorizedRooms()
+            ->select('rooms.*') // ✅ 強制撈出 room 的所有欄位
+            ->with(['unit.owner.owner', 'owner.owner']) 
             ->where('status', 'Vacant')
             ->get();
 

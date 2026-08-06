@@ -307,7 +307,6 @@
             'content' => $t->html_template
         ])->keyBy('id');
 
-        // 🌟 修正點 1：加上 ?-> 確保多層關聯絕對不會報錯，並補上 owner_id
         $jsTenants = $tenants->map(fn($t) => [
             'id' => (string) $t->id,
             'name' => $t->user?->name ?? 'N/A',
@@ -688,7 +687,6 @@
 
         // ==========================================
         // 🌟 4. 暴力且絕對有效的 Scroll 解鎖器
-        // 只要你在頁面上點擊（例如點擊關閉 X 按鈕或背景），0.15 秒後檢查 Modal，隱藏了就解鎖捲軸！
         // ==========================================
         document.addEventListener('click', function(e) {
             setTimeout(() => {
@@ -741,7 +739,7 @@
                 let content = templateData.content;
                 const title = templateData.title;
 
-                // 🌟 修正點 2：補上 {owner_id} 在這裡，保證不漏接！
+                // 🌟 新增：全面支援所有押金與管理費變數
                 const replacements = {
                     '{tenant_name}': 'N/A',
                     '{tenant_ic}': 'N/A',
@@ -755,7 +753,12 @@
                     '{end_date}': 'N/A',
                     '{check_out_date}': 'N/A',
                     '{end_agreement_date}': 'N/A',
-                    '{rent_price}': '0.00'
+                    '{rent_price}': '0.00',
+                    '{security_deposit}': '0.00',
+                    '{utilities_deposit}': '0.00',
+                    '{combined_deposit}': '0.00',
+                    '{total_deposit}': '0.00',
+                    '{management_fee}': '0.00'
                 };
 
                 const sd = document.getElementById('start-date');
@@ -775,6 +778,52 @@
                     replacements['{rent_price}'] = firstAmountInput.value;
                 }
 
+                // 🌟 核心計算邏輯：自動分類並加總所有費用
+                let securitySum = 0;
+                let utilitiesSum = 0;
+                let combinedSum = 0;
+                let totalDepositSum = 0;
+                let managementSum = 0;
+
+                document.querySelectorAll('.charge-row').forEach(row => {
+                    const select = row.querySelector('select');
+                    const amountInput = row.querySelector('input[name$="[amount]"]');
+                    
+                    if (select && amountInput && amountInput.value) {
+                        const opt = select.options[select.selectedIndex];
+                        if(opt) {
+                            const text = opt.text.toLowerCase(); 
+                            const amount = parseFloat(amountInput.value || 0);
+
+                            // 如果選項包含 (deposit)
+                            if (text.includes('(deposit)')) {
+                                totalDepositSum += amount;
+                                
+                                if (text.includes('security and utilities')) {
+                                    combinedSum += amount;
+                                } else if (text.includes('security')) {
+                                    securitySum += amount;
+                                } else if (text.includes('utilities')) {
+                                    utilitiesSum += amount;
+                                }
+                            }
+
+                            // 如果選項包含 (management)
+                            if (text.includes('(management)')) {
+                                managementSum += amount;
+                            }
+                        }
+                    }
+                });
+
+                // 將計算結果寫入 replacements
+                replacements['{security_deposit}'] = securitySum.toFixed(2);
+                replacements['{utilities_deposit}'] = utilitiesSum.toFixed(2);
+                replacements['{combined_deposit}'] = combinedSum.toFixed(2);
+                replacements['{total_deposit}'] = totalDepositSum.toFixed(2);
+                replacements['{management_fee}'] = managementSum.toFixed(2);
+
+                // --- 以下為基本屬性與關聯替換保持原樣 ---
                 const statusSelect = document.getElementById('lease-status');
                 const isRenew = statusSelect && statusSelect.value !== 'New';
 
@@ -827,7 +876,7 @@
                                 replacements['{property_address}'] = targetData.full_address || 'N/A';
                                 replacements['{owner_name}'] = targetData.owner_name || 'N/A';
                                 replacements['{owner_ic}'] = targetData.owner_ic || 'N/A';
-                                replacements['{owner_id}'] = targetData.owner_id || 'N/A'; // 🌟 補上從 JSON 拿 owner_id
+                                replacements['{owner_id}'] = targetData.owner_id || 'N/A';
                             }
                         }
                     }
@@ -839,15 +888,11 @@
                                 : 'N/A';
                     
                     const coreName = placeholder.replace(/[{}]/g, '').trim();
-                    
-                    // 🌟 修改：我們不用帶有靛藍色的 class，改用普通加粗字體
                     const safeVal = `<strong>${val}</strong>`;
 
-                    // 武器 A：連同 GrapesJS 產生的帶有 id 顏色的外層 <span data-variable="..."> 整個吞掉替換！
                     const dataVarRegex = new RegExp(`<[^>]+data-variable=["']${coreName}["'][^>]*>[\\s\\S]*?<\\/\\w+>`, 'gi');
                     content = content.replace(dataVarRegex, safeVal);
 
-                    // 武器 B：對付純文字格式的
                     const safeCoreName = coreName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                     const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${safeCoreName}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
                     content = content.replace(textRegex, safeVal);
@@ -870,7 +915,6 @@
                        if (modalTitle) modalTitle.innerText = "Preview: " + result.title;
                         
                         if (modalContent) {
-                            // 🌟 注入還原 CSS：抵抗 Tailwind 的樣式重置，拯救標題與清單
                             const resetStyles = `
                                 <style>
                                     .grapes-preview-box h1 { font-size: 2.2em !important; font-weight: bold !important; margin: 0.67em 0 !important; line-height: 1.2 !important; }
@@ -884,7 +928,6 @@
                                     .grapes-preview-box hr { margin: 1.5em 0 !important; border-top: 1px solid #ccc !important; }
                                 </style>
                             `;
-                            // 用 grapes-preview-box 把內容包起來
                             modalContent.innerHTML = `<div class="grapes-preview-box">${resetStyles}${result.content}</div>`;
                         }
                         
@@ -893,7 +936,6 @@
                             modal.style.display = 'block'; 
                         }
 
-                        // 鎖死背景捲軸
                         document.body.style.overflow = 'hidden';
                         
                         window.dispatchEvent(new CustomEvent('open-preview-modal', {

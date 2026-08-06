@@ -54,10 +54,10 @@ class Unit extends Model
         return $this->belongsTo(User::class, 'owner_id');
     }
 
-    public function owners(): BelongsTo
-    {
-        return $this->belongsTo(Owners::class, 'owner_id');
-    }
+    //public function owners(): BelongsTo
+    //{
+    //    return $this->belongsTo(Owners::class, 'owner_id');
+    //}
 
     public function roomAssets(): HasMany
     {

@@ -421,35 +421,52 @@ class LeaseController extends Controller
 
     public function show(Request $request, Lease $lease)
     {
-        // 如果是 AJAX 请求 (点击 Progression 切换)
+        // If it's an AJAX request, we want to support fetching invoices 
+        // for ANY lease in the history chain (passed via query parameter, fallback to current route lease)
         if ($request->ajax()) {
-            $targetId = $request->get('lease_id');
-            // 查找特定的 Lease，确保它属于当前链条（安全起见）
-            $targetLease = Lease::findOrFail($targetId);
+            $targetLeaseId = $request->get('lease_id', $lease->id);
+            $targetLease = Lease::findOrFail($targetLeaseId);
 
-            $rentInvoices = $lease->invoices()
-                ->where('type', 'rent')
-                ->where('status', '!=', 'void')
-                ->orderByDesc('period')
-                ->paginate(5, ['*'], 'rent_page')
-                ->onEachSide(1);
-
-            $otherInvoices = $lease->invoices()
-                ->where('type', '!=', 'rent')
-                ->where('status', '!=', 'void')
+            // Fetch paginated invoices for the specific target lease
+            $invoices = $targetLease->invoices()
                 ->latest()
                 ->paginate(5, ['*'], 'other_page')
                 ->onEachSide(1);
 
-            // 返回专门的局部视图
-            return  view('adminSide.tenants.payments.partial_overview', [
-                'lease' => $targetLease,
-                'rentPayments' => $rentInvoices,
-                'otherPayments' => $otherInvoices
-            ])->render();
+            // Map the items for the frontend
+            $formattedInvoices = $invoices->map(function ($invoice) {
+                return [
+                    'id' => $invoice->id,
+                    'invoice_no' => $invoice->invoice_no,
+                    'date' => $invoice->created_at->format('d M Y'),
+                    'payment_type' => ucwords(str_replace('_', ' ', $invoice->payment_type)),
+                    'period_display' => $invoice->period_display,
+                    'amount_paid' => number_format($invoice->amount_paid, 2),
+                    'amount_due' => number_format($invoice->amount_due, 2),
+                    'is_unpaid_zero' => ($invoice->amount_due > $invoice->amount_paid && $invoice->amount_paid == 0),
+                    'status' => strtoupper($invoice->status),
+                    'status_class' => match($invoice->status) {
+                        'paid' => 'bg-green-100 text-green-700 border-green-200',
+                        'approved' => 'bg-blue-100 text-blue-700 border-blue-200',
+                        'unpaid' => 'bg-yellow-100 text-yellow-700 border-yellow-200',
+                        'rejected' => 'bg-red-100 text-red-700 border-red-200',
+                        'void' => 'bg-gray-100 text-gray-500 border-gray-200 line-through',
+                        default => 'bg-gray-100 text-gray-600',
+                    },
+                    'payment_method' => $invoice->payment_method ?? '—',
+                    'transaction_ref' => $invoice->transaction_ref,
+                    'update_url' => route('admin.invoices.update', $invoice->id),
+                    'void_url' => route('admin.invoices.void', $invoice->id),
+                ];
+            });
+
+            return response()->json([
+                'invoices' => $formattedInvoices,
+                'pagination' => (string) $invoices->links()
+            ]);
         }
 
-        // 加载当前租约需要的关联
+        // --- Standard Page Load ---
         $lease->load([
             'tenant.user',
             'utilities',
@@ -464,10 +481,9 @@ class LeaseController extends Controller
         ]);
 
         // --- 开始获取历史链条 ---
-        $leaseHistory = collect([$lease]); // 先把当前的放进去
+        $leaseHistory = collect([$lease]); 
         $current = $lease;
 
-        // 只要有 parent_lease_id，就一直往上找
         while ($current->parent_lease_id) {
             $parent = Lease::with(['tenant.user', 'room'])->find($current->parent_lease_id);
             if ($parent) {
@@ -478,25 +494,15 @@ class LeaseController extends Controller
             }
         }
 
-        $rentInvoices = $lease->invoices()
-            ->where('type', 'rent')
-            ->where('status', '!=', 'void')
-            ->orderByDesc('period')
-            ->paginate(5, ['*'], 'rent_page')
-            ->onEachSide(1);
-
-        $otherInvoices = $lease->invoices()
-            ->where('type', '!=', 'rent')
-            ->where('status', '!=', 'void')
+        // Initial load for the main lease invoices on page render
+        $invoices = $lease->invoices()
             ->latest()
             ->paginate(5, ['*'], 'other_page')
             ->onEachSide(1);
 
-        // 将结果按时间正序排列（从最老的到最新的）
         $leaseHistory = $leaseHistory->reverse();
 
         $historyJson = $leaseHistory->keyBy('id')->map(function ($item) {
-
             $chargesSum = $item->charges->sum('amount');
             $totalRentPrice = $item->rent_price + $chargesSum;
 
@@ -545,6 +551,51 @@ class LeaseController extends Controller
                 'rent_mode' => strtoupper($item->term_type ?? 'N/A'),
                 'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
                 'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
+
+                'invoices' => $item->invoices()->latest()->get()->map(function ($invoice) {
+
+                    $rawPeriod = $invoice->period_display ?? $invoice->period;
+
+                    // Format to m/Y if it's a date/carbon instance or parseable string, otherwise keep raw or show '—'
+                    $formattedPeriod = '—';
+                    if ($rawPeriod) {
+                        try {
+                            $formattedPeriod = \Carbon\Carbon::parse($rawPeriod)->format('m/Y');
+                        } catch (\Exception $e) {
+                            $formattedPeriod = $rawPeriod; // Fallback to raw string if parsing fails
+                        }
+                    }
+
+                    // Map each invoice item to include description and formatted price
+                    $invoiceItems = $invoice->items->map(function ($subItem) {
+                        return [
+                            'description' => $subItem->description ?? 'Item',
+                            'amount' => number_format($subItem->amount / 100 ?? 0, 2),
+                        ];
+                    });
+
+                    // Fallback if no items relationship records exist, but main invoice has a description
+                    if ($invoiceItems->isEmpty() && $invoice->description) {
+                        $invoiceItems->push([
+                            'description' => $invoice->description,
+                            'amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
+                        ]);
+                    }
+
+                    return [
+                        'id' => $invoice->id,
+                        'invoice_no' => $invoice->invoice_no,
+                        'document_template_id' => $invoice->document_template_id ?? '—',
+                        'invoice_items' => $invoiceItems,
+                        'period' => $formattedPeriod,
+                        'due_date' => $invoice->due_date ? $invoice->due_date->format('d M Y') : '—',
+                        'total_amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
+                        'amount_paid' => number_format($invoice->amount_paid / 100 ?? 0, 2),
+                        'amount_balance' => number_format(($invoice->total_amount / 100 ?? 0) - ($invoice->amount_paid ?? 0), 2),
+                        'status' => strtolower($invoice->status ?? 'unpaid'),
+                        'remarks' => $invoice->remarks ?? '—',
+                    ];
+                }),
             ];
         });
 
@@ -554,7 +605,7 @@ class LeaseController extends Controller
             ->where('is_system', false)
             ->get();
 
-        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'rentInvoices', 'otherInvoices', 'historyJson', 'feeTypes'));
+        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'invoices', 'historyJson', 'feeTypes'));
     }
 
     public function edit()
@@ -570,16 +621,6 @@ class LeaseController extends Controller
     public function destroy()
     {
         abort(403);
-    }
-
-    private function toCents($value): int
-    {
-        $sanitized = preg_replace('/[^0-9.]/', '', (string) $value);
-        if ($sanitized === '') {
-            return 0;
-        }
-
-        return (int) round(((float) $sanitized) * 100);
     }
 
     public function getDetailsJson(Lease $lease)
@@ -638,42 +679,5 @@ class LeaseController extends Controller
     public function showCertFile(Lease $lease, FileService $fileService)
     {
         return $fileService->getStreamResponse($lease->stamping_cert_path);
-    }
-    
-    public function getPaymentsTableOnly(Lease $lease)
-    {
-        $payments = $lease->payments()->latest()->get();
-
-        return view('your.table.path', [
-            'payments' => $payments,
-            'emptyMessage' => 'No records for this lease.'
-        ])->render();
-    }
-
-    public function refreshPaymentsTable(Lease $lease)
-    {
-        $canGenerate = !is_null(PaymentsController::calculateNextPendingPeriod($lease));
-        $allPayments = $lease->payments()
-            ->where('status', '!=', 'void')
-            ->latest()->get();
-
-        $rentPayments = $allPayments->filter(fn($p) => in_array($p->payment_type, ['rent']));
-        $otherPayments = $allPayments->filter(fn($p) => !in_array($p->payment_type, ['rent']));
-
-        $rentHtml = view('adminSide.tenants.payments.paymentTable', [
-            'payments' => $rentPayments,
-            'emptyMessage' => 'No outstanding rent found.'
-        ])->render();
-
-        $otherHtml = view('adminSide.tenants.payments.paymentTable', [
-            'payments' => $otherPayments,
-            'emptyMessage' => 'No miscellaneous records found.'
-        ])->render();
-
-        return response()->json([
-            'rentHtml' => $rentHtml,
-            'otherHtml' => $otherHtml,
-            'can_generate' => $canGenerate
-        ]);
     }
 }

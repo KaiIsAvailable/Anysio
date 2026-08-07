@@ -48,7 +48,7 @@
                 </a>
                 @foreach($availableCategories as $key => $label)
                     <a href="{{ route('admin.document-templates.index', ['category' => $key, 'search' => request('search')]) }}"
-                       class="px-4 py-2 text-sm font-semibold rounded-lg transition-colors {{ $categoryFilter === $key ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100' }}">
+                        class="px-4 py-2 text-sm font-semibold rounded-lg transition-colors {{ $categoryFilter === $key ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:text-gray-700 hover:bg-gray-100' }}">
                         {{ $label }}
                     </a>
                 @endforeach
@@ -63,6 +63,7 @@
                                 currentVersion: '{{ $agreement->version }}',
                                 currentContent: {{ json_encode($agreement->html_template ?? '') }},
                                 currentId: '{{ $agreement->id }}',
+                                currentStatus: '{{ $agreement->status }}', /* 🌟 1. 這裡新增 currentStatus 追蹤目前預覽的狀態 */
                                 statusUpdating: false
                             }"
                     class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden transition-all hover:shadow-md">
@@ -96,18 +97,20 @@
                                 <div class="flex items-center gap-2 mt-2 flex-wrap">
                                     <span class="text-xs text-gray-400 uppercase font-bold tracking-widest">Version:</span>
 
-                                    <button @click.stop="expanded = true; currentVersion = '{{ $agreement->version }}'; currentContent = {{ json_encode($agreement->html_template ?? '') }}; currentId = '{{ $agreement->id }}';"
+                                    {{-- 🌟 2. 主卡片按鈕：點擊時把 currentStatus 也更新 --}}
+                                    <button @click.stop="expanded = true; currentVersion = '{{ $agreement->version }}'; currentContent = {{ json_encode($agreement->html_template ?? '') }}; currentId = '{{ $agreement->id }}'; currentStatus = '{{ $agreement->status }}';"
                                         :class="currentVersion === '{{ $agreement->version }}' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
                                         class="px-2 py-0.5 rounded text-[10px] font-mono transition-colors">
-                                        v{{ $agreement->version }} (Active)
+                                        v{{ $agreement->version }} {{ $agreement->status === 'active' ? '(Active)' : '' }}
                                     </button>
 
+                                    {{-- 🌟 3. 歷史版本按鈕：點擊時把 currentStatus 也更新 --}}
                                     @foreach($agreement->full_history as $history)
                                     @if($history->id !== $agreement->id)
-                                    <button @click.stop="expanded = true; currentVersion = '{{ $history->version }}'; currentContent = {{ json_encode($history->html_template ?? '') }}; currentId = '{{ $history->id }}';"
+                                    <button @click.stop="expanded = true; currentVersion = '{{ $history->version }}'; currentContent = {{ json_encode($history->html_template ?? '') }}; currentId = '{{ $history->id }}'; currentStatus = '{{ $history->status }}';"
                                         :class="currentVersion === '{{ $history->version }}' ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'"
                                         class="px-2 py-0.5 rounded text-[10px] font-mono transition-colors">
-                                        v{{ $history->version }}
+                                        v{{ $history->version }} {{ $history->status === 'active' ? '(Active)' : '' }}
                                     </button>
                                     @endif
                                     @endforeach
@@ -149,27 +152,41 @@
 
                         <div class="flex justify-between mb-4 border-b pb-2">
                             <span class="text-sm font-bold text-indigo-600">Showing Content: Version <span x-text="currentVersion"></span></span>
+                            
+                            {{-- 🌟 4. 安全乾淨地使用 currentStatus 判斷，完全避開 HTML 引號衝突 --}}
                             <div class="flex items-center gap-1.5 mt-2">
+                                
                                 <span class="text-xs text-gray-400 italic">Status:</span>
 
-                                {{-- 💡 重点：隐藏的表单，用于标准提交 --}}
+                                {{-- 隱藏的表單，用於標準提交 --}}
                                 <form x-ref="activateForm" method="POST" :action="'{{ route('admin.document-templates.activate', 'PLACEHOLDER') }}'.replace('PLACEHOLDER', currentId)" class="hidden">
                                     @csrf
                                 </form>
 
-                                <label class="inline-flex items-center cursor-pointer group">
-                                    {{-- 💡 重点：Checkbox 修改状态后，直接触发提交上面的隐藏表单 --}}
-                                    <input type="checkbox"
-                                        class="form-checkbox h-3.5 w-3.5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 transition duration-150 ease-in-out cursor-pointer disabled:opacity-50"
-                                        :checked="currentVersion === '{{ $agreement->version }}' || statusUpdating"
-                                        :disabled="currentVersion === '{{ $agreement->version }}' || statusUpdating"
-                                        @change="statusUpdating = true; $refs.activateForm.submit();">
+                                {{-- 🌟 情況 A：已經是 Active 版本 -> 顯示綠色徽章，隱藏 Checkbox --}}
+                                <template x-if="currentStatus === 'active'">
+                                    <div class="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-bold tracking-wide border border-emerald-200">
+                                        <svg class="w-3.5 h-3.5 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                        </svg>
+                                        CURRENTLY ACTIVE
+                                    </div>
+                                </template>
 
-                                    <span class="ml-1.5 text-[11px] font-medium"
-                                        :class="currentVersion === '{{ $agreement->version }}' ? 'text-green-600' : 'text-gray-400'"
-                                        x-text="statusUpdating ? 'Updating...' : (currentVersion === '{{ $agreement->version }}' ? 'Active' : 'Set as Active')">
-                                    </span>
-                                </label>
+                                {{-- 🌟 情況 B：不是 Active 版本 -> 顯示 Checkbox 讓用戶打勾啟用 --}}
+                                <template x-if="currentStatus !== 'active'">
+                                    <label class="inline-flex items-center cursor-pointer group hover:bg-gray-50 px-2 py-1 rounded transition-colors">
+                                        <input type="checkbox"
+                                            class="form-checkbox h-3.5 w-3.5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 transition duration-150 ease-in-out cursor-pointer disabled:opacity-50"
+                                            :disabled="statusUpdating"
+                                            @change="statusUpdating = true; $refs.activateForm.submit();">
+
+                                        <span class="ml-1.5 text-[11px] font-medium text-gray-500 group-hover:text-indigo-600 transition-colors"
+                                            x-text="statusUpdating ? 'Updating...' : 'Set as Active'">
+                                        </span>
+                                    </label>
+                                </template>
+
                             </div>
                         </div>
 

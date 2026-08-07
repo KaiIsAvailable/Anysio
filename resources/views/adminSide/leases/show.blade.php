@@ -120,14 +120,14 @@
                                     <p class="text-xs font-bold text-slate-900">
                                         {{ $history->start_date_formatted ?? '-' }} - {{ $history->end_date_formatted ?? '-' }}
                                         @if ($history->agreement_ended_at)
-                                        <p class="text-xs font-bold text-slate-900">
-                                            ({{ $history->agreement_ended_at_formatted ?? '-' }})
-                                        </p>
-                                        @elseif ($history->checked_out_at)
-                                        <p class="text-xs font-bold text-slate-900">
-                                            ({{ $history->checked_out_at_formatted ?? '-' }})
-                                        </p>
-                                        @endif
+                                    <p class="text-xs font-bold text-slate-900">
+                                        ({{ $history->agreement_ended_at_formatted ?? '-' }})
+                                    </p>
+                                    @elseif ($history->checked_out_at)
+                                    <p class="text-xs font-bold text-slate-900">
+                                        ({{ $history->checked_out_at_formatted ?? '-' }})
+                                    </p>
+                                    @endif
                                     </p>
                                 </div>
                             </div>
@@ -284,7 +284,7 @@
                         </div>
                         <div class="p-4 bg-gray-50 rounded-lg md:col-span-1">
                             <p class="text-xs text-gray-500 uppercase font-bold">Charges</p>
-                            
+
                             <div class="text-lg font-semibold text-indigo-600 mt-0.5">
                                 RM <span x-text="activeLease.total_rent_price"></span>
                             </div>
@@ -320,7 +320,7 @@
 
             <div class="mt-8">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-6 space-y-6">
-                    
+
                     <div class="flex items-center justify-between">
                         <h3 class="text-lg font-bold text-slate-800">Payment Overview</h3>
                         <div class="flex items-center gap-2">
@@ -367,15 +367,56 @@
                                             {{-- 🌟 修改點 2：Template ID 變成可點擊的預覽按鈕 --}}
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                                                 <template x-if="invoice.document_template_id !== '—' && invoice.template_title">
-                                                    <button type="button" 
+                                                    <button type="button"
                                                         class="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded-md border border-indigo-200 transition-all"
                                                         @click="
-                                                            $dispatch('open-preview-modal', { 
-                                                                title: 'Invoice Template: ' + invoice.template_title, 
-                                                                content: invoice.template_html 
-                                                            });
-                                                            document.body.style.overflow = 'hidden';
-                                                        ">
+        let content = invoice.template_html || '';
+        if (!content) return;
+
+        // 1. 動態生成發票明細表 (Dynamic Items)
+        let dynamicRows = '';
+        if (invoice.invoice_items && invoice.invoice_items.length > 0) {
+            invoice.invoice_items.forEach(item => {
+                dynamicRows += `
+                    <tr style='border-bottom: 1px solid #e2e8f0;'>
+                        <td style='padding: 12px 15px; color: #0f172a;'>${item.description}</td>
+                        <td style='padding: 12px 15px; text-align: center; color: #475569;'>1</td>
+                        <td style='padding: 12px 15px; text-align: right; color: #475569;'>RM ${item.amount}</td>
+                        <td style='padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 500;'>RM ${item.amount}</td>
+                    </tr>
+                `;
+            });
+        } else {
+            dynamicRows = `<tr><td colspan='4' style='padding: 12px 15px; text-align: center; color: #94a3b8; font-style: italic;'>No items billed.</td></tr>`;
+        }
+
+        // 2. 準備要替換的變數表 (確保和 GrapesJS 裡的變數完全一致)
+        // 🌟 加上 @ 符號，防止 Laravel Blade 把它當作 PHP 變數解析
+        const replacements = {
+            '@{{ invoice_number }}': invoice.invoice_no,
+            '@{{ tenant_name }}': activeLease.tenant_name,
+            '@{{ property_address }}': activeLease.property_address,
+            '@{{ owner_name }}': activeLease.owner_name,
+            '@{{ issue_date }}': invoice.period,
+            '@{{ due_date }}': invoice.due_date,
+            '@{{ dynamic_invoice_items }}': dynamicRows,
+            '@{{ total_amount }}': invoice.total_amount,
+            '@{{ rent_price }}': invoice.total_amount
+        };
+
+        // 3. 執行替換 (把原本的  換成帶有藍色字體的真實數據)
+        Object.keys(replacements).forEach(key => {
+            let val = replacements[key] || 'N/A';
+            content = content.split(key).join(`<span class='text-inherit font-semibold text-indigo-600'>${val}</span>`);
+        });
+
+        // 🌟 4. 呼叫正確的 HTML 預覽 Modal (修正事件名稱為 open-lease-preview)
+        $dispatch('open-lease-preview', { 
+            title: 'Invoice: ' + invoice.invoice_no, 
+            content: content 
+        });
+        document.body.style.overflow = 'hidden';
+    ">
                                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -439,7 +480,7 @@
                                             <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
                                                 <div class="flex justify-center items-center gap-2">
                                                     <template x-if="invoice.status === 'unpaid'">
-                                                        <button type="button" 
+                                                        <button type="button"
                                                             @click="$dispatch('open-payment', {
                                                                 id: invoice.id, 
                                                                 invoiceNo: invoice.invoice_no, 
@@ -471,9 +512,9 @@
                         </div>
 
                         @if($invoices->hasPages())
-                            <div class="mt-4">
-                                {{ $invoices->appends(['rent_page' => request('rent_page')])->links() }}
-                            </div>
+                        <div class="mt-4">
+                            {{ $invoices->appends(['rent_page' => request('rent_page')])->links() }}
+                        </div>
                         @endif
                     </div>
 
@@ -490,7 +531,7 @@
                 setTimeout(() => {
                     const modal = document.getElementById('preview-modal');
                     if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none') {
-                        document.body.style.overflow = ''; 
+                        document.body.style.overflow = '';
                     }
                 }, 50);
             });
@@ -501,15 +542,15 @@
                     setTimeout(() => {
                         const modal = document.getElementById('preview-modal');
                         if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none') {
-                            document.body.style.overflow = ''; 
+                            document.body.style.overflow = '';
                         } else {
-                            if(modal) modal.classList.add('hidden'); 
-                            document.body.style.overflow = ''; 
+                            if (modal) modal.classList.add('hidden');
+                            document.body.style.overflow = '';
                         }
                     }, 50);
                 }
             });
-            
+
             // 方法 C：DOM 突变观察者
             const modalEl = document.getElementById('preview-modal');
             if (modalEl) {
@@ -517,12 +558,14 @@
                     mutations.forEach(function(mutation) {
                         if (mutation.attributeName === 'class' || mutation.attributeName === 'style') {
                             if (modalEl.classList.contains('hidden') || getComputedStyle(modalEl).display === 'none') {
-                                document.body.style.overflow = ''; 
+                                document.body.style.overflow = '';
                             }
                         }
                     });
                 });
-                observer.observe(modalEl, { attributes: true });
+                observer.observe(modalEl, {
+                    attributes: true
+                });
             }
         });
     </script>

@@ -25,10 +25,16 @@ class DocumentTemplateController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $categoryFilter = $request->input('category'); // 💡 1. 接收分类筛选参数
+        $categoryFilter = $request->input('category'); 
         
+        // 🌟 核心修復：移除 ->where('status', 'active')
+        // 改成：利用原生 SQL 子查詢，抓取每個「範本家族」中最新建立的那一筆！
         $query = DocumentTemplate::with(['user']) 
-            ->where('status', 'active');
+            ->whereIn('id', function($q) {
+                $q->selectRaw('MAX(id)')
+                  ->from('document_templates')
+                  ->groupByRaw('COALESCE(parent_id, id)');
+            });
 
         // 权限判断逻辑
         $user = Auth::user();
@@ -53,12 +59,12 @@ class DocumentTemplateController extends Controller
             });
         }
 
-        // 💡 2. 应用类别过滤 (如果选了 specific category 且不是 'all')
+        // 💡 应用类别过滤
         if ($categoryFilter && $categoryFilter !== 'all') {
             $query->where('category', $categoryFilter);
         }
 
-        // 💡 3. 使用 appends($request->query()) 确保翻页时不会丢失 category 筛选和 search 参数
+        // 💡 使用 appends($request->query())
         $agreements = $query->latest()->paginate(10)->appends($request->query());
 
         // 獲取本頁所有協議的「始祖 ID」 (Root Parent ID)
@@ -66,7 +72,7 @@ class DocumentTemplateController extends Controller
             return $a->parent_id ?: $a->id;
         })->unique()->toArray();
 
-        // 一次性把這些家族的所有成員（包含始祖 v1.0）全部撈出來，完美解決 N+1 效能問題
+        // 一次性把這些家族的所有成員全部撈出來
         $allHistories = collect();
         if (!empty($rootIds)) {
             $allHistories = DocumentTemplate::whereIn('id', $rootIds)
@@ -75,21 +81,33 @@ class DocumentTemplateController extends Controller
                 ->get();
         }
 
-        // 💡 4. 將資料整理並綁定給前端
+        // 💡 將資料整理並綁定給前端
         $agreements->getCollection()->transform(function ($agreement) use ($allHistories) {
-            // 💡 修正：把 content 改為真實的欄位 html_template
-            $agreement->html_template = preg_replace("/(\r\n|\r|\n){3,}/", "\n\n", $agreement->html_template ?? '');
+            
+            $rootId = $agreement->parent_id ?: $agreement->id;
             
             // 將屬於這個家族的成員（含始祖）過濾出來
-            $rootId = $agreement->parent_id ?: $agreement->id;
-            $agreement->full_history = $allHistories->filter(function ($h) use ($rootId) {
+            $family = $allHistories->filter(function ($h) use ($rootId) {
                 return $h->id == $rootId || $h->parent_id == $rootId;
             })->values();
 
-            return $agreement;
+            // 🌟 核心修復：在家族中尋找是否有 'active' 的版本
+            $activeMember = $family->firstWhere('status', 'active');
+
+            // 🌟 對調邏輯 (Swapping)：如果有 active 版本，強制讓它成為主卡片；沒有的話，維持最新的 $agreement
+            $representative = $activeMember ?: $agreement;
+
+            $representative->html_template = preg_replace("/(\r\n|\r|\n){3,}/", "\n\n", $representative->html_template ?? '');
+            
+            // 把整個家族的歷史塞進去，並確保 Active 版本永遠排在陣列的第一位
+            $representative->full_history = $family->sortBy(function ($h) {
+                return $h->status === 'active' ? 0 : 1;
+            })->values();
+
+            return $representative;
         });
 
-        // 💡 4. 生成当前用户有权限看到的分类 Tabs 列表
+        // 生成当前用户有权限看到的分类 Tabs 列表
         $isAdmin = in_array($user->role, ['admin', 'superadmin', 'super-admin']);
         $availableCategories = [
             'agreement' => 'Agreement',
@@ -110,7 +128,6 @@ class DocumentTemplateController extends Controller
     {
         $user = Auth::user();
 
-        // 权限布尔值判断
         $isOwnerAdmin = $user->role === 'ownerAdmin';
         $isAgentAdmin = $user->role === 'agentAdmin';
         $ownerAdmin = [$user->id, $user->name];
@@ -128,10 +145,26 @@ class DocumentTemplateController extends Controller
             ]);
         }
 
-        // 处理继承/编辑逻辑
         $sourceAgreement = null;
         if ($request->has('from_id')) {
             $sourceAgreement = DocumentTemplate::findOrFail($request->from_id);
+        }
+
+        // 🌟 核心修改：獲取當前所有 active 的模板分布，以供前端做「防呆檢查」
+        // 結構: [ 'user_id_1' => ['invoice', 'agreement'], 'system' => ['invoice'] ]
+        $activeTemplatesList = DocumentTemplate::where('status', 'active')
+            ->select('user_id', 'category')
+            ->get();
+            
+        $activeMap = [];
+        foreach ($activeTemplatesList as $t) {
+            $uid = $t->user_id ?? 'system';
+            if (!isset($activeMap[$uid])) {
+                $activeMap[$uid] = [];
+            }
+            if (!in_array($t->category, $activeMap[$uid])) {
+                $activeMap[$uid][] = $t->category;
+            }
         }
 
         return view('adminSide.setting.document_template.create', compact(
@@ -140,7 +173,8 @@ class DocumentTemplateController extends Controller
             'sourceAgreement',
             'isOwnerAdmin',
             'ownerAdmin',
-            'user'
+            'user',
+            'activeMap' // 傳給前端
         ));
     }
 
@@ -162,29 +196,31 @@ class DocumentTemplateController extends Controller
             ->with('success', 'Document template created successfully.');
     }
 
-    private static function getAvailablePlaceholders()
-    {
-        // 略...保留你原有的变量逻辑
-        return [];
-    }
-
     public function activate(DocumentTemplate $documentTemplate)
     {
         try {
             DB::transaction(function () use ($documentTemplate) {
-                $rootParentId = $documentTemplate->parent_id ?: $documentTemplate->id;
+                
+                // 🌟 核心防呆：全域替換！
+                // 尋找「同一個使用者」且「同一個分類」下的所有 active 範本
+                $query = DocumentTemplate::where('category', $documentTemplate->category)
+                                         ->where('status', 'active');
+                                         
+                // 區分是房東自訂範本，還是系統預設範本
+                if ($documentTemplate->user_id) {
+                    $query->where('user_id', $documentTemplate->user_id);
+                } else {
+                    $query->whereNull('user_id');
+                }
 
-                DocumentTemplate::where(function ($q) use ($rootParentId) {
-                    $q->where('id', $rootParentId)
-                      ->orWhere('parent_id', $rootParentId);
-                })
-                ->update(['status' => 'inactive']);
+                // 將它們全部強制退休 (Inactive)
+                $query->update(['status' => 'inactive']);
 
+                // 最後，將當前點擊的這份範本霸氣登基 (Active)
                 $documentTemplate->update(['status' => 'active']);
             });
 
-            // 💡 成功後直接刷新當前頁面，並帶著 success session
-            return redirect()->back()->with('success', 'Version activated successfully!');
+            return redirect()->back()->with('success', 'Template activated successfully!');
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Status update failed: ' . $e->getMessage());
         }
@@ -237,13 +273,11 @@ class DocumentTemplateController extends Controller
         })->where('version', $validated['version'])->exists();
 
         if ($versionExists) {
-            // 💡 若版本號重複，使用 back()->with('error') 讓系統元件顯示錯誤
             return back()->with('error', 'Version ' . $validated['version'] . ' already exists! Please use a different version number.')->withInput();
         }
 
         $this->documentTemplateService->createNewVersion($documentTemplate, $validated);
 
-        // 💡 完美對接你的 Laravel Component
         return redirect()->route('admin.document-templates.index')
                          ->with('success', 'New template version saved successfully!');
     }

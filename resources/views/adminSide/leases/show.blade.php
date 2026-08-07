@@ -367,13 +367,13 @@
                                             {{-- 🌟 修改點 2：Template ID 變成可點擊的預覽按鈕 --}}
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                                                 <template x-if="invoice.document_template_id !== '—' && invoice.template_title">
-                                                    <button type="button"
-                                                        class="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded-md border border-indigo-200 transition-all"
-                                                        @click="
+                                                    <button type="button" 
+    class="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded-md border border-indigo-200 transition-all"
+    @click="
         let content = invoice.template_html || '';
         if (!content) return;
 
-        // 1. 動態生成發票明細表 (Dynamic Items)
+        // 🌟 1. 動態生成發票明細表的 HTML (<tr>...</tr>)
         let dynamicRows = '';
         if (invoice.invoice_items && invoice.invoice_items.length > 0) {
             invoice.invoice_items.forEach(item => {
@@ -390,8 +390,16 @@
             dynamicRows = `<tr><td colspan='4' style='padding: 12px 15px; text-align: center; color: #94a3b8; font-style: italic;'>No items billed.</td></tr>`;
         }
 
-        // 2. 準備要替換的變數表 (確保和 GrapesJS 裡的變數完全一致)
-        // 🌟 加上 @ 符號，防止 Laravel Blade 把它當作 PHP 變數解析
+        // 🌟 2. 使用原生 DOM 操作來替換 <tbody> 的內容 (最安全的做法！)
+        let tempDiv = document.createElement('div');
+        tempDiv.innerHTML = content;
+        let tbody = tempDiv.querySelector('#dynamic-invoice-tbody');
+        if (tbody) {
+            tbody.innerHTML = dynamicRows; // 成功把動態生成的列塞進去！
+        }
+        content = tempDiv.innerHTML; // 把替換完表格的 HTML 重新拿出來
+
+        // 🌟 3. 一般文字變數替換
         const replacements = {
             '@{{ invoice_number }}': invoice.invoice_no,
             '@{{ tenant_name }}': activeLease.tenant_name,
@@ -399,30 +407,28 @@
             '@{{ owner_name }}': activeLease.owner_name,
             '@{{ issue_date }}': invoice.period,
             '@{{ due_date }}': invoice.due_date,
-            '@{{ dynamic_invoice_items }}': dynamicRows,
             '@{{ total_amount }}': invoice.total_amount,
             '@{{ rent_price }}': invoice.total_amount
         };
 
-        // 3. 執行替換 (把原本的  換成帶有藍色字體的真實數據)
         Object.keys(replacements).forEach(key => {
             let val = replacements[key] || 'N/A';
             content = content.split(key).join(`<span class='text-inherit font-semibold text-indigo-600'>${val}</span>`);
         });
 
-        // 🌟 4. 呼叫正確的 HTML 預覽 Modal (修正事件名稱為 open-lease-preview)
+        // 4. 呼叫 HTML 預覽 Modal
         $dispatch('open-lease-preview', { 
             title: 'Invoice: ' + invoice.invoice_no, 
             content: content 
         });
         document.body.style.overflow = 'hidden';
     ">
-                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                        </svg>
-                                                        <span x-text="invoice.template_title"></span>
-                                                    </button>
+    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+    </svg>
+    <span x-text="invoice.template_title"></span>
+</button>
                                                 </template>
                                                 <template x-if="invoice.document_template_id === '—' || !invoice.template_title">
                                                     <span class="text-xs text-gray-400 italic">- None -</span>

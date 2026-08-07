@@ -51,23 +51,27 @@ const invoiceBlocks = [
         `
     },
 
-    // 3. 核心收费明细表 (動態版)
+    // 3. 核心收费明细表
     {
         id: 'invoice-items-table',
-        label: 'Dynamic Items Table ',
+        label: 'Items Table',
         category: 'Invoice Elements',
         content: `
             <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
                 <thead>
                     <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
-                        <th style="padding: 12px 15px; text-align: left; color: #334155;">Description</th>
-                        <th style="padding: 12px 15px; text-align: center; color: #334155; width: 15%;">Qty</th>
-                        <th style="padding: 12px 15px; text-align: right; color: #334155; width: 20%;">Unit Price</th>
-                        <th style="padding: 12px 15px; text-align: right; color: #334155; width: 20%;">Amount</th>
+                        <th style="padding: 12px 15px; text-align: left; color: #334155;" data-gjs-type="text">Description</th>
+                        <th style="padding: 12px 15px; text-align: center; color: #334155; width: 15%;" data-gjs-type="text">Qty</th>
+                        <th style="padding: 12px 15px; text-align: right; color: #334155; width: 20%;" data-gjs-type="text">Unit Price</th>
+                        <th style="padding: 12px 15px; text-align: right; color: #334155; width: 20%;" data-gjs-type="text">Amount</th>
                     </tr>
                 </thead>
-                <tbody data-gjs-type="text">
-                    ${makeVar('dynamic_invoice_items')}
+                <tbody id="dynamic-invoice-tbody">
+                    <tr style="border-bottom: 1px solid #e2e8f0; background-color: #f0fdf4;">
+                        <td colspan="4" style="padding: 20px; text-align: center; color: #166534; font-weight: bold; border: 1px dashed #bbf7d0;" data-gjs-type="text">
+                            ⚙️ Dynamic Invoice Items Will Appear Here
+                        </td>
+                    </tr>
                 </tbody>
             </table>
         `

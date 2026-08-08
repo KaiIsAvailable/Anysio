@@ -40,7 +40,6 @@
                         <h3 class="text-lg font-bold text-slate-800 m-0">
                             Record Payment: <span class="text-indigo-600" x-text="paymentData.invoiceNo"></span>
                         </h3>
-                        <p class="text-xs text-gray-500 mt-0.5">Select items to pay or pay the full balance.</p>
                     </div>
                     <button type="button" @click="openPayment = false" 
                             class="text-gray-400 hover:text-gray-600 text-2xl transition-transform hover:scale-110"
@@ -93,56 +92,18 @@
                     
                     <div class="p-6 space-y-4">
                         
-                        {{-- Invoice Items Selection Box --}}
-                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3"
-                            x-data="{
-                                get allSelected() {
-                                    return this.paymentData.invoiceItems && 
-                                            this.paymentData.invoiceItems.length > 0 && 
-                                            this.selectedItems.length === this.paymentData.invoiceItems.length;
-                                }
-                            }">
-                            
+                        {{-- Invoice Items Breakdown (Read-Only) --}}
+                        <div class="bg-gray-50 p-4 rounded-xl border border-gray-200 space-y-3">
                             <div class="flex items-center justify-between">
-                                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice Breakdown</span>
-                                
-                                <!-- Pay Full Checkbox -->
-                                <label class="inline-flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-indigo-600">
-                                    <input type="checkbox" 
-                                        :checked="payFull"
-                                        @change="
-                                            payFull = $event.target.checked;
-                                            if (payFull) {
-                                                selectedItems = paymentData.invoiceItems.map((_, i) => i);
-                                            } else {
-                                                selectedItems = [];
-                                            }
-                                        "
-                                        class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                    Pay Full Invoice
-                                </label>
+                                <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Invoice Items</span>
+                                <span class="text-xs font-semibold text-gray-400" x-text="(paymentData.invoiceItems || []).length + ' Item(s)'"></span>
                             </div>
 
                             <div class="divide-y divide-gray-200 max-h-40 overflow-y-auto pr-1">
                                 <template x-for="(item, index) in (paymentData.invoiceItems || [])" :key="index">
                                     <div class="py-2 flex items-center justify-between text-sm">
-                                        
-                                        <!-- Individual Item Checkbox -->
-                                        <label class="inline-flex items-center gap-2 cursor-pointer flex-1">
-                                            <input type="checkbox" 
-                                                :value="index" 
-                                                x-model.number="selectedItems" 
-                                                @change="
-                                                    payFull = selectedItems.length === paymentData.invoiceItems.length;
-                                                "
-                                                class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
-                                            <span class="font-medium text-gray-800 capitalize" x-text="item.description"></span>
-                                        </label>
-                                        
-                                        <span class="font-semibold text-gray-900" x-text="'RM ' + item.amount"></span>
-                                        
-                                        <!-- Hidden inputs -->
-                                        <input type="hidden" name="selected_items[]" :value="item.description" x-bind:disabled="!payFull && !selectedItems.includes(index)">
+                                        <span class="font-medium text-gray-800 capitalize" x-text="item.description"></span>
+                                        <span class="font-semibold text-gray-900" x-text="'RM ' + (parseFloat(item.amount)).toFixed(2)"></span>
                                     </div>
                                 </template>
                             </div>
@@ -153,6 +114,7 @@
                             <x-form.input-label value="Amount Paid (RM)" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
                             <x-form.text-input type="number" step="0.01" name="amount_paid"
                                 x-bind:value="computedAmount" required
+                                @wheel="$event.preventDefault()"
                                 class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-lg" />
                             <p class="text-xs text-gray-400 mt-2">Total Invoice Balance: RM <span x-text="paymentData.totalAmount"></span></p>
                             <x-form.input-error :messages="$errors->get('amount_paid')" class="mt-1" />
@@ -167,8 +129,8 @@
                             </div>
 
                             <div>
-                                <x-form.input-label value="Received Via" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
-                                <x-form.input-select name="received_via" 
+                                <x-form.input-label value="Payment Method" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
+                                <x-form.input-select name="payment_method" 
                                        x-model="method"
                                        :options="$paymentMethods"
                                        required 

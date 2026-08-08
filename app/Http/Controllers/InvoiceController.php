@@ -2,9 +2,11 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Invoice\{StoreInvoiceRequest, RecordPaymentRequest, VoidInvoiceRequest};
-use App\Models\{Invoice, Lease, Payment};
+use App\Models\{Invoice, Lease, Payment, Owners};
 use App\Services\InvoiceService;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
+use App\Traits\RoleBasedDataTrait;
 
 class InvoiceController extends Controller
 {
@@ -13,17 +15,42 @@ class InvoiceController extends Controller
     public function index()
     {
         Gate::authorize('owner-admin');
-        $invoices = Invoice::with([
-            'lease',
+        
+        $user = Auth::user();
+
+        $query = Invoice::with([
+            'lease.leasable', // Ensure leasable is loaded so you can check ownership if needed
             'items.feeType',
             'transactions', 
             'payments' => function ($query) {
                 $query->where('status', 'pending');
-            },])
-                ->latest()
-                ->paginate(20)
-                ->onEachSide(1);
-                
+            },
+        ]);
+
+        // Apply your role-based ownership filter
+        // Depending on your schema, invoices might relate to owners via leases -> properties.
+        // If your invoices table has a direct column (e.g., created_by or user_id), pass that.
+        // If it's filtered through the lease relation, you can scope it like below:
+        
+        if ($user->role === 'ownerAdmin') {
+            $query->whereHas('lease.leasable', function ($q) use ($user) {
+                // Adjust this based on how your Room/Unit/Property links to the owner user ID
+                $q->where('user_id', $user->id); 
+            });
+        } elseif ($user->role === 'agentAdmin') {
+            $managedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
+            
+            $query->whereHas('lease.leasable', function ($q) use ($user, $managedOwnerIds) {
+                $q->where('user_id', $user->id)
+                ->orWhereIn('user_id', $managedOwnerIds);
+            });
+        }
+        // Super admins bypass this and see everything naturally
+
+        $invoices = $query->latest()
+            ->paginate(20)
+            ->onEachSide(1);
+            
         return view('adminSide.leases.invoices.index', compact('invoices'));
     }
 

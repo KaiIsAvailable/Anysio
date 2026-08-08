@@ -372,14 +372,14 @@
                                             <!-- Actions -->
                                             <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
                                                 <div class="flex justify-center items-center gap-2">
-                                                    <template x-if="invoice.status === 'unpaid'">
+                                                    <template x-if="invoice.status !== 'paid'">
                                                         <button type="button" 
                                                             @click="$dispatch('open-payment', {
                                                                 id: invoice.id, 
                                                                 invoiceNo: invoice.invoice_no, 
                                                                 totalAmount: invoice.amount_balance, 
                                                                 invoiceItems: invoice.invoice_items,
-                                                                actionUrl: `/admin/invoices/${invoice.id}`
+                                                                actionUrl: '{{ route('admin.invoices.payment', ':id') }}'.replace(':id', invoice.id)
                                                             })"
                                                             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 rounded-lg transition-all shadow-sm">
                                                             <!-- Payment / Credit Card Icon -->

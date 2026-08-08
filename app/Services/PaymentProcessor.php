@@ -4,6 +4,7 @@ namespace App\Services;
 use App\Models\{Invoice, Transaction};
 use App\Events\PaymentRecorded;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Http\Exceptions\HttpResponseException;
 
 class PaymentProcessor
 {
@@ -28,6 +29,7 @@ class PaymentProcessor
             'receipt_no'      => $data['receipt_no'] ?? null,
             'payment_date'    => $data['payment_date'],
             'approved_by'     => Auth::id(),
+            'remarks'         => $data['remarks'] ?? null,
         ]);
 
         // Update invoice balances
@@ -63,14 +65,22 @@ class PaymentProcessor
 
         $hasEarlier = Invoice::forLease($invoice->lease_id)
             ->unpaid()
-            ->where('period', '<', $invoice->period)
+            ->where('id', '!=', $invoice->id)
+            ->where(function ($query) use ($invoice) {
+                $query->where('period', '<', $invoice->period)
+                    ->orWhere(function ($q) use ($invoice) {
+                        $q->where('period', '=', $invoice->period)
+                            ->where('created_at', '<', $invoice->created_at);
+                    });
+            })
             ->exists();
 
-        abort_if(
-            $hasEarlier,
-            422,
-            'Earlier outstanding invoices must be settled first.'
-        );
+        if ($hasEarlier) {
+            // This safely returns a redirect response back to the user without breaking your error flow
+            throw new HttpResponseException(
+                back()->with('error', 'Earlier outstanding invoices must be settled first.')
+            );
+        }
     }
 
     private function resolveStatus(int $total, int $balance): string

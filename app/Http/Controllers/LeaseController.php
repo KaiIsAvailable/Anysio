@@ -584,7 +584,7 @@ class LeaseController extends Controller
                         'due_date' => $invoice->due_date ? $invoice->due_date->format('d M Y') : '—',
                         'total_amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
                         'amount_paid' => number_format($invoice->amount_paid / 100 ?? 0, 2),
-                        'amount_balance' => number_format(($invoice->total_amount / 100 ?? 0) - ($invoice->amount_paid ?? 0), 2),
+                        'amount_balance' => number_format(($invoice->total_amount / 100 ?? 0) - ($invoice->amount_paid / 100 ?? 0), 2),
                         'status' => strtolower($invoice->status ?? 'unpaid'),
                         'remarks' => $invoice->remarks ?? '—',
                     ];

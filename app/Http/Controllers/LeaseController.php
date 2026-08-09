@@ -162,15 +162,22 @@ class LeaseController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
+        // ✅ 強制加上 ->select('properties.*')，防止 owner_id 遺失！
         $properties = $this->getAuthorizedProperties()
+            ->select('properties.*') 
+            ->with(['owner.owner'])
             ->where('status', 'Vacant')
             ->get();
 
         $units = $this->getAuthorizedUnits()
+            ->select('units.*') // ✅ 強制撈出 unit 的所有欄位
+            ->with(['owner.owner']) 
             ->where('status', 'Vacant')
             ->get();
 
         $rooms = $this->getAuthorizedRooms()
+            ->select('rooms.*') // ✅ 強制撈出 room 的所有欄位
+            ->with(['unit.owner.owner', 'owner.owner']) 
             ->where('status', 'Vacant')
             ->get();
 
@@ -420,8 +427,9 @@ class LeaseController extends Controller
             $targetLeaseId = $request->get('lease_id', $lease->id);
             $targetLease = Lease::findOrFail($targetLeaseId);
 
-            // Fetch paginated invoices for the specific target lease
+            // 🌟 這裡加上 with(['documentTemplate']) 載入模板關聯
             $invoices = $targetLease->invoices()
+                ->with(['documentTemplate', 'items.feeType'])
                 ->latest()
                 ->paginate(5, ['*'], 'other_page')
                 ->onEachSide(1);
@@ -450,6 +458,10 @@ class LeaseController extends Controller
                     'transaction_ref' => $invoice->transaction_ref,
                     'update_url' => route('admin.invoices.update', $invoice->id),
                     'void_url' => route('admin.invoices.void', $invoice->id),
+                    
+                    // 🌟 新增：把 Template 的資料傳給前端 AJAX
+                    'template_title' => $invoice->documentTemplate?->title,
+                    'template_html'  => $invoice->documentTemplate?->html_template,
                 ];
             });
 
@@ -488,7 +500,9 @@ class LeaseController extends Controller
         }
 
         // Initial load for the main lease invoices on page render
+        // 🌟 這裡加上 with(['documentTemplate']) 載入模板關聯
         $invoices = $lease->invoices()
+            ->with(['documentTemplate', 'items.feeType'])
             ->latest()
             ->paginate(5, ['*'], 'other_page')
             ->onEachSide(1);
@@ -530,11 +544,11 @@ class LeaseController extends Controller
                 'tenant_name' => $item->tenant?->user?->name ?? 'N/A',
                 'tenant_ic' => $item->tenant?->ic_number ?? 'N/A',
 
-                'owner_name' => ($item->leasable instanceof Room)
+                'owner_name' => ($item->leasable instanceof \App\Models\Room)
                     ? ($item->leasable->unit?->owner?->name ?? 'N/A')
                     : ($item->leasable->owner?->name ?? 'N/A'),
 
-                'owner_ic' => ($item->leasable instanceof Room)
+                'owner_ic' => ($item->leasable instanceof \App\Models\Room)
                     ? ($item->leasable->unit?->owner?->owner?->ic_number ?? 'N/A')
                     : ($item->leasable->owner?->owner?->ic_number ?? 'N/A'),
 
@@ -545,7 +559,8 @@ class LeaseController extends Controller
                 'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
                 'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
 
-                'invoices' => $item->invoices()->latest()->get()->map(function ($invoice) {
+                // 🌟 這裡加上 with(['documentTemplate']) 載入模板關聯
+                'invoices' => $item->invoices()->with(['documentTemplate', 'items.feeType'])->latest()->get()->map(function ($invoice) {
 
                     $rawPeriod = $invoice->period_display ?? $invoice->period;
 
@@ -579,6 +594,11 @@ class LeaseController extends Controller
                         'id' => $invoice->id,
                         'invoice_no' => $invoice->invoice_no,
                         'document_template_id' => $invoice->document_template_id ?? '—',
+                        
+                        // 🌟 新增：把 Template 的資料傳給前端 JSON
+                        'template_title' => $invoice->documentTemplate?->title,
+                        'template_html'  => $invoice->documentTemplate?->html_template,
+                        
                         'invoice_items' => $invoiceItems,
                         'period' => $formattedPeriod,
                         'due_date' => $invoice->due_date ? $invoice->due_date->format('d M Y') : '—',

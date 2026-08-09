@@ -34,7 +34,7 @@ class InvoiceService
                     throw new \RuntimeException('Authenticated user required to generate invoices.');
                 }
 
-                $template = DocumentTemplate::where('user_id', $currentUser->id)
+                $template = DocumentTemplate::where('created_by', $currentUser->id)
                     ->where('category', 'invoice')
                     ->where('status', 'active')
                     ->first();
@@ -153,6 +153,100 @@ class InvoiceService
             'validated_items' => $validatedItems,
             'total_cents'     => $totalCents,
         ];
+    }
+
+    /**
+     * 🌟 自動為新租約 (New/Renew) 產生第一期帳單，並自動關聯 Active 的 Invoice Template
+     */
+    /**
+     * 🌟 自動為新租約 (New/Renew) 產生第一期帳單，並自動關聯 Active 的 Invoice Template
+     */
+    public function createInitialInvoiceForLease(Lease $lease, User $currentUser): ?Invoice
+    {
+        return DB::transaction(function () use ($lease, $currentUser) {
+            // 1. 抓取這張租約建立好的所有 Charges
+            $charges = $lease->charges()->with('feeType')->get();
+            
+            if ($charges->isEmpty()) {
+                return null;
+            }
+
+            // 🌟 2. 找出真正的房东 ID
+            $ownerId = $currentUser->id;
+            if ($lease->leasable) {
+                if ($lease->leasable instanceof \App\Models\Room) {
+                    $ownerId = $lease->leasable->unit->owner_id ?? $currentUser->id;
+                } else {
+                    $ownerId = $lease->leasable->owner_id ?? $currentUser->id;
+                }
+            }
+
+            // 🌟 3. 防弹版搜寻 (Bulletproof Query)
+            // 第一顺位：尝试找专属房东、Agent 或系统(NULL)的 Active 模板
+            $template = DocumentTemplate::where('category', 'invoice')
+                ->where('status', 'active')
+                ->where(function($query) use ($ownerId, $currentUser) {
+                    $query->whereIn('user_id', [$ownerId, $currentUser->id])
+                          ->orWhereNull('user_id'); 
+                })
+                ->first();
+
+            // 🌟 终极兜底：如果上面的严格条件找不到（例如是 SuperAdmin 建的模板）
+            // 既然系统现在保证了只有一份 Active 模板，我们就直接抓全系统唯一的那一份！
+            if (!$template) {
+                $template = DocumentTemplate::where('category', 'invoice')
+                    ->where('status', 'active')
+                    ->first();
+                
+                // (可选) 如果你想要在后台日志里看到是不是触发了兜底，可以解除这行注释
+                // \Illuminate\Support\Facades\Log::info('Invoice Fallback Template Used: ' . $template?->id);
+            }
+
+            // 4. 整理明細與計算總額
+            $totalCents = 0;
+            $items = [];
+
+            foreach ($charges as $charge) {
+                $items[] = [
+                    'fee_type'     => $charge->feeType,
+                    'amount_cents' => $charge->amount,
+                    'description'  => $charge->description,
+                ];
+                $totalCents += $charge->amount;
+            }
+
+            if ($totalCents <= 0) {
+                return null;
+            }
+
+            // 5. 產生編號與日期
+            $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
+            $dueDate = $lease->start_date ?? now()->toDateString();
+            $periodDate = Carbon::parse($lease->start_date ?? now())->startOfMonth()->toDateString();
+
+            // 6. 建立 Invoice，自動填入 document_template_id
+            $invoice = Invoice::create([
+                'user_id'              => $currentUser->id,
+                'billable_type'        => User::class,
+                'billable_id'          => $currentUser->id,
+                'lease_id'             => $lease->id,
+                'document_template_id' => $template?->id, // 🌟 這裡絕對能抓到正確的 ID 了！
+                'invoice_no'           => $invoiceNo,
+                'type'                 => 'rent',
+                'period'               => $periodDate,
+                'due_date'             => $dueDate,
+                'total_amount'         => $totalCents,
+                'amount_paid'          => 0,
+                'amount_balance'       => $totalCents,
+                'status'               => 'unpaid',
+                'remarks'              => 'Initial Invoice for Lease (Includes Deposits & First Rent)',
+            ]);
+
+            // 7. 寫入明細
+            $this->saveInvoiceItems($invoice, $items);
+
+            return $invoice->load('items.feeType', 'documentTemplate');
+        });
     }
 
     /**

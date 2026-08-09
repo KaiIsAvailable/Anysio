@@ -66,19 +66,21 @@ class LeaseService
                     $context
                 );
 
+                
                 // New and Renew require financial charges
                 if (in_array($status, ['New', 'Renew'])) {
 
+                    // 1. 建立租約的基準費用配置 (Charges)
                     $this->createLeaseCharges(
                         $newLease,
                         $data
                     );
 
-                    // Generate first rent invoice
-                    //$this->invoiceService->createInvoice(
-                    //    $lease,
-                    //    $data['charges'] ?? []
-                    //);
+                    // 🌟 2. 完美接合：利用 InvoiceService 自動生成首期帳單！
+                    $this->invoiceService->createInitialInvoiceForLease(
+                        $newLease, 
+                        $user // Auth::user() 從 controller 傳進來的
+                    );
                 }
 
                 Log::info('Lease processed successfully.', [

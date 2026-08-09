@@ -56,22 +56,51 @@
                 method: 'POST',
                 headers: {
                     'X-Requested-With': 'XMLHttpRequest',
+                    'Accept': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name=\'csrf-token\']').getAttribute('content')
                 },
                 body: formData
             })
             .then(response => {
                 if (response.ok) {
-                    return response.json().catch(() => ({})); 
+                    return response.json(); 
                 }
-                throw new Error('Network response was not ok');
+                return response.json().then(errData => { throw errData; });
             })
             .then(data => {
                 this.loading = false;
-                this.openManual = false;
-                this.resetForm();
-                form.reset();
-                window.dispatchEvent(new CustomEvent('invoice-generated', { detail: data }));
+                if (data.success && data.invoice) {
+                    this.openManual = false;
+                    this.resetForm();
+                    form.reset();
+
+                    // --- 🌟 调整：规范化传输到主页面的 invoice 数据结构 ---
+                    const formattedInvoice = {
+                        id: data.invoice.id,
+                        invoice_no: data.invoice.invoice_no,
+                        document_template_id: data.invoice.document_template_id ?? '—',
+                        template_title: data.invoice.template_title ?? 'Manual Invoice',
+                        template_html: data.invoice.template_html ?? '',
+                        period: data.invoice.period,
+                        due_date: data.invoice.due_date,
+                        total_amount: data.invoice.total_amount,
+                        amount_paid: data.invoice.amount_paid || '0.00',
+                        amount_balance: data.invoice.amount_balance,
+                        status: data.invoice.status,
+                        remarks: data.invoice.remarks,
+                        invoice_items: (data.invoice.items || []).map(item => ({
+                            description: item.description || item.fee_type?.name || 'Item',
+                            amount: item.amount
+                        }))
+                    };
+
+                    window.dispatchEvent(new CustomEvent('invoice-generated', { 
+                        detail: { 
+                            success: true, 
+                            invoice: formattedInvoice 
+                        } 
+                    }));
+                }
             })
             .catch(error => {
                 console.error('Fetch failed, falling back to traditional form.submit():', error);

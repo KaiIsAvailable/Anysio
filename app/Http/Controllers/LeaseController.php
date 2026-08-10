@@ -435,7 +435,11 @@ class LeaseController extends Controller
                 ->onEachSide(1);
 
             // Map the items for the frontend
+            // Map the items for the frontend
             $formattedInvoices = $invoices->map(function ($invoice) {
+                // 🌟 呼叫 Service 取得所有發票變數
+                $variables = $this->invoiceService->getInvoiceVariables($invoice);
+
                 return [
                     'id' => $invoice->id,
                     'invoice_no' => $invoice->invoice_no,
@@ -459,9 +463,11 @@ class LeaseController extends Controller
                     'update_url' => route('admin.invoices.update', $invoice->id),
                     'void_url' => route('admin.invoices.void', $invoice->id),
                     
-                    // 🌟 新增：把 Template 的資料傳給前端 AJAX
                     'template_title' => $invoice->documentTemplate?->title,
                     'template_html'  => $invoice->documentTemplate?->html_template,
+                    
+                    // 🌟 新增：把打包好的變數傳給前端！
+                    'variables'      => $variables,
                 ];
             });
 
@@ -560,7 +566,11 @@ class LeaseController extends Controller
                 'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
 
                 // 🌟 這裡加上 with(['documentTemplate']) 載入模板關聯
+                // 🌟 這裡加上 with(['documentTemplate']) 載入模板關聯
                 'invoices' => $item->invoices()->with(['documentTemplate', 'items.feeType'])->latest()->get()->map(function ($invoice) {
+                    
+                    // 🌟 呼叫 Service 取得所有發票變數
+                    $variables = $this->invoiceService->getInvoiceVariables($invoice);
 
                     $rawPeriod = $invoice->period_display ?? $invoice->period;
 
@@ -595,10 +605,12 @@ class LeaseController extends Controller
                         'invoice_no' => $invoice->invoice_no,
                         'document_template_id' => $invoice->document_template_id ?? '—',
                         
-                        // 🌟 新增：把 Template 的資料傳給前端 JSON
                         'template_title' => $invoice->documentTemplate?->title,
                         'template_html'  => $invoice->documentTemplate?->html_template,
                         
+                        // 🌟 新增：把打包好的變數傳遞給 JSON
+                        'variables'      => $variables,
+
                         'invoice_items' => $invoiceItems,
                         'period' => $formattedPeriod,
                         'due_date' => $invoice->due_date ? $invoice->due_date->format('d M Y') : '—',

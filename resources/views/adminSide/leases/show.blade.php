@@ -385,62 +385,65 @@
                                             {{-- 🌟 修改點 2：Template ID 變成可點擊的預覽按鈕 --}}
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
                                                 <template x-if="invoice.document_template_id !== '—' && invoice.template_title">
-                                                    <button type="button" 
+                                                    <button type="button"
                                                         class="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded-md border border-indigo-200 transition-all"
                                                         @click="
-                                                            let content = invoice.template_html || '';
-                                                            if (!content) return;
+            let content = invoice.template_html || '';
+            if (!content) return;
 
-                                                            // 🌟 1. 動態生成發票明細表的 HTML (<tr>...</tr>)
-                                                            let dynamicRows = '';
-                                                            if (invoice.invoice_items && invoice.invoice_items.length > 0) {
-                                                                invoice.invoice_items.forEach(item => {
-                                                                    dynamicRows += `
-                                                                        <tr style='border-bottom: 1px solid #e2e8f0;'>
-                                                                            <td style='padding: 12px 15px; color: #0f172a;'>${item.description}</td>
-                                                                            <td style='padding: 12px 15px; text-align: center; color: #475569;'>1</td>
-                                                                            <td style='padding: 12px 15px; text-align: right; color: #475569;'>RM ${item.amount}</td>
-                                                                            <td style='padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 500;'>RM ${item.amount}</td>
-                                                                        </tr>
-                                                                    `;
-                                                                });
-                                                            } else {
-                                                                dynamicRows = `<tr><td colspan='4' style='padding: 12px 15px; text-align: center; color: #94a3b8; font-style: italic;'>No items billed.</td></tr>`;
-                                                            }
+            // 🌟 1. 動態生成發票明細表的 HTML (<tr>...</tr>)
+            let dynamicRows = '';
+            if (invoice.invoice_items && invoice.invoice_items.length > 0) {
+                invoice.invoice_items.forEach(item => {
+                    dynamicRows += `
+                        <tr style='border-bottom: 1px solid #e2e8f0;'>
+                            <td style='padding: 12px 15px; color: #0f172a;'>${item.description}</td>
+                            <td style='padding: 12px 15px; text-align: center; color: #475569;'>1</td>
+                            <td style='padding: 12px 15px; text-align: right; color: #475569;'>RM ${item.amount}</td>
+                            <td style='padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 500;'>RM ${item.amount}</td>
+                        </tr>
+                    `;
+                });
+            } else {
+                dynamicRows = `<tr><td colspan='4' style='padding: 12px 15px; text-align: center; color: #94a3b8; font-style: italic;'>No items billed.</td></tr>`;
+            }
 
-                                                            // 🌟 2. 使用原生 DOM 操作來替換 <tbody> 的內容 (最安全的做法！)
-                                                            let tempDiv = document.createElement('div');
-                                                            tempDiv.innerHTML = content;
-                                                            let tbody = tempDiv.querySelector('#dynamic-invoice-tbody');
-                                                            if (tbody) {
-                                                                tbody.innerHTML = dynamicRows; // 成功把動態生成的列塞進去！
-                                                            }
-                                                            content = tempDiv.innerHTML; // 把替換完表格的 HTML 重新拿出來
+            // 🌟 2. 使用原生 DOM 操作來替換 <tbody> 的內容
+            let tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            let tbody = tempDiv.querySelector('#dynamic-invoice-tbody');
+            if (tbody) {
+                tbody.innerHTML = dynamicRows; 
+            }
+            content = tempDiv.innerHTML; 
 
-                                                            // 🌟 3. 一般文字變數替換
-                                                            const replacements = {
-                                                                '@{{ invoice_number }}': invoice.invoice_no,
-                                                                '@{{ tenant_name }}': activeLease.tenant_name,
-                                                                '@{{ property_address }}': activeLease.property_address,
-                                                                '@{{ owner_name }}': activeLease.owner_name,
-                                                                '@{{ issue_date }}': invoice.period,
-                                                                '@{{ due_date }}': invoice.due_date,
-                                                                '@{{ total_amount }}': invoice.total_amount,
-                                                                '@{{ rent_price }}': invoice.total_amount
-                                                            };
+            // 🌟 3. 自動替換所有變數並拔除顏色標籤 (已完美避開雙引號衝突)
+            if (invoice.variables) {
+                Object.keys(invoice.variables).forEach(key => {
+                    let val = invoice.variables[key];
+                    if (val === null || val === undefined) val = '';
+                    
+                    // 這裡改用 . 來代替原本的雙引號，HTML 就不會再崩潰了！
+                    let spanRegex = new RegExp('<span[^>]*data-variable=.' + key + '.[^>]*>\\s*\\{\\{\\s*' + key + '\\s*\\}\\}\\s*<\\/span>', 'gi');
+                    
+                    if (content.match(spanRegex)) {
+                        // 找到了 GrapesJS 的 span，連殼帶字一起換成純文字
+                        content = content.replace(spanRegex, val);
+                    } else {
+                        // 沒找到外殼，就只替換裡面的 
+                        let textRegex = new RegExp('\\{\\{\\s*' + key + '\\s*\\}\\}', 'g');
+                        content = content.replace(textRegex, val);
+                    }
+                });
+            }
 
-                                                            Object.keys(replacements).forEach(key => {
-                                                                let val = replacements[key] || 'N/A';
-                                                                content = content.split(key).join(`<span class='text-inherit font-semibold text-indigo-600'>${val}</span>`);
-                                                            });
-
-                                                            // 4. 呼叫 HTML 預覽 Modal
-                                                            $dispatch('open-lease-preview', { 
-                                                                title: 'Invoice: ' + invoice.invoice_no, 
-                                                                content: content 
-                                                            });
-                                                            document.body.style.overflow = 'hidden';
-                                                        ">
+            // 🌟 4. 呼叫 HTML 預覽 Modal 
+            $dispatch('open-lease-preview', { 
+                title: 'Invoice: ' + invoice.invoice_no, 
+                content: content 
+            });
+            document.body.style.overflow = 'hidden';
+        ">
                                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -548,34 +551,40 @@
     </div>
 
     {{-- 💡 修复点 3：在底部加入和 create 页面完全一样的 "暴力解锁防线" --}}
+    {{-- 💡 修复点 3：全面升级的 "暴力解锁防线 2.0" (解决动画延迟卡死问题) --}}
     <script>
         document.addEventListener('DOMContentLoaded', function() {
-            // 方法 A：监听全域点击
-            document.addEventListener('click', function() {
-                setTimeout(() => {
+            // 建立一个解锁函数，会连续检查 1 秒钟（完美覆盖任何淡出动画时间）
+            function checkAndUnlockScroll() {
+                let checks = 0;
+                let interval = setInterval(() => {
                     const modal = document.getElementById('preview-modal');
-                    if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none') {
-                        document.body.style.overflow = '';
+                    
+                    // 如果 modal 不存在，或者包含 hidden 类，或者 display 为 none
+                    if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none' || modal.style.display === 'none') {
+                        document.body.style.overflow = ''; // 🌟 恢复页面滚动
+                        clearInterval(interval); // 成功解锁后停止检查
                     }
-                }, 50);
+                    
+                    checks++;
+                    if (checks > 10) clearInterval(interval); // 最多检查 10 次 (1秒)，避免浪费效能
+                }, 100);
+            }
+
+            // 1. 监听全局点击 (涵盖点击 X 按钮、点击背景遮罩等操作)
+            document.addEventListener('click', function(e) {
+                // 稍微延迟一下触发，确保 Alpine 先处理点击事件
+                setTimeout(checkAndUnlockScroll, 50);
             });
 
-            // 方法 B：监听键盘 Esc 键
+            // 2. 监听 ESC 键关闭
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'Escape') {
-                    setTimeout(() => {
-                        const modal = document.getElementById('preview-modal');
-                        if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none') {
-                            document.body.style.overflow = '';
-                        } else {
-                            if (modal) modal.classList.add('hidden');
-                            document.body.style.overflow = '';
-                        }
-                    }, 50);
+                    checkAndUnlockScroll();
                 }
             });
 
-            // 方法 C：DOM 突变观察者
+            // 3. 监听 DOM 变化 (作为最后防线)
             const modalEl = document.getElementById('preview-modal');
             if (modalEl) {
                 const observer = new MutationObserver(function(mutations) {
@@ -587,9 +596,7 @@
                         }
                     });
                 });
-                observer.observe(modalEl, {
-                    attributes: true
-                });
+                observer.observe(modalEl, { attributes: true });
             }
         });
     </script>

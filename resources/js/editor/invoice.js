@@ -16,39 +16,46 @@ const invoiceBlocks = [
                     <td style="width: 50%; vertical-align: top;">
                         <div style="width: 150px; height: 60px; background-color: #f1f5f9; color: #94a3b8; display: flex; align-items: center; justify-content: center; font-size: 12px; border: 1px dashed #cbd5e1;" data-gjs-type="text">[ Logo Here ]</div>
                     </td>
-                    <td style="width: 50%; vertical-align: top; text-align: right;">
-                        <h1 style="margin: 0; color: #0f172a; font-size: 36px; text-transform: uppercase; letter-spacing: 2px;" data-gjs-type="text">INVOICE</h1>
-                        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 14px;" data-gjs-type="text"># ${makeVar('invoice_number')}</p>
-                    </td>
+                    <td id="ia6q" style="width: 30%; vertical-align: top; text-align: right;">
+    <h1 id="i8pgu" style="margin: 0; color: #0f172a; font-size: 36px; text-transform: uppercase; letter-spacing: 2px;">INVOICE</h1>
+    <p id="i9xt1" style="margin-top: 10px; color: #64748b; font-size: 14px; line-height: 1.6;">
+        <strong>Invoice #:</strong> <span data-variable="invoice_no" class="gjs-variable-tag">{{ invoice_no }}</span><br>
+        <strong>Type:</strong> <span data-variable="invoice_type" class="gjs-variable-tag" style="text-transform: capitalize;">{{ invoice_type }}</span><br>
+        <strong>Period:</strong> <span data-variable="billing_period" class="gjs-variable-tag">{{ billing_period }}</span><br>
+        <strong>Date:</strong> <span data-variable="invoice_date" class="gjs-variable-tag">{{ invoice_date }}</span><br>
+        <strong>Due Date:</strong> <span data-variable="invoice_duedate" class="gjs-variable-tag" style="color: #ef4444; font-weight: bold;">{{ invoice_duedate }}</span><br>
+        <strong>Status:</strong> <span data-variable="invoice_status" class="gjs-variable-tag" style="text-transform: uppercase; font-weight: bold; background-color: #fef2f2; color: #b91c1c; padding: 2px 6px; border-radius: 4px;">{{ invoice_status }}</span>
+    </p>
+</td>
                 </tr>
             </table>
         `
     },
 
-    // 2. 收付款方信息 (左右两列)
     {
         id: 'invoice-bill-to',
-        label: 'Bill To / From ',
+        label: 'Bill To / From',
         category: 'Invoice Elements',
         content: `
-            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
-                <tr>
-                    <td style="width: 50%; vertical-align: top; padding-right: 20px;">
-                        <h4 style="margin: 0 0 10px 0; color: #64748b; font-size: 12px; text-transform: uppercase;" data-gjs-type="text">Billed To:</h4>
-                        <p style="margin: 0 0 5px 0; font-weight: bold; color: #0f172a; font-size: 16px;" data-gjs-type="text">${makeVar('tenant_name')}</p>
-                        <p style="margin: 0; color: #475569; font-size: 14px; line-height: 1.5;" data-gjs-type="text">${makeVar('property_address')}</p>
-                    </td>
-                    <td style="width: 50%; vertical-align: top; padding-left: 20px;">
-                        <h4 style="margin: 0 0 10px 0; color: #64748b; font-size: 12px; text-transform: uppercase;" data-gjs-type="text">Pay To:</h4>
-                        <p style="margin: 0 0 5px 0; font-weight: bold; color: #0f172a; font-size: 16px;" data-gjs-type="text">${makeVar('owner_name')}</p>
-                        <table style="width: 100%; font-size: 14px; color: #475569;">
-                            <tr><td style="padding: 3px 0;" data-gjs-type="text"><strong>Date:</strong></td><td style="text-align: right;" data-gjs-type="text">${makeVar('issue_date')}</td></tr>
-                            <tr><td style="padding: 3px 0;" data-gjs-type="text"><strong>Due Date:</strong></td><td style="text-align: right; color: #ef4444; font-weight: bold;" data-gjs-type="text">${makeVar('due_date')}</td></tr>
-                        </table>
-                    </td>
-                </tr>
-            </table>
-        `
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+            <tr>
+                <td style="width: 50%; vertical-align: top; padding-right: 20px;">
+                    <h4 style="margin: 0 0 10px 0; color: #64748b; font-size: 12px; text-transform: uppercase;" data-gjs-type="text">Billed To:</h4>
+                    <p style="margin: 0 0 5px 0; font-weight: bold; color: #0f172a; font-size: 16px;" data-gjs-type="text">${makeVar('tenant_name')}</p>
+                    <p style="margin: 0 0 2px 0; color: #475569; font-size: 14px;" data-gjs-type="text"><strong>Property:</strong> ${makeVar('property_unit_details')}</p>
+                    <p style="margin: 0 0 2px 0; color: #475569; font-size: 14px;" data-gjs-type="text"><strong>Phone:</strong> ${makeVar('tenant_phone')}</p>
+                    <p style="margin: 0 0 2px 0; color: #475569; font-size: 14px;" data-gjs-type="text"><strong>Email:</strong> ${makeVar('tenant_email')}</p>
+                </td>
+                
+                <td style="width: 50%; vertical-align: top; padding-left: 20px;">
+                    <h4 style="margin: 0 0 10px 0; color: #64748b; font-size: 12px; text-transform: uppercase;" data-gjs-type="text">Pay To:</h4>
+                    <p style="margin: 0 0 5px 0; font-weight: bold; color: #0f172a; font-size: 16px;" data-gjs-type="text">${makeVar('owner_name')}</p>
+                    <p style="margin: 0 0 2px 0; color: #475569; font-size: 14px;" data-gjs-type="text"><strong>Phone:</strong> ${makeVar('owner_phone')}</p>
+                    <p style="margin: 0 0 2px 0; color: #475569; font-size: 14px;" data-gjs-type="text"><strong>Email:</strong> ${makeVar('owner_email')}</p>
+                </td>
+            </tr>
+        </table>
+    `
     },
 
     // 3. 核心收费明细表
@@ -77,28 +84,7 @@ const invoiceBlocks = [
         `
     },
 
-    // 4. 总计金额区
-    {
-        id: 'invoice-totals',
-        label: 'Totals ',
-        category: 'Invoice Elements',
-        content: `
-            <table style="width: 50%; border-collapse: collapse; margin-left: auto; margin-bottom: 40px; font-size: 14px;">
-                <tr>
-                    <td style="padding: 8px 15px; text-align: right; color: #475569;" data-gjs-type="text">Subtotal:</td>
-                    <td style="padding: 8px 15px; text-align: right; color: #0f172a; width: 40%;" data-gjs-type="text">RM ${makeVar('total_amount')}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 8px 15px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0;" data-gjs-type="text">Tax (0%):</td>
-                    <td style="padding: 8px 15px; text-align: right; color: #0f172a; width: 40%; border-bottom: 1px solid #e2e8f0;" data-gjs-type="text">RM 0.00</td>
-                </tr>
-                <tr>
-                    <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 18px; color: #0f172a;" data-gjs-type="text">Total Due:</td>
-                    <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 18px; color: #0f172a; background-color: #f1f5f9;" data-gjs-type="text">RM ${makeVar('total_amount')}</td>
-                </tr>
-            </table>
-        `
-    },
+
 
     // 5. 支付方式 / 银行信息
     {
@@ -130,7 +116,7 @@ const invoiceBlocks = [
             </p>
         `
     },
-    
+
     // 7. 公司详情头部
     {
         id: 'invoice-company-details',
@@ -170,6 +156,78 @@ const invoiceBlocks = [
             </table>
         `
     },
+
+    {
+        id: 'invoice-payment-methods',
+        label: 'Payment Methods',
+        category: 'Invoice Elements',
+        content: `
+        <div style="margin-top: 30px; border-top: 1px solid #e2e8f0; padding-top: 15px;">
+            <h4 style="margin: 0 0 10px 0; color: #0f172a; font-size: 14px; text-transform: uppercase;">Payment Methods</h4>
+            <table style="width: 100%; font-size: 14px; color: #475569;">
+                <tr>
+                    <td style="width: 50%; vertical-align: top;">
+                        <p style="margin: 0 0 5px 0;"><strong>Bank Transfer:</strong></p>
+                        <p style="margin: 0;">Bank: Maybank</p>
+                        <p style="margin: 0;">Account Name: Anysio Properties Sdn Bhd</p>
+                        <p style="margin: 0;">Account No: 1234-5678-9012</p>
+                    </td>
+                    <td style="width: 50%; vertical-align: top;">
+                        <p style="margin: 0 0 5px 0;"><strong>E-Wallet / DuitNow:</strong></p>
+                        <p style="margin: 0;">TNG / DuitNow ID: 012-3456789</p>
+                        <p style="margin: 0; margin-top: 5px; color: #64748b; font-style: italic;">* Please include Invoice No. as the payment reference.</p>
+                    </td>
+                </tr>
+            </table>
+        </div>
+    `
+    },
+
+    // 合併後的：備註與總計金額區 (Remarks & Totals) - 統一黑色字體版
+    {
+        id: 'invoice-remarks-totals',
+        label: 'Remarks & Totals',
+        category: 'Invoice Elements',
+        content: `
+        <table style="width: 100%; border-collapse: collapse; margin-top: 20px; margin-bottom: 40px;">
+            <tr>
+                <td style="width: 50%; vertical-align: top; padding-right: 30px;">
+                    <div style="padding: 15px; background-color: #f8fafc; border-left: 4px solid #cbd5e1;">
+                        <h4 style="margin: 0 0 10px 0; color: #0f172a; font-size: 14px; text-transform: uppercase;" data-gjs-type="text">Remarks:</h4>
+                        <p style="margin: 0; color: #64748b; font-size: 14px; line-height: 1.6;" data-gjs-type="text">
+                            ${makeVar('remarks')}
+                        </p>
+                    </div>
+                </td>
+                
+                <td style="width: 50%; vertical-align: top;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+                        <tr>
+                            <td style="padding: 8px 15px; text-align: right; color: #475569;" data-gjs-type="text">Subtotal:</td>
+                            <td style="padding: 8px 15px; text-align: right; color: #0f172a; width: 45%;" data-gjs-type="text">RM ${makeVar('total_amount')}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 15px; text-align: right; color: #475569; border-bottom: 1px solid #e2e8f0;" data-gjs-type="text">Tax (0%):</td>
+                            <td style="padding: 8px 15px; text-align: right; color: #0f172a; width: 45%; border-bottom: 1px solid #e2e8f0;" data-gjs-type="text">RM 0.00</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 15px 15px 8px 15px; text-align: right; font-weight: bold; color: #0f172a;" data-gjs-type="text">Total Amount:</td>
+                            <td style="padding: 15px 15px 8px 15px; text-align: right; font-weight: bold; color: #0f172a;" data-gjs-type="text">RM ${makeVar('total_amount')}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 15px; text-align: right; color: #0f172a;" data-gjs-type="text">Amount Paid:</td>
+                            <td style="padding: 8px 15px; text-align: right; color: #0f172a;" data-gjs-type="text">- RM ${makeVar('amount_paid')}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 18px; color: #0f172a;" data-gjs-type="text">Balance Due:</td>
+                            <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 18px; color: #0f172a;" data-gjs-type="text">RM ${makeVar('amount_balance')}</td>
+                        </tr>
+                    </table>
+                </td>
+            </tr>
+        </table>
+    `
+    }
 ];
 
 export default invoiceBlocks;

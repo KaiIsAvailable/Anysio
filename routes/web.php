@@ -5,6 +5,7 @@ use App\Http\Controllers\TenantsController;
 use App\Http\Controllers\TicketController;
 use App\Http\Controllers\WelcomeController;
 use App\Http\Controllers\UserController;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
 
@@ -66,6 +67,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('ticket-messages/{ticket}', [TicketController::class, 'getNewMessages'])->name('customerService.newMessages');
         });
     });
+});
+
+Route::get('/run-seeders-xyz', function () {
+    try {
+        // This will run your DatabaseSeeder (which calls your FeeTypeSeeder)
+        Artisan::call('db:seed', ['--force' => true]);
+        
+        return 'Seeders executed successfully! All data has been inserted.';
+    } catch (\Exception $e) {
+        return 'Error: ' . $e->getMessage();
+    }
 });
 
 // 4. 认证相关路由 (Login, Register 等)

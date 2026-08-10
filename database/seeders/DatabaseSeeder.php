@@ -25,6 +25,12 @@ class DatabaseSeeder extends Seeder
                 null,
                 true
             );
+
+            // 🌟 2. 在這裡呼叫你的 DocumentTemplateSeeder，讓它自動種入發票模板！
+            $this->call([
+                DocumentTemplateSeeder::class,
+            ]);
+            
         });
     }
 

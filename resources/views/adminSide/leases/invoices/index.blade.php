@@ -75,8 +75,15 @@
                                                     <button type="button" 
                                                         class="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md border border-indigo-200 transition-all w-fit"
                                                         @click="
-                                                            let content = @js(optional($invoice->documentTemplate)->html_content ?? '');
-                                                            if (!content) return;
+                                                            console.log('1. Preview button clicked for invoice:', @js($invoice->invoice_no));
+
+                                                            let content = @js(optional($invoice->documentTemplate)->html_template ?? '');
+                                                            console.log('2. Raw template content loaded:', content ? 'Success (Length: ' + content.length + ')' : 'Empty/Null');
+
+                                                            if (!content) {
+                                                                console.warn('Abort: Content is empty.');
+                                                                return;
+                                                            }
 
                                                             let dynamicRows = '';
                                                             let items = @js($invoice->invoice_items ?? []);
@@ -100,6 +107,8 @@
                                                             let tbody = tempDiv.querySelector('#dynamic-invoice-tbody');
                                                             if (tbody) {
                                                                 tbody.innerHTML = dynamicRows;
+                                                            } else {
+                                                                console.log('Note: #dynamic-invoice-tbody not found in template HTML, skipping dynamic rows injection.');
                                                             }
                                                             content = tempDiv.innerHTML;
 
@@ -119,10 +128,16 @@
                                                                 content = content.split(key).join(`<span class='text-inherit font-semibold text-indigo-600'>${val}</span>`);
                                                             });
 
-                                                            $dispatch('open-agreement-preview', {
+                                                            console.log('3. Dispatched open-lease-preview event with payload:', {
+                                                                title: 'Invoice: ' + @js($invoice->invoice_no),
+                                                                contentLength: content.length
+                                                            });
+
+                                                            $dispatch('open-lease-preview', {
                                                                 title: 'Invoice: ' + @js($invoice->invoice_no), 
                                                                 content: content 
                                                             });
+
                                                             document.body.style.overflow = 'hidden';
                                                         ">
                                                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -289,6 +304,6 @@
         <!-- Modals -->
         <x-modals.payment-modal />
         <x-preview-agreement-modal />
-        @include('components.modals.receipt-preview-modal')
+        <x-modals.receipt-preview-modal />
     </div>
 </x-app-layout>

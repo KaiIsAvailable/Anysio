@@ -1,9 +1,9 @@
 <?php
 namespace App\Services;
 
-use App\Models\{Invoice, Transaction, DocumentTemplate};
-use App\Events\PaymentRecorded;
+use App\Models\{Invoice, Transaction, DocumentTemplate, UserManagement};
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 class PaymentProcessor
@@ -57,6 +57,17 @@ class PaymentProcessor
             'amount_balance' => $newBalance,
             'status'         => $this->resolveStatus($invoice->total_amount, $newBalance),
         ]);
+
+        if (strtolower($invoice->type ?? '') === 'subscription') {
+            $userToActivate = $invoice->user ?? $invoice->lease?->tenant?->user;
+
+            if ($userToActivate) {
+                UserManagement::where('user_id', $userToActivate->id)
+                    ->update([
+                        'subscription_status' => 'active',
+                    ]);
+            }
+        }
 
         // Credit excess to wallet
         if ($excessCents > 0) {

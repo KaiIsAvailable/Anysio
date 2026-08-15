@@ -4,6 +4,7 @@ namespace App\Services;
 use App\Models\{User, UserManagement, Invoice, RefCodePackage, DocumentSequence, DocumentTemplate};
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 class SubscriptionService
 {
     /**
@@ -15,6 +16,11 @@ class SubscriptionService
         DB::transaction(function () use ($user, $package, $role) {
 
             [$startDate, $endDate] = $this->resolveDates($package);
+
+            Log::channel('testing')->info('', [
+                'start_date' => $startDate?->toDateTimeString(),
+                'end_date' => $endDate?->toDateTimeString(),
+            ]);
 
             $subscriptionStatus = $package->price > 0 ? 'pending' : 'active';
 
@@ -71,7 +77,9 @@ class SubscriptionService
 
     private function resolveDates(RefCodePackage $package): array
     {
-        if (($package->commission_rate ?? 0) <= 0) {
+        Log::channel('testing')->info('Package Debug:', $package->toArray());
+
+        if (($package->commission_rate ?? 0) != 0) {
             return [null, null];
         }
 

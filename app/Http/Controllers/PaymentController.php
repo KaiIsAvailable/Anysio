@@ -26,20 +26,6 @@ class PaymentController extends Controller
 
     }
 
-    public function approve(Payment $payment): RedirectResponse
-    {
-        $this->paymentService->approve($payment);
-
-        return back()->with('success', 'Payment confirmed successfully.');
-    }
-
-    public function reject(Payment $payment): RedirectResponse
-    {
-        $this->paymentService->reject($payment);
-
-        return back()->with('success', 'Payment rejected successfully.');
-    }
-
     public function destroy(Payment $payment)
     {
 

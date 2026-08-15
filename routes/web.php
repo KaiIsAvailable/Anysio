@@ -69,16 +69,36 @@ Route::middleware(['auth', 'verified'])->group(function () {
     });
 });
 
-Route::get('/run-seeders-xyz', function () {
+//run seeder
+Route::get('/run-seeders-xyz', function (\Illuminate\Http\Request $request) {
     try {
-        // This will run your DatabaseSeeder (which calls your FeeTypeSeeder)
         Artisan::call('db:seed', ['--force' => true]);
         
-        return 'Seeders executed successfully! All data has been inserted.';
+        // Grab the 'redirect' query parameter, or fallback to dashboard if missing
+        $redirectTo = $request->input('redirect', route('dashboard'));
+        
+        return redirect()->to($redirectTo)->with('success', 'Seeders executed successfully!');
     } catch (\Exception $e) {
-        return 'Error: ' . $e->getMessage();
+        $redirectTo = $request->input('redirect', route('dashboard'));
+        
+        return redirect()->to($redirectTo)->with('error', 'Error: ' . $e->getMessage());
     }
-});
+})->name('run.seeders');
+
+//run migrate
+Route::get('/run-migrations-xyz', function (Request $request) {
+    try {
+        Artisan::call('migrate', ['--force' => true]);
+        
+        $redirectTo = $request->input('redirect', route('dashboard'));
+        
+        return redirect()->to($redirectTo)->with('success', 'Migrations executed successfully!');
+    } catch (\Exception $e) {
+        $redirectTo = $request->input('redirect', route('dashboard'));
+        
+        return redirect()->to($redirectTo)->with('error', 'Migration Error: ' . $e->getMessage());
+    }
+})->name('run.migrations');
 
 // 4. 认证相关路由 (Login, Register 等)
 require __DIR__.'/auth.php';

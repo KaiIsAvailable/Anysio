@@ -1,8 +1,5 @@
 {{-- Preview Agreement Modal Component --}}
-<div x-data="{ openPreview: false,
-    openPreview: false, 
-    shakeModal: false }" 
-
+<div x-data="{ openPreview: false, shakeModal: false }" 
      @open-preview-modal.window="openPreview = true" 
      @open-lease-preview.window="
         openPreview = true;

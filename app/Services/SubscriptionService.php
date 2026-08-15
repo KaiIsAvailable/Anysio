@@ -1,9 +1,9 @@
 <?php
 namespace App\Services;
 
-use App\Models\{User, UserManagement, Invoice, RefCodePackage, DocumentSequence};
+use App\Models\{User, UserManagement, Invoice, RefCodePackage, DocumentSequence, DocumentTemplate};
 use Illuminate\Support\Facades\DB;
-
+use Illuminate\Support\Facades\Auth;
 class SubscriptionService
 {
     /**
@@ -37,12 +37,20 @@ class SubscriptionService
 
     public function generateInvoice(User $user, RefCodePackage $package): Invoice
     {
+        $template = DocumentTemplate::where('category', 'invoice')
+            ->where('status', 'active')
+            ->whereHas('user', function ($query) {
+                $query->where('email', 'admin@anysio.com');
+            })
+            ->first();
+
         $invoice = Invoice::create([
             'context'        => 'subscription',
             'billable_type'  => UserManagement::class,
             'billable_id'    => $user->user_management->id,
             'user_id'        => $user->id,
             'invoice_no'     => $this->generateInvoiceNo(),
+            'document_template_id' => $template?->id,
             'type'           => 'subscription',
             'period'         => now()->startOfMonth()->toDateString(),
             'due_date'       => now()->addDays(7)->toDateString(),

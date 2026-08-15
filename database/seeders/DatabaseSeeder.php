@@ -17,7 +17,7 @@ class DatabaseSeeder extends Seeder
     {
         DB::transaction(function () {
 
-            // Create system admin
+            // Create or update system admin safely
             $admin = $this->createPmsUserWithRefCode(
                 'System Admin',
                 'admin@anysio.com',
@@ -26,7 +26,7 @@ class DatabaseSeeder extends Seeder
                 true
             );
 
-            // 🌟 2. 在這裡呼叫你的 DocumentTemplateSeeder，讓它自動種入發票模板！
+            // Call your DocumentTemplateSeeder
             $this->call([
                 DocumentTemplateSeeder::class,
             ]);
@@ -34,28 +34,29 @@ class DatabaseSeeder extends Seeder
         });
     }
 
-    private function createPmsUserWithRefCode(
-        $name,
-        $email,
-        $role,
-        $referredBy = null,
-        $isOfficial = false
-    ) {
-        $user = User::create([
-            'name' => $name,
-            'email' => $email,
-            'password' => Hash::make('password123'),
-            'role' => $role,
-            'email_verified_at' => now(),
-        ]);
+    private function createPmsUserWithRefCode($name, $email, $role, $referredBy = null, $isOfficial = false) {
+        // Use updateOrCreate on User based on email
+        $user = User::updateOrCreate(
+            ['email' => $email], // Look for existing user by email
+            [
+                'name' => $name,
+                'password' => Hash::make('password123'),
+                'role' => $role,
+                'email_verified_at' => now(),
+            ]
+        );
 
-        UserManagement::create([
-            'user_id' => $user->id,
-            'package_id' => $referredBy,
-            'role' => $role,
-            'subscription_status' => 'active',
-        ]);
+        // Use updateOrCreate on UserManagement based on user_id
+        UserManagement::updateOrCreate(
+            ['user_id' => $user->id], // Look for existing management profile by user_id
+            [
+                'package_id' => $referredBy,
+                'role' => $role,
+                'subscription_status' => 'active',
+            ]
+        );
 
+        // RefCodePackage already uses updateOrCreate, which is great!
         RefCodePackage::updateOrCreate(
             ['ref_code' => 'P1_MONTHLY'],
             [

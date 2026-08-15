@@ -4,15 +4,45 @@
         x-data="{ 
             activeId: '{{ old('active_id', $lease->id) }}',
             source: {{ $historyJson->isNotEmpty() ? $historyJson->toJson() : '{}' }},
-            
-            // --- 新增：初始化 loading 状态 ---
             loading: false, 
+            invoicePage: 1,
+            perPage: 5,
 
             openUpload: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }},
             shake: {{ $errors->any() ? 'true' : 'false' }},
             
             get activeLease() { 
                 return (this.source && this.activeId) ? (this.source[this.activeId] || {}) : {} 
+            },
+
+            get paginatedInvoices() {
+                let invoices = this.activeLease.invoices || [];
+                let start = (this.invoicePage - 1) * this.perPage;
+                return invoices.slice(start, start + this.perPage);
+            },
+
+            get totalInvoicePages() {
+                let invoices = this.activeLease.invoices || [];
+                return Math.ceil(invoices.length / this.perPage) || 1;
+            },
+
+            get paginationLinks() {
+                let total = this.totalInvoicePages;
+                let current = this.invoicePage;
+                let pages = [];
+
+                if (total <= 7) {
+                    for (let i = 1; i <= total; i++) { pages.push(i); }
+                } else {
+                    if (current <= 4) {
+                        pages = [1, 2, 3, 4, 5, '...', total];
+                    } else if (current >= total - 3) {
+                        pages = [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+                    } else {
+                        pages = [1, '...', current - 1, current, current + 1, '...', total];
+                    }
+                }
+                return pages;
             },
 
             openPayment: false, 
@@ -28,72 +58,36 @@
                 return `{{ route('admin.invoices.store-manual', ':lease') }}`.replace(':lease', this.activeId);
             },
 
-            refreshTable() {
-                if (!this.activeId || this.loading) return; // 防止重复点击
-                
-                // --- 修改：开始加载 ---
-                this.loading = true;
-                console.log('Fetching data for:', this.activeId);
-
-                const url = `{{ url('/') }}/admin/leases/${this.activeId}/refresh-payments`;
-
-                fetch(url, {
-                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
-                })
-                .then(response => {
-                    if (!response.ok) throw new Error('Status: ' + response.status);
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('--- API Response Data ---');
-                    console.log('Full Data:', data);
-                    console.log('Can Generate Status:', data.can_generate);
-                    console.log('-------------------------');
-                    const rentEl = document.getElementById('rent-payments-container');
-                    const otherEl = document.getElementById('other-payments-container');
-                    if (rentEl) rentEl.innerHTML = data.rentHtml;
-                    if (otherEl) otherEl.innerHTML = data.otherHtml;
-                    if (this.activeLease) {
-                        this.activeLease.can_generate = data.can_generate;
+            handleInvoiceGenerated(event) {
+                if (event.detail && event.detail.success) {
+                    if (event.detail.invoice) {
+                        if (this.activeId && this.source[this.activeId]) {
+                            if (!this.source[this.activeId].invoices) {
+                                this.source[this.activeId].invoices = [];
+                            }
+                            let inv = event.detail.invoice;
+                            if (!inv.invoice_items && inv.items) {
+                                inv.invoice_items = inv.items;
+                            }
+                            this.source[this.activeId].invoices.unshift(inv);
+                        }
                     }
-                })
-                .catch(e => {
-                    console.error('Table refresh failed:', e);
-                })
-                .finally(() => {
-                    // --- 修改：无论成功或失败，停止加载 ---
-                    this.loading = false; 
-                });
+                }
             },
 
             init() {
                 this.$watch('activeId', (newVal) => {
-                    if (newVal) this.refreshTable();
+                    if (newVal) {
+                        this.invoicePage = 1;
+                    } 
                 });
             }
         }"
         @click.stop
         @open-payment.window="paymentData = $event.detail; openPayment = true;"
         @open-manual-modal.window="openManual = true; manualActionUrl = $event.detail.action;"
-        @invoice-generated.window="
-        if ($event.detail && $event.detail.success) {
-            if ($event.detail.invoice) {
-                if (this.activeId && this.source[this.activeId]) {
-                    if (!this.source[this.activeId].invoices) {
-                        this.source[this.activeId].invoices = [];
-                    }
-                    // 确保兼容 items 和 invoice_items 两种命名
-                    let inv = $event.detail.invoice;
-                    if (!inv.invoice_items && inv.items) {
-                        inv.invoice_items = inv.items;
-                    }
-                    this.source[this.activeId].invoices.unshift(inv);
-                }
-            }
-            // 强制调用一次表格刷新，确保后端渲染的 HTML 容器或资料完全同步
-            this.refreshTable();
-        }
-        ">
+        @invoice-generated.window="handleInvoiceGenerated($event)"
+        >
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <a href="{{ route('admin.leases.index') }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center transition-colors">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -367,7 +361,7 @@
                                 <thead class="bg-gray-50">
                                     <tr>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice No</th>
-                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Template</th>
+                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Documents</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Due Date</th>
                                         <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount Details</th>
@@ -378,86 +372,112 @@
                                     </tr>
                                 </thead>
                                 <tbody id="other-payments-container" class="bg-white divide-y divide-gray-200">
-                                    <template x-for="invoice in (activeLease.invoices || [])" :key="invoice.id">
+                                    <template x-for="invoice in paginatedInvoices" :key="invoice.id">
                                         <tr class="hover:bg-gray-50 transition-colors">
                                             <td class="px-4 py-4 whitespace-nowrap text-sm font-bold text-indigo-600" x-text="invoice.invoice_no"></td>
 
-                                            {{-- 🌟 修改點 2：Template ID 變成可點擊的預覽按鈕 --}}
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600">
+                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600 space-y-1">
+                                                <!-- Invoice Template Button (Existing) -->
                                                 <template x-if="invoice.document_template_id !== '—' && invoice.template_title">
-                                                    <button type="button"
-                                                        class="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded-md border border-indigo-200 transition-all"
-                                                        @click="
-            let content = invoice.template_html || '';
-            if (!content) return;
+                                                    <div>
+                                                        <button type="button"
+                                                            class="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded-md border border-indigo-200 transition-all"
+                                                            @click="
+                                                                let content = invoice.template_html || '';
+                                                                if (!content) return;
 
-            // 🌟 1. 動態生成發票明細表的 HTML (<tr>...</tr>)
-            let dynamicRows = '';
-            if (invoice.invoice_items && invoice.invoice_items.length > 0) {
-                invoice.invoice_items.forEach(item => {
-                    dynamicRows += `
-                        <tr style='border-bottom: 1px solid #e2e8f0;'>
-                            <td style='padding: 12px 15px; color: #0f172a;'>${item.description}</td>
-                            <td style='padding: 12px 15px; text-align: center; color: #475569;'>1</td>
-                            <td style='padding: 12px 15px; text-align: right; color: #475569;'>RM ${item.amount}</td>
-                            <td style='padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 500;'>RM ${item.amount}</td>
-                        </tr>
-                    `;
-                });
-            } else {
-                dynamicRows = `<tr><td colspan='4' style='padding: 12px 15px; text-align: center; color: #94a3b8; font-style: italic;'>No items billed.</td></tr>`;
-            }
+                                                                let dynamicRows = '';
+                                                                if (invoice.invoice_items && invoice.invoice_items.length > 0) {
+                                                                    invoice.invoice_items.forEach(item => {
+                                                                        dynamicRows += `
+                                                                            <tr style='border-bottom: 1px solid #e2e8f0;'>
+                                                                                <td style='padding: 12px 15px; color: #0f172a;'>${item.description}</td>
+                                                                                <td style='padding: 12px 15px; text-align: center; color: #475569;'>1</td>
+                                                                                <td style='padding: 12px 15px; text-align: right; color: #475569;'>RM ${item.amount}</td>
+                                                                                <td style='padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 500;'>RM ${item.amount}</td>
+                                                                            </tr>
+                                                                        `;
+                                                                    });
+                                                                } else {
+                                                                    dynamicRows = `<tr><td colspan='4' style='padding: 12px 15px; text-align: center; color: #94a3b8; font-style: italic;'>No items billed.</td></tr>`;
+                                                                }
 
-            // 🌟 2. 使用原生 DOM 操作來替換 <tbody> 的內容
-            let tempDiv = document.createElement('div');
-            tempDiv.innerHTML = content;
-            let tbody = tempDiv.querySelector('#dynamic-invoice-tbody');
-            if (tbody) {
-                tbody.innerHTML = dynamicRows; 
-            }
-            content = tempDiv.innerHTML; 
+                                                                let tempDiv = document.createElement('div');
+                                                                tempDiv.innerHTML = content;
+                                                                let tbody = tempDiv.querySelector('#dynamic-invoice-tbody');
+                                                                if (tbody) { tbody.innerHTML = dynamicRows; }
+                                                                content = tempDiv.innerHTML; 
 
-            // 🌟 3. 自動替換所有變數並拔除顏色標籤 (已完美避開雙引號衝突)
-            if (invoice.variables) {
-                Object.keys(invoice.variables).forEach(key => {
-                    let val = invoice.variables[key];
-                    if (val === null || val === undefined) val = '';
-                    
-                    // 這裡改用 . 來代替原本的雙引號，HTML 就不會再崩潰了！
-                    let spanRegex = new RegExp('<span[^>]*data-variable=.' + key + '.[^>]*>\\s*\\{\\{\\s*' + key + '\\s*\\}\\}\\s*<\\/span>', 'gi');
-                    
-                    if (content.match(spanRegex)) {
-                        // 找到了 GrapesJS 的 span，連殼帶字一起換成純文字
-                        content = content.replace(spanRegex, val);
-                    } else {
-                        // 沒找到外殼，就只替換裡面的 
-                        let textRegex = new RegExp('\\{\\{\\s*' + key + '\\s*\\}\\}', 'g');
-                        content = content.replace(textRegex, val);
-                    }
-                });
-            }
+                                                                if (invoice.variables) {
+                                                                    Object.keys(invoice.variables).forEach(key => {
+                                                                        let val = invoice.variables[key];
+                                                                        if (val === null || val === undefined) val = '';
+                                                                        let spanRegex = new RegExp('<span[^>]*data-variable=.' + key + '.[^>]*>\\s*\\{\\{\\s*' + key + '\\s*\\}\\}\\s*<\\/span>', 'gi');
+                                                                        if (content.match(spanRegex)) {
+                                                                            content = content.replace(spanRegex, val);
+                                                                        } else {
+                                                                            let textRegex = new RegExp('\\{\\{\\s*' + key + '\\s*\\}\\}', 'g');
+                                                                            content = content.replace(textRegex, val);
+                                                                        }
+                                                                    });
+                                                                }
 
-            // 🌟 4. 呼叫 HTML 預覽 Modal 
-            $dispatch('open-lease-preview', { 
-                title: 'Invoice: ' + invoice.invoice_no, 
-                content: content 
-            });
-            document.body.style.overflow = 'hidden';
-        ">
-                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                        </svg>
-                                                        <span x-text="invoice.template_title"></span>
-                                                    </button>
+                                                                $dispatch('open-lease-preview', { 
+                                                                    title: 'Invoice: ' + invoice.invoice_no, 
+                                                                    content: content 
+                                                                });
+                                                                document.body.style.overflow = 'hidden';
+                                                            ">
+                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                            </svg>
+                                                            <span x-text="invoice.template_title"></span>
+                                                        </button>
+                                                    </div>
                                                 </template>
-                                                <template x-if="invoice.document_template_id === '—' || !invoice.template_title">
+
+                                                <!-- Loop Through Multiple Receipts -->
+                                                <template x-for="receipt in (invoice.receipts || [])" :key="receipt.id">
+                                                    <div>
+                                                        <button type="button"
+                                                            class="inline-flex items-center gap-1 text-xs font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-1.5 rounded-md border border-emerald-200 transition-all"
+                                                            @click="
+                                                                let content = receipt.template_html || '';
+                                                                if (!content) return;
+
+                                                                // Handle variables replacement for receipt templates if they have variables
+                                                                if (receipt.variables) {
+                                                                    Object.keys(receipt.variables).forEach(key => {
+                                                                        let val = receipt.variables[key];
+                                                                        if (val === null || val === undefined) val = '';
+                                                                        let textRegex = new RegExp('\\{\\{\\s*' + key + '\\s*\\}\\}', 'g');
+                                                                        content = content.replace(textRegex, val);
+                                                                    });
+                                                                }
+
+                                                                $dispatch('open-lease-preview', { 
+                                                                    title: 'Receipt: ' + receipt.receipt_no, 
+                                                                    content: content 
+                                                                });
+                                                                document.body.style.overflow = 'hidden';
+                                                            ">
+                                                            <!-- Receipt Icon -->
+                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            </svg>
+                                                            <span x-text="receipt.receipt_no + (receipt.template_title ? ' (' + receipt.template_title + ')' : '')"></span>
+                                                        </button>
+                                                    </div>
+                                                </template>
+
+                                                <!-- Fallback if neither invoice template nor receipts exist -->
+                                                <template x-if="(invoice.document_template_id === '—' || !invoice.template_title) && (!invoice.receipts || invoice.receipts.length === 0)">
                                                     <span class="text-xs text-gray-400 italic">- None -</span>
                                                 </template>
                                             </td>
 
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900" x-text="invoice.period"></td>
-
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600" x-text="invoice.due_date"></td>
 
                                             <td class="px-4 py-4 whitespace-nowrap text-sm">
@@ -477,7 +497,7 @@
                                             <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                                                 <template x-if="invoice.invoice_items && invoice.invoice_items.length > 0">
                                                     <div class="space-y-1">
-                                                        <template x-for="subItem in invoice.invoice_items">
+                                                        <template x-for="subItem in invoice.invoice_items" :key="subItem.id">
                                                             <div class="flex justify-between gap-4 text-xs">
                                                                 <span class="font-medium text-gray-800 capitalize" x-text="subItem.description"></span>
                                                                 <span class="text-gray-600 font-semibold" x-text="'RM ' + subItem.amount"></span>
@@ -531,18 +551,57 @@
 
                                     <template x-if="!activeLease.invoices || activeLease.invoices.length === 0">
                                         <tr>
-                                            <td colspan="10" class="px-6 py-12 text-center text-sm text-gray-500 italic">No invoices found for this lease.</td>
+                                            <td colspan="9" class="px-6 py-12 text-center text-sm text-gray-500 italic">No invoices found for this lease.</td>
                                         </tr>
                                     </template>
                                 </tbody>
                             </table>
                         </div>
 
-                        @if($invoices->hasPages())
-                        <div class="mt-4">
-                            {{ $invoices->appends(['rent_page' => request('rent_page')])->links() }}
+                        <!-- Laravel-Style Numerical Pagination Controls -->
+                        <div class="mt-4 flex items-center justify-between px-2" x-show="totalInvoicePages > 1">
+                            <div class="text-xs text-gray-500">
+                                Showing page <span class="font-bold" x-text="invoicePage"></span> of <span class="font-bold" x-text="totalInvoicePages"></span>
+                            </div>
+                            
+                            <div class="flex items-center space-x-1">
+                                <!-- Previous Button -->
+                                <button type="button" 
+                                    @click="if(invoicePage > 1) invoicePage--" 
+                                    :disabled="invoicePage === 1"
+                                    class="px-3 py-1.5 text-xs font-semibold bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                                    &lsaquo;
+                                </button>
+
+                                <!-- Dynamic Numbers & Ellipses -->
+                                <template x-for="page in paginationLinks" :key="page">
+                                    <div>
+                                        <template x-if="page !== '...'">
+                                            <button type="button"
+                                                @click="invoicePage = page"
+                                                class="px-3 py-1.5 text-xs font-semibold border rounded-md transition-all"
+                                                :class="invoicePage === page 
+                                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' 
+                                                    : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'"
+                                                x-text="page">
+                                            </button>
+                                        </template>
+
+                                        <template x-if="page === '...'">
+                                            <span class="px-2 py-1 text-xs text-gray-400 font-bold">...</span>
+                                        </template>
+                                    </div>
+                                </template>
+
+                                <!-- Next Button -->
+                                <button type="button" 
+                                    @click="if(invoicePage < totalInvoicePages) invoicePage++" 
+                                    :disabled="invoicePage === totalInvoicePages"
+                                    class="px-3 py-1.5 text-xs font-semibold bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
+                                    &rsaquo;
+                                </button>
+                            </div>
                         </div>
-                        @endif
                     </div>
 
                 </div>

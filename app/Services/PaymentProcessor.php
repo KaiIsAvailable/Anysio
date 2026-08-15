@@ -1,35 +1,51 @@
 <?php
 namespace App\Services;
 
-use App\Models\{Invoice, Transaction};
+use App\Models\{Invoice, Transaction, DocumentTemplate};
 use App\Events\PaymentRecorded;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 class PaymentProcessor
 {
-    public function __construct(private readonly WalletService $walletService) {}
+    public function __construct(
+        private readonly WalletService $walletService,
+        private readonly DocumentSequenceService $documentSequenceService,
+    ) {}
 
     public function process(Invoice $invoice, array $data): Transaction
     {
         $this->assertNoEarlierOutstanding($invoice);
 
+        $currentUser = Auth::user(); 
+
+        if (!$currentUser) {
+            throw new \RuntimeException('Authenticated user required to generate invoices.');
+        }
+
         $paidCents    = (int) round($data['amount_paid'] * 100);
         $balanceCents = $invoice->amount_balance;
         $appliedCents = min($paidCents, $balanceCents);
         $excessCents  = max(0, $paidCents - $balanceCents);
+        $receiptNo = $this->documentSequenceService->generateReceiptNumber($currentUser);
+
+        $template = DocumentTemplate::where('created_by', $currentUser->id)
+                    ->where('category', 'receipt')
+                    ->where('status', 'active')
+                    ->first();
 
         $transaction = Transaction::create([
-            'invoice_id'      => $invoice->id,
-            'amount_paid'     => $paidCents,
-            'amount_applied'  => $appliedCents,
-            'amount_excess'   => $excessCents,
-            'payment_method'  => $data['payment_method'],
-            'transaction_ref' => $data['transaction_ref'] ?? null,
-            'receipt_no'      => $data['receipt_no'] ?? null,
-            'payment_date'    => $data['payment_date'],
-            'approved_by'     => Auth::id(),
-            'remarks'         => $data['remarks'] ?? null,
+            'invoice_id'           => $invoice->id,
+            'amount_paid'          => $paidCents,
+            'amount_applied'       => $appliedCents,
+            'amount_excess'        => $excessCents,
+            'payment_method'       => $data['payment_method'],
+            'transaction_ref'      => $data['transaction_ref'] ?? null,
+            'receipt_no'           => $receiptNo,
+            'document_template_id' => $template?->id,
+            'payment_date'         => $data['payment_date'],
+            'approved_by'          => Auth::id(),
+            'remarks'              => $data['remarks'] ?? null,
         ]);
 
         // Update invoice balances

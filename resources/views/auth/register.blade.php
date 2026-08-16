@@ -144,14 +144,14 @@
                         </div>
                         
                         <div class="px-6 py-8 max-h-[60vh] overflow-y-auto bg-white">
-                            <div class="prose prose-sm max-w-none font-serif text-slate-800 leading-relaxed" style="white-space: pre-line;">
+                            <div class="prose prose-sm max-w-none font-serif text-slate-800 leading-relaxed">
                                 
                                 <div x-show="activeTab === 'tos'">
                                     @php
                                         $tos = \App\Models\DocumentTemplate::where('category', 'tos')->where('status', 'active')->latest()->first();
                                     @endphp
                                     @if($tos)
-                                        <div class="prose prose-indigo max-w-none quill-content"> {{-- 建议使用 Tailwind Typography 插件的 prose 类 --}}
+                                        <div class="prose prose-indigo max-w-none quill-content prose-p:mt-0 prose-headings:mt-0">
                                             {!! $tos->html_template !!}
                                         </div>
                                     @else

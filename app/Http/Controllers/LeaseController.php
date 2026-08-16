@@ -427,53 +427,75 @@ class LeaseController extends Controller
             $targetLeaseId = $request->get('lease_id', $lease->id);
             $targetLease = Lease::findOrFail($targetLeaseId);
 
-            // 🌟 這裡加上 with(['documentTemplate']) 載入模板關聯
             $invoices = $targetLease->invoices()
                 ->with(['documentTemplate', 'items.feeType'])
                 ->latest()
-                ->paginate(5, ['*'], 'other_page')
-                ->onEachSide(1);
+                ->get(); // Use get() instead of paginate() so Alpine can handle the 5-per-page slicing uniformly
 
-            // Map the items for the frontend
-            // Map the items for the frontend
             $formattedInvoices = $invoices->map(function ($invoice) {
-                // 🌟 呼叫 Service 取得所有發票變數
                 $variables = $this->invoiceService->getInvoiceVariables($invoice);
+                $rawPeriod = $invoice->period_display ?? $invoice->period;
+
+                $formattedPeriod = '—';
+                if ($rawPeriod) {
+                    try {
+                        $formattedPeriod = \Carbon\Carbon::parse($rawPeriod)->format('m/Y');
+                    } catch (\Exception $e) {
+                        $formattedPeriod = $rawPeriod;
+                    }
+                }
+
+                $invoiceItems = $invoice->items->map(function ($subItem) {
+                    return [
+                        'id' => $subItem->id,
+                        // Strictly use feeType name, with a fallback if feeType is missing
+                        'description' => $subItem->feeType?->name ?? 'Fee Item',
+                        'amount' => number_format($subItem->amount / 100 ?? 0, 2),
+                    ];
+                });
+
+                // Fallback if the invoice has no relational invoice items at all
+                if ($invoiceItems->isEmpty() && $invoice->total_amount) {
+                    $invoiceItems->push([
+                        'id' => $invoice->id,
+                        'description' => 'Invoice Total',
+                        'amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
+                    ]);
+                }
+
+                $receipts = $invoice->transactions->map(function ($transaction) {
+                    return [
+                        'id' => $transaction->id,
+                        'receipt_no' => $transaction->receipt_no ?? '—',
+                        'document_template_id' => $transaction->document_template_id ?? '—',
+                        'template_title' => $transaction->documentTemplate?->title,
+                        'template_html' => $transaction->documentTemplate?->html_template,
+                        'amount' => number_format($transaction->amount_paid / 100 ?? 0, 2),
+                        'date' => $transaction->payment_date ? \Carbon\Carbon::parse($transaction->payment_date)->format('d M Y') : $transaction->created_at?->format('d M Y'),
+                    ];
+                });
 
                 return [
                     'id' => $invoice->id,
                     'invoice_no' => $invoice->invoice_no,
-                    'date' => $invoice->created_at->format('d M Y'),
-                    'payment_type' => ucwords(str_replace('_', ' ', $invoice->payment_type)),
-                    'period_display' => $invoice->period_display,
-                    'amount_paid' => number_format($invoice->amount_paid, 2),
-                    'amount_due' => number_format($invoice->amount_due, 2),
-                    'is_unpaid_zero' => ($invoice->amount_due > $invoice->amount_paid && $invoice->amount_paid == 0),
-                    'status' => strtoupper($invoice->status),
-                    'status_class' => match($invoice->status) {
-                        'paid' => 'bg-green-100 text-green-700 border-green-200',
-                        'approved' => 'bg-blue-100 text-blue-700 border-blue-200',
-                        'unpaid' => 'bg-yellow-100 text-yellow-700 border-yellow-200',
-                        'rejected' => 'bg-red-100 text-red-700 border-red-200',
-                        'void' => 'bg-gray-100 text-gray-500 border-gray-200 line-through',
-                        default => 'bg-gray-100 text-gray-600',
-                    },
-                    'payment_method' => $invoice->payment_method ?? '—',
-                    'transaction_ref' => $invoice->transaction_ref,
-                    'update_url' => route('admin.invoices.update', $invoice->id),
-                    'void_url' => route('admin.invoices.void', $invoice->id),
-                    
+                    'document_template_id' => $invoice->document_template_id ?? '—',
                     'template_title' => $invoice->documentTemplate?->title,
                     'template_html'  => $invoice->documentTemplate?->html_template,
-                    
-                    // 🌟 新增：把打包好的變數傳給前端！
                     'variables'      => $variables,
+                    'invoice_items' => $invoiceItems,
+                    'receipts'      => $receipts,
+                    'period' => $formattedPeriod,
+                    'due_date' => $invoice->due_date ? $invoice->due_date->format('d M Y') : '—',
+                    'total_amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
+                    'amount_paid' => number_format($invoice->amount_paid / 100 ?? 0, 2),
+                    'amount_balance' => number_format(($invoice->total_amount / 100 ?? 0) - ($invoice->amount_paid / 100 ?? 0), 2),
+                    'status' => strtolower($invoice->status ?? 'unpaid'),
+                    'remarks' => $invoice->remarks ?? '—',
                 ];
             });
 
             return response()->json([
                 'invoices' => $formattedInvoices,
-                'pagination' => (string) $invoices->links()
             ]);
         }
 
@@ -550,11 +572,11 @@ class LeaseController extends Controller
                 'tenant_name' => $item->tenant?->user?->name ?? 'N/A',
                 'tenant_ic' => $item->tenant?->ic_number ?? 'N/A',
 
-                'owner_name' => ($item->leasable instanceof \App\Models\Room)
+                'owner_name' => ($item->leasable instanceof Room)
                     ? ($item->leasable->unit?->owner?->name ?? 'N/A')
                     : ($item->leasable->owner?->name ?? 'N/A'),
 
-                'owner_ic' => ($item->leasable instanceof \App\Models\Room)
+                'owner_ic' => ($item->leasable instanceof Room)
                     ? ($item->leasable->unit?->owner?->owner?->ic_number ?? 'N/A')
                     : ($item->leasable->owner?->owner?->ic_number ?? 'N/A'),
 

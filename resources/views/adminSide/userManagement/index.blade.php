@@ -28,6 +28,7 @@
                     ['name' => 'User Details', 'sortField' => 'u'],
                     ['name' => 'Role & Referral', 'sortField' => 'r'],
                     ['name' => 'Subscription', 'sortField' => 's'],
+                    ['name' => 'Active Duration', 'sortField' => 'd'],
                     ['name' => 'Usage/Discount', 'sortField' => 'ud'],
                     ['name' => 'Joined Date', 'sortField' => 'jd']
                 ]"
@@ -81,6 +82,14 @@
                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border {{ $color }}">
                                 {{ ucfirst($status) }}
                             </span>
+                        </td>
+
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm text-slate-700 font-medium">
+                                {{ $user->start_date ? \Carbon\Carbon::parse($user->start_date)->format('d/m/Y') : '-' }} 
+                                to 
+                                {{ $user->end_date ? \Carbon\Carbon::parse($user->end_date)->format('d/m/Y') : '-' }}
+                            </div>
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap">

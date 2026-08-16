@@ -1,12 +1,44 @@
 {{-- Preview Agreement Modal Component --}}
-<div x-data="{ openPreview: false,
-    openPreview: false, 
-    shakeModal: false }" 
+<div x-data="{ 
+        openPreview: false, 
+        shakeModal: false,
+        closeModal() {
+            this.openPreview = false;
+            document.body.style.overflow = ''; // Restores background scrolling
+        },
+        printDocument() {
+            // Get the fully parsed HTML content currently displayed in the modal
+            let contentHtml = document.getElementById('modal-content').innerHTML;
+            let titleText = document.getElementById('modal-title') ? document.getElementById('modal-title').innerText : 'Document Preview';
 
+            let printWindow = window.open('', '_blank', 'height=600,width=800');
+            printWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                    <head>
+                        <title>${titleText}</title>
+                        <style>
+                            body { font-family: sans-serif; padding: 20px; color: #0f172a; margin: 0; }
+                            table { width: 100%; border-collapse: collapse; }
+                            th, td { padding: 12px 15px; }
+                        </style>
+                    </head>
+                    <body>
+                        ${contentHtml}
+                    </body>
+                </html>
+            `);
+            printWindow.document.close();
+            printWindow.focus();
+            setTimeout(() => {
+                printWindow.print();
+                printWindow.close();
+            }, 500);
+        }
+     }" 
      @open-preview-modal.window="openPreview = true" 
      @open-lease-preview.window="
         openPreview = true;
-        {{-- 这里的 $event.detail 会接收到按钮传过来的 content 和 title --}}
         $nextTick(() => {
             document.getElementById('modal-content').innerHTML = $event.detail.content;
             const titleEl = document.getElementById('modal-title');
@@ -40,12 +72,12 @@
                     {{-- Header --}}
                     <div class="px-8 py-6 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                         <div>
-                            <h3 class="text-2xl font-black text-slate-800 tracking-tight">Agreement Preview</h3>
+                            <h3 id="modal-title" class="text-2xl font-black text-slate-800 tracking-tight">Agreement Preview</h3>
                             <p class="text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">
                                 Please review the document carefully
                             </p>
                         </div>
-                        <button @click="openPreview = false" class="p-2 rounded-full hover:bg-gray-200 text-gray-400 transition-colors">
+                        <button @click="closeModal()" class="p-2 rounded-full hover:bg-gray-200 text-gray-400 transition-colors">
                             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -63,14 +95,27 @@
                         </div>
                     </div>
 
-                    {{-- Footer --}}
+                    {{-- Footer with Print Button --}}
                     <div class="px-8 py-6 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                         <span class="text-xs text-slate-400 font-bold uppercase tracking-widest">End of Document</span>
-                        <button type="button" 
-                                @click="openPreview = false" 
-                                class="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all active:scale-[0.98]">
-                            Close
-                        </button>
+                        <div class="flex items-center gap-3">
+                            {{-- Print Button --}}
+                            <button type="button" 
+                                    @click="printDocument()" 
+                                    class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98]">
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                Print
+                            </button>
+
+                            {{-- Close Button --}}
+                            <button type="button" 
+                                    @click="closeModal()"
+                                    class="px-8 py-3 bg-slate-900 text-white rounded-xl font-bold text-sm hover:bg-slate-800 shadow-lg shadow-slate-200 transition-all active:scale-[0.98]">
+                                Close
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

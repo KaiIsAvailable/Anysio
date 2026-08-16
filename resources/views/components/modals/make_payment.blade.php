@@ -166,11 +166,37 @@
 
                                 <div class="py-5 flex flex-col items-center">
                                     <div class="rounded-2xl bg-white border border-slate-200 p-3">
-                                        <img src="{{ asset('image/qr_example.jpeg') }}" class="w-40 h-40 object-contain">
+                                        <img src="{{ asset('image/AnysioBankQR.jpeg') }}" class="w-40 h-40 object-contain">
                                     </div>
 
                                     <div class="mt-3 text-sm font-medium text-slate-700">DuitNow QR</div>
                                     <div class="text-xs text-slate-500">Complete the transfer before uploading your receipt.</div>
+
+                                    {{-- Divider --}}
+                                    <div class="w-full px-6 my-4">
+                                        <div class="border-t border-slate-100"></div>
+                                    </div>
+
+                                    {{-- Manual Bank Transfer Details --}}
+                                    <div class="w-full px-6 text-center">
+                                        <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Or Transfer Via</div>
+                                        <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 text-left space-y-1">
+                                            <div class="flex justify-between text-xs">
+                                                <span class="text-slate-500">Bank:</span>
+                                                <span class="font-medium text-slate-800">Maybank</span>
+                                            </div>
+                                            <div class="flex justify-between text-xs">
+                                                <span class="text-slate-500">Account No:</span>
+                                                <span class="font-semibold text-slate-800 tracking-wide">5580 4283 0633</span>
+                                            </div>
+                                            <div class="flex justify-between text-xs">
+                                                <span class="text-slate-500">Recipient:</span>
+                                                <span class="font-medium text-slate-800">Ansio Technologies</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-4 text-xs text-slate-500">Complete the transfer before uploading your receipt.</div>
                                 </div>
                             </div>
 

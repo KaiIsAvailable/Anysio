@@ -43,41 +43,4 @@ class PaymentService
             ]);
         });
     }
-
-    /**
-     * Admin approves payment.
-     */
-    public function approve(Payment $payment): void
-    {
-        DB::transaction(function () use ($payment) {
-
-            $invoice = $payment->invoice;
-
-            $this->paymentProcessor->process($invoice, [
-                'amount_paid'     => $invoice->amount_balance / 100,
-                'payment_method'  => 'bank_transfer',
-                'transaction_ref' => $payment->transaction_ref,
-                'payment_date'    => now(),
-            ]);
-
-            $payment->update([
-                'status' => 'approved',
-                'reviewed_by' => Auth::id(),
-                'reviewed_at' => now(),
-            ]);
-        });
-    }
-
-    /**
-     * Admin rejects payment.
-     */
-    public function reject(Payment $payment, ?string $remark = null): void
-    {
-        $payment->update([
-            'status' => 'rejected',
-            'remark' => $remark,
-            'verified_by' => Auth::id(),
-            'verified_at' => now(),
-        ]);
-    }
 }

@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Models\FeeType;
 use App\FeeTypeCategory;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\Schema;
 
 class FeeTypeSeeder extends Seeder
 {
@@ -18,15 +17,6 @@ class FeeTypeSeeder extends Seeder
         if (!$admin) {
             return;
         }
-
-        // Temporarily disable foreign key checks if leases are linked to fee types
-        Schema::disableForeignKeyConstraints();
-
-        // Clear all old fee type data
-        FeeType::truncate();
-
-        // Re-enable foreign key checks
-        Schema::enableForeignKeyConstraints();
 
         $feeTypes = [
             // Rent
@@ -45,13 +35,19 @@ class FeeTypeSeeder extends Seeder
         ];
 
         foreach ($feeTypes as $feeType) {
-            FeeType::create([
-                'user_id' => $admin->id,
-                'name' => $feeType['name'],
-                'category' => $feeType['category'],
-                'is_system' => true,
-                'is_active' => true,
-            ]);
+            FeeType::updateOrCreate(
+                [
+                    // Attributes to check if the record already exists
+                    'name' => $feeType['name'],
+                    'user_id' => $admin->id, 
+                ],
+                [
+                    // Attributes to update or create
+                    'category' => $feeType['category'],
+                    'is_system' => true,
+                    'is_active' => true,
+                ]
+            );
         }
     }
 }

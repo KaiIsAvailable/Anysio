@@ -6,12 +6,12 @@ use Illuminate\Support\Facades\DB;
 
 class WalletService
 {
-    public function getOrCreateWallet(int $userId): Wallet
+    public function getOrCreateWallet(string $userId): Wallet
     {
         return Wallet::firstOrCreate(['user_id' => $userId], ['balance' => 0]);
     }
 
-    public function credit(int $userId, int $amountCents, string $type, string $refId, string $remarks = ''): WalletTransaction
+    public function credit(string $userId, int $amountCents, string $type, string $refId, string $remarks = ''): WalletTransaction
     {
         return DB::transaction(function () use ($userId, $amountCents, $type, $refId, $remarks) {
             $wallet = $this->getOrCreateWallet($userId);
@@ -27,7 +27,7 @@ class WalletService
         });
     }
 
-    public function debit(int $userId, int $amountCents, string $type, string $refId, string $remarks = ''): WalletTransaction
+    public function debit(string $userId, int $amountCents, string $type, string $refId, string $remarks = ''): WalletTransaction
     {
         return DB::transaction(function () use ($userId, $amountCents, $type, $refId, $remarks) {
             $wallet = $this->getOrCreateWallet($userId);

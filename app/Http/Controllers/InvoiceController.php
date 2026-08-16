@@ -19,7 +19,8 @@ class InvoiceController extends Controller
         $user = Auth::user();
 
         $query = Invoice::with([
-            'lease.leasable', // Ensure leasable is loaded so you can check ownership if needed
+            'documentTemplate',
+            'lease.leasable', 
             'items.feeType',
             'transactions', 
             'payments' => function ($query) {
@@ -27,14 +28,8 @@ class InvoiceController extends Controller
             },
         ]);
 
-        // Apply your role-based ownership filter
-        // Depending on your schema, invoices might relate to owners via leases -> properties.
-        // If your invoices table has a direct column (e.g., created_by or user_id), pass that.
-        // If it's filtered through the lease relation, you can scope it like below:
-        
         if ($user->role === 'ownerAdmin') {
             $query->whereHas('lease.leasable', function ($q) use ($user) {
-                // Adjust this based on how your Room/Unit/Property links to the owner user ID
                 $q->where('user_id', $user->id); 
             });
         } elseif ($user->role === 'agentAdmin') {
@@ -45,15 +40,84 @@ class InvoiceController extends Controller
                 ->orWhereIn('user_id', $managedOwnerIds);
             });
         }
-        // Super admins bypass this and see everything naturally
 
-        $invoices = $query->latest()
+        $paginatedInvoices = $query->latest()
             ->paginate(20)
             ->onEachSide(1);
-            
+
+        // Transform the paginated items collection
+        $paginatedInvoices->setCollection(
+            $paginatedInvoices->getCollection()->map(function ($invoice) {
+                return (object) $this->transformInvoice($invoice);
+            })
+        );
+
+        $invoices = $paginatedInvoices;
+
         return view('adminSide.leases.invoices.index', compact('invoices'));
     }
 
+    /**
+     * Helper function to transform an invoice model into a structured array.
+     */
+    protected function transformInvoice($invoice)
+    {
+        $rawPeriod = $invoice->period_display ?? $invoice->period;
+
+        $formattedPeriod = '—';
+        if ($rawPeriod) {
+            try {
+                $formattedPeriod = \Carbon\Carbon::parse($rawPeriod)->format('m/Y');
+            } catch (\Exception $e) {
+                $formattedPeriod = $rawPeriod;
+            }
+        }
+
+        $invoiceItems = $invoice->items->map(function ($subItem) {
+            return [
+                'description' => $subItem->description ?? 'Item',
+                'amount' => number_format(($subItem->amount ?? 0) / 100, 2),
+            ];
+        });
+
+        if ($invoiceItems->isEmpty() && $invoice->description) {
+            $invoiceItems->push([
+                'description' => $invoice->description,
+                'amount' => number_format(($invoice->total_amount ?? 0) / 100, 2),
+            ]);
+        }
+
+        // Get the latest payment from the loaded relationship if available
+        $latestPayment = $invoice->payments->first();
+
+        return [
+            'id' => $invoice->id,
+            'invoice_no' => $invoice->invoice_no ?? $invoice->serial_number,
+            'total_amount' => $invoice->total_amount,
+            'amount_due' => $invoice->amount_due ?? $invoice->total_amount,
+            'amount_balance' => $invoice->amount_balance,
+            'amount_paid' => $invoice->amount_paid,
+            'status' => $invoice->status,
+            'invoice_items' => $invoiceItems,
+            'actionUrl' => route('admin.invoices.payment', $invoice->id),
+            'context' => $invoice->context,
+            'created_at' => $invoice->created_at,
+            'period' => $formattedPeriod,
+            'due_date' => $invoice->due_date ? \Carbon\Carbon::parse($invoice->due_date)->format('M d, Y') : '—',
+            'remarks' => $invoice->remarks,
+            'document_template_id' => $invoice->document_template_id ?? '—',
+            'documentTemplate' => $invoice->documentTemplate, // Added this back
+            'receipt_path' => $invoice->receipt_path ?? $latestPayment?->receipt_path, // Added this back
+            'latestPayment' => $latestPayment, // Added this back
+            'user' => $invoice->lease?->user ?? null, // Ensure user relation is accessible
+            'template_title' => $invoice->documentTemplate?->title,
+            'template_html' => $invoice->documentTemplate?->html_content,
+            'tenant_name' => $invoice->lease?->leasable?->tenant_name ?? '—',
+            'property_address' => $invoice->lease?->leasable?->address ?? '—',
+            'owner_name' => $invoice->lease?->leasable?->owner_name ?? '—',
+        ];
+    }
+    
     public function show(Lease $lease, Invoice $invoice)
     {
         Gate::authorize('owner-admin', $lease);
@@ -84,11 +148,29 @@ class InvoiceController extends Controller
             return response()->json([
                 'success' => true,
                 'message' => "Invoice {$invoice->invoice_no} created.",
-                'invoice' => $invoice
+                'invoice' => [
+                    'id' => $invoice->id,
+                    'invoice_no' => $invoice->invoice_no,
+                    'document_template_id' => $invoice->document_template_id ?? '—',
+                    'template_title' => $invoice->documentTemplate?->title ?? 'Manual Invoice',
+                    'template_html' => $invoice->documentTemplate?->html_template ?? '',
+                    'period' => \Carbon\Carbon::parse($invoice->period)->format('m/Y'),
+                    'due_date' => $invoice->due_date ? $invoice->due_date->format('d M Y') : '—',
+                    'total_amount' => number_format($invoice->total_amount / 100, 2),
+                    'amount_paid' => number_format($invoice->amount_paid / 100, 2),
+                    'amount_balance' => number_format($invoice->amount_balance / 100, 2),
+                    'status' => strtolower($invoice->status ?? 'unpaid'),
+                    'remarks' => $invoice->remarks ?? '—',
+                    'items' => $invoice->items->map(function ($item) {
+                        return [
+                            'description' => $item->description ?? $item->feeType?->name ?? 'Item',
+                            'amount' => number_format($item->amount / 100, 2),
+                        ];
+                    })
+                ]
             ]);
         }
 
-        return redirect()->route('leases.invoices.show', [$lease, $invoice])
-                        ->with('success', "Invoice {$invoice->invoice_no} created.");
+        return back()->with('success', "Invoice {$invoice->invoice_no} created.");
     }
 }

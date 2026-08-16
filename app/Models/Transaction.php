@@ -42,6 +42,11 @@ class Transaction extends Model
         return $this->belongsTo(User::class, 'approved_by', 'id');
     }
 
+    public function documentTemplate()
+    {
+        return $this->belongsTo(DocumentTemplate::class, 'document_template_id');
+    }
+
     // --- 财务辅助方法 ---
 
     /**

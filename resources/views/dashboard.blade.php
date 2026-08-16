@@ -1,8 +1,26 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="font-semibold text-xl text-gray-800 leading-tight">
-            {{ __('Dashboard') }}
-        </h2>
+        <div class="flex justify-between items-center">
+            <!-- Left Side: Title -->
+            <h2 class="font-semibold text-xl text-gray-800 leading-tight">
+                {{ __('Dashboard') }}
+            </h2>
+
+            <!-- Right Side: Action Buttons (Restricted to Super Admin) -->
+            @can('super-admin')
+                <div class="flex items-center space-x-3">
+                    <a href="{{ route('run.seeders') . '?redirect=' . urlencode(request()->url()) }}" 
+                    class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:border-indigo-900 focus:ring ring-indigo-300 disabled:opacity-25 transition ease-in-out duration-150">
+                        Run Seeders
+                    </a>
+
+                    <a href="{{ route('run.migrations') . '?redirect=' . urlencode(request()->url()) }}" 
+                    class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 active:bg-gray-900 focus:outline-none focus:border-gray-900 focus:ring ring-gray-300 disabled:opacity-25 transition ease-in-out duration-150">
+                        Run Migrations
+                    </a>
+                </div>
+            @endcan
+        </div>
     </x-slot>
 
     <div x-data="{ openPayment: false }" class="py-12 bg-gray-50 min-h-screen">

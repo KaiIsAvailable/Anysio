@@ -7,16 +7,19 @@ use App\Models\User;
 
 class DocumentSequenceService
 {
-    public function generateInvoiceNumber(User $user): string
+    /**
+     * Generate a unique document number based on category (e.g., invoice, receipt).
+     */
+    public function generateNumber(User $user, string $category = 'invoice', string $defaultPrefix = 'INV'): string
     {
         $sequence = DocumentSequence::firstOrCreate(
             [
                 'user_id' => $user->id,
-                'category' => 'invoice',
+                'category' => $category,
             ],
             [
                 'sequence' => [
-                    'prefix' => 'INV',
+                    'prefix' => $defaultPrefix,
                     'next_number' => 1,
                     'padding' => 5,
                 ],
@@ -25,7 +28,7 @@ class DocumentSequenceService
 
         $config = $sequence->sequence;
 
-        $invoiceNo = $config['prefix']
+        $documentNo = $config['prefix']
             . str_pad(
                 $config['next_number'],
                 $config['padding'],
@@ -38,6 +41,16 @@ class DocumentSequenceService
         $sequence->sequence = $config;
         $sequence->save();
 
-        return $invoiceNo;
+        return $documentNo;
+    }
+
+    public function generateInvoiceNumber(User $user): string
+    {
+        return $this->generateNumber($user, 'invoice', 'INV');
+    }
+
+    public function generateReceiptNumber(User $user): string
+    {
+        return $this->generateNumber($user, 'receipt', 'REC');
     }
 }

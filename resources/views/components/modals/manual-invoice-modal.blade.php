@@ -74,7 +74,13 @@
                     this.resetForm();
                     form.reset();
 
-                    // --- 🌟 调整：规范化传输到主页面的 invoice 数据结构 ---
+                    // 🌟 顯示成功訊息 (若您的專案有全局 flash/toast 事件，可在此觸發)
+                    if (data.message) {
+                        window.dispatchEvent(new CustomEvent('showAlert', { 
+                            detail: { type: 'success', message: data.message } 
+                        }));
+                    }
+
                     const formattedInvoice = {
                         id: data.invoice.id,
                         invoice_no: data.invoice.invoice_no,
@@ -89,7 +95,7 @@
                         status: data.invoice.status,
                         remarks: data.invoice.remarks,
                         invoice_items: (data.invoice.items || []).map(item => ({
-                            description: item.description || item.fee_type?.name || 'Item',
+                            description: item.description,
                             amount: item.amount
                         }))
                     };

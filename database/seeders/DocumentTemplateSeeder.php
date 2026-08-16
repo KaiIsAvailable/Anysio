@@ -12,11 +12,7 @@ class DocumentTemplateSeeder extends Seeder
     {
         // 1. 自動尋找系統中的 Admin 用戶作為模板的擁有者
         $admin = User::where('role', 'admin')->first() ?? User::first();
-
-        // 如果資料庫還沒有任何用戶，則先跳過，避免報錯
-        if (!$admin) {
-            return;
-        }
+        $adminId = $admin ? $admin->id : null;
 
         // 2. 這里放你最終設計好的完整發票 HTML
         $invoiceHtml = <<<'HTML'
@@ -174,6 +170,7 @@ HTML;
                 'category'      => 'invoice',
                 'status'        => 'active',
                 'user_id'       => $adminId,
+                'details'       => 'Default standard system invoice template for lease billing.', // 🌟 補上這一行！
                 'html_template' => $invoiceHtml,
             ]
         );

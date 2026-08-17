@@ -18,9 +18,35 @@
                         </div>
 
                         <div>
-                            <x-form.input-label value="Email Address" class="mb-2" />
+                            <div class="flex items-center justify-between mb-2">
+                                <x-form.input-label value="Email Address" />
+                                
+                                {{-- Email Verification Status Badge --}}
+                                @if($userMgnt->user->email_verified_at)
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                                        Verified ({{ $userMgnt->user->email_verified_at->format('d/m/Y H:i') }})
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                                        Unverified
+                                    </span>
+                                @endif
+                            </div>
+
                             <x-form.text-input type="email" name="email" value="{{ old('email', $userMgnt->user->email) }}" 
                                     class="w-full" />
+                        </div>
+
+                        <div>
+                            <x-form.input-label value="Email Verification Status" class="mb-1" />
+                            <x-form.input-select 
+                                name="email_verification_status" 
+                                id="email_verification_status" 
+                                :value="old('email_verification_status', $userMgnt->user->email_verified_at ? 'verified' : 'unverified')" 
+                                :options="['verified' => 'Verified', 'unverified' => 'Unverified']" 
+                                required 
+                                class="w-full" />
+                            <p class="mt-1 text-xs text-gray-400">Manually verify or unverify this user's email address.</p>
                         </div>
 
                         <div>

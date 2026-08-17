@@ -245,6 +245,8 @@ class UserManagementController extends Controller
             'role_type' => 'required', // 对应你前端的 name="role_type"
             'pms_role' => 'required',  // 对应你前端的 name="pms_role"
             'subscription_status' => 'required|in:active,inactive',
+            'start_date' => 'nullable|date', // Added validation for start date
+            'end_date' => 'nullable|date|after_or_equal:start_date', // Added validation, ensures end date is not before start date
         ]);
 
         // 1. 更新 User 表
@@ -254,10 +256,12 @@ class UserManagementController extends Controller
             'role' => $request->role_type, // 使用 role_type
         ]);
 
-        // 2. 更新 UserManagement 表
+        // 2. 更新 UserManagement 表 (Added start_date and end_date)
         $userMgnt->update([
             'role' => $request->pms_role, // 使用 pms_role
             'subscription_status' => $request->subscription_status,
+            'start_date' => $request->start_date,
+            'end_date' => $request->end_date,
         ]);
 
         return redirect()->route('admin.userManagement.index')

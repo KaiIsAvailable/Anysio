@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Invoice\{StoreInvoiceRequest, RecordPaymentRequest, VoidInvoiceRequest};
@@ -6,7 +7,6 @@ use App\Models\{Invoice, Lease, Payment, Owners};
 use App\Services\InvoiceService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
-use App\Traits\RoleBasedDataTrait;
 
 class InvoiceController extends Controller
 {
@@ -18,9 +18,13 @@ class InvoiceController extends Controller
         
         $user = Auth::user();
 
+        // 🌟 修正：移除 lease.leasable.owner 後面的 .user，避免對 User 模型重複呼叫 user 關聯
         $query = Invoice::with([
             'documentTemplate',
-            'lease.leasable', 
+            'user',
+            'billable',
+            'lease.leasable.owner', // <-- 修正這裡
+            'lease.tenant.user',
             'items.feeType',
             'transactions', 
             'payments' => function ($query) {
@@ -29,15 +33,20 @@ class InvoiceController extends Controller
         ]);
 
         if ($user->role === 'ownerAdmin') {
-            $query->whereHas('lease.leasable', function ($q) use ($user) {
-                $q->where('user_id', $user->id); 
+            $query->where(function ($q) use ($user) {
+                $q->whereHas('lease.leasable', function ($sq) use ($user) {
+                    $sq->where('user_id', $user->id); 
+                })->orWhere('user_id', $user->id); 
             });
         } elseif ($user->role === 'agentAdmin') {
             $managedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
             
-            $query->whereHas('lease.leasable', function ($q) use ($user, $managedOwnerIds) {
-                $q->where('user_id', $user->id)
-                ->orWhereIn('user_id', $managedOwnerIds);
+            $query->where(function ($q) use ($user, $managedOwnerIds) {
+                $q->whereHas('lease.leasable', function ($sq) use ($user, $managedOwnerIds) {
+                    $sq->where('user_id', $user->id)
+                      ->orWhereIn('user_id', $managedOwnerIds);
+                })->orWhere('user_id', $user->id)
+                  ->orWhereIn('user_id', $managedOwnerIds); 
             });
         }
 
@@ -45,7 +54,6 @@ class InvoiceController extends Controller
             ->paginate(20)
             ->onEachSide(1);
 
-        // Transform the paginated items collection
         $paginatedInvoices->setCollection(
             $paginatedInvoices->getCollection()->map(function ($invoice) {
                 return (object) $this->transformInvoice($invoice);
@@ -57,9 +65,6 @@ class InvoiceController extends Controller
         return view('adminSide.leases.invoices.index', compact('invoices'));
     }
 
-    /**
-     * Helper function to transform an invoice model into a structured array.
-     */
     protected function transformInvoice($invoice)
     {
         $rawPeriod = $invoice->period_display ?? $invoice->period;
@@ -87,7 +92,6 @@ class InvoiceController extends Controller
             ]);
         }
 
-        // Get the latest payment from the loaded relationship if available
         $latestPayment = $invoice->payments->first();
 
         return [
@@ -106,15 +110,15 @@ class InvoiceController extends Controller
             'due_date' => $invoice->due_date ? \Carbon\Carbon::parse($invoice->due_date)->format('M d, Y') : '—',
             'remarks' => $invoice->remarks,
             'document_template_id' => $invoice->document_template_id ?? '—',
-            'documentTemplate' => $invoice->documentTemplate, // Added this back
-            'receipt_path' => $invoice->receipt_path ?? $latestPayment?->receipt_path, // Added this back
-            'latestPayment' => $latestPayment, // Added this back
-            'user' => $invoice->lease?->user ?? null, // Ensure user relation is accessible
+            'documentTemplate' => $invoice->documentTemplate,
+            'receipt_path' => $invoice->receipt_path ?? $latestPayment?->receipt_path,
+            'latestPayment' => $latestPayment,
+            'user' => $invoice->lease?->user ?? null,
             'template_title' => $invoice->documentTemplate?->title,
-            'template_html' => $invoice->documentTemplate?->html_content,
-            'tenant_name' => $invoice->lease?->leasable?->tenant_name ?? '—',
-            'property_address' => $invoice->lease?->leasable?->address ?? '—',
-            'owner_name' => $invoice->lease?->leasable?->owner_name ?? '—',
+            'template_html' => $invoice->documentTemplate?->html_content ?? $invoice->documentTemplate?->html_template,
+            
+            // 🌟 修復點 3：在 Index 列表呼叫變數打包機！這樣前端 JS 才有 $invoice->variables 可以替換
+            'variables' => $this->invoiceService->getInvoiceVariables($invoice),
         ];
     }
     

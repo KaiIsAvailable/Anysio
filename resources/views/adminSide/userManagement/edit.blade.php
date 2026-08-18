@@ -14,29 +14,61 @@
                         <div>
                             <x-form.input-label value="Full Name" class="mb-2" />
                             <x-form.text-input name="name" value="{{ old('name', $userMgnt->user->name) }}" 
-                                   class="w-full" />
+                                    class="w-full" />
                         </div>
 
                         <div>
-                            <x-form.input-label value="Email Address" class="mb-2" />
+                            <div class="flex items-center justify-between mb-2">
+                                <x-form.input-label value="Email Address" />
+                                
+                                {{-- Email Verification Status Badge --}}
+                                @if($userMgnt->user->email_verified_at)
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                                        Verified ({{ $userMgnt->user->email_verified_at->format('d/m/Y H:i') }})
+                                    </span>
+                                @else
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                                        Unverified
+                                    </span>
+                                @endif
+                            </div>
+
                             <x-form.text-input type="email" name="email" value="{{ old('email', $userMgnt->user->email) }}" 
-                                   class="w-full" />
+                                    class="w-full" />
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <x-form.input-label value="Email Verification Status" class="mb-1" />
+                            <x-form.input-select 
+                                name="email_verification_status" 
+                                id="email_verification_status" 
+                                :value="old('email_verification_status', $userMgnt->user->email_verified_at ? 'verified' : 'unverified')" 
+                                :options="['verified' => 'Verified', 'unverified' => 'Unverified']" 
+                                required 
+                                class="w-full" />
+                            <p class="mt-1 text-xs text-gray-400">Manually verify or unverify this user's email address.</p>
+                        </div>
+
+                        <div>
                             <div>
                                 <x-form.input-label value="Base User Type" class="mb-1" />
-                                <x-form.input-select name="role_type" id="role_type" :value="old('role_type', $userMgnt->user->role)" :options="['admin' => 'Admin', 'owner' => 'Owner', 'agent' => 'Agent']" placeholder="-- Select Type --" required class="w-full" />
-                                <p class="mt-1 text-xs text-gray-400">Determines the role in the 'users' table.</p>
+                                <x-form.input-select name="role_type" id="role_type" :value="old('role_type', $userMgnt->user->role)" :options="['admin' => 'Admin', 'ownerAdmin' => 'Owner Admin', 'agentAdmin' => 'Agent Admin']" placeholder="-- Select Type --" required class="w-full" />
+                            </div>
+
+                            {{-- Hidden Management Role (Auto-synced behind the scenes) --}}
+                            <input type="hidden" name="pms_role" value="{{ old('pms_role', $userMgnt->role) }}">
+                        </div>
+
+                        {{-- Start Date & End Date fields side-by-side --}}
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <x-form.input-label value="Start Date" class="mb-1" />
+                                <x-form.date-input id="start_date" name="start_date" value="{{ old('start_date', $userMgnt->start_date) }}" class="w-full" />
                             </div>
 
                             <div>
-                                <x-form.input-label value="Management Role" class="mb-1" />
-                                <x-form.input-select name="pms_role" id="pms_role" :value="old('pms_role', $userMgnt->role)" :options="['admin' => 'Admin', 'ownerAdmin' => 'Owner Admin', 'agentAdmin' => 'Agent Admin']" placeholder="-- Auto-selected --" required 
-                                        class="mt-1 block w-full rounded-lg border-gray-100 bg-gray-50 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" 
-                                        style="pointer-events: none; touch-action: none;" 
-                                        tabindex="-1" />
-                                <p class="mt-1 text-xs text-gray-400">Determines access level in Management (Auto-synced).</p>
+                                <x-form.input-label value="End Date" class="mb-1" />
+                                <x-form.date-input id="end_date" name="end_date" value="{{ old('end_date', $userMgnt->end_date) }}" class="w-full" />
                             </div>
                         </div>
 

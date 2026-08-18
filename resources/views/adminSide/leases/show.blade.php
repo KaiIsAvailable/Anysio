@@ -86,8 +86,7 @@
         @click.stop
         @open-payment.window="paymentData = $event.detail; openPayment = true;"
         @open-manual-modal.window="openManual = true; manualActionUrl = $event.detail.action;"
-        @invoice-generated.window="handleInvoiceGenerated($event)"
-        >
+        @invoice-generated.window="handleInvoiceGenerated($event)">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <a href="{{ route('admin.leases.index') }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-700 flex items-center transition-colors">
                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -384,6 +383,14 @@
                                                             class="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded-md border border-indigo-200 transition-all"
                                                             @click="
                                                                 let content = invoice.template_html || '';
+                                                                console.log('===== INVOICE DEBUG =====');
+console.log('Invoice:', invoice);
+console.log('Variables:', invoice.variables);
+console.log('owner_name:', invoice.variables?.owner_name);
+console.log('owner_phone:', invoice.variables?.owner_phone);
+console.log('owner_email:', invoice.variables?.owner_email);
+console.log('Template:', content);
+console.log('=========================');
                                                                 if (!content) return;
 
                                                                 let dynamicRows = '';
@@ -563,11 +570,11 @@
                             <div class="text-xs text-gray-500">
                                 Showing page <span class="font-bold" x-text="invoicePage"></span> of <span class="font-bold" x-text="totalInvoicePages"></span>
                             </div>
-                            
+
                             <div class="flex items-center space-x-1">
                                 <!-- Previous Button -->
-                                <button type="button" 
-                                    @click="if(invoicePage > 1) invoicePage--" 
+                                <button type="button"
+                                    @click="if(invoicePage > 1) invoicePage--"
                                     :disabled="invoicePage === 1"
                                     class="px-3 py-1.5 text-xs font-semibold bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
                                     &lsaquo;
@@ -594,8 +601,8 @@
                                 </template>
 
                                 <!-- Next Button -->
-                                <button type="button" 
-                                    @click="if(invoicePage < totalInvoicePages) invoicePage++" 
+                                <button type="button"
+                                    @click="if(invoicePage < totalInvoicePages) invoicePage++"
                                     :disabled="invoicePage === totalInvoicePages"
                                     class="px-3 py-1.5 text-xs font-semibold bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">
                                     &rsaquo;
@@ -618,13 +625,13 @@
                 let checks = 0;
                 let interval = setInterval(() => {
                     const modal = document.getElementById('preview-modal');
-                    
+
                     // 如果 modal 不存在，或者包含 hidden 类，或者 display 为 none
                     if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none' || modal.style.display === 'none') {
                         document.body.style.overflow = ''; // 🌟 恢复页面滚动
                         clearInterval(interval); // 成功解锁后停止检查
                     }
-                    
+
                     checks++;
                     if (checks > 10) clearInterval(interval); // 最多检查 10 次 (1秒)，避免浪费效能
                 }, 100);
@@ -655,7 +662,9 @@
                         }
                     });
                 });
-                observer.observe(modalEl, { attributes: true });
+                observer.observe(modalEl, {
+                    attributes: true
+                });
             }
         });
     </script>

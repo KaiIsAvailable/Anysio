@@ -18,54 +18,62 @@ class InvoiceService
     /**
      * Owner manually creates an invoice containing multiple items after the lease exists.
      */
-    public function createManualInvoice(
-            Lease $lease,
-            array $data
-        ): Invoice {
-            return DB::transaction(function () use ($lease, $data) {
-                if (empty($data['items'])) {
-                    throw new \InvalidArgumentException('Invoice must contain at least one item.');
-                }
+    public function createManualInvoice(Lease $lease, array $data): Invoice 
+    {
+        return DB::transaction(function () use ($lease, $data) {
+            if (empty($data['items'])) {
+                throw new \InvalidArgumentException('Invoice must contain at least one item.');
+            }
 
-                // Use the currently authenticated user instead of the lease owner
-                $currentUser = Auth::user(); 
+            // Use the currently authenticated user instead of the lease owner
+            $currentUser = Auth::user(); 
 
-                if (!$currentUser) {
-                    throw new \RuntimeException('Authenticated user required to generate invoices.');
-                }
+            if (!$currentUser) {
+                throw new \RuntimeException('Authenticated user required to generate invoices.');
+            }
 
-                $template = DocumentTemplate::where('created_by', $currentUser->id)
-                    ->where('category', 'invoice')
+            // 🌟 修復點 1：將 created_by 改為 user_id，並加上系統預設範本的兜底邏輯
+            $template = DocumentTemplate::where('category', 'invoice')
+                ->where('status', 'active')
+                ->where(function($query) use ($currentUser) {
+                    $query->where('user_id', $currentUser->id)
+                          ->orWhereNull('user_id'); 
+                })
+                ->first();
+
+            if (!$template) {
+                $template = DocumentTemplate::where('category', 'invoice')
                     ->where('status', 'active')
                     ->first();
+            }
 
-                // Pass the current user to sequence generation and item validation
-                ['validated_items' => $items, 'total_cents' => $totalCents] = $this->processAndValidateItems($currentUser, $data['items']);
+            // Pass the current user to sequence generation and item validation
+            ['validated_items' => $items, 'total_cents' => $totalCents] = $this->processAndValidateItems($currentUser, $data['items']);
 
-                $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
+            $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
 
-                $invoice = Invoice::create([
-                    'user_id'              => $currentUser->id,
-                    'billable_type'        => User::class,
-                    'billable_id'          => $currentUser->id,
-                    'lease_id'             => $lease->id,
-                    'document_template_id' => $template?->id, // Assign template if found
-                    'invoice_no'           => $invoiceNo,
-                    'type'                 => 'manual',
-                    'period'               => Carbon::parse($data['period'])->startOfMonth()->toDateString(),
-                    'due_date'             => $data['due_date'],
-                    'total_amount'         => $totalCents,
-                    'amount_paid'          => 0,
-                    'amount_balance'       => $totalCents,
-                    'status'               => 'unpaid',
-                    'remarks'              => $data['remarks'] ?? null,
-                ]);
+            $invoice = Invoice::create([
+                'user_id'              => $currentUser->id,
+                'billable_type'        => User::class,
+                'billable_id'          => $currentUser->id,
+                'lease_id'             => $lease->id,
+                'document_template_id' => $template?->id, // Assign template if found
+                'invoice_no'           => $invoiceNo,
+                'type'                 => 'manual',
+                'period'               => Carbon::parse($data['period'])->startOfMonth()->toDateString(),
+                'due_date'             => $data['due_date'],
+                'total_amount'         => $totalCents,
+                'amount_paid'          => 0,
+                'amount_balance'       => $totalCents,
+                'status'               => 'unpaid',
+                'remarks'              => $data['remarks'] ?? null,
+            ]);
 
-                $this->saveInvoiceItems($invoice, $items);
+            $this->saveInvoiceItems($invoice, $items);
 
-                return $invoice->load('items.feeType');
-            });
-        }
+            return $invoice->load('items.feeType');
+        });
+    }
 
     /**
      * Record a payment against an invoice.
@@ -156,19 +164,17 @@ class InvoiceService
     }
 
     /**
-     * 🌟 自動為新租約 (New/Renew) 產生第一期帳單，並自動關聯 Active 的 Invoice Template
+     * 自動為新租約 (New/Renew) 產生第一期帳單，並自動關聯 Active 的 Invoice Template
      */
     public function createInitialInvoiceForLease(Lease $lease, User $currentUser): ?Invoice
     {
         return DB::transaction(function () use ($lease, $currentUser) {
-            // 1. 抓取這張租約建立好的所有 Charges
             $charges = $lease->charges()->with('feeType')->get();
             
             if ($charges->isEmpty()) {
                 return null;
             }
 
-            // 🌟 2. 找出真正的房东 ID
             $ownerId = $currentUser->id;
             if ($lease->leasable) {
                 if ($lease->leasable instanceof \App\Models\Room) {
@@ -178,8 +184,6 @@ class InvoiceService
                 }
             }
 
-            // 🌟 3. 防弹版搜寻 (Bulletproof Query)
-            // 第一顺位：尝试找专属房东、Agent 或系统(NULL)的 Active 模板
             $template = DocumentTemplate::where('category', 'invoice')
                 ->where('status', 'active')
                 ->where(function($query) use ($ownerId, $currentUser) {
@@ -188,15 +192,12 @@ class InvoiceService
                 })
                 ->first();
 
-            // 🌟 终极兜底：如果上面的严格条件找不到（例如是 SuperAdmin 建的模板）
-            // 既然系统现在保证了只有一份 Active 模板，我们就直接抓全系统唯一的那一份！
             if (!$template) {
                 $template = DocumentTemplate::where('category', 'invoice')
                     ->where('status', 'active')
                     ->first();
             }
 
-            // 4. 整理明細與計算總額
             $totalCents = 0;
             $items = [];
 
@@ -213,18 +214,16 @@ class InvoiceService
                 return null;
             }
 
-            // 5. 產生編號與日期
             $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
             $dueDate = $lease->start_date ?? now()->toDateString();
             $periodDate = Carbon::parse($lease->start_date ?? now())->startOfMonth()->toDateString();
 
-            // 6. 建立 Invoice，自動填入 document_template_id
             $invoice = Invoice::create([
                 'user_id'              => $currentUser->id,
                 'billable_type'        => User::class,
                 'billable_id'          => $currentUser->id,
                 'lease_id'             => $lease->id,
-                'document_template_id' => $template?->id, // 🌟 這裡絕對能抓到正確的 ID 了！
+                'document_template_id' => $template?->id,
                 'invoice_no'           => $invoiceNo,
                 'type'                 => 'rent',
                 'period'               => $periodDate,
@@ -236,20 +235,15 @@ class InvoiceService
                 'remarks'              => 'Initial Invoice for Lease (Includes Deposits & First Rent)',
             ]);
 
-            // 7. 寫入明細
             $this->saveInvoiceItems($invoice, $items);
 
             return $invoice->load('items.feeType', 'documentTemplate');
         });
     }
 
-    /**
-     * Persist validated items to the invoice relationship.
-     */
     private function saveInvoiceItems(Invoice $invoice, array $items): void
     {
         foreach ($items as $item) {
-            /** @var FeeType $feeType */
             $feeType = $item['fee_type'];
 
             $invoice->items()->create([
@@ -261,119 +255,133 @@ class InvoiceService
     }
 
     // =========================================================================
-    // 🌟 預覽/PDF 渲染專用的「變數打包機」(暴力穿透全欄位版)
+    // 🌟 修復點 2：補回被遺漏的「通用相容版」變數打包機
+    // =========================================================================
+    // =========================================================================
+    // 🌟 通用相容版預覽/PDF 渲染專用的「變數打包機」 
+    // =========================================================================
+    // =========================================================================
+    // 🌟 通用相容版預覽/PDF 渲染專用的「變數打包機」 
     // =========================================================================
     public function getInvoiceVariables(Invoice $invoice): array
     {
-        // 確保載入更深層的關聯，包含 tenant 的 user 以及 owner 的 user
+        // 1. 安全載入關聯
         $invoice->loadMissing([
-            'user', 
-            'lease.tenant.user', 
-            'lease.leasable'
+            'user',
+            'billable',
+            'lease.tenant.user',
+            'items',
+            'lease.leasable' => function ($morphTo) {
+                $morphTo->morphWith([
+                    \App\Models\Room::class => ['unit.owner', 'owner'],
+                    \App\Models\Unit::class => ['owner'],
+                    \App\Models\Property::class => ['owner'],
+                ]);
+            }
         ]);
 
-        // 全欄位電話號碼安全檢測器
-        $getPhone = function ($model) {
-            if (!$model) return null;
-            return $model->phone 
-                ?? $model->phone_number 
-                ?? $model->contact_no 
-                ?? $model->contact_number 
-                ?? $model->mobile 
-                ?? null;
-        };
+        $getPhone = fn($m) => $m?->phone ?? $m?->phone_number ?? $m?->contact_no ?? 'N/A';
+        $getEmail = fn($m) => $m?->email ?? 'N/A';
+        $getCompanyNo = fn($m) => $m?->company_no ?? $m?->ssm_no ?? 'N/A';
 
-        // 安全 Email 檢測器
-        $getEmail = function ($model) {
-            if (!$model) return null;
-            return $model->email ?? null;
-        };
+        $invoiceDate = $invoice->created_at ? $invoice->created_at->format('Y-m-d') : 'N/A';
+        $dueDate     = $invoice->due_date ? Carbon::parse($invoice->due_date)->format('Y-m-d') : 'N/A';
 
-        // 全欄位公司註冊號 / 名稱檢測器
-        $getCompanyNo = function ($model) {
-            if (!$model) return null;
-            return $model->company_no 
-                ?? $model->company_registration_no 
-                ?? $model->company_reg_no 
-                ?? $model->company_number 
-                ?? $model->ssm_no
-                ?? null;
-        };
+        $isLeaseInvoice = !empty($invoice->lease_id);
 
-        // 1. 處理 Due Date 格式 (改為 Y-m-d)
-        $dueDate = $invoice->due_date ? Carbon::parse($invoice->due_date)->format('Y-m-d') : 'N/A';
+        // 2. 處理 Billed To (付款人/租客/客戶)
+        // 🌟 修正點 1：如果是租約發票，絕對優先抓取 Lease 裡面的真實 Tenant！
+        $billedUser = null;
+        if ($isLeaseInvoice && $invoice->lease?->tenant?->user) {
+            $billedUser = $invoice->lease->tenant->user;
+        } elseif ($invoice->billable instanceof \App\Models\User) {
+            $billedUser = $invoice->billable;
+        } else {
+            $billedUser = $invoice->user;
+        }
 
-        // 2. 處理 Property 詳情 (針對不同類型獲取對應的號碼)
+        $tenantName  = $billedUser?->name ?? 'N/A';
+        $tenantPhone = $getPhone($billedUser);
+        if ($tenantPhone === 'N/A' && $isLeaseInvoice) {
+            $tenantPhone = $getPhone($invoice->lease?->tenant);
+        }
+        $tenantEmail = $getEmail($billedUser);
+        if ($tenantEmail === 'N/A' && $isLeaseInvoice) {
+            $tenantEmail = $getEmail($invoice->lease?->tenant);
+        }
+
+        // 3. 處理 Pay To (收款方/房東/平台)
+        if ($isLeaseInvoice) {
+            $leasable = $invoice->lease?->leasable;
+            $ownerModel = null;
+            if ($leasable instanceof \App\Models\Room) {
+                $ownerModel = $leasable->unit?->owner;
+            } elseif ($leasable) {
+                $ownerModel = $leasable->owner;
+            }
+            
+            // 🌟 修正點 2：拔除 $invoice->user 頂替房東的退路！
+            $payeeUser = $ownerModel?->user ?? $ownerModel;
+
+            if ($payeeUser) {
+                $ownerName  = $payeeUser->name ?? 'N/A';
+                $ownerPhone = $getPhone($payeeUser);
+                $ownerEmail = $getEmail($payeeUser);
+                $companyNo  = $getCompanyNo($payeeUser);
+            } else {
+                // 如果找不到 Owner (No Owner 狀態)，就顯示空值，絕不讓 Agent 頂替
+                $ownerName  = 'N/A (No Owner)';
+                $ownerPhone = 'N/A';
+                $ownerEmail = 'N/A';
+                $companyNo  = 'N/A';
+            }
+        } else {
+            // 平台發票 (買 Package 等無租約的情境)
+            $ownerName  = 'Anysio Technologies';
+            $ownerPhone = '03-12345678';         
+            $ownerEmail = 'hello@anysio.com';    
+            $companyNo  = '1234567-X';           
+        }
+
+        // 4. 處理 Property 詳情
         $propertyDetails = 'N/A';
-        $leasable = $invoice->lease?->leasable;
-        if ($leasable) {
+        if ($isLeaseInvoice && $invoice->lease?->leasable) {
+            $leasable = $invoice->lease->leasable;
             if ($leasable instanceof \App\Models\Property) {
                 $propertyDetails = $leasable->name;
             } elseif ($leasable instanceof \App\Models\Unit) {
                 $propertyDetails = $leasable->unit_no;
             } elseif ($leasable instanceof \App\Models\Room) {
-                // 如果是房間，顯示 Room No (Unit No)
-                $propertyDetails = $leasable->room_no;
-                if ($leasable->unit) {
-                    $propertyDetails .= ' (' . $leasable->unit->unit_no . ')';
-                }
+                $propertyDetails = "Room {$leasable->room_no}" . ($leasable->unit ? " ({$leasable->unit->unit_no})" : "");
             }
         }
-
-        // 3. 處理 Billed To (租客資訊) - 暴力穿透
-        $tenantModel = $invoice->lease?->tenant;
-        $tenantUser = $tenantModel?->user;
-
-        $tenantName  = $tenantUser?->name ?? $tenantModel?->name ?? 'N/A';
-        $tenantPhone = $getPhone($tenantUser) ?? $getPhone($tenantModel) ?? 'N/A';
-        $tenantEmail = $getEmail($tenantUser) ?? $getEmail($tenantModel) ?? 'N/A';
-
-        // 4. 處理 Pay To (真正的 Owner 資訊) - 暴力穿透
-        $ownerModel = null;
-        if ($leasable) {
-            if ($leasable instanceof \App\Models\Room) {
-                $ownerModel = $leasable->unit?->owner; // Room的Owner在Unit上
-            } else {
-                $ownerModel = $leasable->owner; // Unit或Property直接有Owner
-            }
-        }
-
-        // 找到真正綁定的 User 帳號
-        $actualOwnerUser = $ownerModel?->owner ?? $ownerModel?->user;
-
-        // 如果真的連 Owner/User 都找不到，最後才用發票建立者 (Invoice User) 兜底
-        $fallbackUser = $actualOwnerUser ?? $ownerModel ?? $invoice->user;
-
-        $ownerName  = $actualOwnerUser?->name ?? $ownerModel?->name ?? $fallbackUser?->name ?? 'N/A';
-        $ownerPhone = $getPhone($actualOwnerUser) ?? $getPhone($ownerModel) ?? $getPhone($fallbackUser) ?? 'N/A';
-        $ownerEmail = $getEmail($actualOwnerUser) ?? $getEmail($ownerModel) ?? $getEmail($fallbackUser) ?? 'N/A';
-        $companyNo  = $getCompanyNo($actualOwnerUser) ?? $getCompanyNo($ownerModel) ?? $getCompanyNo($fallbackUser) ?? 'N/A';
 
         return [
-            // --- 發票基本資訊 ---
             'invoice_no'      => $invoice->invoice_no,
             'invoice_type'    => ucfirst($invoice->type), 
-            'billing_period'  => Carbon::parse($invoice->period)->format('F Y'),
-            'invoice_date'    => $invoice->created_at ? $invoice->created_at->format('Y-m-d') : 'N/A',
+            'billing_period'  => $invoice->period ? Carbon::parse($invoice->period)->format('F Y') : 'N/A',
+            'invoice_date'    => $invoiceDate,
             'invoice_duedate' => $dueDate,
             'invoice_status'  => strtoupper($invoice->status),
             'remarks'         => $invoice->remarks ?? '—',
-
-            // --- 金額資訊 ---
             'total_amount'    => number_format($invoice->total_amount / 100, 2),
             'amount_paid'     => number_format($invoice->amount_paid / 100, 2),
             'amount_balance'  => number_format($invoice->amount_balance / 100, 2),
 
-            // --- 租客與物業資訊 (Billed To) ---
             'tenant_name'           => $tenantName,
+            'user_name'             => $tenantName,
             'tenant_phone'          => $tenantPhone,
+            'user_phone'            => $tenantPhone,
             'tenant_email'          => $tenantEmail,
+            'user_email'            => $tenantEmail,
             'property_unit_details' => $propertyDetails,
+            'package_name'          => $invoice->context ?? $propertyDetails ?? 'N/A',
 
-            // --- 房東/收款方資訊 (Pay To) ---
             'owner_name'              => $ownerName,
             'owner_phone'             => $ownerPhone,
+            'company_phone'           => $ownerPhone,
             'owner_email'             => $ownerEmail,
+            'company_email'           => $ownerEmail,
             'company_registration_no' => $companyNo, 
         ];
     }

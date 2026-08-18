@@ -236,32 +236,40 @@ class UserManagementController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $userMgnt = UserManagement::findOrFail($id);
-        $user = $userMgnt->user; // 确保 UserManagement 模型里有 public function user() 关联
+        $userMgnt = UserManagement::with('user')->findOrFail($id);
 
-        $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'role_type' => 'required', // 对应你前端的 name="role_type"
-            'pms_role' => 'required',  // 对应你前端的 name="pms_role"
-            'subscription_status' => 'required|in:active,inactive',
+        // Validate incoming data including the email and verification status
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email,' . $userMgnt->user->id],
+            'role_type' => ['required', 'string'],
+            'pms_role' => ['required', 'string'],
+            'start_date' => ['nullable', 'date'],
+            'end_date' => ['nullable', 'date', 'after_or_equal:start_date'],
+            'subscription_status' => ['required', 'string'],
+            'email_verification_status' => ['required', 'in:verified,unverified'],
         ]);
 
-        // 1. 更新 User 表
-        $user->update([
-            'name' => $request->name,
-            'email' => $request->email,
-            'role' => $request->role_type, // 使用 role_type
+        // Update the related User model fields
+        $userMgnt->user->update([
+            'name' => $validated['name'],
+            'email' => $validated['email'],
+            'role' => $validated['role_type'],
+            'email_verified_at' => $validated['email_verification_status'] === 'verified' 
+                ? ($userMgnt->user->email_verified_at ?? now()) 
+                : null,
         ]);
 
-        // 2. 更新 UserManagement 表
+        // Update the UserManagement model fields
         $userMgnt->update([
-            'role' => $request->pms_role, // 使用 pms_role
-            'subscription_status' => $request->subscription_status,
+            'role' => $validated['pms_role'],
+            'start_date' => $validated['start_date'],
+            'end_date' => $validated['end_date'],
+            'subscription_status' => $validated['subscription_status'],
         ]);
 
         return redirect()->route('admin.userManagement.index')
-                        ->with('success', 'User updated successfully');
+            ->with('success', 'Manager details updated successfully.');
     }
 
     /**
@@ -309,119 +317,6 @@ class UserManagementController extends Controller
         }
 
         return response()->file($path);
-    }
-
-    // Approve 处理
-    public function approve(Request $request, UserPayment $payment)
-    {
-        // 1. 验证输入（假设审批时管理员可以修正或确认实际收到多少钱）
-        $payload = $request->validate([
-            'amount_paid' => ['required', 'numeric', 'min:0'],
-            'payment_date' => ['required', 'date'],
-            'received_via' => ['required', 'string'], // MATCHES HTML <select name="received_via">
-            'transaction_ref' => ['nullable', 'string'], // 接收 Modal 里的单号
-            'remarks' => ['nullable', 'string'],
-        ]);
-
-        return DB::transaction(function () use ($payload, $payment) {
-            // 2. 转换金额为“分”(Cent)，避免浮点运算错误
-            $totalInputCents = (int) round($payload['amount_paid'] * 100);
-            $dueCents = $payment->getRawOriginal('amount_due'); // 拿到数据库存的原始金额
-
-            $underPaidCents = 0;
-            $overPaidCents = 0;
-            $actualAppliedCents = $totalInputCents;
-
-            // 3. 处理：给少了 (Underpaid)
-            if ($totalInputCents < $dueCents) {
-                $underPaidCents = $dueCents - $totalInputCents;
-                $subscriptionType = 'SUBSCRIPTION';
-                $newInvoiceNo = PaymentsController::generateSequenceInvoiceNo($subscriptionType, UserPayment::class);
-                
-                // 自动创建一个新的账单补齐差额
-                UserPayment::create([
-                    'user_id'     => $payment->user_id,
-                    'ref_code'    => $payment->ref_code,
-                    'invoice_no'  => $newInvoiceNo, // 标记为原单的余额
-                    'amount_due'  => $underPaidCents,
-                    'amount_paid' => 0,
-                    'status'      => 'unpaid', // 设为未付，等待用户下次支付
-                    'attachment'  => null,
-                    'remarks'     => $payment->remarks,
-                ]);
-            } 
-
-            elseif ($totalInputCents > $dueCents) {
-                $overPaidCents = $totalInputCents - $dueCents;
-                $actualAppliedCents = $dueCents; // 只扣除应付的部分，剩下的存入 over_paid 字段
-            }
-            
-            // 4. 更新当前这条支付记录
-            $payment->update([
-                'amount_paid' => $actualAppliedCents,
-                'amount_under_paid' => $underPaidCents,
-                'amount_over_paid' => $overPaidCents,
-                'payment_date' => $payload['payment_date'],
-                'received_via' => $payload['received_via'], // Use received_via from payload
-                'approve_transaction_ref' => $payload['transaction_ref'] ?? 'CASH',
-                'status' => 'approved',
-                'approved_at' => now(),
-                'approved_by' => Auth::id(),
-                'remarks' => $payload['remarks'],
-            ]);
-
-            $mgmt = $payment->user->user_management;
-            $packageDetails = DB::table('ref_code_packages')->where('ref_code', $payment->ref_code)->first();
-
-            $now = now();
-            $currentEndDate = $mgmt->end_date ? Carbon::parse($mgmt->end_date) : null;
-
-            $newStartDate = ($currentEndDate && $currentEndDate->isFuture()) 
-                ? $currentEndDate->copy()->addDay() 
-                : $now;
-
-            // 计算 End Date
-            $newEndDate = (strtolower($packageDetails->price_mode) === 'monthly') 
-                            ? $newStartDate->copy()->addMonth() 
-                            : $newStartDate->copy()->addYear();
-
-            // 更新 UserManagement
-            $mgmt->update([
-                'start_date' => $newStartDate,
-                'end_date'   => $newEndDate,
-                'subscription_status' => ($underPaidCents > 0) ? 'pending' : 'active',
-            ]);
-
-            // 5. 更新用户的订阅状态
-            // 逻辑建议：如果给够了才设为 active，如果给少了，你可能需要根据业务决定是否激活
-            if ($payment->user->user_management) {
-                $payment->user->user_management->update([
-                    'subscription_status' => ($underPaidCents > 0) ? 'pending' : 'active',
-                ]);
-            }
-
-            return back()->with('success', 'Payment processed. ' . ($underPaidCents > 0 ? 'New balance invoice created.' : ''));
-        });
-    }
-
-    // Reject 处理
-    public function reject(UserPayment $payment)
-    {
-        DB::transaction(function () use ($payment) {
-            $payment->update([
-                'status' => 'rejected',
-                'rejected_at' => now(),
-            ]);
-
-            if ($payment->user->user_management) {
-                $payment->user->user_management->update([
-                    'subscription_status' => 'inactive',
-                    // 如果需要记录审批时间，也可以在这里加
-                ]);
-            }
-        });
-
-        return back()->with('success', 'Payment proof has been rejected.');
     }
 
     public function boostLease(Request $request)

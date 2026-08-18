@@ -54,7 +54,20 @@
                                     {{ strtoupper(substr($user->user_name ?? $user->name ?? 'U', 0, 1)) }}
                                 </div>
                                 <div class="ml-4">
-                                    <div class="text-sm font-semibold text-slate-900">{{ $user->user_name ?? $user->name }}</div>
+                                    <div class="flex items-center space-x-2">
+                                        <div class="text-sm font-semibold text-slate-900">{{ $user->user_name ?? $user->name }}</div>
+                                        
+                                        {{-- Email Verification Indicator Badge --}}
+                                        @if(optional($user->user)->email_verified_at)
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800" title="Email Verified">
+                                                Verified
+                                            </span>
+                                        @else
+                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800" title="Email Unverified">
+                                                Unverified
+                                            </span>
+                                        @endif
+                                    </div>
                                     <div class="text-xs text-gray-500">{{ $user->user_email ?? $user->email }}</div>
                                 </div>
                             </div>

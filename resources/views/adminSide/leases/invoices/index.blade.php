@@ -50,7 +50,7 @@
                     <table class="table-auto w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                         <thead class="bg-gray-50">
                             <tr>
-                                <x-table.th name="Invoice & Template" sortField="inv" />
+                                <x-table.th name="Documents" sortField="inv" />
                                 <x-table.th name="Tenant Details" sortField="t" />
                                 <x-table.th name="Amount (RM)" sortField="a" />
                                 <x-table.th name="Status" sortField="s" />
@@ -63,107 +63,218 @@
                             @foreach($invoices as $invoice)
                             <tr class="hover:!bg-indigo-50 transition-colors duration-150">
 
-                                <!-- Invoice Number & Template Preview Button -->
+                                <!-- 💡 Documents 栏位 (包含 Invoice 与 多个 Receipts) -->
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="flex flex-col gap-1.5">
+                                    <div class="flex flex-col items-start gap-1.5">
                                         <span class="text-sm font-bold text-indigo-600">{{ $invoice->invoice_no }}</span>
 
                                         @php
                                         $template = data_get($invoice, 'documentTemplate');
                                         $templateTitle = is_object($template) ? ($template->title ?? null) : (is_array($template) ? ($template['title'] ?? null) : null);
+
+                                        // 安全获取 Receipts 避免报错
+                                        $receipts = data_get($invoice, 'receipts', []);
                                         @endphp
 
+                                        <!-- 1. Invoice Template Preview Button -->
                                         @if(data_get($invoice, 'document_template_id') && $templateTitle)
                                         <button type="button"
-                                            class="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1 rounded-md border border-indigo-200 transition-all w-fit"
+                                            class="inline-flex items-center gap-1 text-[11px] font-bold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-2 py-1.5 rounded-md border border-indigo-200 transition-all shadow-sm w-fit"
                                             @click="
-                                                            let content = @js(optional($invoice->documentTemplate)->html_template ?? optional($invoice->documentTemplate)->html_content ?? '');
-                                                            
-                                                            if (!content) {
-                                                                console.warn('Abort: Content is empty.');
-                                                                return;
-                                                            }
+                                                let content = @js(optional($invoice->documentTemplate)->html_template ?? optional($invoice->documentTemplate)->html_content ?? '');
+                                                
+                                                if (!content) return;
 
-                                                            // 🌟 1. 清除 GrapesJS 自帶的藍底背景和文字顏色 (但保留 Due Date 和 Status 的紅色)
-let tempDiv = document.createElement('div');
-tempDiv.innerHTML = content;
-tempDiv.querySelectorAll('.gjs-variable-tag, [data-variable]').forEach(el => {
-    // 取得這個標籤綁定的變數名稱
-    let varName = el.getAttribute('data-variable');
-    
-    // 如果是 due date 或 status，直接跳過 (保留它們在模板中原本設定的紅色！)
-    if (varName === 'invoice_duedate' || varName === 'invoice_status') {
-        return; 
-    }
+                                                // 🌟 彻底清除 GrapesJS 的所有变量颜色，变成纯普通文字
+                                                let tempDiv = document.createElement('div');
+                                                tempDiv.innerHTML = content;
+                                                tempDiv.querySelectorAll('.gjs-variable-tag, [data-variable]').forEach(el => {
+                                                    el.style.backgroundColor = 'transparent';
+                                                    el.style.color = 'inherit';
+                                                    el.style.padding = '0';
+                                                });
+                                                content = tempDiv.innerHTML;
 
-    // 其他的變數通通洗掉藍底藍字
-    el.style.backgroundColor = 'transparent';
-    el.style.color = 'inherit';
-    el.style.padding = '0';
-});
-content = tempDiv.innerHTML;
+                                                let dynamicRows = '';
+                                                let items = @js(data_get($invoice, 'invoice_items', data_get($invoice, 'items', [])));
+                                                if (items.length > 0) {
+                                                    items.forEach(item => {
+                                                        let itemDesc = item.description || item.fee_type?.name || 'Item';
+                                                        let itemAmount = item.amount || '0.00';
+                                                        dynamicRows += `
+                                                            <tr style='border-bottom: 1px solid #e2e8f0;'>
+                                                                <td style='padding: 12px 15px; color: #0f172a;'>${itemDesc}</td>
+                                                                <td style='padding: 12px 15px; text-align: center; color: #475569;'>1</td>
+                                                                <td style='padding: 12px 15px; text-align: right; color: #475569;'>RM ${itemAmount}</td>
+                                                                <td style='padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 500;'>RM ${itemAmount}</td>
+                                                            </tr>
+                                                        `;
+                                                    });
+                                                } else {
+                                                    dynamicRows = `<tr><td colspan='4' style='padding: 12px 15px; text-align: center; color: #94a3b8; font-style: italic;'>No items billed.</td></tr>`;
+                                                }
 
-                                                            // 🌟 2. 動態生成表格行 (Dynamic Invoice Items)
-                                                            let dynamicRows = '';
-                                                            let items = @js($invoice->invoice_items ?? $invoice->items ?? []);
-                                                            if (items.length > 0) {
-                                                                items.forEach(item => {
-                                                                    let itemDesc = item.description || item.fee_type?.name || 'Item';
-                                                                    let itemAmount = item.amount || '0.00';
-                                                                    // 若後端傳來 cents，可在此轉換：if (typeof itemAmount === 'number' && itemAmount > 100) itemAmount = (itemAmount / 100).toFixed(2);
+                                                tempDiv.innerHTML = content;
+                                                let tbody = tempDiv.querySelector('#dynamic-invoice-tbody');
+                                                if (tbody) {
+                                                    tbody.innerHTML = dynamicRows;
+                                                }
+                                                content = tempDiv.innerHTML;
 
-                                                                    dynamicRows += `
-                                                                        <tr style='border-bottom: 1px solid #e2e8f0;'>
-                                                                            <td style='padding: 12px 15px; color: #0f172a;'>${itemDesc}</td>
-                                                                            <td style='padding: 12px 15px; text-align: center; color: #475569;'>1</td>
-                                                                            <td style='padding: 12px 15px; text-align: right; color: #475569;'>RM ${itemAmount}</td>
-                                                                            <td style='padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 500;'>RM ${itemAmount}</td>
-                                                                        </tr>
-                                                                    `;
-                                                                });
-                                                            } else {
-                                                                dynamicRows = `<tr><td colspan='4' style='padding: 12px 15px; text-align: center; color: #94a3b8; font-style: italic;'>No items billed.</td></tr>`;
-                                                            }
+                                                let variables = @js(data_get($invoice, 'variables', []));
+                                                Object.keys(variables).forEach(key => {
+                                                    let val = variables[key];
+                                                    if (val === null || val === undefined || val === '') val = 'N/A';
+                                                    
+                                                    // 不加上特殊颜色类名，仅设为 medium 让文字清楚
+                                                    let replaceHtml = `<span class='font-medium'>${val}</span>`;
+                                                    
+                                                    let spanRegex = new RegExp('<span[^>]*data-variable=.' + key + '.[^>]*>\\s*\\{\\{\\s*' + key + '\\s*\\}\\}\\s*<\\/span>', 'gi');
+                                                    if (content.match(spanRegex)) {
+                                                        content = content.replace(spanRegex, replaceHtml);
+                                                    } else {
+                                                        let doubleRegex = new RegExp('\\{\\{\\s*' + key + '\\s*\\}\\}', 'g');
+                                                        content = content.replace(doubleRegex, replaceHtml);
+                                                        let singleRegex = new RegExp('\\{\\s*' + key + '\\s*\\}', 'g');
+                                                        content = content.replace(singleRegex, replaceHtml);
+                                                    }
+                                                });
 
-                                                            tempDiv.innerHTML = content;
-                                                            let tbody = tempDiv.querySelector('#dynamic-invoice-tbody');
-                                                            if (tbody) {
-                                                                tbody.innerHTML = dynamicRows;
-                                                            }
-                                                            content = tempDiv.innerHTML;
-
-                                                            // 🌟 3. 動態替換所有變數 (直接使用 Controller 傳來的 variables)
-                                                            let variables = @js($invoice->variables ?? []);
-
-                                                            Object.keys(variables).forEach(key => {
-                                                                let val = variables[key];
-                                                                if (val === null || val === undefined || val === '') val = 'N/A';
-                                                                
-                                                                let replaceHtml = `<span class='font-medium'>${val}</span>`;
-                                                                
-                                                                // 匹配雙括號：捕捉 
-                                                                let doubleRegex = new RegExp('\\{\\{\\s*' + key + '\\s*\\}\\}', 'g');
-                                                                content = content.replace(doubleRegex, replaceHtml);
-                                                                
-                                                                // 匹配單括號：捕捉 
-                                                                let singleRegex = new RegExp('\\{\\s*' + key + '\\s*\\}', 'g');
-                                                                content = content.replace(singleRegex, replaceHtml);
-                                                            });
-
-                                                            // 🌟 4. 呼叫彈窗
-                                                            $dispatch('open-lease-preview', {
-                                                                title: 'Invoice: ' + @js($invoice->invoice_no),
-                                                                content: content 
-                                                            });
-
-                                                            document.body.style.overflow = 'hidden';
-                                                        ">
-                                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                $dispatch('open-lease-preview', {
+                                                    title: 'Invoice: ' + @js($invoice->invoice_no),
+                                                    content: content 
+                                                });
+                                                document.body.style.overflow = 'hidden';
+                                            ">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                             </svg>
                                             <span>{{ $templateTitle }}</span>
                                         </button>
+                                        @endif
+
+                                        <!-- 2. Loop Through Multiple Receipts Previews -->
+                                        @if(!empty($receipts))
+                                        @foreach($receipts as $receipt)
+                                        @php
+                                        $receiptTemplate = data_get($receipt, 'documentTemplate');
+                                        $receiptTitle = is_object($receiptTemplate) ? ($receiptTemplate->title ?? null) : (is_array($receiptTemplate) ? ($receiptTemplate['title'] ?? null) : null);
+                                        $receiptNo = data_get($receipt, 'receipt_no', 'Receipt');
+                                        @endphp
+                                        <button type="button"
+                                            class="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-600 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100 px-2 py-1.5 rounded-md border border-emerald-200 transition-all shadow-sm w-fit"
+                                            @click="
+                let content = @js(is_object($receiptTemplate) ? ($receiptTemplate->html_template ?? $receiptTemplate->html_content ?? '') : (is_array($receiptTemplate) ? ($receiptTemplate['html_template'] ?? $receiptTemplate['html_content'] ?? '') : data_get($receipt, 'template_html', '')));
+                if (!content) return;
+
+                // 1. 準備變數
+                let finalVariables = @js(data_get($invoice, 'variables', []));
+                let receiptVariables = @js(data_get($receipt, 'variables', []));
+                Object.assign(finalVariables, receiptVariables);
+
+                // 🌟 正確抓取「這一次」真實付款的金額
+                let rawAmount = @js(data_get($receipt, 'amount', 0));
+                let paidAmount = rawAmount;
+                if(typeof rawAmount === 'number' && rawAmount > 100) {
+                    paidAmount = (rawAmount / 100).toFixed(2);
+                } else if(typeof rawAmount === 'number') {
+                    paidAmount = rawAmount.toFixed(2);
+                }
+                
+                let payDate = @js(data_get($receipt, 'created_at') ? \Carbon\Carbon::parse(data_get($receipt, 'created_at'))->format('Y-m-d') : '—');
+                let rNo = @js($receiptNo);
+
+                // 強制覆蓋 Receipt 的專屬變數
+                finalVariables['receipt_number'] = rNo;
+                finalVariables['receipt_no']     = rNo;
+                finalVariables['issue_date']     = payDate;
+                finalVariables['payment_date']   = payDate;
+                finalVariables['receipt_date']   = payDate;
+                finalVariables['subtotal_amount']= paidAmount;
+                finalVariables['total_amount']   = paidAmount;
+                finalVariables['total']          = paidAmount;
+                finalVariables['amount_paid']    = paidAmount;
+                finalVariables['total_paid']     = paidAmount;
+                finalVariables['paid_amount']    = paidAmount;
+
+                let tempDiv = document.createElement('div');
+                tempDiv.innerHTML = content;
+
+                // 清除 GrapesJS 藍底樣式
+                tempDiv.querySelectorAll('.gjs-variable-tag, [data-variable]').forEach(el => {
+                    el.style.backgroundColor = 'transparent';
+                    el.style.color = 'inherit';
+                    el.style.padding = '0';
+                });
+
+                // 🌟 2. 修正財務邏輯：Receipt 只顯示一筆「Payment for Invoice」的實收金額
+                let dynamicRows = `
+                    <tr style='border-bottom: 1px solid #e2e8f0;'>
+                        <td style='padding: 12px 15px; color: #0f172a;'>Payment for Invoice: ${@js($invoice->invoice_no)}</td>
+                        <td style='padding: 12px 15px; text-align: center; color: #475569;'>1</td>
+                        <td style='padding: 12px 15px; text-align: right; color: #475569;'>RM ${paidAmount}</td>
+                        <td style='padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 500;'>RM ${paidAmount}</td>
+                    </tr>
+                `;
+
+                // 🌟 3. 精準尋找佔位符，防止表格跑到畫面最底下
+                let tbody = tempDiv.querySelector('#dynamic-receipt-tbody') || tempDiv.querySelector('#dynamic-invoice-tbody');
+                if (!tbody) {
+                    // 如果沒有 ID，找包含 ⚙️ 的 td，然後往上找它所屬的 tbody
+                    let allNodes = Array.from(tempDiv.querySelectorAll('td, span, div'));
+                    let targetNode = allNodes.find(el => el.textContent.includes('⚙️') || el.textContent.includes('Dynamic Receipt Items'));
+                    
+                    if (targetNode) {
+                        tbody = targetNode.closest('tbody');
+                        // 萬一模板連 tbody 都沒寫，至少抓 table
+                        if (!tbody) tbody = targetNode.closest('table');
+                    }
+                }
+
+                if (tbody) { 
+                    tbody.innerHTML = dynamicRows; 
+                } else {
+                    console.warn('Could not find the target table body in the receipt template!');
+                }
+                
+                content = tempDiv.innerHTML;
+
+                // 4. 正則替換變數
+                Object.keys(finalVariables).forEach(key => {
+                    let val = finalVariables[key];
+                    if (val === null || val === undefined || val === '') val = 'N/A';
+                    
+                    let replaceHtml = `<span class='font-medium'>${val}</span>`;
+                    
+                    let spanRegex = new RegExp('<span[^>]*data-variable=.' + key + '.[^>]*>\\s*\\{\\{\\s*' + key + '\\s*\\}\\}\\s*<\\/span>', 'gi');
+                    if (content.match(spanRegex)) {
+                        content = content.replace(spanRegex, replaceHtml);
+                    } else {
+                        let doubleRegex = new RegExp('\\{\\{\\s*' + key + '\\s*\\}\\}', 'g');
+                        content = content.replace(doubleRegex, replaceHtml);
+                        let singleRegex = new RegExp('\\{\\s*' + key + '\\s*\\}', 'g');
+                        content = content.replace(singleRegex, replaceHtml);
+                    }
+                });
+
+                $dispatch('open-lease-preview', {
+                    title: 'Receipt: ' + rNo,
+                    content: content
+                });
+                document.body.style.overflow = 'hidden';
+            ">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                            </svg>
+                                            <span>{{ $receiptNo }} {{ $receiptTitle ? "($receiptTitle)" : "" }}</span>
+                                        </button>
+                                        @endforeach
+                                        @endif
+
+                                        <!-- 3. 无 Template 且无 Receipt 时的处理 -->
+                                        @if(!data_get($invoice, 'document_template_id') && empty($receipts))
+                                        <span class="text-xs text-gray-400 italic mt-1">- None -</span>
                                         @endif
                                     </div>
                                 </td>
@@ -322,5 +433,49 @@ content = tempDiv.innerHTML;
         <x-modals.payment-modal />
         <x-preview-agreement-modal />
         <x-modals.receipt-preview-modal />
+
+        <!-- 💡 暴力解锁防线：防止 Modal 导致背景卡死滚动 -->
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                function checkAndUnlockScroll() {
+                    let checks = 0;
+                    let interval = setInterval(() => {
+                        const modal = document.getElementById('preview-modal');
+                        if (!modal || modal.classList.contains('hidden') || getComputedStyle(modal).display === 'none' || modal.style.display === 'none') {
+                            document.body.style.overflow = '';
+                            clearInterval(interval);
+                        }
+                        checks++;
+                        if (checks > 10) clearInterval(interval);
+                    }, 100);
+                }
+
+                document.addEventListener('click', function(e) {
+                    setTimeout(checkAndUnlockScroll, 50);
+                });
+
+                document.addEventListener('keydown', (e) => {
+                    if (e.key === 'Escape') {
+                        checkAndUnlockScroll();
+                    }
+                });
+
+                const modalEl = document.getElementById('preview-modal');
+                if (modalEl) {
+                    const observer = new MutationObserver(function(mutations) {
+                        mutations.forEach(function(mutation) {
+                            if (mutation.attributeName === 'class' || mutation.attributeName === 'style') {
+                                if (modalEl.classList.contains('hidden') || getComputedStyle(modalEl).display === 'none') {
+                                    document.body.style.overflow = '';
+                                }
+                            }
+                        });
+                    });
+                    observer.observe(modalEl, {
+                        attributes: true
+                    });
+                }
+            });
+        </script>
     </div>
 </x-app-layout>

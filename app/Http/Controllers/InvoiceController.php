@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Invoice\{StoreInvoiceRequest, RecordPaymentRequest, VoidInvoiceRequest};
-use App\Models\{Invoice, Lease, Payment, Owners};
+use App\Models\{Invoice, Lease, Payment, Owners, Transaction};
 use App\Services\InvoiceService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
@@ -18,15 +18,15 @@ class InvoiceController extends Controller
         
         $user = Auth::user();
 
-        // 🌟 修正：移除 lease.leasable.owner 後面的 .user，避免對 User 模型重複呼叫 user 關聯
+        // 🌟 核心修正 1：改為預載入 transactions.documentTemplate
         $query = Invoice::with([
             'documentTemplate',
             'user',
             'billable',
-            'lease.leasable.owner', // <-- 修正這裡
+            'lease.leasable.owner', 
             'lease.tenant.user',
             'items.feeType',
-            'transactions', 
+            'transactions.documentTemplate', // <-- 正確的關聯名稱在這裡！
             'payments' => function ($query) {
                 $query->where('status', 'pending');
             },
@@ -94,6 +94,22 @@ class InvoiceController extends Controller
 
         $latestPayment = $invoice->payments->first();
 
+        // 🌟 核心修正 2：讀取 transactions 並轉換為前端需要的 receipts 陣列
+        $receipts = $invoice->transactions ? $invoice->transactions->map(function($transaction) {
+            return [
+                'id' => $transaction->id,
+                'receipt_no' => $transaction->receipt_no ?? 'Receipt-' . $transaction->id, // 防止空值
+                'amount' => $transaction->amount_paid, // 抓取 Transaction 表的 amount_paid
+                'created_at' => $transaction->payment_date ?? $transaction->created_at, // 優先使用 payment_date
+                'variables' => method_exists($transaction, 'variables') ? $transaction->variables : [],
+                'documentTemplate' => $transaction->documentTemplate ? [
+                    'title' => $transaction->documentTemplate->title,
+                    'html_template' => $transaction->documentTemplate->html_template,
+                    'html_content' => $transaction->documentTemplate->html_content,
+                ] : null,
+            ];
+        })->toArray() : [];
+
         return [
             'id' => $invoice->id,
             'invoice_no' => $invoice->invoice_no ?? $invoice->serial_number,
@@ -117,8 +133,11 @@ class InvoiceController extends Controller
             'template_title' => $invoice->documentTemplate?->title,
             'template_html' => $invoice->documentTemplate?->html_content ?? $invoice->documentTemplate?->html_template,
             
-            // 🌟 修復點 3：在 Index 列表呼叫變數打包機！這樣前端 JS 才有 $invoice->variables 可以替換
+            // 打包變數
             'variables' => $this->invoiceService->getInvoiceVariables($invoice),
+            
+            // 🌟 核心修正 3：將轉換好的 transactions 傳遞給前端的 receipts 變數
+            'receipts' => $receipts, 
         ];
     }
     

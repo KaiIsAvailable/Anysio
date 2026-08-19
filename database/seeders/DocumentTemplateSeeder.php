@@ -202,7 +202,7 @@ class DocumentTemplateSeeder extends Seeder
                 <p id="iardqc">We reserve the right to suspend or terminate your account at any time, without prior notice, if you violate these Terms or engage in fraudulent activities.</p>
                 
                 <h2 id="ipa2t">9. Governing Law</h2>
-                <p id="izm5i">These Terms shall be governed by and construed ins accordance with the laws of Malaysia. Any disputes arising from these Terms shall be subject to the exclusive jurisdiction of the courts of Malaysia.</p>
+                <p id="izm5i">These Terms shall be governed by and construed in accordance with the laws of Malaysia. Any disputes arising from these Terms shall be subject to the exclusive jurisdiction of the courts of Malaysia.</p>
             </body>
         HTML;
 
@@ -242,10 +242,106 @@ class DocumentTemplateSeeder extends Seeder
             </body>
         HTML;
 
-        // 使用 Method B：自動抓取系統 Admin 作為模板擁有者，若找不到則回退為 null
-        $admin = User::where('role', 'admin')->first() ?? User::first();
-        $adminId = $admin ? $admin->id : null;
+        // 🌟 新增：這里放你最終設計好的完整 Receipt HTML
+        $receiptHtml = <<<'HTML'
+            <style>
+            * { box-sizing: border-box; } 
+            body { margin: 0; font-family: sans-serif; }
+            #i4bts { margin: 0; color: #059669; font-size: 32px; text-transform: uppercase; letter-spacing: 2px; text-align: center; }
+            #ibm2n, #iuoi6 { margin-top: 5px; margin-bottom: 0; color: #64748b; font-size: 14px; text-align: center; }
+            #igjb { width: 50%; vertical-align: top; text-align: right; }
+            #itwu, #ijpdl, #ipfso { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
+            #im5cn, #id2fa { margin: 0 0 10px 0; color: #64748b; font-size: 12px; text-transform: uppercase; }
+            #igdq3, #i5mcq { margin: 0 0 5px 0; font-weight: bold; color: #0f172a; font-size: 16px; }
+            #iolms, #iil9u { margin: 0; color: #475569; font-size: 14px; line-height: 1.5; }
+            #iaauf { width: 50%; vertical-align: top; padding-right: 20px; }
+            #i7c1i { width: 50%; vertical-align: top; padding-left: 20px; }
+            #itdc2 { margin: 0 0 10px 0; color: #334155; font-size: 14px; }
+            #id9th { background-color: #f8fafc; border-bottom: 2px solid #cbd5e1; }
+            #iy18e { padding: 12px 15px; text-align: left; color: #334155; }
+            #ig94e { padding: 12px 15px; text-align: center; color: #334155; width: 15%; }
+            #i2d1z, #it8rf2 { padding: 12px 15px; text-align: right; color: #334155; width: 20%; }
+            #i0ctj2 { border-bottom: 1px solid #e2e8f0; background-color: #ecfdf5; }
+            #ilopnj { padding: 20px; text-align: center; color: #065f46; font-weight: bold; border: 1px dashed #a7f3d0; }
+            #ijj314 { width: 40%; border-collapse: collapse; margin-left: auto; margin-bottom: 40px; font-size: 14px; }
+            #i166jc { padding: 10px 15px; text-align: right; font-weight: 500; color: #475569; }
+            #igu684 { padding: 10px 15px; text-align: right; font-weight: 500; color: #0f172a; }
+            #itzzvo { padding: 15px; text-align: right; font-weight: bold; font-size: 16px; color: #0f172a; border-top: 1px solid #e2e8f0; }
+            #i4s2lm { padding: 15px; text-align: right; font-weight: bold; font-size: 18px; color: #059669; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-top: 1px solid #e2e8f0; }
+            #ihg2q6 { font-size: 12px; color: #64748b; text-align: center; border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 40px; }
+            </style>
+            <body id="iz07">
+                <table id="itwu">
+                    <tbody>
+                        <tr>
+                            <td id="igjb">
+                                <h1 id="i4bts">OFFICIAL RECEIPT</h1>
+                                <p id="ibm2n">Receipt No: {{ receipt_no }}</p>
+                                <p id="iuoi6">Date: {{ receipt_date }}</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <table id="ijpdl">
+                    <tbody>
+                        <tr>
+                            <td id="iaauf">
+                                <h4 id="im5cn">Received From (Customer):</h4>
+                                <p id="igdq3"><span data-variable="user_name">{{ user_name }}</span></p>
+                                <p id="iolms">
+                                    <strong>Phone:</strong> <span data-variable="user_phone">{{ user_phone }}</span><br/>
+                                    <strong>Email:</strong> <span data-variable="user_email">{{ user_email }}</span>
+                                </p>
+                            </td>
+                            <td id="i7c1i">
+                                <h4 id="id2fa">Issued By (Biller):</h4>
+                                <p id="i5mcq">Anysio Technologies</p>
+                                <p id="iil9u">
+                                    <strong>Phone:</strong> <span data-variable="company_phone">{{ company_phone }}</span><br/>
+                                    <strong>Email:</strong> <span data-variable="company_email">{{ company_email }}</span>
+                                </p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <h4 id="itdc2">Payment For:</h4>
+                <table id="ipfso">
+                    <thead>
+                        <tr id="id9th">
+                            <th id="iy18e">Description</th>
+                            <th id="ig94e">Qty</th>
+                            <th id="i2d1z">Unit Price</th>
+                            <th id="it8rf2">Amount Paid</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dynamic-receipt-tbody">
+                        <tr id="i0ctj2">
+                            <td colspan="4" id="ilopnj">
+                                ⚙️ Dynamic Receipt Items Will Appear Here
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+                <table id="ijj314">
+                    <tbody>
+                        <tr>
+                            <td id="i166jc">Subtotal:</td>
+                            <td id="igu684">RM {{ subtotal_amount }}</td>
+                        </tr>
+                        <tr>
+                            <td id="itzzvo">Total Paid:</td>
+                            <td id="i4s2lm">RM {{ total_amount }}</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p id="ihg2q6">
+                    This is a computer-generated receipt. No signature is required.<br/>
+                    Thank you for your business!
+                </p>
+            </body>
+        HTML;
 
+        // 使用 Method B：自動抓取系統 Admin 作為模板擁有者，若找不到則回退為 null
         DocumentTemplate::updateOrCreate(
             [
                 'category' => 'invoice',
@@ -254,11 +350,7 @@ class DocumentTemplateSeeder extends Seeder
             ],
             [
                 'title'         => 'Standard System Invoice Template',
-                'category'      => 'invoice',
-                'details'       => '',
-                'status'        => 'active',
-                'user_id'       => $adminId,
-                'details'       => 'Default standard system invoice template for lease billing.', // 🌟 補上這一行！
+                'details'       => 'Default standard system invoice template for lease billing.',
                 'html_template' => $invoiceHtml,
             ]
         );
@@ -271,10 +363,7 @@ class DocumentTemplateSeeder extends Seeder
             ],
             [
                 'title'         => 'Standard System TOS Template',
-                'category'      => 'tos',
                 'details'       => '',
-                'status'        => 'active',
-                'user_id'       => $adminId,
                 'html_template' => $tosHtml,
             ]
         );
@@ -287,11 +376,22 @@ class DocumentTemplateSeeder extends Seeder
             ],
             [
                 'title'         => 'Standard System Privacy Template',
-                'category'      => 'privacy',
                 'details'       => '',
-                'status'        => 'active',
-                'user_id'       => $adminId,
                 'html_template' => $privacyHtml,
+            ]
+        );
+
+        // 🌟 新增：這里執行 Receipt 模板的 updateOrCreate 邏輯
+        DocumentTemplate::updateOrCreate(
+            [
+                'category' => 'receipt',
+                'status'   => 'active',
+                'user_id'  => $adminId,
+            ],
+            [
+                'title'         => 'Standard System Receipt Template',
+                'details'       => 'Default standard system receipt template for payments.',
+                'html_template' => $receiptHtml,
             ]
         );
     }

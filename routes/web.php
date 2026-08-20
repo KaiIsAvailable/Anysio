@@ -60,6 +60,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/invoiceRoute.php';
         require __DIR__.'/paymentRoute.php';
         require __DIR__.'/feeTypeRoute.php';
+        require __DIR__.'/excelImportRoute.php';
 
         // --- 只有管理员 (owner-admin) 权限能进的路由 ---
         Route::middleware('can:owner-admin')->group(function () {
@@ -70,7 +71,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 //run seeder
-Route::get('/run-seeders-xyz', function (\Illuminate\Http\Request $request) {
+Route::get('/run-seeders-xyz', function (Request $request) {
     try {
         Artisan::call('db:seed', ['--force' => true]);
         

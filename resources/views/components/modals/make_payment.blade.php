@@ -191,7 +191,7 @@
                                             </div>
                                             <div class="flex justify-between text-xs">
                                                 <span class="text-slate-500">Recipient:</span>
-                                                <span class="font-medium text-slate-800">Ansio Technologies</span>
+                                                <span class="font-medium text-slate-800">Anysio Technologies</span>
                                             </div>
                                         </div>
                                     </div>

@@ -8,22 +8,69 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Tenants</h1>
                     <p class="mt-2 text-sm text-gray-500">Manage and organize your tenant directory.</p>
                 </div>
-                <div class="flex-shrink-0" x-data="{loading: false}">
+                
+                <!-- Added 'flex items-center gap-3' here -->
+                <div class="flex-shrink-0 flex items-center gap-3" x-data="{loading: false, importModalOpen: false}">
+                    @can('super-admin')
+                        <x-form.primary-button
+                            type="button"
+                            @click="$dispatch('click', { modal: 'importModalOpen' })"
+                            class="inline-flex items-center"
+                        >
+                            <svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            <span>Import Excel</span>
+                        </x-form.primary-button>
+                    @endcan
+
                     @can('owner-admin')
                         <x-form.primary-button
                             type="button"
                             loading="loading"
                             @click="loading = true; window.location.href = '{{ route('admin.tenants.create') }}'"
-                            >
-
-                            <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            class="inline-flex items-center"
+                        >
+                            <svg x-show="!loading" class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
-                            Add New Tenant
+                            <span>Add New Tenant</span>
                         </x-form.primary-button>
                     @endcan
                 </div>
+
+                <x-modals.excel-import-modal 
+                    id="importModalOpen"
+                    title="Import Tenants from Excel"
+                    :route="route('admin.import', 'tenants')"
+                    :users="$users"
+                    description="Your file must contain both <strong>Tenant</strong> and <strong>Emergency Contact</strong> sheets."
+                />
             </div>
+
+            @if(session('import_session'))
+                <div class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white p-4 rounded-xl shadow-2xl flex items-center gap-4 border border-slate-700">
+                    <div>
+                        <p class="font-bold text-sm">Review Imported Data</p>
+                        <p class="text-xs text-slate-300">Check your directory. Keep or reverse this batch?</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <!-- REVERSE BUTTON -->
+                        <form action="{{ route('admin.import.revert') }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="session_key" value="{{ session('import_session') }}">
+                            <button type="submit" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-xs font-bold rounded-lg">Reverse</button>
+                        </form>
+
+                        <!-- DONE BUTTON -->
+                        <form action="{{ route('admin.import.confirm') }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="session_key" value="{{ session('import_session') }}">
+                            <button type="submit" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-xs font-bold rounded-lg">Done</button>
+                        </form>
+                    </div>
+                </div>
+            @endif
 
             <!-- Content Card -->
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">

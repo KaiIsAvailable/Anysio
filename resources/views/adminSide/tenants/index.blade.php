@@ -45,6 +45,7 @@
                     :route="route('admin.import', 'tenants')"
                     :users="$users"
                     description="Your file must contain both <strong>Tenant</strong> and <strong>Emergency Contact</strong> sheets."
+                    :templateRoute="route('admin.imports.download')"
                 />
             </div>
 
@@ -83,7 +84,8 @@
                                 <x-table.search placeholder="Search by tenant name..." />
                             </div>
                         </x-form.form>
-                    </div>                </div>
+                    </div>                
+                </div>
 
                 <!-- Table Section -->
                 <div class="overflow-x-auto">

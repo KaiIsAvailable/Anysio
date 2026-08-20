@@ -35,40 +35,34 @@ class TenantSheetImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
         DB::transaction(function () use ($rows, &$importedData) {
             foreach ($rows as $row) {
                 // Skip if essential name is missing
-                if (empty($row['name'])) {
+                if (empty($row['full_name'])) {
                     continue;
                 }
 
                 // 1. Handle Email Generation (if empty or null)
-                $email = $row['email'] ?? null;
+                $email = $row['email_address'] ?? null;
                 if (empty($email)) {
                     $email = 'tenant_' . time() . '_' . Str::random(5) . '@anysio.local';
                 }
 
                 // 2. Create the User account for the tenant
                 $user = User::create([
-                    'name'     => $row['name'],
+                    'name'     => $row['full_name'],
                     'email'    => $email,
                     'password' => Hash::make(Str::random(10)),
                     'role'     => 'tenant',
                 ]);
                 $importedData['users'][] = $user->id;
 
-                // 3. Prepare Tenant details
-                $identityType = $row['identity_type'] ?? 'ic'; // Default to ic if not specified
-                $icNumber = $row['ic_number'] ?? null;
-                $passport = $row['passport'] ?? null;
-
-                if ($identityType === 'ic') {
-                    $passport = null;
-                } else {
-                    $icNumber = null;
-                }
+                // 3. Prepare Tenant details (IC vs Passport logic)
+                $icNumber = !empty(trim($row['ic_number'] ?? '')) ? trim($row['ic_number']) : null;
+                $passport = !empty(trim($row['passport_number'] ?? '')) ? trim($row['passport_number']) : null;
+                $phone    = !empty(trim($row['phone_number'] ?? '')) ? trim($row['phone_number']) : '-';
 
                 $tenant = Tenants::create([
                     'user_id'     => $user->id,
                     'created_by'  => $this->createdBy,
-                    'phone'       => !empty($row['phone']) ? $row['phone'] : '',
+                    'phone'       => $phone,
                     'ic_number'   => $icNumber,
                     'passport'    => $passport,
                     'nationality' => $row['nationality'] ?? '', 
@@ -77,15 +71,22 @@ class TenantSheetImport implements ToCollection, WithHeadingRow, SkipsEmptyRows
                 ]);
                 $importedData['tenants'][] = $tenant->id;
 
-                // 4. Handle Emergency Contact (Supports single column or multiple entries if structured)
-                if (!empty($row['emergency_name'])) {
-                    $contact = EmergencyContact::create([
-                        'tenant_id'    => $tenant->id,
-                        'name'         => $row['emergency_name'],
-                        'phone'        => $row['emergency_phone'] ?? null,
-                        'relationship' => $row['relationship'] ?? '',
-                    ]);
-                    $importedData['emergency_contacts'][] = $contact->id;
+                // 4. Handle Emergency Contact by linking via Tenant's Full Name
+                if (!empty($row['emergency_name']) && !empty($row['tenant_name'])) {
+                    // Look up the tenant by matching the user's name (since tenants are linked to users)
+                    $targetTenant = Tenants::whereHas('user', function ($query) use ($row) {
+                        $query->where('name', $row['tenant_name']);
+                    })->first();
+
+                    if ($targetTenant) {
+                        $contact = EmergencyContact::create([
+                            'tenant_id'    => $targetTenant->id,
+                            'name'         => $row['emergency_name'],
+                            'phone'        => $row['emergency_phone'] ?? null,
+                            'relationship' => $row['relationship'] ?? '',
+                        ]);
+                        $importedData['emergency_contacts'][] = $contact->id;
+                    }
                 }
             }
 

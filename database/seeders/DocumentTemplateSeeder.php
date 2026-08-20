@@ -49,8 +49,8 @@ class DocumentTemplateSeeder extends Seeder
                             <td id="ih8c5q">
                                 <h4 id="iso4l1">Billed To:</h4>
                                 <p id="ivam3g"><span data-variable="tenant_name" id="iyehs7" class="gjs-variable-tag">{{ tenant_name }}</span></p>
-                                <p id="iaeyxs"><strong>Property:</strong> <span data-variable="property_unit_details" id="ilfqi9" class="gjs-variable-tag">{{ property_unit_details }}</span></p>
-                                <p id="if33jk"><strong>Phone:</strong> <span data-variable="tenant_phone" id="i33abf" class="gjs-variable-tag">{{ tenant_phone }}</span></p>
+                                <!--<p id="iaeyxs"><strong>Property:</strong> <span data-variable="property_unit_details" id="ilfqi9" class="gjs-variable-tag">{{ property_unit_details }}</span></p>-->
+                                <!--<p id="if33jk"><strong>Phone:</strong> <span data-variable="tenant_phone" id="i33abf" class="gjs-variable-tag">{{ tenant_phone }}</span></p>-->
                                 <p id="i09mty"><strong>Email:</strong> <span data-variable="tenant_email" id="ixv9fg" class="gjs-variable-tag">{{ tenant_email }}</span></p>
                             </td>
                             <td id="i2n1uk">

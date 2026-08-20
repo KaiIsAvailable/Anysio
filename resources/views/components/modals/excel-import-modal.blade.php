@@ -1,4 +1,4 @@
-@props(['id', 'title', 'route', 'users', 'description'])
+@props(['id', 'title', 'route', 'users', 'description', 'templateRoute' => '#'])
 
 <div x-data="{ 
         open: false, 
@@ -23,14 +23,23 @@
     <div class="relative bg-white rounded-xl shadow-xl max-w-lg w-full p-6 z-10 transition-all"
          :class="{ 'animate-shake': shake }"
          @click.stop>
-        
+         
         <!-- Header with Close Button -->
-        <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center justify-between mb-2">
             <h3 class="text-lg font-bold text-slate-800">{{ $title }}</h3>
             <button type="button" @click="open = false" class="text-gray-400 hover:text-gray-600 text-2xl font-light">&times;</button>
         </div>
 
-        <p class="text-sm text-slate-600 mb-4">{!! $description !!}</p>
+        <!-- Description & Template Download Link -->
+        <div class="flex items-center justify-between mb-4">
+            <p class="text-sm text-slate-600">{!! $description !!}</p>
+            <a href="{{ $templateRoute }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-800 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition shrink-0 ml-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                </svg>
+                Template
+            </a>
+        </div>
 
         <x-form.form action="{{ $route }}" method="POST" enctype="multipart/form-data" @submit="uploading = true">
             @csrf

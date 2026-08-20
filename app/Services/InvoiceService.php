@@ -338,9 +338,9 @@ class InvoiceService
         } else {
             // 平台發票 (買 Package 等無租約的情境)
             $ownerName  = 'Anysio Technologies';
-            $ownerPhone = '03-12345678';         
-            $ownerEmail = 'hello@anysio.com';    
-            $companyNo  = '1234567-X';           
+            $ownerPhone = '01110880912';         
+            $ownerEmail = 'kaifengchoong@gmai.com';    
+            $companyNo  = '202603205756';           
         }
 
         // 4. 處理 Property 詳情

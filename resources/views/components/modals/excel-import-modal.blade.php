@@ -74,7 +74,7 @@
             <!-- Actions -->
             <div class="flex justify-end gap-3 mt-6">
                 <button type="button" @click="open = false" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-semibold">Cancel</button>
-                <x-form.primary-button loading="loading">
+                <x-form.primary-button type="submit" loading="loading">
                     Import Data
                 </x-form.primary-button>
             </div>

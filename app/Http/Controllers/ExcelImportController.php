@@ -3,6 +3,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use App\Imports\TenantSheetImport;
+use App\Imports\EmergencyContactSheetImport;
 use Illuminate\Support\Facades\Storage;
 use App\Models\Tenants;
 use App\Models\User;
@@ -29,22 +30,38 @@ class ExcelImportController extends Controller
             'created_by' => 'required|exists:users,id',
         ]);
 
-        $tenantImporter = new TenantSheetImport($request->created_by);
-
-        $importers = [
-            'tenants' => $tenantImporter,
-        ];
-
-        if (!array_key_exists($type, $importers)) {
+        if ($type !== 'tenants') {
             return redirect()->back()->with('error', 'Invalid import type specified.');
         }
 
         try {
-            // Use the clean Facade syntax
-            Excel::import($importers[$type], $request->file('excel_file'));
-            session()->put('import_session', $tenantImporter->importSessionKey);
+            $sessionKey = 'import_session_' . time() . '.json';
+            
+            // Pass the shared session key to both sheets via a multi-sheet handler class
+            $importer = new class($request->created_by, $sessionKey) implements WithMultipleSheets {
+                protected $createdBy;
+                protected $sessionKey;
 
-            return redirect()->back()->with('success', 'Tenants imported temporarily for review.');
+                public function __construct($createdBy, $sessionKey)
+                {
+                    $this->createdBy = $createdBy;
+                    $this->sessionKey = $sessionKey;
+                }
+
+                public function sheets(): array
+                {
+                    return [
+                        'Tenant'           => new TenantSheetImport($this->createdBy, $this->sessionKey),
+                        'Emergency Number' => new EmergencyContactSheetImport($this->sessionKey),
+                    ];
+                }
+            };
+
+            Excel::import($importer, $request->file('excel_file'));
+            
+            session()->put('import_session', $sessionKey);
+
+            return redirect()->back()->with('success', 'Tenants and emergency contacts imported temporarily for review.');
 
         } catch (\Exception $e) {
             return redirect()->back()->with('error', 'Error importing file: ' . $e->getMessage());

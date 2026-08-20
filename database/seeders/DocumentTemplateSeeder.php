@@ -37,12 +37,6 @@ class DocumentTemplateSeeder extends Seeder
                     </tbody>
                 </table>
                 
-                <table id="i6naq">
-                    <tbody>
-                        <tr></tr>
-                    </tbody>
-                </table>
-                
                 <table id="idmsen">
                     <tbody>
                         <tr>
@@ -63,12 +57,6 @@ class DocumentTemplateSeeder extends Seeder
                     </tbody>
                 </table>
                 
-                <table id="im50vk">
-                    <tbody>
-                        <tr></tr>
-                    </tbody>
-                </table>
-                
                 <table id="i0ag1">
                     <thead>
                         <tr id="is4ci">
@@ -82,16 +70,6 @@ class DocumentTemplateSeeder extends Seeder
                         <tr id="iztmj">
                             <td colspan="4" id="ioa1x">⚙️ Dynamic Invoice Items Will Appear Here</td>
                         </tr>
-                    </tbody>
-                </table>
-                
-                <table id="iire4">
-                    <tbody>
-                        <tr></tr>
-                        <tr></tr>
-                        <tr></tr>
-                        <tr></tr>
-                        <tr></tr>
                     </tbody>
                 </table>
                 

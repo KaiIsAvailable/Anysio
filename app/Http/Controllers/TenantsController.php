@@ -81,7 +81,7 @@ class TenantsController extends Controller
             $query->orderBy('tenants.created_at', 'asc');
         }
 
-        $tenants = $query->paginate(10)->withQueryString();
+        $tenants = $query->paginate(10)->onEachSide(1)->withQueryString();
 
         return view('adminSide.tenants.index', compact('tenants', 'users'));
     }

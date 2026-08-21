@@ -25,6 +25,10 @@ class ExcelImportController extends Controller
 {
     public function store(Request $request, $type)
     {
+
+        set_time_limit(120);
+        ini_set('max_execution_time', '120');
+        
         $request->validate([
             'excel_file' => 'required|mimes:xlsx,xls,csv',
             'created_by' => 'required|exists:users,id',

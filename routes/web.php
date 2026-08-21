@@ -8,6 +8,11 @@ use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
+use App\Models\User;
+use App\Models\Tenants;
+use App\Models\EmergencyContact;
+use Illuminate\Support\Facades\DB;
 
 // 1. 公开路由
 Route::get('/', function () {
@@ -100,6 +105,32 @@ Route::get('/run-migrations-xyz', function (Request $request) {
         return redirect()->to($redirectTo)->with('error', 'Migration Error: ' . $e->getMessage());
     }
 })->name('run.migrations');
+
+Route::get('/debug-revert/{filename}', function ($filename) {
+    $filePath = 'imports/' . $filename;
+
+    if (Storage::disk('local')->exists($filePath)) {
+        $data = json_decode(Storage::disk('local')->get($filePath), true);
+
+        DB::transaction(function () use ($data) {
+            if (!empty($data['emergency_contacts'])) {
+                EmergencyContact::whereIn('id', $data['emergency_contacts'])->delete();
+            }
+            if (!empty($data['tenants'])) {
+                Tenants::whereIn('id', $data['tenants'])->delete();
+            }
+            if (!empty($data['users'])) {
+                User::whereIn('id', $data['users'])->delete();
+            }
+        });
+
+        Storage::disk('local')->delete($filePath);
+
+        return "Successfully reverted import batch and cleaned up database!";
+    }
+
+    return "Session file not found.";
+});
 
 // 4. 认证相关路由 (Login, Register 等)
 require __DIR__.'/auth.php';

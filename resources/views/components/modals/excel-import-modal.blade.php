@@ -3,7 +3,7 @@
 <div x-data="{ 
         open: false, 
         shake: false,
-        uploading: false,
+        loading: false,
         {{ $id }}() { this.open = true; } 
      }" 
      @click.window.stop="if ($event.detail.modal === '{{ $id }}') open = true"
@@ -41,7 +41,7 @@
             </a>
         </div>
 
-        <x-form.form action="{{ $route }}" method="POST" enctype="multipart/form-data" @submit="uploading = true">
+        <x-form.form action="{{ $route }}" method="POST" enctype="multipart/form-data" @submit="loading = true">
             @csrf
 
             <!-- Select Created By User -->

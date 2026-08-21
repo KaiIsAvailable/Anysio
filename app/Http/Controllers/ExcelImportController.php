@@ -70,10 +70,11 @@ class ExcelImportController extends Controller
 
     public function revertImport(Request $request)
     {
-        $sessionKey = $request->input('session_key');
+        // Fallback to session if request input is empty
+        $sessionKey = $request->input('session_key') ?? session('import_session');
         $filePath = 'imports/' . $sessionKey;
 
-        if (Storage::disk('local')->exists($filePath)) {
+        if ($sessionKey && Storage::disk('local')->exists($filePath)) {
             $data = json_decode(Storage::disk('local')->get($filePath), true);
 
             DB::transaction(function () use ($data) {
@@ -94,8 +95,8 @@ class ExcelImportController extends Controller
             });
 
             Storage::disk('local')->delete($filePath);
-
             session()->forget('import_session');
+
             return redirect()->back()->with('success', 'Import successfully reversed and data removed.');
         }
 
@@ -105,12 +106,14 @@ class ExcelImportController extends Controller
     // 2. If user clicks "Done"
     public function confirmImport(Request $request)
     {
-        $sessionKey = $request->input('session_key');
+        // Fallback to session if request input is empty
+        $sessionKey = $request->input('session_key') ?? session('import_session');
         $filePath = 'imports/' . $sessionKey;
 
-        if (Storage::disk('local')->exists($filePath)) {
+        if ($sessionKey && Storage::disk('local')->exists($filePath)) {
             // Just delete the temporary JSON file, keeping the database data permanent
             Storage::disk('local')->delete($filePath);
+            session()->forget('import_session');
             
             return redirect()->back()->with('success', 'Import confirmed and finalized!');
         }
@@ -118,7 +121,6 @@ class ExcelImportController extends Controller
         session()->forget('import_session');
         return redirect()->back()->with('error', 'Import session already expired.');
     }
-
     public function downloadTemplate()
     {
         return Excel::download(new class implements WithMultipleSheets {

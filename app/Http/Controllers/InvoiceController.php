@@ -16,7 +16,7 @@ class InvoiceController extends Controller
     {
         Gate::authorize('owner-admin');
         
-        $user = Auth::user();
+        $user = get_effective_user();
 
         // 🌟 核心修正 1：改為預載入 transactions.documentTemplate
         $query = Invoice::with([

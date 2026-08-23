@@ -21,7 +21,7 @@ class PropertyController extends Controller
     public function index(Request $request)
     {
         $search = $request->input('search');
-        $user = Auth::user();
+        $user = get_effective_user();
 
         // 1. 构建基础查询，带上必要的 Join
         $query = Property::query()
@@ -158,7 +158,7 @@ class PropertyController extends Controller
             });
         }
         
-        $user = Auth::user();
+        $user = get_effective_user();
 
         if (!Gate::allows('super-admin')) {
             if (Gate::allows('owner-admin')) {

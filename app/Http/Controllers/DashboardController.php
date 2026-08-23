@@ -15,7 +15,7 @@ class DashboardController extends Controller
     use RoleBasedDataTrait;
     public function index(SetupCheckerService $checker)
     {
-        $user = Auth::user();
+        $user = get_effective_user();
 
         $statsQuery = DB::table('properties')
             ->leftJoin('units', 'properties.id', '=', 'units.property_id' )

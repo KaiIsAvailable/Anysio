@@ -7,14 +7,17 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Staff</h1>
                     <p class="mt-2 text-sm text-gray-500">Staff linked to your account.</p>
                 </div>
-                <div class="flex-shrink-0">
-                    <a href="{{ route('admin.staff.create') }}" 
-                       class="inline-flex items-center justify-center px-5 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-sm transition-all duration-200">
-                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <div class="flex-shrink-0" x-data="{loading: false}">
+                    <x-form.primary-button
+                        type="button"
+                        loading="loading"
+                        @click="loading = true; window.location.href = '{{ route('admin.staff.create') }}'"
+                        >
+                        <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
-                        Add Staff
-                    </a>
+                        Add New Staff
+                    </x-form.primary-button>
                 </div>
             </div>
 
@@ -28,29 +31,13 @@
                     @endif
 
                     <div class="flex justify-end">
-                        <form method="GET" action="{{ route('admin.staff.index') }}" class="flex items-stretch gap-2">
-                            <div class="flex items-stretch">
-                                <div class="relative flex-1">
-                                    <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                                        <svg class="h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                                        </svg>
-                                    </div>
-                                    <input type="text" name="search" value="{{ request('search') }}"
-                                           style="padding-left: 45px;"
-                                           class="block w-72 sm:w-80 pr-4 py-2.5 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-l-lg focus:ring-indigo-500 focus:border-indigo-500 transition-colors placeholder-gray-400"
-                                           placeholder="Search by name or email...">
+                        <div class="flex items-stretch">
+                            <x-form.form method="GET" action="{{ route('admin.staff.index') }}" class="flex flex-wrap items-center gap-4">
+                                <div class="flex items-stretch justify-between">
+                                    <x-table.search placeholder="Search by user name..." />
                                 </div>
-                                <button type="submit" class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-r-lg text-white bg-indigo-600 hover:bg-indigo-700">
-                                    Search
-                                </button>
-                                @if(request('search'))
-                                    <a href="{{ route('admin.staff.index') }}" class="ml-2 inline-flex items-center px-3 py-2 rounded-lg bg-gray-50 hover:bg-gray-100 text-slate-900 border border-gray-200 text-sm">
-                                        Clear
-                                    </a>
-                                @endif
-                            </div>
-                        </form>
+                            </x-form.form>
+                        </div>
                     </div>
                 </div>
 
@@ -76,12 +63,26 @@
                                         onclick="window.location='{{ route('admin.staff.show', $member->id) }}'">
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center">
-                                                <div class="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold">
-                                                    {{ strtoupper(substr($staffUser->name ?? 'S', 0, 1)) }}
-                                                </div>
-                                                <div class="ml-4">
-                                                    <div class="text-sm font-medium text-slate-900">{{ $staffUser->name ?? 'N/A' }}</div>
-                                                    <div class="text-xs text-gray-500">{{ $staffUser->email ?? 'N/A' }}</div>
+                                                <div class="flex items-center space-x-2">
+                                                    <div class="h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shrink-0">
+                                                        {{ strtoupper(substr($staffUser->name ?? 'S', 0, 1)) }}
+                                                    </div>
+                                                    <div class="ml-4">
+                                                        <!-- Name and Verification Badge side-by-side -->
+                                                        <div class="flex items-center space-x-2">
+                                                            <span class="text-sm font-medium text-slate-900">{{ $staffUser->name ?? 'N/A' }}</span>
+                                                            @if(optional($staffUser)->email_verified_at)
+                                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800" title="Email Verified">
+                                                                    Verified
+                                                                </span>
+                                                            @else
+                                                                <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800" title="Email Unverified">
+                                                                    Unverified
+                                                                </span>
+                                                            @endif
+                                                        </div>
+                                                        <div class="text-xs text-gray-500 mt-0.5">{{ $staffUser->email ?? 'N/A' }}</div>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>

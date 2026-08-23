@@ -1,12 +1,35 @@
 <?php
 namespace App\Traits;
 
-use App\Models\{User, Owners, Property, Unit, Room};
+use App\Models\{User, Owners, Property, Unit, Room,Staff};
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 trait RoleBasedDataTrait
 {
+    /**
+     * Helper to resolve the effective user for data scoping.
+     * If the user is staff, it returns the parent admin/agent-admin user. Otherwise, returns the user themselves.
+     */
+    protected function getEffectiveUser($user)
+    {
+        if ($user->role === User::ROLE_STAFF) {
+            // Find the staff record and get the UserManagement record
+            $staff = Staff::where('user_id', $user->id)->first();
+            if ($staff && $staff->user_mgnt_id) {
+                // Find the user who owns this user_management profile
+                $managementUser = User::whereHas('user_management', function ($q) use ($staff) {
+                    $q->where('id', $staff->user_mgnt_id);
+                })->first();
+
+                if ($managementUser) {
+                    return $managementUser;
+                }
+            }
+        }
+
+        return $user;
+    }
     /**
      * 统一的权限过滤逻辑，返回 Builder 对象以支持链式调用
      */

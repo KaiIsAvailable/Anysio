@@ -12,90 +12,107 @@
                     </a>
                 </nav>
                 <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Edit Staff Member</h1>
-                <p class="mt-2 text-sm text-gray-500">Update account information and access permissions for this staff.</p>
+                <p class="mt-2 text-sm text-gray-500">Update account information, verification status, and access permissions for this staff.</p>
             </div>
 
             <div class="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-                <form action="{{ route('admin.staff.update', $staff->id) }}" method="POST" class="p-8">
+                <x-form.form action="{{ route('admin.staff.update', $staff->id) }}" method="POST" class="p-8" loading="loading">
                     @csrf
                     @method('PUT')
 
-                    <div class="space-y-8">
-                        <div class="space-y-6">
-                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Profile Information</h3>
-                            
-                            <div class="grid grid-cols-1 gap-6 pl-4">
-                                <div>
-                                    <label for="name" class="block text-sm font-bold text-slate-700 mb-1.5">Full Name</label>
-                                    <input type="text" name="name" id="name" 
-                                           value="{{ old('name', $staff->user->name) }}"
-                                           class="block w-full px-4 py-3 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-gray-400"
-                                           placeholder="John Doe" required>
-                                    @error('name') <p class="mt-1.5 text-xs text-red-600 font-medium">{{ $message }}</p> @enderror
+                    <div class="space-y-6">
+                        <div class="grid grid-cols-1 gap-6 pl-4">
+                            <!-- Name -->
+                            <div>
+                                <x-form.input-label for="name" value="Full Name" required />
+                                <x-form.text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $staff->user->name)" required autocomplete="name" />
+                                <x-form.input-error :messages="$errors->get('name')" class="mt-2" />
+                            </div>
+
+                            <!-- Email -->
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <x-form.input-label for="email" value="Email Address" required />
+                                    
+                                    {{-- Email Verification Status Badge --}}
+                                    @if($staff->user->email_verified_at)
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                                            Verified ({{ $staff->user->email_verified_at->format('d/m/Y H:i') }})
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                                            Unverified
+                                        </span>
+                                    @endif
                                 </div>
 
-                                <div>
-                                    <label for="email" class="block text-sm font-bold text-slate-700 mb-1.5">Email Address</label>
-                                    <input type="email" name="email" id="email" 
-                                           value="{{ old('email', $staff->user->email) }}"
-                                           class="block w-full px-4 py-3 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition-all placeholder-gray-400"
-                                           placeholder="john@example.com" required>
-                                    @error('email') <p class="mt-1.5 text-xs text-red-600 font-medium">{{ $message }}</p> @enderror
+                                <x-form.text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email', $staff->user->email)" required autocomplete="username" />
+                                <x-form.input-error :messages="$errors->get('email')" class="mt-2" />
+
+                                <!-- Verify Email Immediately Checkbox -->
+                                <div class="mt-3 flex items-center">
+                                    <input id="verify_email" name="verify_email" type="checkbox" value="1" 
+                                            class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" 
+                                            {{ old('verify_email', $staff->user->email_verified_at ? true : false) ? 'checked' : '' }}>
+                                    <label for="verify_email" class="ml-2 block text-sm text-gray-700 font-medium">
+                                        Mark email address as verified
+                                    </label>
                                 </div>
                             </div>
                         </div>
 
-                        <div class="space-y-6 pt-6 border-t border-gray-100">
-                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Access Control</h3>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pl-4">
-                                <div>
-                                    <label for="role" class="block text-sm font-bold text-slate-700 mb-1.5">Position / Role</label>
-                                    <select name="role" id="role" 
-                                            class="block w-full px-4 py-3 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition-all">
-                                        <option value="Staff" {{ old('role', $staff->role) == 'Staff' ? 'selected' : '' }}>Staff</option>
-                                        <option value="Supervisor" {{ old('role', $staff->role) == 'Supervisor' ? 'selected' : '' }}>Supervisor</option>
-                                        <option value="Manager" {{ old('role', $staff->role) == 'Manager' ? 'selected' : '' }}>Manager</option>
-                                    </select>
-                                    @error('role') <p class="mt-1.5 text-xs text-red-600 font-medium">{{ $message }}</p> @enderror
-                                </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pl-4">
+                            <!-- Role Selection -->
+                            <div>
+                                <x-form.input-label for="role" value="Staff Position / Role" required />
+                                <x-form.input-select 
+                                    id="role" 
+                                    name="role" 
+                                    class="mt-1"
+                                    placeholder="-- Select Staff Role --"
+                                    :options="[
+                                        'Front Desk' => 'Front Desk',
+                                        'Backend Staff' => 'Backend Staff',
+                                        'Maintenance' => 'Maintenance',
+                                        'Others' => 'Others'
+                                    ]"
+                                    :value="old('role', $staff->role)"
+                                    required 
+                                />
+                                <x-form.input-error :messages="$errors->get('role')" class="mt-2" />
+                            </div>
 
-                                <div>
-                                    <label for="is_active" class="block text-sm font-bold text-slate-700 mb-1.5">Account Status</label>
-                                    <select name="is_active" id="is_active" 
-                                            class="block w-full px-4 py-3 bg-gray-50 border border-gray-300 text-slate-900 text-sm rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition-all">
-                                        <option value="active" {{ old('is_active', $staff->is_active) == 'active' ? 'selected' : '' }}>Active</option>
-                                        <option value="inactive" {{ old('is_active', $staff->is_active) == 'inactive' ? 'selected' : '' }}>Inactive / Suspended</option>
-                                    </select>
-                                    @error('is_active') <p class="mt-1.5 text-xs text-red-600 font-medium">{{ $message }}</p> @enderror
-                                </div>
+                            <!-- Account Status -->
+                            <div>
+                                <x-form.input-label for="is_active" value="Account Status" required />
+                                <x-form.input-select 
+                                    id="is_active" 
+                                    name="is_active" 
+                                    class="mt-1"
+                                    :options="[
+                                        '1' => 'Active',
+                                        '0' => 'Inactive'
+                                    ]"
+                                    :value="old('is_active', $staff->is_active ? '1' : '0')"
+                                    required 
+                                />
+                                <x-form.input-error :messages="$errors->get('is_active')" class="mt-2" />
                             </div>
                         </div>
                     </div>
 
-                    <div class="mt-10 pt-8 border-t border-gray-100 flex justify-end gap-3">
+                    <!-- Form Actions -->
+                    <div class="mt-2 pt-4 border-t border-gray-100 flex justify-end gap-3">
                         <a href="{{ route('admin.staff.index') }}" 
                            class="px-6 py-2.5 text-sm font-medium text-slate-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-all shadow-sm">
                             Cancel
                         </a>
-                        <button type="submit" 
+                        <x-form.primary-button type="submit" loading="loading"
                                 class="px-10 py-2.5 text-sm font-bold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-md hover:shadow-lg transition-all transform active:scale-95">
-                            Update Staff Details
-                        </button>
+                            Save Changes
+                        </x-form.primary-button>
                     </div>
-                </form>
-            </div>
-
-            <div class="mt-6 bg-amber-50 rounded-xl p-5 border border-amber-200">
-                <div class="flex">
-                    <svg class="h-5 w-5 text-amber-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <div>
-                        <h4 class="text-sm font-bold text-amber-800">Note on Sensitivity</h4>
-                        <p class="text-xs text-amber-700 mt-1 leading-relaxed">Changing a staff member's email will require them to log in with the new credentials. Inactive staff accounts will be immediately restricted from accessing the management portal.</p>
-                    </div>
-                </div>
+                </x-form.form>
             </div>
         </div>
     </div>

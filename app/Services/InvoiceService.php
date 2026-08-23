@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate};
+use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate, Tenants};
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -53,9 +53,9 @@ class InvoiceService
             $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
 
             $invoice = Invoice::create([
-                'user_id'              => $currentUser->id,
-                'billable_type'        => User::class,
-                'billable_id'          => $currentUser->id,
+                'user_id'              => $lease->tenant_id,
+                'billable_type'        => Tenants::class,  
+                'billable_id'          => $lease->tenant_id,
                 'lease_id'             => $lease->id,
                 'document_template_id' => $template?->id, // Assign template if found
                 'invoice_no'           => $invoiceNo,

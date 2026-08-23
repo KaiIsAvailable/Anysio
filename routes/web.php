@@ -15,9 +15,7 @@ use App\Models\EmergencyContact;
 use Illuminate\Support\Facades\DB;
 
 // 1. 公开路由
-Route::get('/', function () {
-    return view('welcome');
-});
+Route::get('/', function () {return view('welcome');})->name('welcome');
 Route::get('/', [WelcomeController::class, 'index']);
 
 Route::middleware(['auth', 'can:super-admin'])->group(function () {

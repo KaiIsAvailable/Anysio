@@ -24,7 +24,7 @@ class TenantsController extends Controller
 
     public function index(Request $request)
     {
-        $user = Auth::user();
+        $user = get_effective_user();
         $users = UserManagement::with('user')->get()->pluck('user');
 
         if ($user->role === 'tenant') {

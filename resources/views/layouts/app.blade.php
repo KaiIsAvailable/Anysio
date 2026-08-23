@@ -39,15 +39,18 @@
 
             @auth
                 @php
-                    // 1. 检查 User Management 状态
-                    $userMgmt = \App\Models\UserManagement::where('user_id', auth()->id())->first();
-                    // 2. 获取支付记录（用于拿到金额和 Invoice No）
-                    $latestSubscriptionInvoice = \App\Models\Invoice::where('user_id', auth()->id())
+                    $effectiveUser = get_effective_user();
+
+                    $userMgmt = \App\Models\UserManagement::where('user_id', $effectiveUser->id)->first();
+
+                    $latestSubscriptionInvoice = \App\Models\Invoice::where('user_id', $effectiveUser->id)
                         ->where('context', 'subscription')
                         ->whereIn('status', ['unpaid', 'partial', 'overdue'])
                         ->latest()
                         ->first();
-
+                        
+                    // 🔥 Remove 'staff' from the exclusion list so staff also trigger the payment block/modal 
+                    // if their workspace/parent admin hasn't paid.
                     $mustPay = $latestSubscriptionInvoice !== null
                         && auth()->user()->role !== 'admin';
                 @endphp

@@ -2,23 +2,29 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Staff;
+use App\Models\{Staff, UserManagement};
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Gate;
 
 class StaffController extends Controller
 {
     public function index(Request $request)
     {
-        $currentMgntId = optional($request->user()->user_management)->id;
+        $user = $request->user();
 
         $staff = Staff::query()
             ->with(['user_management.user'])
-            ->when($currentMgntId, fn($q) => $q->where('staff.user_mgnt_id', $currentMgntId))
+            // If the user is NOT a super admin, restrict to their specific management ID
+            ->when(!$user->hasRole('admin') && !Gate::allows('super-admin'), function ($q) use ($user) {
+                $currentMgntId = optional($user->user_management)->id;
+                abort_unless($currentMgntId, 403);
+                $q->where('staff.user_mgnt_id', $currentMgntId);
+            })
             ->when($request->filled('search'), function ($q) use ($request) {
                 $s = $request->get('search');
                 $q->where(function ($sub) use ($s) {
@@ -35,64 +41,72 @@ class StaffController extends Controller
         return view('adminSide.userManagement.staff.index', compact('staff'));
     }
 
-    public function create(Request $request)
+    public function create()
     {
-        abort_unless(optional($request->user()->user_management)->id, 403);
+        $currentUser = Auth::user();
+        $managementList = [];
 
-        return view('adminSide.userManagement.staff.create');
+        // If the logged-in user is a super admin, fetch the list of management accounts for the dropdown
+        if ($currentUser->role === 'admin' || Gate::allows('super-admin')) {
+            $managementList = UserManagement::with('user')->get();
+        }
+
+        return view('adminSide.userManagement.staff.create', compact('managementList'));
     }
 
     public function store(Request $request)
     {
-        $currentMgntId = optional($request->user()->user_management)->id;
-        abort_unless($currentMgntId, 403);
+        // 1. Determine the management ID based on user role (Admin can choose, others use their own)
+        $currentUser = $request->user();
+        
+        if ($currentUser->role === 'admin') {
+            $request->validate([
+                'user_mgnt_id' => 'required|exists:user_management,id',
+            ]);
+            $currentMgntId = $request->user_mgnt_id;
+        } else {
+            $currentMgntId = optional($currentUser->user_management)->id;
+            abort_unless($currentMgntId, 403, 'Management profile not found.');
+        }
 
-        $request->merge([
-            'random_email' => $request->has('random_email'),
-        ]);
-
-        // 3. 验证规则
+        // 2. Validation Rules (Added verify_email_now boolean validation)
         $data = $request->validate([
-            'name' => 'required|string|max:255',
-            'random_email' => 'boolean',
-            'email' => 'required_without:random_email|nullable|email|unique:users,email',
-            // 注意：Blade 里 role 是 disabled 的，所以这里我们通过后端逻辑处理
-        ], [
-            'email.required_without' => 'Please provide an email or check the "Generate Random" option.'
+            'name'             => 'required|string|max:255',
+            'email'            => 'required|string|email|max:255|unique:users,email',
+            'password'         => 'required|string|min:8|confirmed',
+            'role'             => 'required|string', 
+            'verify_email_now' => 'nullable|boolean',
         ]);
 
         DB::beginTransaction();
         try {
-            // 4. 处理 Email 和 随机密码
-            $email = $request->random_email 
-                ? strtolower(Str::random(8)) . '@system.com' 
-                : $request->email;
-            
-            $plainPassword = Str::random(10); 
+            $plainPassword = $request->password;
 
-            // 5. 创建 User 记录 (用于登录)
+            // 3. Create User record (for login) with verification check
             $newUser = User::create([
-                'name' => $data['name'],
-                'email' => $email,
-                'password' => Hash::make($plainPassword),
-                'role' => 'staff', // 统一角色为 staff
+                'id'                => (string) Str::ulid(),
+                'name'              => $data['name'],
+                'email'             => $data['email'],
+                'password'          => Hash::make($plainPassword),
+                'role'              => 'staff', 
+                'status'            => 'active',
+                'is_agree'          => true,
+                'email_verified_at' => $request->boolean('verify_email_now') ? now() : null, // <--- Handles manual verification flag
             ]);
 
-            // 6. 创建 Staff 记录 (业务逻辑关联)
+            // 4. Create Staff record (operational role linkage)
             Staff::create([
-                'user_id' => $newUser->id,
-                'user_mgnt_id' => $currentMgntId, // 绑定到当前老板
-                'role' => 'staff',                // 岗位设为 staff
-                'is_active' => 'active',          // 默认激活
+                'id'           => (string) Str::ulid(),
+                'user_id'      => $newUser->id,
+                'user_mgnt_id' => $currentMgntId, 
+                'role'         => $data['role'], 
+                'is_active'    => true,
             ]);
 
             DB::commit();
 
-            // 7. 返回并闪存密码 (Session Flash)
-            return redirect()->route('admin.staff.index')->with('status', [
-                'message' => 'Staff created successfully!',
-                'email' => $email
-            ]);
+            // 5. Return and flash success session data
+            return redirect()->route('admin.staff.index')->with('success', 'Staff created successfully!');
 
         } catch (\Exception $e) {
             DB::rollBack();
@@ -123,14 +137,26 @@ class StaffController extends Controller
     public function edit(string $id)
     {
         $user = Auth::user();
-        $currentMgntId = $user->user_management->id ?? null;
 
-        // 确保只能编辑自己的员工
-        $staff = Staff::with('user')
-            ->where('user_mgnt_id', $currentMgntId)
-            ->findOrFail($id);
+        $staff = Staff::with(['user', 'user_management'])
+            ->when($user->role !== 'admin' && !Gate::allows('super-admin'), function ($q) use ($user) {
+                $currentMgntId = optional($user->user_management)->id;
+                abort_unless($currentMgntId, 403, 'Management profile not found.');
+                $q->where('user_mgnt_id', $currentMgntId);
+            })
+            // Use user_id if your route passes the User ID, or change to 'id' if it passes the Staff table ID
+            ->where(function ($query) use ($id) {
+                $query->where('id', $id)->orWhere('user_id', $id);
+            })
+            ->firstOrFail();
 
-        return view('adminSide.userManagement.staff.edit', compact('staff'));
+        // If an admin needs to select a management account during edit, fetch the list too:
+        $managementList = [];
+        if ($user->role === 'admin' || Gate::allows('super-admin')) {
+            $managementList = UserManagement::with('user')->get();
+        }
+
+        return view('adminSide.userManagement.staff.edit', compact('staff', 'managementList'));
     }
 
     /**
@@ -138,41 +164,62 @@ class StaffController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $user = Auth::user();
-        $currentMgntId = $user->user_management->id ?? null;
-        $staff = Staff::where('user_mgnt_id', $currentMgntId)->findOrFail($id);
+        $currentUser = Auth::user();
+
+        // Find staff record with admin override capability
+        $staff = Staff::with(['user', 'user_management'])
+            ->when($currentUser->role !== 'admin' && !Gate::allows('super-admin'), function ($q) use ($currentUser) {
+                $currentMgntId = optional($currentUser->user_management)->id;
+                abort_unless($currentMgntId, 403, 'Management profile not found.');
+                $q->where('user_mgnt_id', $currentMgntId);
+            })
+            ->where(function ($query) use ($id) {
+                $query->where('id', $id)->orWhere('user_id', $id);
+            })
+            ->firstOrFail();
+
         $user = $staff->user;
 
+        // Validate request inputs (including verify_email checkbox and active boolean values)
         $request->validate([
-            'name' => 'required|string|max:255',
-            'email' => 'required|email|unique:users,email,' . $user->id,
-            'role' => 'required|string', // 这里的 role 是 staff 表里的岗位
-            'is_active' => 'required|in:active,inactive',
+            'name'         => 'required|string|max:255',
+            'email'        => 'required|email|unique:users,email,' . $user->id,
+            'role'         => 'required|string',
+            'is_active'    => 'required|in:0,1',
+            'verify_email' => 'nullable|boolean',
         ]);
 
         DB::transaction(function () use ($request, $user, $staff) {
-            // 1. 更新 User 表 (基本信息)
+            // 1. Prepare User update data
             $userData = [
-                'name' => $request->name,
+                'name'  => $request->name,
                 'email' => $request->email,
             ];
 
-            if ($user->email !== $request->email) {
-                // 假设你的字段名是 email_verified_at (Laravel标准) 或 email_verify_by
-                $userData['email_verified_at'] = null; 
+            // Handle Email Verification update
+            if ($request->has('verify_email')) {
+                // If checked, verify email now (keep existing timestamp if already verified, or set to now)
+                $userData['email_verified_at'] = $user->email_verified_at ?? now();
+            } else {
+                // If unchecked, unverify email
+                $userData['email_verified_at'] = null;
+            }
+
+            // If email was explicitly changed and the verification checkbox wasn't ticked, reset verification
+            if ($user->email !== $request->email && !$request->has('verify_email')) {
+                $userData['email_verified_at'] = null;
             }
 
             $user->update($userData);
 
-            // 2. 更新 Staff 表 (岗位信息和状态)
+            // 2. Update Staff record (operational role and status)
             $staff->update([
-                'role' => $request->role,
+                'role'      => $request->role,
                 'is_active' => $request->is_active,
             ]);
         });
 
-        return redirect()->route('admin.staff.index')
-                         ->with('success', 'Staff updated successfully');
+        return redirect()->route('admin.staff.index')->with('success', 'Staff updated successfully.');
     }
 
     /**

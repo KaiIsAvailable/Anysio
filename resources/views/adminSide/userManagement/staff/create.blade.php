@@ -1,84 +1,110 @@
 <x-app-layout>
-    <div class="py-12 bg-gray-50 min-h-screen">
-        <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-            
+    <div class="py-12 bg-gray-50 min-h-screen font-sans">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+
             <div class="mb-6">
                 <a href="{{ route('admin.staff.index') }}" class="text-indigo-600 hover:text-indigo-900 text-sm font-medium flex items-center">
                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
-                    Back to Staff List
+                    Back to List
                 </a>
-                <h1 class="text-2xl font-bold text-slate-900 mt-2">Add Staff</h1>
             </div>
 
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                @if ($errors->any())
-                    <div class="mb-4 p-4 bg-red-50 border-l-4 border-red-400 text-red-700">
-                        <ul>
-                            @foreach ($errors->all() as $error)
-                                <li>{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                @endif
-                <form action="{{ route('admin.staff.store') }}" method="POST" class="p-8">
-                    @csrf
+            <!-- Header Section -->
+            <div class="mb-8">
+                <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Add New Staff</h1>
+            </div>
 
-                    <div class="space-y-6">
+            <!-- Form Card -->
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 p-6 sm:p-8">
+                <x-form.form action="{{ route('admin.staff.store') }}" method="POST" class="space-y-6" loading="loading">
+
+                    <!-- If Master Admin, let them select which management profile this staff belongs to -->
+                    @if(auth()->user()->role === 'admin')
                         <div>
-                            <label class="block text-sm font-semibold text-gray-700">Full Name</label>
-                            <input type="text" name="name" placeholder="Enter staff name" required
-                                   class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <x-form.input-label for="user_mgnt_id" value="Assign to Management Account" required />
+                            <x-form.input-select 
+                                id="user_mgnt_id" 
+                                name="user_mgnt_id" 
+                                class="mt-1"
+                                placeholder="-- Select Management Account --"
+                                :options="$managementList"
+                                value-field="id"
+                                label-field="user.name"
+                                :value="old('user_mgnt_id')"
+                                required 
+                            />
+                            <x-form.input-error :messages="$errors->get('user_mgnt_id')" class="mt-2" />
                         </div>
+                    @endif
 
-                        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                            <div class="flex items-center justify-between mb-2">
-                                <label class="block text-sm font-semibold text-gray-700">Email Address</label>
-                                <label class="inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" name="random_email" id="random_email" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
-                                    <span class="ml-2 text-xs font-medium text-indigo-600 uppercase tracking-wider">Generate Random</span>
-                                </label>
-                            </div>
-                            <input type="email" name="email" id="email_input" placeholder="example@mail.com"
-                                   class="block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 transition-all">
-                            <p class="mt-2 text-xs text-gray-500 italic">If random is selected, a temporary password will also be generated.</p>
-                        </div>
+                    <!-- Staff Name -->
+                    <div>
+                        <x-form.input-label for="name" value="Full Name" required />
+                        <x-form.text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name')" required autofocus autocomplete="name" />
+                        <x-form.input-error :messages="$errors->get('name')" class="mt-2" />
+                    </div>
 
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700">Role</label>
-                            <select name="role" disabled
-                                    class="mt-1 block w-full rounded-lg border-gray-100 bg-gray-50 shadow-sm">
-                                <option value="staff" selected>Staff</option>
-                            </select>
-                            <p class="mt-1 text-xs text-gray-400">Hard-coded to staff.</p>
-                        </div>
+                    <!-- Email Address -->
+                    <div>
+                        <x-form.input-label for="email" value="Email Address" required />
+                        <x-form.text-input id="email" name="email" type="email" class="mt-1 block w-full" :value="old('email')" required autocomplete="username" />
+                        <x-form.input-error :messages="$errors->get('email')" class="mt-2" />
 
-                        <div class="pt-4 border-t border-gray-100 flex justify-end gap-3">
-                            <a href="{{ route('admin.staff.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">Cancel</a>
-                            <x-form.primary-button class="px-6 py-2.5 text-sm font-medium shadow-md transition-all">
-                                Create Staff
-                            </x-form.primary-button>
+                        <!-- Checkbox to auto-verify email on creation -->
+                        <div class="mt-3 flex items-center">
+                            <input id="verify_email_now" name="verify_email_now" type="checkbox" value="1" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded" {{ old('verify_email_now') ? 'checked' : '' }}>
+                            <label for="verify_email_now" class="ml-2 block text-sm text-gray-700">
+                                Mark email as verified immediately
+                            </label>
                         </div>
                     </div>
-                </form>
+
+                    <!-- Password -->
+                    <div>
+                        <x-form.input-label for="password" value="Password" required />
+                        <x-form.password-input id="password" name="password" class="mt-1 block w-full" required autocomplete="new-password" />
+                        <x-form.input-error :messages="$errors->get('password')" class="mt-2" />
+                    </div>
+
+                    <!-- Confirm Password -->
+                    <div>
+                        <x-form.input-label for="password_confirmation" value="Confirm Password" required />
+                        <x-form.password-input id="password_confirmation" name="password_confirmation" class="mt-1 block w-full" required autocomplete="new-password" />
+                        <x-form.input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
+                    </div>
+
+                    <!-- Staff Role (Select Component) -->
+                    <div>
+                        <x-form.input-label for="role" value="Staff Position / Role" required />
+                        <x-form.input-select 
+                            id="role" 
+                            name="role" 
+                            class="mt-1"
+                            placeholder="-- Select Staff Role --"
+                            :options="[
+                                'Front Desk' => 'Front Desk',
+                                'Backend Staff' => 'Backend Staff',
+                                'Maintenance' => 'Maintenance',
+                                'Others' => 'Others'
+                            ]"
+                            :value="old('role')"
+                            required 
+                        />
+                        <x-form.input-error :messages="$errors->get('role')" class="mt-2" />
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex items-center justify-end gap-4 pt-4 border-t border-gray-100">
+                        <a href="{{ route('admin.staff.index') }}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase tracking-widest bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition">
+                            Cancel
+                        </a>
+                        <x-form.primary-button loading="loading">
+                            Create Staff
+                        </x-form.primary-button>
+                    </div>
+
+                </x-form.form>
             </div>
         </div>
     </div>
-
-    <script>
-        const randomCheckbox = document.getElementById('random_email');
-        const emailInput = document.getElementById('email_input');
-
-        randomCheckbox?.addEventListener('change', function() {
-            if (this.checked) {
-                emailInput.value = '';
-                emailInput.placeholder = 'System will auto-generate email...';
-                emailInput.readOnly = true;
-                emailInput.classList.add('bg-gray-100', 'cursor-not-allowed');
-            } else {
-                emailInput.placeholder = 'example@mail.com';
-                emailInput.readOnly = false;
-                emailInput.classList.remove('bg-gray-100', 'cursor-not-allowed');
-            }
-        });
-    </script>
 </x-app-layout>

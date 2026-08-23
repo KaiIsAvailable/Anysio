@@ -37,7 +37,7 @@ class DocumentTemplateController extends Controller
             });
 
         // 权限判断逻辑
-        $user = Auth::user();
+        $user = get_effective_user();
         if (!Gate::allows('super-admin')) {
             if ($user->role === 'agentAdmin') {
                 $managedOwnerUserIds = Owners::where('agent_id', $user->id)->pluck('user_id');

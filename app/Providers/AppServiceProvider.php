@@ -30,34 +30,28 @@ class AppServiceProvider extends ServiceProvider
         Lease::observe(LeaseObserver::class);
         Invoice::observe(InvoiceObserver::class);
 
-        // 定义角色等级
-        $levels = [
-            User::ROLE_ADMIN       => 5,
-            User::ROLE_AGENT_ADMIN => 4,
-            User::ROLE_OWNER_ADMIN => 3,
-            User::ROLE_OWNER       => 2,
-            User::ROLE_TENANT      => 1,
-        ];
-
-        // 定义权限映射
-        Gate::define('super-admin', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) >= $levels[User::ROLE_ADMIN];
+        Gate::define('super-admin', function (User $user) {
+            return $user->getRoleLevel() >= 5;
         });
 
-        Gate::define('agent-admin', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) >= $levels[User::ROLE_AGENT_ADMIN];
+        Gate::define('agent-admin', function (User $user) {
+            return $user->getRoleLevel() >= 4;
         });
 
-        Gate::define('owner-admin', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) >= $levels[User::ROLE_OWNER_ADMIN];
+        Gate::define('owner-admin', function (User $user) {
+            return $user->getRoleLevel() >= 3;
         });
 
-        Gate::define('is-owner', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) === $levels[User::ROLE_OWNER];
+        Gate::define('is-staff', function (User $user) {
+            return $user->role === User::ROLE_STAFF;
+        });
+
+        Gate::define('is-owner', function (User $user) {
+            return $user->getRoleLevel() === 2;
         });
         
-        Gate::define('is-tenant', function (User $user) use ($levels) {
-            return ($levels[$user->role] ?? 0) === $levels[User::ROLE_TENANT];
+        Gate::define('is-tenant', function (User $user) {
+            return $user->getRoleLevel() === 1;
         });
     }
 }

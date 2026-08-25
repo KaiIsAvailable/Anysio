@@ -37,21 +37,16 @@
         }
      }" 
      @open-preview-modal.window="openPreview = true" 
-     @open-lease-preview.window="
-        openPreview = true;
-        $nextTick(() => {
-            document.getElementById('modal-content').innerHTML = $event.detail.content;
-            const titleEl = document.getElementById('modal-title');
-            if (titleEl) titleEl.innerText = $event.detail.title;
-        });
-     "
+     
      x-cloak>
     <template x-teleport="body">
+        <!-- 🌟 核心修复：直接使用内联 style 强制 z-index: 9999，无视 Tailwind 编译问题 -->
         <div x-show="openPreview" 
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0"
              x-transition:enter-end="opacity-100"
-             class="fixed inset-0 z-[100] overflow-y-auto">
+             class="fixed inset-0 overflow-y-auto"
+             style="z-index: 9999;">
             
             <div class="flex items-center justify-center min-h-screen px-4 py-6">
                 
@@ -122,20 +117,3 @@
         </div>
     </template>
 </div>
-
-<style>
-    @keyframes shake {
-        0%, 100% { transform: translateX(0); }
-        25% { transform: translateX(-8px); }
-        50% { transform: translateX(8px); }
-        75% { transform: translateX(-8px); }
-    }
-    .animate-shake { animation: shake 0.4s ease-in-out; }
-    [x-cloak] { display: none !important; }
-
-    /* 自定义滚动条样式，让它更现代 */
-    #modal-content::-webkit-scrollbar { width: 6px; }
-    #modal-content::-webkit-scrollbar-track { background: #f1f1f1; }
-    #modal-content::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
-    #modal-content::-webkit-scrollbar-thumb:hover { background: #cbd5e1; }
-</style>

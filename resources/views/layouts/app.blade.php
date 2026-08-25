@@ -25,8 +25,6 @@
             name: "{{ auth()->user()->name ?? '' }}"
         };
     </script>
-
-<<<<<<< HEAD
     <!-- Date Picker -->
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
@@ -38,7 +36,6 @@
         'resources/js/userManagement.js',
         'resources/js/room.js',
     ])
-=======
             @auth
                 @php
                     $effectiveUser = get_effective_user();
@@ -57,7 +54,7 @@
                         && auth()->user()->role !== 'admin';
                 @endphp
             @endauth
->>>>>>> 05ed14539c93eeea36d29ff7849cf6449aa785f8
+
 
     @stack('scripts')
 </head>

@@ -19,6 +19,7 @@ class User extends Authenticatable implements MustVerifyEmail
     const ROLE_OWNER_ADMIN = 'ownerAdmin';
     const ROLE_OWNER = 'owner';
     const ROLE_TENANT = 'tenant';
+    const ROLE_STAFF = 'staff';
 
     /**
      * The attributes that are mass assignable.
@@ -60,6 +61,44 @@ class User extends Authenticatable implements MustVerifyEmail
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    public function getRoleLevel(): int
+    {
+        // If the user is a staff member, check who owns/manages their workspace
+        if ($this->role === self::ROLE_STAFF) {
+            // 1. Get the staff record associated with this user
+            // (Assuming a User hasOne Staff or you query the staff table directly)
+            $staffRecord = $this->staff ?? Staff::where('user_id', $this->id)->first();
+            
+            if ($staffRecord && $staffRecord->user_mgnt_id) {
+                // 2. Get the UserManagement record
+                $userManagement = UserManagement::find($staffRecord->user_mgnt_id);
+                
+                // 3. Find the user who owns/manages this user_management record.
+                // Check how your UserManagement model relates to the admin user (e.g., user_id or similar column)
+                $parentUser = $userManagement?->user ?? (User::find($userManagement?->user_id ?? null));
+
+                // 4. If the parent manager is an agent-admin, staff gets Level 4
+                if ($parentUser && $parentUser->role === self::ROLE_AGENT_ADMIN) {
+                    return 4;
+                }
+            }
+
+            // Default staff level matching owner-admin
+            return 3;
+        }
+
+        // Standard levels for non-staff roles
+        $levels = [
+            self::ROLE_ADMIN       => 5,
+            self::ROLE_AGENT_ADMIN => 4,
+            self::ROLE_OWNER_ADMIN => 3,
+            self::ROLE_OWNER       => 2,
+            self::ROLE_TENANT      => 1,
+        ];
+
+        return $levels[$this->role] ?? 0;
     }
 
     public function isAdmin(): bool

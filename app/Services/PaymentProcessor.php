@@ -29,7 +29,7 @@ class PaymentProcessor
         $excessCents  = max(0, $paidCents - $balanceCents);
         $receiptNo = $this->documentSequenceService->generateReceiptNumber($currentUser);
 
-        $template = DocumentTemplate::where('created_by', $currentUser->id)
+        $template = DocumentTemplate::where('user_id', $currentUser->id)
                     ->where('category', 'receipt')
                     ->where('status', 'active')
                     ->first();

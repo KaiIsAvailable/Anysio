@@ -99,14 +99,19 @@
                         </x-nav-link>
                     @endcan
 
+                    @can('owner-admin')
+                        @if(auth()->user()->role !== \App\Models\User::ROLE_STAFF)
+                            <x-nav-link :href="route('admin.staff.index')" :active="request()->routeIs('admin.staff.*')">
+                                {{ __('Staff') }}
+                            </x-nav-link>
+                        @endif
+                    @endcan
+
                     @can('super-admin')
                         <x-nav-link :href="route('admin.audit.index')" :active="request()->routeIs('admin.audit.*')">
                             {{ __('Audit Log') }}
                         </x-nav-link>
                     @endcan
-                    <!--<x-nav-link :href="route('admin.staff.index')" :active="request()->routeIs('admin.staff.*')">
-                        {{ __('Staff') }}
-                    </x-nav-link>-->
                 </div>
             </div>
 

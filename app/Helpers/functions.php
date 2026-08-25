@@ -52,4 +52,30 @@ if (!function_exists('ic_to_gender')) {
         // 如果传入的数据不合法，返回未知或默认值
         return 'unknown'; 
     }
+} // <-- Correctly closed ic_to_gender here
+
+/**
+ * Get effective user ID for staff-to-admin mapping
+ */
+if (!function_exists('get_effective_user')) {
+    function get_effective_user()
+    {
+        $user = \Illuminate\Support\Facades\Auth::user();
+        if (!$user) return null;
+
+        if ($user->role === 'staff') {
+            $staff = \App\Models\Staff::where('user_id', $user->id)->first();
+            if ($staff && $staff->user_mgnt_id) {
+                $managementUser = \App\Models\User::whereHas('user_management', function ($q) use ($staff) {
+                    $q->where('id', $staff->user_mgnt_id);
+                })->first();
+
+                if ($managementUser) {
+                    return $managementUser;
+                }
+            }
+        }
+
+        return $user;
+    }
 }

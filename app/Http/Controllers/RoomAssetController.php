@@ -20,7 +20,7 @@ class RoomAssetController extends Controller
     use RoleBasedDataTrait;
     public function index(Request $request) 
     {
-        $user = Auth::user();
+        $user = get_effective_user();
         $search = $request->input('search');
 
         // 1. 初始化查询并预加载 user 关联

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Tenants;
+use App\Models\{Tenants, UserManagement};
 use App\Models\User;
 use App\Models\Room;
 use App\Models\Unit;
@@ -24,7 +24,8 @@ class TenantsController extends Controller
 
     public function index(Request $request)
     {
-        $user = Auth::user();
+        $user = get_effective_user();
+        $users = UserManagement::with('user')->get()->pluck('user');
 
         if ($user->role === 'tenant') {
             return view('adminSide.tenants.dashboard');
@@ -80,9 +81,9 @@ class TenantsController extends Controller
             $query->orderBy('tenants.created_at', 'asc');
         }
 
-        $tenants = $query->paginate(10)->withQueryString();
+        $tenants = $query->paginate(10)->onEachSide(1)->withQueryString();
 
-        return view('adminSide.tenants.index', compact('tenants'));
+        return view('adminSide.tenants.index', compact('tenants', 'users'));
     }
     /**
      * Show the form for creating a new resource.

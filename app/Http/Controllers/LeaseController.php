@@ -36,7 +36,7 @@ class LeaseController extends Controller
     }
     public function index(Request $request)
     {
-        $userId = Auth::id();
+        $userId = get_effective_user();
         $search = $request->input('search');
         $status = $request->input('status');
 

@@ -22,7 +22,7 @@ class OwnersController extends Controller
 {
     public function index(Request $request)
     {
-        $userId = Auth::id();
+        $userId = get_effective_user();
         $query = Owners::with('user');
 
         if (!Gate::allows('super-admin')) {

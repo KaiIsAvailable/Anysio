@@ -33,8 +33,7 @@
                                 @endif
                             </div>
 
-                            <x-form.text-input type="email" name="email" value="{{ old('email', $userMgnt->user->email) }}" 
-                                    class="w-full" />
+                            <x-form.text-input type="email" name="email" value="{{ old('email', $userMgnt->user->email) }}" class="w-full" />
                         </div>
 
                         <div>

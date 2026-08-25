@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate};
+use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate, Tenants};
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -53,9 +53,9 @@ class InvoiceService
             $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
 
             $invoice = Invoice::create([
-                'user_id'              => $currentUser->id,
-                'billable_type'        => User::class,
-                'billable_id'          => $currentUser->id,
+                'user_id'              => $lease->tenant_id,
+                'billable_type'        => Tenants::class,  
+                'billable_id'          => $lease->tenant_id,
                 'lease_id'             => $lease->id,
                 'document_template_id' => $template?->id, // Assign template if found
                 'invoice_no'           => $invoiceNo,
@@ -338,9 +338,9 @@ class InvoiceService
         } else {
             // 平台發票 (買 Package 等無租約的情境)
             $ownerName  = 'Anysio Technologies';
-            $ownerPhone = '03-12345678';         
-            $ownerEmail = 'hello@anysio.com';    
-            $companyNo  = '1234567-X';           
+            $ownerPhone = '01110880912';         
+            $ownerEmail = 'kaifengchoong@gmai.com';    
+            $companyNo  = '202603205756';           
         }
 
         // 4. 處理 Property 詳情

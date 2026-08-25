@@ -75,6 +75,42 @@ const agreementBlocks = [
     `
     },
     {
+        id: 'numbered-list (bold)',
+        label: 'Numbered List (Bold)',
+        category: 'Basic Elements',
+        content: `
+            <ol style="margin: 15px 0; padding-left: 20px; line-height: 1.6; color: #333; font-weight: bold;">
+                <li style="margin-bottom: 5px;">Double-click to edit numbered item 1</li>
+                <li style="margin-bottom: 5px;">Double-click to edit numbered item 2</li>
+                <li style="margin-bottom: 5px;">Double-click to edit numbered item 3</li>
+            </ol>
+        `
+    },
+    {
+        id: 'alphabetical-list (bold)',
+        label: 'Alphabetical List (Bold)',
+        category: 'Basic Elements',
+        content: `
+            <ol style="list-style-type: upper-alpha; margin: 15px 0; padding-left: 20px; line-height: 1.6; color: #333; font-weight: bold;">
+                <li style="margin-bottom: 5px;">Double-click to edit item A</li>
+                <li style="margin-bottom: 5px;">Double-click to edit item B</li>
+                <li style="margin-bottom: 5px;">Double-click to edit item C</li>
+            </ol>
+        `
+    },
+    {
+        id: 'lower-alphabetical-list (bold)',
+        label: 'Lower Alphabetical List (Bold)',
+        category: 'Basic Elements',
+        content: `
+            <ol style="list-style-type: lower-alpha; margin: 15px 0; padding-left: 20px; line-height: 1.6; color: #333; font-weight: bold;">
+                <li style="margin-bottom: 5px;">Double-click to edit item a</li>
+                <li style="margin-bottom: 5px;">Double-click to edit item b</li>
+                <li style="margin-bottom: 5px;">Double-click to edit item c</li>
+            </ol>
+        `
+    },
+    {
         id: 'basic-table',
         label: 'Simple Table',
         category: 'Basic Elements',

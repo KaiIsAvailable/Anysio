@@ -10,6 +10,11 @@
         $actionUrl = route('admin.payments.store', [
             'invoice' => $invoice,
         ]);
+        
+        // 🌟 新增：提取供预览组件使用的变量与模板内容
+        $invoiceService = app(\App\Services\InvoiceService::class);
+        $invoiceVariables = $invoiceService->getInvoiceVariables($invoice);
+        $invoiceContent = optional($invoice->documentTemplate)->html_template ?? optional($invoice->documentTemplate)->html_content ?? '';
     @endphp
 
     <template x-teleport="body">
@@ -17,9 +22,9 @@
 
             {{-- 背景遮罩：修正变量名映射 --}}
             <div class="absolute inset-0">
-                <x-ui.blur-overlay show="openPayment" {{-- 修正：对应上面的 openPayment --}}
-                    onClose="shakePayment = true; setTimeout(() => shakePayment = false, 400)" {{-- 修正：对应 shakePayment
-                    --}} zIndex="z-[100]" {{-- 确保遮罩在底层 --}} />
+                <x-ui.blur-overlay show="openPayment"
+                    onClose="shakePayment = true; setTimeout(() => shakePayment = false, 400)" 
+                    zIndex="z-[100]" />
             </div>
 
             {{-- Modal 主体：修正 z-index 确保它在遮罩上面 --}}
@@ -92,7 +97,7 @@
                             </div>
                         </div>
                     </div>
-                    @else
+                @else
                     <x-form.form action="{{ $actionUrl }}" enctype="multipart/form-data" class="flex flex-col h-full overflow-hidden">
                         <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
@@ -122,9 +127,31 @@
                                         <div class="text-xs text-slate-500">Verify the payment amount before transferring.</div>
                                     </div>
 
-                                    <span class="px-3 py-1 rounded-full bg-indigo-50 text-indigo-600 text-xs font-semibold">
-                                        {{ $invoice->items->count() }} Items
-                                    </span>
+                                    {{-- 🌟 替换区：加入 View Invoice 按钮 --}}
+                                    <div class="flex items-center gap-2">
+                                        @if($invoice->document_template_id && $invoiceContent)
+                                            <div x-data="{
+                                                invNo: @js($invoice->invoice_no),
+                                                content: @js($invoiceContent),
+                                                vars: @js($invoiceVariables),
+                                                items: @js($invoice->items)
+                                            }">
+                                                <x-buttons.preview-doc
+                                                    type="invoice"
+                                                    color="indigo"
+                                                    titleExpr="'Invoice: ' + invNo"
+                                                    contentExpr="content"
+                                                    variablesExpr="vars"
+                                                    itemsExpr="items"
+                                                    buttonTextExpr="'View Invoice'"
+                                                />
+                                            </div>
+                                        @endif
+
+                                        <span class="px-3 py-1 rounded-full bg-slate-50 border border-slate-100 text-slate-600 text-xs font-semibold">
+                                            {{ $invoice->items->count() }} Items
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <div class="px-5 py-3">
@@ -285,3 +312,4 @@
         </div>
     </template>
 </div>
+

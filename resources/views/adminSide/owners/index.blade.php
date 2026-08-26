@@ -10,6 +10,19 @@
                 </div>
                 
                 <div class="flex-shrink-0" x-data="{loading: false}">
+                    @can('super-admin')
+                        <x-form.primary-button
+                            type="button"
+                            @click="$dispatch('click', { modal: 'importModalOpen' })"
+                            class="inline-flex items-center"
+                        >
+                            <svg class="w-5 h-5 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                            </svg>
+                            <span>Import Excel</span>
+                        </x-form.primary-button>
+                    @endcan
+
                     @can('owner-admin')
                         <x-form.primary-button
                             type="button"
@@ -23,7 +36,40 @@
                         </x-form.primary-button>
                     @endcan
                 </div>
+
+                <x-modals.excel-import-modal 
+                    id="importModalOpen"
+                    title="Import Owners Excel"
+                    :route="route('admin.import', 'owners')"
+                    :users="$users"
+                    description="Your file must contain <strong>Owners</strong>, <strong>Properties</strong>, <strong>Units</strong> and <strong>Rooms</strong> sheets."
+                    :templateRoute="route('admin.imports.downloadOwner')"
+                />
             </div>
+
+            @if(session('import_session'))
+                <div class="fixed bottom-6 right-6 z-50 bg-slate-900 text-white p-4 rounded-xl shadow-2xl flex items-center gap-4 border border-slate-700">
+                    <div>
+                        <p class="font-bold text-sm">Review Imported Data</p>
+                        <p class="text-xs text-slate-300">Check your directory. Keep or reverse this batch?</p>
+                    </div>
+                    <div class="flex gap-2">
+                        <!-- REVERSE BUTTON -->
+                        <form action="{{ route('admin.import.revert') }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="session_key" value="{{ session('import_session') }}">
+                            <button type="submit" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-xs font-bold rounded-lg">Reverse</button>
+                        </form>
+
+                        <!-- DONE BUTTON -->
+                        <form action="{{ route('admin.import.confirm') }}" method="POST">
+                            @csrf
+                            <input type="hidden" name="session_key" value="{{ session('import_session') }}">
+                            <button type="submit" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-xs font-bold rounded-lg">Done</button>
+                        </form>
+                    </div>
+                </div>
+            @endif
 
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
                 
@@ -47,6 +93,7 @@
                                     <x-table.th name="Owner Details" sortField="n" />
                                     <x-table.th name="Company / Identity" sortField="c" />
                                     <x-table.th name="Contact Info" />
+                                    <x-table.th name="Address" />
                                     <x-table.th name="Joined Date" sortField="jd" />
                                     @can('owner-admin')
                                         <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
@@ -78,6 +125,10 @@
 
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="text-sm text-slate-700">{{ $owner->phone ?? '—' }}</div>
+                                        </td>
+
+                                        <td class="px-6 py-4 text-sm text-slate-900">
+                                            <div class="line-clamp-2 max-w-xs">{{ $owner->address ?? '' }}, {{ $owner->postcode ?? '' }}, {{ $owner->city ?? '' }}, {{ $owner->state ?? '' }}</div>
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">

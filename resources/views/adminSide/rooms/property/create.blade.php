@@ -71,7 +71,6 @@
                                 <x-form.text-input 
                                     name="name" 
                                     value="{{ old('name') }}" 
-                                    placeholder="e.g. Anysio HQ"
                                     class="w-full "
                                     required 
                                 />
@@ -83,31 +82,31 @@
                                 <x-form.input-label value="Property Type" class="mb-1" />
                                 <x-form.input-select 
                                     name="type"
-                                    class=" w-full"
-                                    :options="['Condo' => 'Condo / Apartment', 'Landed' => 'Landed House', 'Commercial' => 'Commercial Building', 'Shop Lot' => 'Shop Lot']"
-                                    placeholder="Select a Property Type">
+                                    class="w-full"
+                                    :options="$propertyTypes"
+                                    placeholder="Select a Property Type"
+                                    :selected="old('type', $property->property_type ?? '')">
                                 </x-form.input-select>
                             </div>
 
-                            {{-- Address --}}
+                            {{-- Address (1 Full Row) --}}
                             <div>
                                 <x-form.input-label value="Address" class="mb-1" />
-                                <textarea name="address" rows="3" placeholder="Full street address..."
-                                          class=" w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">{{ old('address') }}</textarea>
+                                <textarea name="address" rows="3"
+                                        class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">{{ old('address') }}</textarea>
                                 @error('address') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
                             </div>
 
-                            {{-- City & Postcode (Grid) --}}
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            {{-- Postcode, City & State (1 Row with 3 Columns) --}}
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {{-- Postcode --}}
                                 <div>
                                     <x-form.input-label value="Postcode" class="mb-1" />
                                     <x-form.text-input 
                                         type="text" 
                                         name="postcode"
                                         value="{{ old('postcode') }}"
-                                        placeholder="e.g. 31900"
-                                        class=" w-full"
-                                        {{-- 这些属性会被合并进组件内部的 <input> 标签中 --}}
+                                        class="w-full"
                                         pattern="\d{5}" 
                                         maxlength="5" 
                                         inputmode="numeric"
@@ -116,44 +115,30 @@
                                     <x-form.input-error :messages="$errors->get('postcode')" class="mt-1" />
                                 </div>
 
+                                {{-- City --}}
                                 <div>
                                     <x-form.input-label value="City" class="mb-1" />
                                     <x-form.text-input 
                                         name="city" 
                                         value="{{ old('city') }}" 
-                                        placeholder="e.g. Kampar "
-                                        class="w-full "
+                                        class="w-full"
                                         required 
                                     />
                                     <x-form.input-error :messages="$errors->get('city')" class="mt-1" />
                                 </div>
-                            </div>
 
-                            {{-- State --}}
-                            <div>
-                                <x-form.input-label value="State" class="mb-1" />
-                                <x-form.input-select 
-                                    name="state" 
-                                    :options="[
-                                        'Johor' => 'Johor',
-                                        'Kedah' => 'Kedah',
-                                        'Kelantan' => 'Kelantan',
-                                        'Melaka' => 'Melaka',
-                                        'Negeri Sembilan' => 'Negeri Sembilan',
-                                        'Pahang' => 'Pahang',
-                                        'Perak' => 'Perak',
-                                        'Perlis' => 'Perlis',
-                                        'Pulau Pinang' => 'Pulau Pinang',
-                                        'Sabah' => 'Sabah',
-                                        'Sarawak' => 'Sarawak',
-                                        'Selangor' => 'Selangor',
-                                        'Terengganu' => 'Terengganu',
-                                        'W.P. Kuala Lumpur' => 'W.P. Kuala Lumpur',
-                                        'W.P. Labuan' => 'W.P. Labuan',
-                                        'W.P. Putrajaya' => 'W.P. Putrajaya'
-                                    ]" 
-                                    placeholder="Select a State"
-                                />
+                                {{-- State --}}
+                                <div>
+                                    <x-form.input-label value="State" class="mb-1" />
+                                    <x-form.input-select 
+                                        name="state" 
+                                        :options="$worldCountries" 
+                                        value="{{ old('state') }}"
+                                        placeholder="Select a State"
+                                        class="w-full"
+                                    />
+                                    <x-form.input-error :messages="$errors->get('state')" class="mt-1" />
+                                </div>
                             </div>
                         </div>
                     </div>

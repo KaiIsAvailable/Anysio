@@ -2,32 +2,27 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Owners;
-use App\Models\User;
-use App\Models\Lease;
-use App\Models\Room;
-use App\Models\Unit;
-use App\Models\Property;
-use App\Models\Tenants;
-use App\Models\Payment;
-use Carbon\Carbon;
+use App\Models\{Owners, User, Lease, Room, Unit, Property, Tenants, Payment, UserManagement};
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Gate;
+use App\WorldCountries;
+use App\Http\Requests\Owner\StoreOwnerRequest;
 
 class OwnersController extends Controller
 {
     public function index(Request $request)
     {
         $userId = get_effective_user();
+        $users = UserManagement::with('user')->get()->pluck('user');
         $query = Owners::with('user');
 
         if (!Gate::allows('super-admin')) {
             if ($userId) {
-                $query->where('agent_id', $userId);
+                $query->where('agent_id', $userId->id);
             } else {
                 // 如果该用户在 owners 表里竟然没有记录，为了安全，让他什么都搜不到
                 $query->whereRaw('1 = 0'); 
@@ -71,30 +66,22 @@ class OwnersController extends Controller
         }
 
         $owners = $query->paginate(10)->withQueryString()->onEachSide(1);
-        return view('adminSide.owners.index', compact('owners'));
+        return view('adminSide.owners.index', compact('owners', 'users'));
     }
 
     public function create()
     {
-        $users = User::where('role', 'owner')->whereDoesntHave('owner')->get(); 
-        return view('adminSide.owners.create', compact('users'));
+        $users = User::where('role', 'owner')->whereDoesntHave('owner')->get();
+        $worldCountries = WorldCountries::worldCountries();
+        return view('adminSide.owners.create', compact('users', 'worldCountries'));
     }
 
-    public function store(Request $request)
+    public function store(StoreOwnerRequest $request)
     {
+        $validatedData = $request->validated();
+
         $request->merge([
             'random_email' => $request->has('random_email') ? true : false,
-        ]);
-
-        // Validate the incoming data (excluding user_id since we create it here)
-        $validatedData = $request->validate([
-            'name'         => 'required|string|max:255',
-            'email'        => $request->random_email ? 'nullable' : 'required|email|unique:users,email',
-            'random_email' => 'required|boolean',
-            'company_name' => 'nullable|string|max:255',
-            'ic_number'    => 'nullable|string|max:20',
-            'phone'        => 'required|string|max:20',
-            'gender'       => 'required|string|in:Male,Female',
         ]);
 
         if ($validatedData['random_email']) {
@@ -121,11 +108,14 @@ class OwnersController extends Controller
                 'ic_number'    => $validatedData['ic_number'],
                 'phone'        => $validatedData['phone'],
                 'gender'       => $validatedData['gender'],
+                'address'      => $validatedData['address'] ?? null,
+                'postcode'     => $validatedData['postcode'] ?? null,
+                'city'         => $validatedData['city'] ?? null,
+                'state'        => $validatedData['state'] ?? null,
             ];
 
-            if (Auth::user()->role === 'agentAdmin') {
-                $ownerData['agent_id'] = Auth::id();
-            }
+            $effectiveUser = get_effective_user();
+            $ownerData['agent_id'] = $effectiveUser ? $effectiveUser->id : Auth::id();
 
             Owners::create($ownerData);
 
@@ -133,7 +123,7 @@ class OwnersController extends Controller
 
             return redirect()->route('admin.owners.index')->with('success', 'Owner and User account created successfully.');
 
-        } catch (\Exception $e) {
+        } catch (\Exception $e) {   
             DB::rollBack();
             return back()->withErrors(['error' => 'Failed to create owner: ' . $e->getMessage()]);
         }

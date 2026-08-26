@@ -110,6 +110,65 @@
                             </div>
                         </div>
 
+                       {{-- Address Information Section --}}
+                        <div class="pt-4 border-t border-gray-100">
+                            <div class="space-y-4">
+                                {{-- Street Address (1 Full Row) --}}
+                                <div>
+                                    <x-form.input-label value="Address" class="mb-1" />
+                                    <textarea name="address" rows="3"
+                                            class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">{{ old('address') }}</textarea>
+                                    @error('address') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
+                                </div>
+
+                                {{-- Postcode, City & State (1 Row with 3 Columns) --}}
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {{-- Postcode --}}
+                                    <div>
+                                        <x-form.input-label value="Postcode" class="mb-1" />
+                                        <x-form.text-input 
+                                            type="text" 
+                                            name="postcode" 
+                                            id="postcode" 
+                                            value="{{ old('postcode') }}" 
+                                            class="w-full"
+                                            pattern="\d{5}" 
+                                            maxlength="5" 
+                                            inputmode="numeric"
+                                            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                        />
+                                        <x-form.input-error :messages="$errors->get('postcode')" class="mt-1" />
+                                    </div>
+
+                                    {{-- City --}}
+                                    <div>
+                                        <x-form.input-label value="City" class="mb-1" />
+                                        <x-form.text-input 
+                                            name="city" 
+                                            id="city" 
+                                            value="{{ old('city') }}" 
+                                            class="w-full" 
+                                        />
+                                        <x-form.input-error :messages="$errors->get('city')" class="mt-1" />
+                                    </div>
+
+                                    {{-- State (Country Dropdown) --}}
+                                    <div>
+                                        <x-form.input-label value="State" class="mb-1" />
+                                        <x-form.input-select 
+                                            name="state" 
+                                            id="state"
+                                            :options="$worldCountries"
+                                            value="{{ old('state') }}"
+                                            placeholder="Select a State"
+                                            class="w-full"
+                                        />
+                                        <x-form.input-error :messages="$errors->get('state')" class="mt-1" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         {{-- Actions --}}
                         <div class="pt-4 border-t border-gray-100 flex justify-end gap-3" >
                             <a href="{{ route('admin.owners.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">

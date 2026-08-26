@@ -30,6 +30,19 @@ class Property extends Model
         'status',
     ];
 
+    public static function propertyTypes(): array
+    {
+        return [
+            'Condo'              => 'Condo / Apartment',
+            'Landed'             => 'Landed House',
+            'Commercial'         => 'Commercial Building',
+            'Shop Lot'           => 'Shop Lot',
+            'Shophouse'          => 'Shophouse / Mixed-Use',
+            'Serviced Residence' => 'Serviced Residence',
+            'Townhouse'          => 'Townhouse',
+        ];
+    }
+
     public function units(): HasMany
     {
         return $this->hasMany(Unit::class, 'property_id');

@@ -65,13 +65,14 @@ if (!function_exists('get_effective_user')) {
 
         if ($user->role === 'staff') {
             $staff = \App\Models\Staff::where('user_id', $user->id)->first();
+            
             if ($staff && $staff->user_mgnt_id) {
-                $managementUser = \App\Models\User::whereHas('user_management', function ($q) use ($staff) {
-                    $q->where('id', $staff->user_mgnt_id);
-                })->first();
-
-                if ($managementUser) {
-                    return $managementUser;
+                // Find the user_management record directly
+                $userMgmt = \App\Models\UserManagement::find($staff->user_mgnt_id);
+                
+                // If it exists and has a user relationship, return that parent user
+                if ($userMgmt && $userMgmt->user) {
+                    return $userMgmt->user;
                 }
             }
         }

@@ -20,6 +20,10 @@ class Owners extends Model
         'ic_number',
         'phone',
         'gender',
+        'address',
+        'postcode',
+        'city',
+        'state',
     ];
 
     protected $casts = [
@@ -52,8 +56,8 @@ class Owners extends Model
         return $this->hasMany(Room::class);
     }
 
-    public function agreements(): HasMany
+    public function documentTemplate(): HasMany
     {
-        return $this->hasMany(Agreements::class);
+        return $this->hasMany(DocumentTemplate::class);
     }
 }

@@ -2,18 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Property;
-use App\Models\Owners;
-use App\Models\User;
-use App\Models\UserManagement;
-use App\Models\Room;
-use App\Models\Unit;
+use App\Models\{Property, Owners, Room, Unit};
 use App\Traits\RoleBasedDataTrait;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\{Auth, Gate, DB};
 use Illuminate\Support\Str;
+use App\WorldCountries;
 
 class PropertyController extends Controller
 {
@@ -101,6 +95,9 @@ class PropertyController extends Controller
         $isSuperAdmin = Gate::allows('super-admin');
 
         $owners = $this->getAuthorizedOwners(); 
+
+        $propertyTypes = Property::propertyTypes();
+        $worldCountries = WorldCountries::worldCountries();
         
         $currentOwner = $isOwnerAdmin ? $user : null;
 
@@ -109,7 +106,9 @@ class PropertyController extends Controller
             'isOwnerAdmin',
             'isAgentAdmin',
             'isSuperAdmin',
-            'currentOwner'
+            'currentOwner',
+            'propertyTypes',
+            'worldCountries'
         ));
     }
 

@@ -118,14 +118,22 @@ const agreementBlocks = [
             <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
                 <thead>
                     <tr style="background-color: #f2f2f2;">
-                        <th style="border: 1px solid #ddd; padding: 8px;">Item</th>
-                        <th style="border: 1px solid #ddd; padding: 8px;">Description</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;" data-gjs-type="text">Item</th>
+                        <th style="border: 1px solid #ddd; padding: 8px;" data-gjs-type="text">Description</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td style="border: 1px solid #ddd; padding: 8px;">Sample</td>
-                        <td style="border: 1px solid #ddd; padding: 8px;">Content goes here</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;" data-gjs-type="text">Sample</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;" data-gjs-type="text">Content goes here</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;" data-gjs-type="text">Sample</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;" data-gjs-type="text">Content goes here</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #ddd; padding: 8px;" data-gjs-type="text">Sample</td>
+                        <td style="border: 1px solid #ddd; padding: 8px;" data-gjs-type="text">Content goes here</td>
                     </tr>
                 </tbody>
             </table>
@@ -184,6 +192,7 @@ const agreementBlocks = [
             </div>
         `
     },
+    
     {
         id: 'numbered-clauses',
         label: 'Numbered Clauses',
@@ -333,6 +342,78 @@ const agreementBlocks = [
                         </div>
                     </td>
                 </tr>
+            </table>
+        `
+    },
+    {
+        id: 'agreement-schedule-table',
+        label: 'Schedule Table',
+        category: 'Agreement Elements',
+        content: `
+            <table style="width: 100%; border-collapse: collapse; border: 1px solid #000; font-family: serif; font-size: 14px; margin-bottom: 30px;">
+                <thead>
+                    <tr>
+                        <th style="border: 1px solid #000; padding: 10px; width: 12%; text-align: left; font-weight: bold;" data-gjs-type="text">Section<br>No.</th>
+                        <th colspan="2" style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold;" data-gjs-type="text">Particulars</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">1(a)</td>
+                        <td style="border: 1px solid #000; padding: 10px; width: 30%;" data-gjs-type="text">The Landlord</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold; text-transform: uppercase;" data-gjs-type="text">{{ owner_name }}<br>{{ owner_ic }}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">1(b)</td>
+                        <td style="border: 1px solid #000; padding: 10px;" data-gjs-type="text">The Tenant</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold; text-transform: uppercase;" data-gjs-type="text">{{ tenant_name }}<br>{{ tenant_ic }}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">2</td>
+                        <td style="border: 1px solid #000; padding: 10px;" data-gjs-type="text">Demised<br>Premises</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold; text-transform: uppercase;" data-gjs-type="text">{{ property_address }}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">3</td>
+                        <td style="border: 1px solid #000; padding: 10px;" data-gjs-type="text">Term/Period of<br>Tenancy</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold; text-transform: uppercase;" data-gjs-type="text">{{ tenancy_period }}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">4(a)</td>
+                        <td style="border: 1px solid #000; padding: 10px;" data-gjs-type="text">Date of<br>Commencement</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold;" data-gjs-type="text">{{ start_date }}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">4(b)</td>
+                        <td style="border: 1px solid #000; padding: 10px;" data-gjs-type="text">Date of<br>Determination</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold;" data-gjs-type="text">{{ end_date }}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">5</td>
+                        <td style="border: 1px solid #000; padding: 10px;" data-gjs-type="text">Rental per Month<br>Ringgit Malaysia</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold;" data-gjs-type="text">{{ rent_price }}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">6</td>
+                        <td style="border: 1px solid #000; padding: 10px;" data-gjs-type="text">Security Deposit</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold;" data-gjs-type="text">{{ deposit_amount }}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">7</td>
+                        <td style="border: 1px solid #000; padding: 10px;" data-gjs-type="text">Usage of<br>Demised Premises</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold; text-transform: uppercase;" data-gjs-type="text">RESIDENCE</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">8</td>
+                        <td style="border: 1px solid #000; padding: 10px;" data-gjs-type="text">Service Package</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold; text-transform: uppercase;" data-gjs-type="text">{{ service_package }}</td>
+                    </tr>
+                    <tr>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center;" data-gjs-type="text">8</td>
+                        <td style="border: 1px solid #000; padding: 10px;" data-gjs-type="text">Service Package</td>
+                        <td style="border: 1px solid #000; padding: 10px; text-align: center; font-weight: bold; text-transform: uppercase;" data-gjs-type="text">{{ service_package }}</td>
+                    </tr>
+                </tbody>
             </table>
         `
     }

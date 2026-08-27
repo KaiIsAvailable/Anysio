@@ -92,7 +92,7 @@ Route::get('/run-seeders-xyz', function (Request $request) {
 //run migrate
 Route::get('/run-migrations-xyz', function (Request $request) {
     try {
-        Artisan::call('migrate', ['--force' => true]);
+        Artisan::call('migrate');
         
         $redirectTo = $request->input('redirect', route('dashboard'));
         

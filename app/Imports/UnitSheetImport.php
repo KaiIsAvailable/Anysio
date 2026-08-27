@@ -23,37 +23,53 @@ class UnitSheetImport implements ToCollection, WithHeadingRow
         $importedUnits = [];
 
         foreach ($rows as $row) {
+            // Ensure unit_no and property_name exist
             if (empty($row['unit_no']) || empty($row['property_name'])) {
                 continue;
             }
 
             $property = Property::where('name', $row['property_name'])->first();
+            if (!$property) {
+                continue;
+            }
 
-            if (!$property) continue;
+            // EVERY unit must have an owner. If full_name is missing, skip the row.
+            if (empty($row['full_name'])) {
+                continue; 
+            }
 
             $owner = Owners::whereHas('user', function ($q) use ($row) {
                 $q->where('name', $row['full_name']);
             })->first();
 
-            if (!$owner) continue;
+            // If the owner doesn't exist in the database, skip this unit
+            if (!$owner) {
+                continue; 
+            }
+
+            // Clean up sqft: if it's 'N/A' or non-numeric, save as null
+            $sqft = $row['size_sqft'] ?? null;
+            if (!is_numeric($sqft)) {
+                $sqft = null;
+            }
 
             $unit = Unit::create([
                 'property_id'        => $property->id,
-                'owner_id'           => $owner->id,
+                'owner_id'           => $owner->user_id, // Uses the correct user_id foreign key
                 'created_by'         => $this->agentId,
                 'unit_no'            => $row['unit_no'],
-                'block'              => $row['block_tower'] ?? 'N/A',
-                'floor'              => $row['floor'] ?? 'N/A',
-                'sqft'               => $row['size_sqft'] ?? 'N/A',
-                'electricity_acc_no' => $row['electricity_acc_no'] ?? 'N/A',
-                'water_acc_no'       => $row['water_acc_no'] ?? 'N/A',
-                'indah_water_acc_no' => $row['indah_water_acc_no'] ?? 'N/A',
+                'block'              => $row['block_tower'] ?? null,
+                'floor'              => isset($row['floor']) ? (string) $row['floor'] : null,
+                'sqft'               => $sqft,
+                'electricity_acc_no' => $row['electricity_acc_no'] ?? null,
+                'water_acc_no'       => $row['water_acc_no'] ?? null,
+                'indah_water_acc_no' => $row['indah_water_acc_no'] ?? null,
             ]);
 
             $importedUnits[] = $unit->id;
         }
 
-         // Save session tracking data safely
+        // Save session tracking data safely
         $filePath = 'imports/' . $this->sessionKey;
         $sessionData = Storage::disk('local')->exists($filePath) 
             ? json_decode(Storage::disk('local')->get($filePath), true) 

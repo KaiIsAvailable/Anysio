@@ -128,7 +128,9 @@
                                         </td>
 
                                         <td class="px-6 py-4 text-sm text-slate-900">
-                                            <div class="line-clamp-2 max-w-xs">{{ $owner->address ?? '' }}, {{ $owner->postcode ?? '' }}, {{ $owner->city ?? '' }}, {{ $owner->state ?? '' }}</div>
+                                            <div class="line-clamp-2 max-w-xs">
+                                                {{ $owner->full_address !== '' ? $owner->full_address : '—' }}
+                                            </div>
                                         </td>
 
                                         <td class="px-6 py-4 whitespace-nowrap">

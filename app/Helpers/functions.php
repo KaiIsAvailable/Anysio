@@ -80,3 +80,21 @@ if (!function_exists('get_effective_user')) {
         return $user;
     }
 }
+
+/**
+ * Color of status
+ */
+if (!function_exists('get_status_badge_color')) {
+    function get_status_badge_color($status)
+    {
+        $status = strtolower($status ?? 'unknown');
+        
+        return match($status) {
+            'active' => 'bg-emerald-100 text-emerald-800 border-emerald-200',
+            'pending' => 'bg-amber-100 text-amber-800 border-amber-200',
+            'expired' => 'bg-rose-100 text-rose-800 border-rose-200',
+            'inactive' => 'bg-gray-100 text-gray-800 border-gray-200',
+            default => 'bg-gray-100 text-gray-800 border-gray-200',
+        };
+    }
+}

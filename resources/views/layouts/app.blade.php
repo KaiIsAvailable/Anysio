@@ -67,16 +67,19 @@
 
         @auth
             @php
-                // 1. 检查 User Management 状态
+                $effectiveUser = get_effective_user();
+                $effectiveUserId = $effectiveUser ? $effectiveUser->id : auth()->id();
+
+                // 1. 检查 User Management 状态 (基于 effective user)
                 $userMgmt = \App\Models\UserManagement::where(
                     'user_id',
-                    auth()->id()
+                    $effectiveUserId
                 )->first();
 
-                // 2. 获取需要付款的 Subscription Invoice
+                // 2. 获取需要付款的 Subscription Invoice (基于 effective user)
                 $latestSubscriptionInvoice = \App\Models\Invoice::where(
                     'user_id',
-                    auth()->id()
+                    $effectiveUserId
                 )
                 ->where('context', 'subscription')
                 ->whereIn('status', ['unpaid', 'partial', 'overdue'])
@@ -84,7 +87,7 @@
                 ->first();
 
                 $mustPay = $latestSubscriptionInvoice !== null
-                    && auth()->user()->role !== 'admin';
+                    && optional($effectiveUser)->role !== 'admin';
             @endphp
         @endauth
 

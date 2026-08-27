@@ -13,37 +13,37 @@
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                {{-- 💡 修复点1：给组件加上 method="POST" --}}
-                <x-form.form method="POST" action="{{ route('admin.owners.update', $owner->id) }}" class="p-8">
+                <x-form.form method="POST" action="{{ route('admin.owners.update', $owner->id) }}" class="p-8" loading="loading">
                     @method('PUT')
                     @csrf
 
                     <div class="space-y-6">
                         
-                        {{-- Owner Name (Disabled) --}}
+                        {{-- Owner Name (Editable) --}}
                         <div>
                             <x-form.input-label value="Owner Name" class="mb-1" />
                             <x-form.text-input 
                                 type="text" 
-                                value="{{ $owner->user->name }}" 
-                                class="w-full bg-gray-50 text-gray-500 cursor-not-allowed border-gray-200" 
-                                disabled 
+                                name="name" 
+                                id="name"
+                                value="{{ old('name', $owner->user->name) }}" 
+                                class="w-full" 
+                                required
                             />
-                            <input type="hidden" name="user_id" value="{{ $owner->user_id }}">
-                            <p class="mt-1 text-xs text-gray-400">Account name is managed via User Settings.</p>
+                            <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                         </div>
 
-                        {{-- Email (Disabled) --}}
+                        {{-- Email (Editable) --}}
                         <div>
                             <x-form.input-label value="Email Address" class="mb-1" />
                             <x-form.text-input 
                                 type="email" 
-                                value="{{ $owner->user->email }}" 
-                                class="w-full bg-gray-50 text-gray-500 cursor-not-allowed border-gray-200" 
-                                disabled 
+                                name="email" 
+                                id="email"
+                                value="{{ old('email', $owner->user->email) }}" 
+                                class="w-full" 
+                                required
                             />
-                            <input type="hidden" name="email" value="{{ $owner->user->email }}">
-                            <p class="mt-1 text-xs text-gray-400">Account email is managed via User Settings.</p>
                             <x-form.input-error :messages="$errors->get('email')" class="mt-1" />
                         </div>
 
@@ -56,7 +56,6 @@
                                     name="company_name" 
                                     id="company_name" 
                                     value="{{ old('company_name', $owner->company_name) }}" 
-                                    placeholder="Individual"
                                     class="w-full" 
                                 />
                                 <x-form.input-error :messages="$errors->get('company_name')" class="mt-1" />
@@ -76,7 +75,7 @@
                                     inputmode="numeric"
                                     required
                                 />
-                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
+                                <p class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
                                 <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
                             </div>
                         </div>
@@ -96,7 +95,7 @@
                                     maxlength="12" 
                                     inputmode="numeric"
                                 />
-                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 01xxxxxxxxx</p>
+                                <p class="mt-2 text-xs text-gray-500 italic">Example: 01xxxxxxxxx</p>
                                 <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
                             </div>
 
@@ -108,7 +107,6 @@
                                     id="gender" 
                                     :value="old('gender', $owner->gender)"
                                     :options="['Male' => 'Male', 'Female' => 'Female']"
-                                    placeholder="-- Select Gender --"
                                     class="w-full" 
                                     required 
                                 />
@@ -116,14 +114,71 @@
                             </div>
                         </div>
 
-                        {{-- Actions (Aligned with Create) --}}
-                        {{-- 💡 修复点2：去掉了结尾的 x-data="{ loading: false }" --}}
+                        {{-- Address Information Section --}}
+                        <div class="pt-4 border-t border-gray-100">
+                            <div class="space-y-4">
+                                {{-- Street Address (1 Full Row) --}}
+                                <div>
+                                    <x-form.input-label value="Address" class="mb-1" />
+                                    <textarea name="address" rows="3"
+                                            class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">{{ old('address', $owner->address) }}</textarea>
+                                    @error('address') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
+                                </div>
+
+                                {{-- Postcode, City & State (1 Row with 3 Columns) --}}
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    {{-- Postcode --}}
+                                    <div>
+                                        <x-form.input-label value="Postcode" class="mb-1" />
+                                        <x-form.text-input 
+                                            type="text" 
+                                            name="postcode" 
+                                            id="postcode" 
+                                            value="{{ old('postcode', $owner->postcode) }}" 
+                                            class="w-full"
+                                            pattern="\d{5}" 
+                                            maxlength="5" 
+                                            inputmode="numeric"
+                                            oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                        />
+                                        <x-form.input-error :messages="$errors->get('postcode')" class="mt-1" />
+                                    </div>
+
+                                    {{-- City --}}
+                                    <div>
+                                        <x-form.input-label value="City" class="mb-1" />
+                                        <x-form.text-input 
+                                            name="city" 
+                                            id="city" 
+                                            value="{{ old('city', $owner->city) }}" 
+                                            class="w-full" 
+                                        />
+                                        <x-form.input-error :messages="$errors->get('city')" class="mt-1" />
+                                    </div>
+
+                                    {{-- State --}}
+                                    <div>
+                                        <x-form.input-label value="State" class="mb-1" />
+                                        <x-form.input-select 
+                                            name="state" 
+                                            id="state"
+                                            :options="$worldCountries"
+                                            :value="old('state', $owner->state)"
+                                            class="w-full"
+                                        />
+                                        <x-form.input-error :messages="$errors->get('state')" class="mt-1" />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {{-- Actions --}}
                         <div class="pt-4 border-t border-gray-100 flex justify-end gap-3">
                             <a href="{{ route('admin.owners.index') }}" 
                                class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
                                 Cancel
                             </a>
-                            <x-form.primary-button type="submit" loading="loading" class="px-6 py-2.5">
+                            <x-form.primary-button type="submit" class="px-6 py-2.5" loading="loading">
                                 Update Owner
                             </x-form.primary-button>
                         </div>

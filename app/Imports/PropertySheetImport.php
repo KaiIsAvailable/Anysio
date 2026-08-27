@@ -24,22 +24,26 @@ class PropertySheetImport implements ToCollection, WithHeadingRow
         $importedProperties = [];
 
         foreach ($rows as $row) {
-            if (empty($row['property_name']) || empty($row['full_name'])) {
-                continue;
+            if (empty($row['property_name'])) {
+                continue; // Only skip if the property name itself is missing
             }
 
-            // Find the owner by their full name via the User relationship
-            $owner = Owners::whereHas('user', function ($q) use ($row) {
-                $q->where('name', $row['full_name']);
-            })->first();
+            $ownerId = null;
 
-            if (!$owner) {
-                continue;
+            // Check if full_name exists and is not empty
+            if (!empty($row['full_name'])) {
+                $owner = Owners::whereHas('user', function ($q) use ($row) {
+                    $q->where('name', $row['full_name']);
+                })->first();
+
+                if ($owner) {
+                    $ownerId = $owner->user_id;
+                }
             }
 
             $property = Property::create([
                 'created_by'    => $this->agentId,
-                'owner_id'      => $owner->id,
+                'owner_id'      => $ownerId,
                 'name'          => $row['property_name'], 
                 'type'          => $row['property_type'] ?? 'N/A',
                 'address'       => $row['address'] ?? 'N/A',

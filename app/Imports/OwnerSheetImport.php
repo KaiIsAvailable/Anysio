@@ -44,6 +44,10 @@ class OwnerSheetImport implements ToCollection, WithHeadingRow
             $owner = Owners::create([
                 'user_id'      => $user->id,
                 'agent_id'     => $this->agentId,
+                'address'      => $row['address'] ?? null,
+                'postcode'     => $row['postcode'] ?? null,
+                'city'         => $row['city'] ?? null,
+                'state'        => $row['state'] ?? null,
                 'company_name' => $row['company_name'] ?? 'N/A',
                 'ic_number'    => $row['ic_number'] !== '-' ? ($row['ic_number'] ?? null) : 'N/A',
                 'phone'        => $row['phone_number'] ?? 'N/A',

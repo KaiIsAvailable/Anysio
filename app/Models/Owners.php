@@ -4,8 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\{BelongsTo, HasMany};
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use App\Traits\Auditable;
 
 class Owners extends Model
@@ -60,4 +60,16 @@ class Owners extends Model
     {
         return $this->hasMany(DocumentTemplate::class);
     }
-}
+
+    protected function fullAddress(): Attribute
+    {
+        return Attribute::make(
+            get: fn () => collect([
+                $this->address,
+                $this->postcode,
+                $this->city,
+                $this->state,
+            ])->filter()->implode(', ')
+        );
+    }
+    }

@@ -102,7 +102,7 @@
                                 <x-form.input-select 
                                     name="gender" 
                                     id="gender" 
-                                    :options="['' => '', 'Male' => 'Male', 'Female' => 'Female']"
+                                    :options="['Male' => 'Male', 'Female' => 'Female']"
                                     class="w-full"
                                     required 
                                 />
@@ -160,7 +160,6 @@
                                             id="state"
                                             :options="$worldCountries"
                                             value="{{ old('state') }}"
-                                            placeholder="Select a State"
                                             class="w-full"
                                         />
                                         <x-form.input-error :messages="$errors->get('state')" class="mt-1" />

@@ -83,16 +83,8 @@
                         </td>
 
                         <td class="px-6 py-4 whitespace-nowrap">
-                            @php
-                                $status = strtolower($user->subscription_status ?? 'unknown');
-                                $color = match($status) {
-                                    'active' => 'bg-emerald-100 text-emerald-800 border-emerald-200',
-                                    'pending' => 'bg-amber-100 text-amber-800 border-amber-200',
-                                    'expired' => 'bg-rose-100 text-rose-800 border-rose-200',
-                                    default => 'bg-gray-100 text-gray-800 border-gray-200',
-                                };
-                            @endphp
-                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border {{ $color }}">
+                            @php $status = $user->subscription_status; @endphp
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border {{ get_status_badge_color($status) }}">
                                 {{ ucfirst($status) }}
                             </span>
                         </td>

@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Gate;
 use App\WorldCountries;
-use App\Http\Requests\Owner\StoreOwnerRequest;
+use App\Http\Requests\Owner\{StoreOwnerRequest, UpdateOwnerRequest};
 
 class OwnersController extends Controller
 {
@@ -131,37 +131,64 @@ class OwnersController extends Controller
 
     public function edit(Owners $owner)
     {
-        return view('adminSide.owners.edit', compact('owner'));
+        $worldCountries = WorldCountries::worldCountries();
+        return view('adminSide.owners.edit', compact('owner', 'worldCountries'));
     }
 
-    public function update(Request $request, Owners $owner)
+    public function update(UpdateOwnerRequest $request, Owners $owner)
     {
-        // 💡 修复点：彻底移除 'email' 验证规则，因为前端已锁定，后端绝不再次校验和更新它
-        $validatedData = $request->validate([
-            // Use the $owner->id to ignore the current record in the unique check
-            'user_id'             => 'required|exists:users,id|unique:owners,user_id,' . $owner->id,
-            //'email'               => 'required|email|unique:users,email,' . $owner->id,
-            'company_name'        => 'nullable|string|max:255',
-            'ic_number'           => 'nullable|string|max:20',
-            'phone'               => 'required|string|max:20',
-            'referred_by'         => 'nullable|string|max:255',
-            'gender'              => 'required|string|in:Male,Female',
-            'subscription_status' => 'nullable|string|in:Active,Inactive',
-            'discount_rate'       => 'nullable|numeric',
-            'usage_count'         => 'nullable|integer'
-        ]);
+        // 1. Update the associated User's name and email
+        if ($owner->user) {
+            $userData = [
+                'name'  => $request->input('name'),
+                'email' => $request->input('email'),
+            ];
 
-        // ACTUAL UPDATE LOGIC (此时 $validatedData 干净不含 email，更不可能引发报错)
-        $owner->update($validatedData);
+            $userData['email_verified_at'] = $owner->user->email === $request->input('email') 
+                ? $owner->user->email_verified_at 
+                : null;
+
+            $owner->user->update($userData);
+        }
+
+        // 2. Update the Owner's specific details (including the new address fields)
+        $owner->update($request->only([
+            'company_name',
+            'ic_number',
+            'phone',
+            'gender',
+            'address',
+            'postcode',
+            'city',
+            'state'
+        ]));
 
         return redirect()->route('admin.owners.index')->with('success', 'Owner updated successfully.');
     }
 
     public function destroy(Owners $owner)
     {
-        $owner->user()->delete(); 
-        $owner->delete();
-        return redirect()->route('admin.owners.index')->with('success', 'Owner deleted successfully.');
+        if ($owner->user) {
+            $owner->user->update([
+                'status' => 'inactive'
+            ]);
+        }
+
+        return redirect()->route('admin.owners.index')->with('success', 'Owner marked as inactive successfully.');
+    }
+
+    public function restore($id)
+    {
+        // Find the owner including inactive ones (just in case your global scopes filter them out)
+        $owner = Owners::with('user')->findOrFail($id);
+
+        if ($owner->user) {
+            $owner->user->update([
+                'status' => 'active' // Change back to active
+            ]);
+        }
+
+        return redirect()->route('admin.owners.index')->with('success', 'Owner restored/activated successfully.');
     }
 
     public function show(Owners $owner)

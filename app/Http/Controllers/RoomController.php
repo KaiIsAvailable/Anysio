@@ -110,7 +110,7 @@ class RoomController extends Controller
     public function create(Request $request)
     {
         // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = Auth::user();
+        $user = get_effective_user();
 
         $unitId = $request->query('unit_id');
         $unit = Unit::with(['property', 'owner'])->findOrFail($unitId);
@@ -128,13 +128,13 @@ class RoomController extends Controller
     public function store(Request $request)
     {
         // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = Auth::user();
+        $user = get_effective_user();
 
         $data = $request->validate([
             'unit_id'   => 'required|exists:units,id',
             'room_no'   => 'required|string|max:255',
             'room_type' => 'required|string|max:255',
-            'status'    => 'required',
+            'status'    => 'nullable',
             'address'   => 'nullable|string',
             'assets'    => 'nullable|array',
             'assets.*.id'  => 'required_with:assets|exists:assets,id',
@@ -151,7 +151,7 @@ class RoomController extends Controller
                 'unit_id'   => $data['unit_id'],
                 'room_no'   => $data['room_no'],
                 'room_type' => $data['room_type'],
-                'status'    => $data['status'],
+                'status'    => $data['status'] ?? 'vacant',
                 'created_by'=> Auth::id(),
             ]);
 

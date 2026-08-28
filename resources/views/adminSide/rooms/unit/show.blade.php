@@ -55,15 +55,14 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     {{-- 逻辑：如果是 Unit Only 就只显示文字，不给排序；如果有 Room 才给排序 --}}
-                                    @if($unit->has_rooms == 1)
+                                    @if($unit->has_rooms < 1)
                                         <x-table.th name="Room No" sortField="r" />
                                     @else
                                         <x-table.th name="Unit Only" />
                                     @endif
-                                    
+                                    <x-table.th name="Owner" />
                                     <x-table.th name="Type" sortField="t" />
                                     <x-table.th name="Status" sortField="s" />
-                                    <x-table.th name="Owner" /> {{-- Owner 是 Unit 级别的，通常不参与 Room 列表排序 --}}
                                     <x-table.th name="Assets" />
                                     <x-table.th name="Created" sortField="c" />
                                     
@@ -74,15 +73,10 @@
                             </thead>
 
                             <tbody class="bg-white divide-y divide-gray-200">
-                            @foreach($unit->rooms as $room)
+                            @foreach($rooms as $room)
                                 @php
                                     $status = $room->status;
-                                    $badge = match ($status) {
-                                        'Occupied'    => 'bg-emerald-100 text-emerald-800', // 使用更专业的 Emerald 而不是简单的 Green
-                                        'Vacant'      => 'bg-amber-100 text-amber-800',     // 匹配你刚才定的黄色
-                                        'Maintenance' => 'bg-rose-100 text-rose-800',       // 维修应该用红色警示，而不是蓝色
-                                        default       => 'bg-gray-100 text-gray-800',
-                                    };
+                                    $badge = get_status_badge($status);
                                     $assetNames = $room->assets->pluck('name')->filter()->unique()->values();
                                 @endphp
                                 <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
@@ -103,17 +97,17 @@
                                         </div>
                                     </td>
 
+                                    <td class="px-6 py-4">
+                                        <div class="text-sm font-medium text-slate-900">{{ $room->unit->owner->name ?? '-' }}</div>
+                                        <div class="text-xs text-gray-500">{{ $room->unit->owner->email ?? '-' }}</div>
+                                    </td>
+
                                     <td class="px-6 py-4 text-sm text-slate-900">{{ $room->room_type ?? '-' }}</td>
 
                                     <td class="px-6 py-4 text-sm">
                                         <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
                                             {{ ucfirst($room->status ?? '-') }}
                                         </span>
-                                    </td>
-
-                                    <td class="px-6 py-4">
-                                        <div class="text-sm font-medium text-slate-900">{{ $room->unit->owner->name ?? '-' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $room->unit->owner->email ?? '-' }}</div>
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">

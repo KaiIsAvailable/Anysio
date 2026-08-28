@@ -84,17 +84,28 @@ if (!function_exists('get_effective_user')) {
 /**
  * Color of status
  */
-if (!function_exists('get_status_badge_color')) {
-    function get_status_badge_color($status)
+/**
+ * Get the Tailwind CSS badge classes for any entity status.
+ */
+if (!function_exists('get_status_badge')) {
+    function get_status_badge(?string $status): string
     {
-        $status = strtolower($status ?? 'unknown');
-        
-        return match($status) {
-            'active' => 'bg-emerald-100 text-emerald-800 border-emerald-200',
-            'pending' => 'bg-amber-100 text-amber-800 border-amber-200',
-            'expired' => 'bg-rose-100 text-rose-800 border-rose-200',
-            'inactive' => 'bg-gray-100 text-gray-800 border-gray-200',
-            default => 'bg-gray-100 text-gray-800 border-gray-200',
+        $status = strtolower(trim($status ?? ''));
+
+        return match ($status) {
+            // General / System Statuses
+            'active', 'occupied' => 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+            'pending', 'vacant'  => 'bg-amber-100 text-amber-800 border border-amber-200',
+            'expired', 'maintenance', 'inactive' => 'bg-rose-100 text-rose-800 border border-rose-200',
+            
+            // Lease Specific Statuses
+            'new'       => 'bg-blue-100 text-blue-800 border border-blue-200',
+            'renew'     => 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+            'check out' => 'bg-amber-100 text-amber-800 border border-amber-200',
+            'end'       => 'bg-gray-100 text-gray-800 border border-gray-200',
+            
+            // Default Fallback
+            default => 'bg-slate-100 text-slate-800 border border-slate-200',
         };
     }
 }

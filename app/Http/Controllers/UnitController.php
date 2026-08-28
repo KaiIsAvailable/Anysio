@@ -232,7 +232,7 @@ class UnitController extends Controller
         // 將結果綁定回 $unit
         $unit->setRelation('rooms', $rooms);
 
-        return view('adminSide.rooms.unit.show', compact('unit'));
+        return view('adminSide.rooms.unit.show', compact('unit', 'rooms'));
     }
 
     /**

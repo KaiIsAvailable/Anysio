@@ -51,18 +51,18 @@
                                 {{-- 2. Room Number --}}
                                 <div>
                                     <x-form.input-label value="Room Number" class="mb-1" />
-                                    <x-form.text-input name="room_no" value="{{ old('room_no') }}" placeholder="exp: Master Room / Room A" class="w-full" required />
+                                    <x-form.text-input name="room_no" value="{{ old('room_no') }}" class="w-full" required />
                                     <x-form.input-error :messages="$errors->get('room_no')" class="mt-1" />
                                 </div>
 
                                 {{-- 3. Room Type --}}
                                 <div>
                                     <x-form.input-label value="Room Type" class="mb-1" />
-                                    <x-form.text-input name="room_type" value="{{ old('room_type') }}" placeholder="exp: Single / Master / Balcony" class="w-full" required />
+                                    <x-form.text-input name="room_type" value="{{ old('room_type') }}" class="w-full" required />
                                     <x-form.input-error :messages="$errors->get('room_type')" class="mt-1" />
                                 </div>
 
-                                {{-- 4. Status --}}
+                                {{-- 4. Status 
                                 <div>
                                     <x-form.input-label value="Status" class="mb-1" />
                                     <x-form.input-select 
@@ -72,7 +72,7 @@
                                         class="w-full" 
                                         required />
                                     <x-form.input-error :messages="$errors->get('status')" class="mt-1" />
-                                </div>
+                                </div>--}}
 
                                 {{-- 5. Address --}}
                                 <div class="md:col-span-2">

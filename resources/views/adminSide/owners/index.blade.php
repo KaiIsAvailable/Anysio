@@ -136,7 +136,7 @@
 
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             @php $status = $owner->user->status; @endphp
-                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border {{ get_status_badge_color($status) }}">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border {{ get_status_badge($status) }}">
                                                 {{ ucfirst($status) }}
                                             </span>
                                         </td>

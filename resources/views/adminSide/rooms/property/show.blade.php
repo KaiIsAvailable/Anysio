@@ -68,15 +68,10 @@
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
-                            @foreach($property->units as $unit)
+                            @foreach($units as $unit)
                                 @php
+                                    $uBadge = get_status_badge($unit->status ?? null);
                                     $uStatus = $unit->status;
-                                    $uBadge = match ($uStatus) {
-                                        'Occupied'    => 'bg-emerald-100 text-emerald-800', 
-                                        'Vacant'      => 'bg-amber-100 text-amber-800',     
-                                        'Maintenance' => 'bg-rose-100 text-rose-800',       
-                                        default       => 'bg-gray-100 text-gray-800',
-                                    };
                                 @endphp
                                 <tr class="hover:bg-indigo-50 transition-colors cursor-pointer group"
                                     onclick="window.location='{{ route('admin.units.show', $unit->id) }}'"

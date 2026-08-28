@@ -64,13 +64,7 @@
                                     @foreach($leases as $lease)
                                         @php
                                             $status = strtolower((string) ($lease->status ?? ''));
-                                            $badge = match ($status) {
-                                                'new' => 'bg-blue-100 text-blue-800',
-                                                'renew' => 'bg-indigo-100 text-indigo-800',
-                                                'check out' => 'bg-amber-100 text-amber-800',
-                                                'end' => 'bg-gray-100 text-gray-800',
-                                                default => 'bg-slate-100 text-slate-800',
-                                            };
+                                            $badge = get_status_badge($lease->status ?? null);
                                         @endphp
                                         <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
                                             onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'">

@@ -63,12 +63,7 @@
                             @foreach($properties as $property)
                                 @php
                                     $status = $property->status;
-                                    $badge = match ($status) {
-                                        'Occupied'    => 'bg-emerald-100 text-emerald-800', 
-                                        'Vacant'      => 'bg-amber-100 text-amber-800',     
-                                        'Maintenance' => 'bg-rose-100 text-rose-800',       
-                                        default       => 'bg-gray-100 text-gray-800',
-                                    };
+                                    $badge = get_status_badge($status);
 
                                     $assetNames = collect(); 
                                     if(method_exists($property, 'assets') && $property->assets) {

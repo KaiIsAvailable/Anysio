@@ -67,21 +67,19 @@ Route::middleware(['auth', 'verified'])->group(function () {
 //run seeder
 Route::get('/run-seeders-xyz', function (Request $request) {
     $redirectTo = $request->input('redirect', route('dashboard'));
-    $seeder = $request->input('seeder'); // e.g. 'PropertySeeder'
+    $seeder = $request->input('seeder'); 
 
     try {
-        if ($seeder) {
-            // Run a specific seeder class
-            Artisan::call('db:seed', [
-                '--class' => $seeder,
-                '--force' => true
-            ]);
-            $message = "Seeder [{$seeder}] executed successfully!";
-        } else {
-            // Fallback to all if none specified
-            Artisan::call('db:seed', ['--force' => true]);
-            $message = "All seeders executed successfully!";
+        if (empty($seeder)) {
+            return redirect()->to($redirectTo)->with('error', 'Error: Please choose a seeder file to run.');
         }
+
+        Artisan::call('db:seed', [
+            '--class' => $seeder,
+            '--force' => true
+        ]);
+        
+        $message = "Seeder [{$seeder}] executed successfully!";
 
         return redirect()->to($redirectTo)->with('success', $message);
     } catch (\Exception $e) {

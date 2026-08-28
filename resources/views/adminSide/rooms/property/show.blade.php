@@ -58,6 +58,8 @@
                             <tr>
                                 <x-table.th name="Unit No" sortField="u" />
                                 <x-table.th name="Owner" sortField="o" />
+                                <x-table.th name="Unit Info" />
+                                <x-table.th name="Utilities Info" />
                                 <x-table.th name="Status" sortField="s" />
                                 <x-table.th name="Current Tenant" sortField="c" />  
                                 @can('owner-admin')
@@ -86,7 +88,10 @@
                                             <div class="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shadow-sm">
                                                 {{ mb_strtoupper(mb_substr($unit->unit_no ?? 'U', 0, 1, 'UTF-8')) }}
                                             </div>
-                                            <div class="ml-3 text-sm font-medium text-gray-900">{{ $unit->unit_no }}</div>
+                                            <div class="ml-4">
+                                                <div class="text-sm font-medium text-gray-900">{{ $unit->unit_no }}</div>
+                                                <div class="text-xs text-gray-400">{{ $unit->rooms->count() }} Rooms</div>
+                                            </div>
                                         </div>
                                     </td>
 
@@ -94,8 +99,41 @@
                                         <div class="text-sm font-medium text-slate-900">{{ $unit->owner->name ?? '-' }}</div>
                                         <div class="text-xs text-gray-500">{{ $unit->owner->email ?? '-' }}</div>
                                     </td>
-                                    
 
+                                    <td class="px-6 py-4 text-sm">
+                                        <div class="space-y-1">
+                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                                <span class="font-medium text-slate-500">Block</span>
+                                                <span class="text-sm font-medium text-gray-900">{{ $unit->block ?? '-' }}</span>
+                                            </div>
+                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                                <span class="font-medium text-slate-500">Floor</span>
+                                                <span class="text-sm font-medium text-gray-900">{{ $unit->floor ?? '-' }}</span>
+                                            </div>
+                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                                <span class="font-medium text-slate-500">Sqft</span>
+                                                <span class="text-sm font-medium text-gray-900">{{ $unit->sqft ? $unit->sqft . ' sqft' : '-' }}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+
+                                    <td class="px-6 py-4 text-sm">
+                                        <div class="space-y-1">
+                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                                <span class="font-medium text-slate-500">Electric</span>
+                                                <span class="text-sm font-medium text-gray-900">{{ $unit->electricity_acc_no ?? '-' }}</span>
+                                            </div>
+                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                                <span class="font-medium text-slate-500">Water</span>
+                                                <span class="text-sm font-medium text-gray-900">{{ $unit->water_acc_no ?? '-' }}</span>
+                                            </div>
+                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                                <span class="font-medium text-slate-500">Indah Water</span>
+                                                <span class="text-sm font-medium text-gray-900">{{ $unit->indah_water_acc_no ?? '-' }}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $uBadge }}">
                                             {{ ucfirst($uStatus) }}

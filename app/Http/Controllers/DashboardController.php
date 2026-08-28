@@ -114,7 +114,8 @@ class DashboardController extends Controller
         $seeders = collect(File::exists($seederPath) ? File::files($seederPath) : [])
             ->map(fn ($file) => $file->getFilenameWithoutExtension())
             ->reject(fn ($name) => $name === 'DatabaseSeeder')
-            ->values();
+            ->mapWithKeys(fn ($name) => [$name => $name]) // 🌟 Map keys to values explicitly
+            ->toArray();
 
         return view('dashboard', compact('overdueInvoices', 'checks', 'counts', 'seeders'));
     }

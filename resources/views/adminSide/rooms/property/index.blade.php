@@ -48,9 +48,9 @@
                             <thead class="bg-gray-50">
                                 <tr>
                                     <x-table.th name="Property Name" sortField="n" />
+                                    <x-table.th name="Owner" sortField="o" />
                                     <x-table.th name="Type" sortField="t" />
                                     <x-table.th name="Status" sortField="st" />
-                                    <x-table.th name="Owner" sortField="o" />
                                     <x-table.th name="Address" sortField="a" />
                                     <x-table.th name="Created" sortField="cr" />
                                     @can('owner-admin')
@@ -91,6 +91,11 @@
                                         </div>
                                     </td>
 
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <div class="text-sm font-medium text-slate-900">{{ $property->owner->name ?? 'No Owner' }}</div>
+                                        <div class="text-xs text-gray-500">{{ $property->owner->email ?? "No Owner's Gmail" }}</div>
+                                    </td>
+
                                     <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-900">
                                         {{ $property->type ?? '-' }}
                                     </td>
@@ -99,11 +104,6 @@
                                         <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
                                             {{ $property->status ?? '-' }}
                                         </span>
-                                    </td>
-
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-slate-900">{{ $property->owner->name ?? 'No Owner' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $property->owner->email ?? "No Owner's Gmail" }}</div>
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">

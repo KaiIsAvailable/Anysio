@@ -103,7 +103,10 @@ class TenantsController extends Controller
         // 2. 校验数据 (统一抛出 ValidationException)
         $this->validateTenantData($request);
 
-        return DB::transaction(function () use ($request, $fileService) {
+        $effectiveUser = get_effective_user();
+        $effectiveUserId = $effectiveUser ? $effectiveUser->id : Auth::id();
+
+        return DB::transaction(function () use ($request, $fileService, $effectiveUserId) {
 
             // 4. 创建租客 User 账号
             $user = User::create([
@@ -127,7 +130,7 @@ class TenantsController extends Controller
             }
 
             $data['user_id'] = $user->id;
-            $data['created_by'] = Auth::id();
+            $data['created_by'] = $effectiveUserId;
 
             // 图片处理
             if ($request->hasFile('ic_photo_path')) {

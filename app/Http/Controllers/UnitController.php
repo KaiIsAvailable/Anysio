@@ -67,6 +67,9 @@ class UnitController extends Controller
      */
     public function store(Request $request)
     {
+        $effectiveUser = get_effective_user();
+        $effectiveUserId = $effectiveUser ? $effectiveUser->id : Auth::id();
+
         // 1. 验证数据 (建议根据你的需求完善验证规则)
         $request->validate([
             // --- Unit 验证 ---
@@ -116,7 +119,7 @@ class UnitController extends Controller
             $unit->status = $request->status;
             $unit->has_rooms = $request->has_rooms; 
             $unit->total_rooms = $request->has_rooms ? count($request->rooms) : 0;
-            $unit->created_by = Auth::id();
+            $unit->created_by = $effectiveUserId;
             $unit->save();
 
             // --- 步骤 2: 处理 Unit 级别的 Assets (Common Area) ---

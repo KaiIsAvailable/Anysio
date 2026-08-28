@@ -114,7 +114,8 @@ class PropertyController extends Controller
 
     public function store(Request $request)
     {
-        $user = Auth::id();
+        $effectiveUser = get_effective_user();
+        $effectiveUserId = $effectiveUser ? $effectiveUser->id : Auth::id();
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
             'address'  => 'required|string',
@@ -128,10 +129,12 @@ class PropertyController extends Controller
         if ($request->has_owner === '0') {
             $validated['owner_id'] = null;
         } else {
-            $validated['owner_id'] = $request->owner_id ?? Auth::id();
+            // 如果没填 owner_id，则默认指向有效用户（管理员ID）
+            $validated['owner_id'] = $request->owner_id ?? $effectiveUserId;
         }
 
-        $validated['created_by'] = Auth::id();
+        // 确保 created_by 记录的是管理层主账号 ID
+        $validated['created_by'] = $effectiveUserId;
 
         Property::create($validated);
 

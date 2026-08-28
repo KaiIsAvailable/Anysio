@@ -1,18 +1,9 @@
 <?php
 
-use App\Http\Controllers\ProfileController;
-use App\Http\Controllers\TenantsController;
-use App\Http\Controllers\TicketController;
-use App\Http\Controllers\WelcomeController;
-use App\Http\Controllers\UserController;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\{ProfileController, TenantsController, TicketController, WelcomeController, UserController};
+use Illuminate\Support\Facades\{Artisan, Route, File, DB, Storage};
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-use App\Models\User;
-use App\Models\Tenants;
-use App\Models\EmergencyContact;
-use Illuminate\Support\Facades\DB;
+use App\Models\{User, Tenants, EmergencyContact};
 
 // 1. 公开路由
 Route::get('/', function () {return view('welcome');})->name('welcome');
@@ -75,16 +66,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 //run seeder
 Route::get('/run-seeders-xyz', function (Request $request) {
+    $redirectTo = $request->input('redirect', route('dashboard'));
+    $seeder = $request->input('seeder'); // e.g. 'PropertySeeder'
+
     try {
-        Artisan::call('db:seed', ['--force' => true]);
-        
-        // Grab the 'redirect' query parameter, or fallback to dashboard if missing
-        $redirectTo = $request->input('redirect', route('dashboard'));
-        
-        return redirect()->to($redirectTo)->with('success', 'Seeders executed successfully!');
+        if ($seeder) {
+            // Run a specific seeder class
+            Artisan::call('db:seed', [
+                '--class' => $seeder,
+                '--force' => true
+            ]);
+            $message = "Seeder [{$seeder}] executed successfully!";
+        } else {
+            // Fallback to all if none specified
+            Artisan::call('db:seed', ['--force' => true]);
+            $message = "All seeders executed successfully!";
+        }
+
+        return redirect()->to($redirectTo)->with('success', $message);
     } catch (\Exception $e) {
-        $redirectTo = $request->input('redirect', route('dashboard'));
-        
         return redirect()->to($redirectTo)->with('error', 'Error: ' . $e->getMessage());
     }
 })->name('run.seeders');

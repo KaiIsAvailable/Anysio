@@ -23,44 +23,52 @@
                         <h2 class="text-lg font-semibold text-slate-900 mb-4 border-b pb-2">Associations</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Property</label>
-                                
+                                <x-form.input-label value="Property" class="mb-1" required />
                                 @if(isset($targetProperty))
                                     <div class="w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-700 font-medium flex items-center shadow-sm">
                                         {{ $targetProperty->name }}
                                     </div>
                                     <input type="hidden" name="property_id" value="{{ $targetProperty->id }}">
                                 @else
-                                    <select name="property_id" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" required>
-                                        <option value="">-- Choose Property --</option>
-                                        @foreach($properties as $property)
-                                            <option value="{{ $property->id }}" @selected(old('property_id') == $property->id)>
-                                                {{ $property->name }}
-                                            </option>
-                                        @endforeach
-                                    </select>
+                                    <x-form.input-select 
+                                        name="property_id" 
+                                        :options="$properties" 
+                                        value-field="id" 
+                                        label-field="name" 
+                                        value="{{ old('property_id') }}"
+                                        required 
+                                    />
                                 @endif
+                                <x-form.input-error :messages="$errors->get('property_id')" class="mt-1" />
                             </div>
 
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Unit Owner</label>
+                                <x-form.input-label value="Unit Owner" class="mb-1" />  
                                 @if(isset($targetOwner))
                                     <div class=" w-full px-4 py-2 bg-gray-100 border border-gray-200 rounded-lg text-slate-700 font-medium flex items-center shadow-sm">
                                         {{ $targetOwner->name }}
                                     </div>
                                     <input type="hidden" name="owner_id" value="{{ $targetOwner->id }}" id="owner_selector" onchange="filterAssetsByOwner()" data-user-id="{{ $targetOwner->id }}">
                                 @else
-                                    <select name="owner_id" id="owner_selector" onchange="filterAssetsByOwner()" class="  w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                        @foreach($owners as $owner)
-                                            {{-- 统一使用 $owner->id --}}
-                                            <option value="{{ $owner->id }}" 
-                                                data-user-id="{{ $owner->id }}" 
-                                                @selected(old('owner_id') == $owner->id)>
-                                                {{ $owner->name }} {{ $owner->company_name ? "({$owner->company_name})" : '' }}
-                                            </option>
-                                        @endforeach
-                                    </select>
+                                    @php
+                                        $ownerOptions = $owners->map(function ($owner) {
+                                            return [
+                                                'value' => $owner->id,
+                                                'label' => $owner->name . ($owner->company_name ? " ({$owner->company_name})" : '')
+                                            ];
+                                        })->toArray();
+                                    @endphp
+
+                                    <x-form.input-select 
+                                        name="owner_id" 
+                                        id="owner_selector"
+                                        :options="$ownerOptions"
+                                        value="{{ old('owner_id') }}"
+                                        class="w-full"
+                                        x-on:change="filterAssetsByOwner()"
+                                    />
                                 @endif
+                                <x-form.input-error :messages="$errors->get('owner_id')" class="mt-1" />
                             </div>
                         </div>
                     </section>
@@ -70,32 +78,54 @@
                         <h2 class="text-lg font-semibold text-slate-900 mb-4 border-b pb-2">Unit Information</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Unit No.</label>
-                                <input type="text" name="unit_no" value="{{ old('unit_no') }}" 
-                                    class=" w-full rounded-lg @error('unit_no') border-red-500 @enderror border-gray-300 focus:ring-indigo-500 shadow-sm" required>
-                                @error('unit_no')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
+                                <x-form.input-label value="Unit No." class="mb-1" required />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="unit_no" 
+                                    value="{{ old('unit_no') }}" 
+                                    class="w-full" 
+                                    required 
+                                />
+                                <x-form.input-error :messages="$errors->get('unit_no')" class="mt-1" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Block / Tower</label>
-                                <input type="text" name="block" value="{{ old('block') }}" placeholder="e.g. Block A" 
-                                       class=" w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" required>
+                                <x-form.input-label value="Block / Tower" class="mb-1" required />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="block" 
+                                    value="{{ old('block') }}"
+                                    class="w-full" 
+                                    required 
+                                />
+                                <x-form.input-error :messages="$errors->get('block')" class="mt-1" />
                             </div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Floor</label>
-                                <input type="number" name="floor" value="{{ old('floor') }}" placeholder="e.g. 10" 
-                                       class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" min="0" required>
+                                <x-form.input-label value="Floor" class="mb-1" required />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="floor" 
+                                    value="{{ old('floor') }}"
+                                    class="w-full" 
+                                    required 
+                                />
+                                <x-form.input-error :messages="$errors->get('floor')" class="mt-1" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Size (Sqft)</label>
+                                <x-form.input-label value="Size (Sqft)" class="mb-1" required />
                                 <div class="relative">
-                                    <input type="number" name="sqft" value="{{ old('sqft') }}" 
-                                           class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" min="0" required>
+                                    <x-form.text-input 
+                                        type="number" 
+                                        name="sqft" 
+                                        value="{{ old('sqft') }}" 
+                                        class="w-full" 
+                                        min="0" 
+                                        required 
+                                    />
                                 </div>
+                                <x-form.input-error :messages="$errors->get('sqft')" class="mt-1" />
                             </div>
                         </div>
                     </section>
@@ -103,16 +133,14 @@
                     {{-- 第三部分：公用事业账号 --}}
                     <section>
                         <h2 class="text-lg font-semibold text-slate-900 mb-4 border-b pb-2">Utilities & Status</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <x-form.input-label value="Electricity Acc No. (TNB)" class="mb-1" />
                                 <x-form.text-input 
                                     type="text" 
                                     name="electricity_acc_no"
                                     value="{{ old('electricity_acc_no') }}"
-                                    placeholder="e.g. 123456789012"
-                                    class=" w-full"
-                                    {{-- 这些属性会被合并进组件内部的 <input> 标签中 --}}
+                                    class="w-full"
                                     pattern="\d{12}" 
                                     maxlength="12" 
                                     inputmode="numeric"
@@ -126,9 +154,7 @@
                                     type="text" 
                                     name="water_acc_no"
                                     value="{{ old('water_acc_no') }}"
-                                    placeholder="e.g. 1234-5678-9012"
-                                    class=" w-full"
-                                    {{-- 这些属性会被合并进组件内部的 <input> 标签中 --}}
+                                    class="w-full"
                                     pattern="[\d-]{1,16}"
                                     maxlength="16" 
                                     inputmode="numeric"
@@ -136,15 +162,38 @@
                                 />
                                 <x-form.input-error :messages="$errors->get('water_acc_no')" class="mt-1" />
                             </div>
+                            <div>
+                                <x-form.input-label value="Indah Water Acc No. (IWK)" class="mb-1" />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="indah_water_acc_no"
+                                    value="{{ old('indah_water_acc_no') }}"
+                                    class="w-full"
+                                    pattern="[\d-]{1,20}"
+                                    maxlength="20" 
+                                    inputmode="numeric"
+                                    oninput="this.value = this.value.replace(/[^0-9-]/g, '')"
+                                />
+                                <x-form.input-error :messages="$errors->get('indah_water_acc_no')" class="mt-1" />
+                            </div>
                         </div>
 
                         <div class="mt-4">
-                            <label class="block text-sm font-medium text-slate-900 mb-1">Status</label>
-                            <select name="status" class=" w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                <option value="Vacant" @selected(old('status') == 'Vacant')>Vacant</option>
-                                <option value="Occupied" @selected(old('status') == 'Occupied')>Occupied</option>
-                                <option value="Under Maintenance" @selected(old('status') == 'Under Maintenance')>Under Maintenance</option>
-                            </select>
+                            <x-form.input-label value="Status" class="mb-1" required />
+                            @php
+                                $statusOptions = [
+                                    'Vacant' => 'Vacant',
+                                    'Occupied' => 'Occupied',
+                                    'Under Maintenance' => 'Under Maintenance',
+                                ];
+                            @endphp
+                            <x-form.input-select 
+                                name="status" 
+                                :options="$statusOptions"
+                                value="{{ old('status', 'Vacant') }}"
+                                class="w-full"
+                            />
+                            <x-form.input-error :messages="$errors->get('status')" class="mt-1" />
                         </div>
                     </section>
 

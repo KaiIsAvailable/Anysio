@@ -8,29 +8,6 @@ use Illuminate\Support\Facades\Gate;
 trait RoleBasedDataTrait
 {
     /**
-     * Helper to resolve the effective user for data scoping.
-     * If the user is staff, it returns the parent admin/agent-admin user. Otherwise, returns the user themselves.
-     */
-    protected function getEffectiveUser($user)
-    {
-        if ($user->role === User::ROLE_STAFF) {
-            // Find the staff record and get the UserManagement record
-            $staff = Staff::where('user_id', $user->id)->first();
-            if ($staff && $staff->user_mgnt_id) {
-                // Find the user who owns this user_management profile
-                $managementUser = User::whereHas('user_management', function ($q) use ($staff) {
-                    $q->where('id', $staff->user_mgnt_id);
-                })->first();
-
-                if ($managementUser) {
-                    return $managementUser;
-                }
-            }
-        }
-
-        return $user;
-    }
-    /**
      * 统一的权限过滤逻辑，返回 Builder 对象以支持链式调用
      */
     protected function applyOwnershipFilter($query, $user, $column = 'created_by')
@@ -39,19 +16,22 @@ trait RoleBasedDataTrait
             return $query;
         }
 
-        return $query->where(function ($q) use ($user, $column) {
-            if ($user->role === 'ownerAdmin') {
-                $q->where($column, $user->id);
-            } elseif ($user->role === 'agentAdmin') {
-                $managedOwnerIds = Owners::where('agent_id', $user->id)
+        // 获取有效用户（如果是 staff，会解析出其背后的主管理员/owner 账号）
+        $effectiveUser = get_effective_user() ?? $user;
+
+        return $query->where(function ($q) use ($effectiveUser, $column) {
+            if ($effectiveUser->role === 'ownerAdmin') {
+                $q->where($column, $effectiveUser->id);
+            } elseif ($effectiveUser->role === 'agentAdmin') {
+                $managedOwnerIds = Owners::where('agent_id', $effectiveUser->id)
                     ->select('user_id');
 
                 $q->where(function ($sub) use (
-                    $user,
+                    $effectiveUser,
                     $column,
                     $managedOwnerIds
                 ) {
-                    $sub->where($column, $user->id)
+                    $sub->where($column, $effectiveUser->id)
                         ->orWhereIn($column, $managedOwnerIds);
                 });
             }

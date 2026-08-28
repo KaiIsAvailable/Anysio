@@ -3,10 +3,10 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Support\Facades\Gate;
-use App\Models\Invoice;
-use App\Models\Owners;
+use App\Models\{Invoice, Owners, UserManagement, User};
 use App\Services\SetupCheckerService;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\DB;
 use App\Traits\RoleBasedDataTrait;
 
@@ -110,6 +110,12 @@ class DashboardController extends Controller
         */
         $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset',], 'exists');
 
-        return view('dashboard', compact('overdueInvoices', 'checks', 'counts'));
+        $seederPath = database_path('seeders');
+        $seeders = collect(File::exists($seederPath) ? File::files($seederPath) : [])
+            ->map(fn ($file) => $file->getFilenameWithoutExtension())
+            ->reject(fn ($name) => $name === 'DatabaseSeeder')
+            ->values();
+
+        return view('dashboard', compact('overdueInvoices', 'checks', 'counts', 'seeders'));
     }
 }

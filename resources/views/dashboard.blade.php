@@ -9,10 +9,10 @@
             <!-- Right Side: Action Buttons (Restricted to Super Admin) -->
             @can('super-admin')
                 <div class="flex items-center space-x-3">
-                    <a href="{{ route('run.seeders') . '?redirect=' . urlencode(request()->url()) }}" 
-                    class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:border-indigo-900 focus:ring ring-indigo-300 disabled:opacity-25 transition ease-in-out duration-150">
+                    <button type="button" @click="$dispatch('open-seeder-modal')"
+                        class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-indigo-700 active:bg-indigo-900 focus:outline-none focus:border-indigo-900 focus:ring ring-indigo-300 disabled:opacity-25 transition ease-in-out duration-150">
                         Run Seeders
-                    </a>
+                    </button>
 
                     <a href="{{ route('run.migrations') . '?redirect=' . urlencode(request()->url()) }}" 
                     class="inline-flex items-center px-4 py-2 bg-gray-800 border border-transparent rounded-md font-semibold text-xs text-white uppercase tracking-widest hover:bg-gray-700 active:bg-gray-900 focus:outline-none focus:border-gray-900 focus:ring ring-gray-300 disabled:opacity-25 transition ease-in-out duration-150">
@@ -20,6 +20,30 @@
                     </a>
                 </div>
             @endcan
+
+            <x-modals.confirmation-modal name="seeder-modal" title="Run Database Seeders">
+                <form action="{{ route('run.seeders') }}" method="GET" loading="loading">
+                    <input type="hidden" name="redirect" value="{{ request()->url() }}">
+
+                    <!-- Choose Specific Seeder -->
+                    <div class="mb-4">
+                        <x-form.input-label value="Choose Specific Seeder" class="mb-1" />
+                        <x-form.input-select 
+                            name="seeder" 
+                            :options="$seeders" 
+                        />
+                    </div>
+
+                    <div class="mt-4 flex justify-end space-x-3">
+                        <button type="button" @click="$dispatch('close-seeder-modal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-xs font-semibold uppercase">
+                            Cancel
+                        </button>
+                        <x-form.primary-button type="submit" loading="loading" class="px-4 py-2 bg-indigo-600 text-white rounded-md text-xs font-semibold uppercase hover:bg-indigo-700">
+                            Confirm & Run
+                        </x-form.primary-button>
+                    </div>
+                </form>
+            </x-modals.confirmation-modal>
         </div>
     </x-slot>
 

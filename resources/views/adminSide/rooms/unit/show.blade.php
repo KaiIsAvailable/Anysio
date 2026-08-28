@@ -173,7 +173,15 @@
                             <p class="mt-1 text-gray-500">Add the first room to get started.</p>
                         </div>
                     @endif
+
+                    
                 </div>
+
+                @if($rooms->hasPages())
+                    <div class="bg-white px-6 py-4 border-t border-gray-100">
+                        {{ $rooms->links() }}
+                    </div>
+                @endif
             </div>
 
         </div>

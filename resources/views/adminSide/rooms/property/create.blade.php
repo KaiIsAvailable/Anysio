@@ -82,7 +82,7 @@
                                 <x-form.input-label value="Property Type" class="mb-1" />
                                 <x-form.input-select 
                                     name="type"
-                                    class="w-full"
+                                    class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm"
                                     :options="$propertyTypes"
                                     placeholder="Select a Property Type"
                                     :selected="old('type', $property->property_type ?? '')">
@@ -135,7 +135,7 @@
                                         :options="$worldCountries" 
                                         value="{{ old('state') }}"
                                         placeholder="Select a State"
-                                        class="w-full"
+                                        class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm"
                                     />
                                     <x-form.input-error :messages="$errors->get('state')" class="mt-1" />
                                 </div>

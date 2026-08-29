@@ -74,8 +74,7 @@
     checkPosition() {
         let rect = this.$el.getBoundingClientRect();
         let spaceBelow = window.innerHeight - rect.bottom;
-        let dropdownHeight = 260; // Estimated max height of dropdown list
-        // If space below is less than dropdown height AND there's more space above, open upwards
+        let dropdownHeight = 260;
         this.dropUp = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
     },
     selectOption(opt) {
@@ -84,6 +83,14 @@
         this.lastValidLabel = opt.label;
         this.search = '';
         this.open = false;
+        this.$nextTick(() => {
+            if (this.$refs.hiddenInput) {
+                this.$refs.hiddenInput.value = opt.value;
+                this.$refs.hiddenInput.dispatchEvent(new Event('input', { bubbles: true }));
+                this.$refs.hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            this.$dispatch('change', { value: opt.value });
+        });
     },
     validateInput() {
         setTimeout(() => {
@@ -99,23 +106,21 @@
             this.open = false;
         }, 200);
     }
-}" @click.away="open = false" class="relative w-full">
+}" @click.away="open = false" class="relative w-full" {!! $attributes->only(['@change', 'x-on:change']) !!}>
 
-    <!-- Hidden native input for form submission -->
-    <input type="hidden" name="{{ $name }}" x-model="selectedValue">
+    <!-- Hidden native input for form submission with ID support -->
+    <input type="hidden" name="{{ $name }}" x-model="selectedValue" x-ref="hiddenInput" {{ $attributes->only('id') }}>
 
     <!-- Professional Text Input -->
     <div class="relative">
         <input type="text"
-               @disabled($disabled)
-               :value="displayValue"
-               @focus="open = true; search = ''; $nextTick(() => checkPosition())"
-               @input="open = true; search = $event.target.value; selectedValue = ''; $nextTick(() => checkPosition())"
-               @blur="validateInput()"
-               placeholder="{{ $placeholder ?? '' }}"
-               {!! $attributes->merge([
-                   'class' => 'w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm bg-white pr-10'
-               ]) !!}>
+            @disabled($disabled)
+            :value="displayValue"
+            @focus="open = true; search = ''; $nextTick(() => checkPosition())"
+            @input="open = true; search = $event.target.value; selectedValue = ''; $nextTick(() => checkPosition())"
+            @blur="validateInput()"
+            placeholder="{{ $placeholder ?? '' }}"
+            class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm bg-white pr-10">
 
         <!-- Dropdown Arrow Icon -->
         <div @click="toggleDropdown(); if(open) $el.previousElementSibling.focus()" class="absolute inset-y-0 right-0 flex items-center px-2.5 cursor-pointer text-gray-400">

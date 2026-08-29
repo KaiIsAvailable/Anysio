@@ -97,7 +97,7 @@
                     </div>
                 @endif
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-3">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-3">
                     <div class="px-8 py-4 border-b border-gray-100 bg-gray-50 flex gap-6 items-center">
                         <div class="w-56">
                             <x-form.input-label value="Owner" class="mb-1" />

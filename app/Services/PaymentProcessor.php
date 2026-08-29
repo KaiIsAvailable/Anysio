@@ -17,7 +17,7 @@ class PaymentProcessor
     {
         $this->assertNoEarlierOutstanding($invoice);
 
-        $currentUser = Auth::user(); 
+        $currentUser = get_effective_user(); 
 
         if (!$currentUser) {
             throw new \RuntimeException('Authenticated user required to generate invoices.');

@@ -33,7 +33,7 @@
                                         'End Agreement' => 'End Agreement'
                                     ]"
                                     :value="request('status', 'New')"
-                                    onchange="toggleLeaseSelect()"
+                                    @change="toggleLeaseSelect()"
                                 />
                                 <x-form.input-error :messages="$errors->get('status')" class="mt-1" />
                             </div>
@@ -130,7 +130,7 @@
                                         'room' => 'Specific Room'
                                     ]"
                                     :value="old('lease_selection', 'property')"
-                                    onchange="toggleLeaseInput()"
+                                    @change="toggleLeaseInput()"
                                 />
                             </div>
 
@@ -145,6 +145,7 @@
                                         valueField="id"
                                         labelField="name"
                                         :value="old('property_id')"
+                                        @change="filterTemplates()"
                                     />
                                     <x-form.input-error :messages="$errors->get('property_id')" class="mt-1" />
                                 </div>
@@ -158,6 +159,7 @@
                                         valueField="id"
                                         labelField="unit_no"
                                         :value="old('unit_id')"
+                                        @change="filterTemplates()"
                                     />
                                     <x-form.input-error :messages="$errors->get('unit_id')"  class="mt-1" />
                                 </div>
@@ -171,6 +173,7 @@
                                         valueField="id"
                                         labelField="room_no"
                                         :value="old('room_id')"
+                                        @change="filterTemplates()"
                                     />
                                     <x-form.input-error :messages="$errors->get('room_id')" class="mt-1" />
                                 </div>
@@ -647,14 +650,16 @@
         }
 
         function toggleLeaseSelect() {
-            const statusSelect = document.getElementById('lease-status');
-            const newStatus = statusSelect.value || 'New';
+            console.log("toggleLeaseSelect function executed successfully.");
 
-            const urlParams = new URLSearchParams(window.location.search);
-            if (newStatus !== urlParams.get('status')) {
-                window.location.href = `${createUrl}?status=${newStatus}`;
+            const statusSelect = document.getElementById('lease-status');
+            if (!statusSelect) {
+                console.log("Element with ID 'lease-status' not found.");
                 return;
             }
+
+            const newStatus = statusSelect.value || 'New';
+            console.log("Current selected status:", newStatus);
 
             const sections = {
                 'lease_select_container': ['Renew', 'Check Out', 'End Agreement'].includes(newStatus),
@@ -671,7 +676,10 @@
 
             Object.keys(sections).forEach(id => {
                 const el = document.getElementById(id);
-                if (!el) return;
+                if (!el) {
+                    console.log(`Section element missing from DOM: ${id}`);
+                    return;
+                }
                 const isVisible = sections[id];
                 el.classList.toggle('hidden', !isVisible);
                 el.querySelectorAll('input, select, textarea').forEach(input => {
@@ -681,7 +689,10 @@
         }
 
         document.addEventListener('DOMContentLoaded', function() {
-            toggleLeaseInput();
+            console.log("DOM fully loaded. Triggering lease handlers.");
+            if (typeof toggleLeaseInput === 'function') {
+                toggleLeaseInput();
+            }
             toggleLeaseSelect();
         });
 
@@ -949,35 +960,54 @@
             });
         });
 
+        const currentUserId = @js(function_exists('get_effective_user') ? get_effective_user()->id : null);
+        console.log("Current User ID for template filtering:", currentUserId);
         function filterTemplates() {
             let ownerId = null;
 
+            // 1. Check if an existing lease is selected
             const leaseSelect = document.getElementById('lease_id');
             if (leaseSelect && leaseSelect.value !== "") {
                 const selectedLease = leaseSelect.options[leaseSelect.selectedIndex];
-                ownerId = selectedLease.getAttribute('data-owner-id');
+                if (selectedLease) {
+                    ownerId = selectedLease.getAttribute('data-owner-id');
+                }
             }
 
+            // 2. If no ownerId from lease, check property type selection
             if (!ownerId) {
                 const typeEl = document.getElementById('lease_selection');
                 if (typeEl && typeEl.value) {
-                    const activeSelect = document.getElementById(typeEl.value + '_select_input');
-                    if (activeSelect && activeSelect.selectedIndex > 0) {
-                        const selectedOption = activeSelect.options[activeSelect.selectedIndex];
-                        ownerId = selectedOption.getAttribute('data-owner-id');
+                    const leaseType = typeEl.value; // 'property', 'unit', or 'room'
+                    const activeSelectInput = document.getElementById(leaseType + '_select_input');
+                    
+                    if (activeSelectInput && activeSelectInput.value) {
+                        const targetId = activeSelectInput.value;
+
+                        // Look up owner_id directly from the preloaded JS data objects
+                        if (leaseType === 'property' && allProperties[targetId]) {
+                            ownerId = allProperties[targetId].owner_id;
+                        } else if (leaseType === 'unit' && allUnits[targetId]) {
+                            ownerId = allUnits[targetId].owner_id;
+                        } else if (leaseType === 'room' && allRooms[targetId]) {
+                            ownerId = allRooms[targetId].owner_id;
+                        }
                     }
                 }
             }
 
-            if (!ownerId) return;
-
             const agreementSelect = document.getElementById('document_id');
             if (!agreementSelect) return;
 
+            // Filter template dropdown options based on the ownerId
             Array.from(agreementSelect.options).forEach(option => {
                 if (option.value === "") return;
                 const templateUserId = option.getAttribute('data-agreement-user-id');
-                if (ownerId && String(templateUserId) === String(ownerId)) {
+                
+                const matchesOwner = ownerId && String(templateUserId) === String(ownerId);
+                const matchesAuthUser = currentUserId && String(templateUserId) === String(currentUserId);
+
+                if (matchesOwner || matchesAuthUser) {
                     option.style.display = 'block';
                 } else {
                     option.style.display = 'none';
@@ -988,11 +1018,6 @@
                 agreementSelect.value = "";
             }
         }
-
-        ['property_select_input', 'unit_select_input', 'room_select_input', 'lease_id'].forEach(id => {
-            const el = document.getElementById(id);
-            if (el) el.addEventListener('change', filterTemplates);
-        });
     </script>
     @endpush
 </x-app-layout>

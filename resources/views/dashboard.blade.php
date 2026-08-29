@@ -114,57 +114,6 @@
                 </div>
                 @endforeach
             </div>
-
-           <div class="lg:col-span-1 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
-            <h4 class="font-bold text-slate-900 mb-4">Overdue Rent Alerts</h4>
-            <div class="overflow-x-auto">
-                <table class="w-full text-left">
-                    <thead class="text-xs text-slate-400 uppercase">
-                        <tr>
-                            <th class="pb-3">Invoice No.</th>
-                            <th class="pb-3">Leaseable Type</th>
-                            <th class="pb-3">Leaseable Name</th>
-                            <th class="pb-3">Tenant</th>
-                            <th class="pb-3">Amount</th>
-                            <th class="pb-3">Due Date</th> 
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        @forelse($overdueInvoices as $invoice)
-                        <tr class="text-sm font-medium hover:bg-slate-50">
-                            <td class="py-4">
-                                {{ $invoice->invoice_no ?? 'N/A' }}
-                            </td>
-                            
-                            <td class="py-4">
-                                {{ $invoice->lease->leasable_type ?? 'N/A' }}
-                            </td>
-                            
-                            <td class="py-4">
-                                {{ $invoice->lease->leasable_name ?? 'N/A' }}
-                            </td>
-                            
-                            <td class="py-4">
-                                {{ $invoice->tenant->user->name ?? 'Unknown' }}
-                            </td>
-                            
-                            <td class="py-4 text-rose-600 font-bold">
-                                RM {{ number_format($invoice->amount_due, 2) }}
-                            </td>
-                            
-                            <td class="py-4 text-xs text-slate-500">
-                                {{ $invoice->periodDisplay }}
-                            </td>
-                        </tr>
-                        @empty
-                        <tr>
-                            <td colspan="6" class="py-4 text-center text-slate-400">No overdue payments.</td>
-                        </tr>
-                        @endforelse
-                    </tbody>
-                </table>
-            </div>
-        </div>
         </div>
 
         <script>

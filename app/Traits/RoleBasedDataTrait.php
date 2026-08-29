@@ -62,7 +62,7 @@ trait RoleBasedDataTrait
 
     protected function getAuthorizedOwners()
     {
-        $user = Auth::user();
+        $user = get_effective_user();
         $query = User::whereIn('role', ['owner', 'ownerAdmin']);
         
         return $this->applyOwnershipFilter($query, $user, 'id')->get();
@@ -70,7 +70,7 @@ trait RoleBasedDataTrait
 
     protected function getAuthorizedOwnersOnly()
     {
-        $user = Auth::user();
+        $user = get_effective_user();
         $query = User::where('role', 'owner');
         
         return $this->applyOwnershipFilter($query, $user, 'id')->get();

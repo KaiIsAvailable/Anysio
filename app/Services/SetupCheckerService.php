@@ -10,7 +10,7 @@ class SetupCheckerService
     public function check(array $requirements, $type = 'exists')
     {
         /** @var \App\Models\User $user */
-        $user = Auth::user();
+        $user = get_effective_user();
         if (!$user) return array_fill_keys($requirements, false);
         $userId = $user->id;
 

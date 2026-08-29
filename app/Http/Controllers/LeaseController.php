@@ -50,32 +50,34 @@ class LeaseController extends Controller
         // 2. 权限过滤：如果不是 super-admin，只能看自己拥有的资源
         // 这里需要根据你的业务逻辑调整，如果不同模型的 owner 字段不一样，可能需要更复杂的判断
         if (!Gate::allows('super-admin')) {
-            $query->where(function ($q) use ($userId) {
-                // A: 基于多态资源的归属权 (你原有的逻辑)
-                $q->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($userId) {
-                    // the `owner` relation on Unit/Property points to the `users` table,
-                    // so compare against `users.id` (->where('id', ...)) instead of `user_id`.
+            $actualUserId = Auth::id(); // The currently logged-in user (could be staff)
+            $effectiveUser = get_effective_user();
+            $effectiveUserId = $effectiveUser?->id;
+
+            $query->where(function ($q) use ($effectiveUserId, $actualUserId) {
+                $q->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($effectiveUserId, $actualUserId) {
                     if ($type === Room::class) {
-                        $mq->whereHas('unit.owner', function ($oq) use ($userId) {
-                            $oq->where(function ($q) use ($userId) {
-                                $q->where('created_by', $userId)
-                                    ->orWhere('owner_id', $userId);
+                        $mq->whereHas('unit.owner', function ($oq) use ($effectiveUserId, $actualUserId) {
+                            $oq->where(function ($q) use ($effectiveUserId, $actualUserId) {
+                                $q->where('created_by', $effectiveUserId)
+                                    ->orWhere('created_by', $actualUserId)
+                                    ->orWhere('owner_id', $effectiveUserId);
                             });
                         });
                     } else {
-                        $mq->whereHas('owner', function ($oq) use ($userId) {
-                            $oq->where(function ($q) use ($userId) {
-                                $q->where('created_by', $userId)
-                                    ->orWhere('owner_id', $userId);
+                        $mq->whereHas('owner', function ($oq) use ($effectiveUserId, $actualUserId) {
+                            $oq->where(function ($q) use ($effectiveUserId, $actualUserId) {
+                                $q->where('created_by', $effectiveUserId)
+                                    ->orWhere('created_by', $actualUserId)
+                                    ->orWhere('owner_id', $effectiveUserId);
                             });
                         });
                     }
                 })
-                    // B: 或者基于租户的创建者 (你新要求的逻辑)
-                    // 只要满足其中一个条件，就能看到该租约
-                    ->orWhereHas('tenant', function ($tq) use ($userId) {
-                        $tq->where('created_by', $userId);
-                    });
+                ->orWhereHas('tenant', function ($tq) use ($effectiveUserId, $actualUserId) {
+                    $tq->where('created_by', $effectiveUserId)
+                    ->orWhere('created_by', $actualUserId);
+                });
             });
         }
 
@@ -160,7 +162,7 @@ class LeaseController extends Controller
     public function create(Request $request)
     {
         /** @var User $user */
-        $user = Auth::user();
+        $user = get_effective_user();
 
         // ✅ 強制加上 ->select('properties.*')，防止 owner_id 遺失！
         $properties = $this->getAuthorizedProperties()
@@ -413,7 +415,7 @@ class LeaseController extends Controller
         Gate::authorize('owner-admin');
 
         $leaseService->process(
-            Auth::user(),
+            get_effective_user(),
             $request->validated()
         );
 

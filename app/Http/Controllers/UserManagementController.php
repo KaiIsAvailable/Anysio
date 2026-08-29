@@ -70,7 +70,7 @@ class UserManagementController extends Controller
             $query->orderBy('user_management.created_at', 'desc');
         }
 
-        $userManagement = $query->paginate(5)->onEachSide(1)->withQueryString();
+        $userManagement = $query->paginate(10)->onEachSide(1)->withQueryString();
         //dd($userManagement->toArray());
         return view('adminSide.userManagement.index', compact('userManagement'));
     }

@@ -30,7 +30,7 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
         $request->session()->regenerate();
-        $user = Auth::user();
+        $user = get_effective_user();
 
         // 1. 支付状态优先拦截 (仅限 Admin)
         if (in_array($user->role, ['ownerAdmin', 'agentAdmin'])) {

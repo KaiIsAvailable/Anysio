@@ -53,7 +53,7 @@ class InvoiceService
             $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
 
             $invoice = Invoice::create([
-                'user_id'              => $lease->tenant_id,
+                //'user_id'              => $lease->tenant_id,
                 'billable_type'        => Tenants::class,  
                 'billable_id'          => $lease->tenant_id,
                 'lease_id'             => $lease->id,

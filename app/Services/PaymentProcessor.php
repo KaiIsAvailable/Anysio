@@ -62,10 +62,40 @@ class PaymentProcessor
             $userToActivate = $invoice->user ?? $invoice->lease?->tenant?->user;
 
             if ($userToActivate) {
-                UserManagement::where('user_id', $userToActivate->id)
-                    ->update([
-                        'subscription_status' => 'active',
-                    ]);
+                $startDate = null;
+                $endDate = null;
+
+                $userManagement = UserManagement::where('user_id', $userToActivate->id)->first();
+                $package = $userManagement?->package;
+
+                if ($package) {
+                    $currentEndDate = $userManagement->end_date ? \Carbon\Carbon::parse($userManagement->end_date) : null;
+
+                    $startDate = $currentEndDate->copy()->addDay();
+
+                    $priceMode = strtolower($package->price_mode ?? 'monthly');
+
+                    if ($priceMode === 'yearly') {
+                        $endDate = $startDate->copy()->addYear();
+                    } else {
+                        $endDate = $startDate->copy()->addMonth();
+                    }
+                }
+
+                $updateData = [
+                    'subscription_status' => 'active',
+                ];
+
+                if ($startDate && $endDate) {
+                    $updateData['start_date'] = $startDate->toDateString();
+                    $updateData['end_date']   = $endDate->toDateString();
+                }
+
+                if ($userManagement) {
+                    $userManagement->update($updateData);
+                } else {
+                    UserManagement::where('user_id', $userToActivate->id)->update($updateData);
+                }
             }
         }
 

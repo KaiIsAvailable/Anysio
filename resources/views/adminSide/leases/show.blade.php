@@ -56,6 +56,22 @@
                 return `{{ route('admin.invoices.store-manual', ':lease') }}`.replace(':lease', this.activeId);
             },
 
+            handleInvoiceGenerated(event) {
+                if (!event.detail || !event.detail.success) return;
+                
+                if (event.detail.invoice) {
+                    if (this.activeId && this.source[this.activeId]) {
+                        if (!this.source[this.activeId].invoices) {
+                            this.source[this.activeId].invoices = [];
+                        }
+                        let inv = event.detail.invoice;
+                        if (!inv.invoice_items && inv.items) inv.invoice_items = inv.items;
+                        this.source[this.activeId].invoices.unshift(inv);
+                    }
+                }
+                this.refreshTable();
+            },
+
             refreshTable() {
                 if (!this.activeId || this.loading) return;
                 this.loading = true;

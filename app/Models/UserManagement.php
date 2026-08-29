@@ -30,6 +30,8 @@ class UserManagement extends Model
 
     protected $casts = [
         'email_verify_at' => 'datetime',
+        'start_date' => 'date',
+        'end_date' => 'date',
     ];
 
     public function user() {

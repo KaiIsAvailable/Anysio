@@ -126,7 +126,7 @@
                 Back to Lease List
             </a>
             
-            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+            <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-3">
                 <div class="mb-8 w-full">
                     <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Lease Progression</h2>
@@ -168,86 +168,142 @@
                         <span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Lease Profile</span>
                         <h3 class="text-base font-bold text-gray-900" x-text="activeLease.property_name"></h3>
                     </div>
-                    <div>
-                        <span class="px-3 py-1 text-xs font-semibold rounded-full shadow-sm" 
-                            :class="{
-                                'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20': activeLease.status === 'Active',
-                                'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20': activeLease.status === 'New',
-                                'bg-gray-50 text-gray-600 ring-1 ring-gray-500/20': activeLease.status !== 'Active' && activeLease.status !== 'New'
-                            }" 
-                            x-text="activeLease.status"></span>
+                   <div class="bg-white shadow-sm" x-data="{ 
+                        openUpload: {{ $errors->any() ? 'true' : 'false' }}, 
+                        shake: {{ $errors->any() ? 'true' : 'false' }},
+                        activeLease: JSON.parse(sessionStorage.getItem('lastActiveLease') || '{}')
+                    }">
+                        {{-- 左侧按钮：View Agreement --}}
+                        @if (!empty($lease->document_id))
+                            <button type="button"
+                                data-base-content="{{ $lease->documentTemplate?->content }}"
+                                data-title="{{ $lease->documentTemplate?->title }}"
+                                data-replacements="{{ json_encode([
+                                    '{status}' => $lease->status ?? 'N/A',
+                                    '{tenant_name}' => $lease->tenant?->user->name ?? 'N/A',
+                                    '{tenant_ic}'   => $lease->tenant?->ic_number ?? 'N/A',
+                                    '{owner_name}' => $lease->leasable?->owner?->user->name ?? 'N/A',
+                                    '{owner_ic}'   => $lease->leasable?->owner?->ic_number ?? 'N/A',
+                                    '{property_address}'   => $lease->leasable?->full_address ?? 'N/A',
+                                    '{property_type}'   => $lease->leasableTypeLabel ?? 'N/A',
+                                    '{property_name}'   => $lease->leasableName ?? 'N/A',
+                                    '{rent_mode}'   => $lease->term_type ?? 'N/A',
+                                    '{rent_price}'  => number_format($lease->rent_price, 2),
+                                    '{deposit_mode}'  => $lease->deposit_mode ?? 'N/A',
+                                    '{security_deposit}' => number_format($lease->security_deposit, 2),
+                                    '{utilities_deposit}' => number_format($lease->utilities_deposit, 2),
+                                    '{start_date}'  => $lease->start_date?->format('d/m/Y') ?? 'N/A',
+                                    '{end_date}'    => $lease->end_date?->format('d/m/Y') ?? 'N/A',
+                                    '{check_out_date}'    => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
+                                    '{end_agreement_date}'    => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
+                                ]) }}"
+                                @click="
+                                    const btn = $el;
+                                    let content = btn.dataset.baseContent;
+                                    if (!content) {
+                                        console.error('Agreement content is empty');
+                                        return;
+                                    }
+                                    const replacements = JSON.parse(btn.dataset.replacements);
+                                    Object.keys(replacements).forEach(key => {
+                                        const val = replacements[key];
+                                        const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+                                        content = content.replace(regex, `<span class='text-inherit font-semibold'>${val}</span>`);
+                                    });
+                                    $dispatch('open-lease-preview', { 
+                                        content: content, 
+                                        title: btn.dataset.title 
+                                    });
+                                "
+                                class="flex-1 px-4 py-2.5 bg-white text-indigo-600 text-xs font-bold rounded-xl border border-indigo-100 hover:bg-indigo-50 transition-all shadow-sm text-center">
+                                VIEW AGREEMENT
+                            </button>
+                        @endif
+
+                        {{-- 右侧按钮：Upload Stamping (条件渲染) --}}
+                        @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
+                            <button @click="openUpload = true" 
+                                class="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm text-center">
+                                UPLOAD STAMPING
+                            </button>
+                        @endif
+
+                        {{-- Modal 渲染 --}}
+                        @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
+                            <x-modals.lease-stamping-modal :lease="$lease" />
+                        @endif
                     </div>
                 </div>
 
-                <!-- Structured Grid Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 text-sm">
+                <!-- Compact Structured Grid Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
                     
                     <!-- Block 1: Terms & Financials -->
-                    <div class="bg-gray-50/60 rounded-lg p-4 border border-gray-100/80 space-y-2.5">
-                        <h4 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Financials & Term</h4>
-                        <div>
-                            <span class="text-gray-500 block text-xs">Term Type</span>
+                    <div class="bg-gray-50/60 rounded-md p-3 border border-gray-100 space-y-1.5">
+                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px]">Financials & Term</h4>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500">Term Type</span>
                             <span class="font-semibold text-gray-900" x-text="activeLease.term_type"></span>
                         </div>
-                        <div>
-                            <span class="text-gray-500 block text-xs">Total Rent Price</span>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500">Total Rent</span>
                             <span class="font-bold text-emerald-600">RM <span x-text="activeLease.total_rent_price"></span></span>
                         </div>
-                        <div>
-                            <span class="text-gray-500 block text-xs">Lease Duration</span>
-                            <span class="font-medium text-gray-900 text-xs"><span x-text="activeLease.start_date"></span> → <span x-text="activeLease.end_date"></span></span>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500">Duration</span>
+                            <span class="font-medium text-gray-900"><span x-text="activeLease.start_date"></span> → <span x-text="activeLease.end_date"></span></span>
                         </div>
                     </div>
 
                     <!-- Block 2: Tenant Information -->
-                    <div class="bg-gray-50/60 rounded-lg p-4 border border-gray-100/80 space-y-2.5">
-                        <h4 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Tenant Details</h4>
-                        <div>
-                            <span class="text-gray-500 block text-xs">Name</span>
-                            <span class="font-semibold text-gray-900" x-text="activeLease.tenant_name"></span>
+                    <div class="bg-gray-50/60 rounded-md p-3 border border-gray-100 space-y-1.5">
+                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px]">Tenant Details</h4>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500">Name</span>
+                            <span class="font-semibold text-gray-900 truncate max-w-[160px]" :title="activeLease.tenant_name" x-text="activeLease.tenant_name"></span>
                         </div>
-                        <div>
-                            <span class="text-gray-500 block text-xs">IC / ID Number</span>
-                            <span class="font-mono text-gray-700 text-xs" x-text="activeLease.tenant_ic"></span>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500">IC / ID</span>
+                            <span class="font-mono text-gray-700" x-text="activeLease.tenant_ic"></span>
                         </div>
                     </div>
 
                     <!-- Block 3: Owner & Compliance -->
-                    <div class="bg-gray-50/60 rounded-lg p-4 border border-gray-100/80 space-y-2.5">
-                        <h4 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Owner & Compliance</h4>
-                        <div>
-                            <span class="text-gray-500 block text-xs">Owner Name</span>
-                            <span class="font-semibold text-gray-900" x-text="activeLease.owner_name"></span>
+                    <div class="bg-gray-50/60 rounded-md p-3 border border-gray-100 space-y-1.5">
+                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px]">Owner & Compliance</h4>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500">Owner</span>
+                            <span class="font-semibold text-gray-900 truncate max-w-[160px]" :title="activeLease.owner_name" x-text="activeLease.owner_name"></span>
                         </div>
-                        <div>
-                            <span class="text-gray-500 block text-xs">Owner IC / ID</span>
-                            <span class="font-mono text-gray-700 text-xs" x-text="activeLease.owner_ic"></span>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-500">Owner ID</span>
+                            <span class="font-mono text-gray-700" x-text="activeLease.owner_ic"></span>
                         </div>
-                        <div>
-                            <span class="text-gray-500 block text-xs">Stamping Status</span>
-                            <span class="inline-flex items-center gap-1.5 font-medium mt-0.5 text-xs">
-                                <span class="w-2 h-2 rounded-full" :class="activeLease.stamping_status ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                        <div class="flex justify-between items-center pt-0.5">
+                            <span class="text-gray-500">Stamping</span>
+                            <span class="inline-flex items-center gap-1 font-medium">
+                                <span class="w-1.5 h-1.5 rounded-full" :class="activeLease.stamping_status ? 'bg-emerald-500' : 'bg-amber-500'"></span>
                                 <span :class="activeLease.stamping_status ? 'text-emerald-700 font-semibold' : 'text-amber-700'" 
                                     x-text="activeLease.stamping_status ? 'Stamped (' + (activeLease.stamping_reference_no ?? 'N/A') + ')' : 'Unstamped'"></span>
                             </span>
                         </div>
                     </div>
 
-                    <!-- Block 4: Property Address Full Width Banner -->
-                    <div class="md:col-span-2 lg:col-span-3 bg-gray-50/60 rounded-lg p-4 border border-gray-100/80 flex flex-col justify-center">
-                        <h4 class="text-xs font-bold tracking-wider text-gray-400 uppercase mb-1">Property Address</h4>
-                        <span class="font-semibold text-gray-900" x-text="activeLease.property_address"></span>
+                    <!-- Block 4: Property Address (Compact Full Width) -->
+                    <div class="md:col-span-2 lg:col-span-3 bg-gray-50/60 rounded-md p-3 border border-gray-100 flex flex-col justify-center">
+                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px] mb-0.5">Property Address</h4>
+                        <span class="font-semibold text-gray-900 line-clamp-1" :title="activeLease.property_address" x-text="activeLease.property_address"></span>
                     </div>
 
                 </div>
 
-                <!-- Additional Charges Section (If any) -->
+                <!-- Additional Charges Section (Compact Horizontal Wrap) -->
                 <template x-if="activeLease.charges && activeLease.charges.length > 0">
-                    <div class="border-t border-gray-100 pt-4 mt-6">
-                        <h4 class="text-xs font-bold tracking-wider text-gray-400 uppercase mb-3">Additional Charges Breakdown</h4>
-                        <div class="bg-gray-50/50 rounded-lg p-3 border border-gray-100 divide-y divide-gray-200 text-sm">
+                    <div class="border-t border-gray-100 pt-3 mt-4 text-xs">
+                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px] mb-2">Additional Charges Breakdown</h4>
+                        <div class="bg-gray-50/50 rounded-md p-2.5 border border-gray-100 flex flex-wrap gap-x-6 gap-y-1.5">
                             <template x-for="charge in activeLease.charges" :key="charge.id">
-                                <div class="py-2 first:pt-0 last:pb-0 flex justify-between items-center">
+                                <div class="flex items-center gap-2">
                                     <span x-text="charge.description" class="text-gray-600 font-medium"></span>
                                     <span class="font-semibold text-gray-900">RM <span x-text="charge.amount"></span></span>
                                 </div>
@@ -255,7 +311,6 @@
                         </div>
                     </div>
                 </template>
-            </div>
 
             <!-- Invoice Tables -->
             <div class="mt-8">
@@ -381,7 +436,12 @@
                                                 <!-- Void Button -->
                                                 <template x-if="invoice.status !== 'paid' && invoice.status !== 'void'">
                                                     <button type="button"
-                                                        @click="actionUrl = '{{ route('admin.invoices.void', ':id') }}'.replace(':id', invoice.id); voidModalOpen = true;"
+                                                        @click="
+                                                            $dispatch('open-void-modal', { 
+                                                                actionUrl: '{{ route('admin.invoices.void', ':id') }}'.replace(':id', invoice.id),
+                                                                invoiceNumber: invoice.invoice_no
+                                                            });
+                                                        "
                                                         class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition-all shadow-sm">
                                                         <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                                             <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
@@ -399,15 +459,43 @@
                             </table>
                         </div>
 
-                        <x-modals.confirmation-modal 
-                            id="voidModalOpen"
-                            title="Void Invoice"
-                            method="PATCH"
-                            message="Are you sure you want to void this invoice? This action cannot be undone."
-                            label="Reason for Voiding"
-                            inputName="reason"
-                            inputType="textarea"
-                        />
+                        <!-- The Confirmation Modal Component with Dynamic actionUrl binding -->
+                        <x-modals.confirmation-modal id="void-modal" title="Void Invoice" maxWidth="sm:max-w-lg">
+                            <div x-data="{ actionUrl: '', invoiceNumber: '', loading: false }" 
+                                @open-void-modal.window="
+                                    actionUrl = $event.detail.actionUrl;
+                                    invoiceNumber = $event.detail.invoiceNumber;
+                                ">
+                                
+                                <!-- Optional: Display invoice number in the modal content -->
+                                <x-form.form :action="''" x-bind:action="actionUrl" method="POST" loading="loading">
+                                    @csrf
+                                    @method('PATCH')
+                                    <input type="hidden" name="redirect" value="{{ request()->url() }}">
+
+                                    <div class="p-6 space-y-4">
+                                        <p class="text-sm text-slate-600 font-medium">
+                                            Are you sure you want to void invoice <span class="font-bold text-slate-900" x-text="invoiceNumber"></span>? This action cannot be undone.
+                                        </p>
+
+                                        <div>
+                                            <x-form.input-label value="Reason for Voiding" class="mb-1" />
+                                            <textarea name="reason" rows="3" required
+                                                class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"></textarea>
+                                        </div>
+                                    </div>
+
+                                    <div class="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex justify-end space-x-3">
+                                        <button type="button" @click="$dispatch('close-void-modal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-xs font-semibold uppercase hover:bg-gray-300 transition-colors">
+                                            Cancel
+                                        </button>
+                                        <x-form.primary-button type="submit" loading="loading" class="px-4 py-2 bg-rose-600 text-white rounded-md text-xs font-semibold uppercase hover:bg-rose-700">
+                                            Confirm Void
+                                        </x-form.primary-button>
+                                    </div>
+                                </x-form.form>
+                            </div>
+                        </x-modals.confirmation-modal>
 
                         <!-- Pagination -->
                         <div class="mt-4 flex items-center justify-between px-2" x-show="totalInvoicePages > 1">

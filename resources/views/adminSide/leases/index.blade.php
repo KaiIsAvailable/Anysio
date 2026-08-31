@@ -193,11 +193,11 @@
 
                                                     {{-- 第二部分：始终显示的 View Agreement 按钮 --}}
                                                     <div>
-                                                        @if (!empty($lease->agreement_id))
+                                                        @if (!empty($lease->document_id))
                                                             <button type="button"
                                                                 {{-- 关键修复：属性名要和 JS 里的 baseContent 对应，或者 JS 里改用 dataset.content --}}
-                                                                data-base-content="{{ $lease->agreement?->content }}"
-                                                                data-title="{{ $lease->agreement?->title }}"
+                                                                data-base-content="{{ $lease->documentTemplate?->content }}"
+                                                                data-title="{{ $lease->documentTemplate?->title }}"
 
                                                                 {{-- 传递替换数据 --}}
                                                                 data-replacements="{{ json_encode([

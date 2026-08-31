@@ -252,7 +252,7 @@ class LeaseService
             'parent_lease_id' => $oldLease?->id,
             'document_id' => in_array($status, ['New', 'Renew'])
                 ? ($data['document_id'] ?? null)
-                : $oldLease?->agreement_id,
+                : $oldLease?->document_id,
             'is_current' => true,
             'leasable_type' => $context['leasable_type'],
             'leasable_id' => $context['leasable_id'],

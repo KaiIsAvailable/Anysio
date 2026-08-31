@@ -6,6 +6,7 @@
     'value' => null,
     'valueField' => null,
     'labelField' => null,
+    'maxHeight' => 'max-h-60', // 👈 1. Add maxHeight prop with a default value
 ])
 
 @php
@@ -137,11 +138,12 @@
          :class="dropUp ? 'absolute left-0 bottom-full mb-1 w-full' : 'absolute left-0 top-full mt-1 w-full'"
          class="z-50 bg-white shadow-xl rounded-md border border-gray-200 text-base ring-1 ring-black ring-opacity-5 focus:outline-none sm:text-sm">
         
-        <ul class="max-h-60 overflow-y-auto py-1 divide-y divide-gray-50">
+        {{-- 2. Bind the maxHeight prop dynamically to the <ul> element --}}
+        <ul class="{{ $maxHeight }} overflow-y-auto py-1 divide-y divide-gray-50">
             <template x-for="opt in filteredOptions" :key="opt.value">
                 <li @click="selectOption(opt)"
                     class="cursor-pointer select-none relative py-2 px-3 hover:bg-indigo-600 hover:text-white text-gray-900 text-sm transition-colors"
-                    :class="{'bg-indigo-50 text-indigo-600 font-semibold': selectedValue == opt.value}">
+                    class="{'bg-indigo-50 text-indigo-600 font-semibold': selectedValue == opt.value}">
                     <span x-text="opt.label"></span>
                 </li>
             </template>

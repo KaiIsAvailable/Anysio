@@ -198,7 +198,9 @@
                                         <!-- Void Button (Fixed Blade Conditional instead of Alpine x-if on server loop) -->
                                         @if(!in_array($invoice->status, ['paid', 'void']))
                                             <button type="button"
-                                                @click="actionUrl = '{{ route('admin.invoices.void', $invoice->id) }}'; voidModalOpen = true;"
+                                                @click="
+                                                    $dispatch('open-void-modal', { actionUrl: '{{ route('admin.invoices.void', $invoice->id) }}', invoiceNumber: '{{ $invoice->invoice_no }}' });
+                                                "
                                                 class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition-all shadow-sm">
                                                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
@@ -227,15 +229,42 @@
             </div>
         </div>
 
-        <x-modals.confirmation-modal 
-            id="voidModalOpen"
-            title="Void Invoice"
-            method="PATCH"
-            message="Are you sure you want to void this invoice? This action cannot be undone."
-            label="Reason for Voiding"
-            inputName="reason"
-            inputType="textarea"
-        />
+        <x-modals.confirmation-modal id="void-modal" title="Void Invoice" maxWidth="sm:max-w-lg">
+            <div x-data="{ actionUrl: '', invoiceNumber: '', loading: false }" 
+                @open-void-modal.window="
+                    actionUrl = $event.detail.actionUrl;
+                    invoiceNumber = $event.detail.invoiceNumber;
+                ">
+                
+                <!-- Optional: Display invoice number in the modal content -->
+                <x-form.form :action="''" x-bind:action="actionUrl" method="POST" loading="loading">
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="redirect" value="{{ request()->url() }}">
+
+                    <div class="p-6 space-y-4">
+                        <p class="text-sm text-slate-600 font-medium">
+                            Are you sure you want to void invoice <span class="font-bold text-slate-900" x-text="invoiceNumber"></span>? This action cannot be undone.
+                        </p>
+
+                        <div>
+                            <x-form.input-label value="Reason for Voiding" class="mb-1" />
+                            <textarea name="reason" rows="3" required
+                                class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"></textarea>
+                        </div>
+                    </div>
+
+                    <div class="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex justify-end space-x-3">
+                        <button type="button" @click="$dispatch('close-void-modal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-xs font-semibold uppercase hover:bg-gray-300 transition-colors">
+                            Cancel
+                        </button>
+                        <x-form.primary-button type="submit" loading="loading" class="px-4 py-2 bg-rose-600 text-white rounded-md text-xs font-semibold uppercase hover:bg-rose-700">
+                            Confirm Void
+                        </x-form.primary-button>
+                    </div>
+                </x-form.form>
+            </div>
+        </x-modals.confirmation-modal>
 
         <x-modals.payment-modal />
 

@@ -674,7 +674,8 @@ class LeaseController extends Controller
             ];
         });
 
-        $feeTypes = FeeType::where('user_id', Auth::id())
+        $userId = get_effective_user();
+        $feeTypes = FeeType::where('user_id', $userId->id)
             ->where('category', 'invoice')
             ->where('is_active', true)
             ->where('is_system', false)

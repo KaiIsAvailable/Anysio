@@ -1,7 +1,10 @@
 <x-app-layout>
+    @php
+        $defaultActiveId = $leaseHistory->firstWhere('is_current', true)?->id ?? $leaseHistory->first()?->id ?? $lease->id;
+    @endphp
     <div class="py-12 bg-gray-50 min-h-screen font-sans"
         x-data="{
-            activeId: '{{ old('active_id', $lease->id) }}',
+            activeId: '{{ old('active_id', $defaultActiveId) }}',
             source: {{ $historyJson->isNotEmpty() ? $historyJson->toJson() : '{}' }},
             loading: false,
             invoicePage: 1,
@@ -11,8 +14,9 @@
 
             openUpload: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }},
             shake: {{ $errors->any() ? 'true' : 'false' }},
+            
             get activeLease() {
-                return (this.source && this.activeId) ? (this.source[this.activeId] || {}) : {}
+                return (this.source && this.activeId) ? (this.source[this.activeId] || {}) : {};
             },
 
             get paginatedInvoices() {
@@ -59,9 +63,10 @@
             },
 
             refreshTable() {
+                console.log('[Debug] refreshTable called for activeId:', this.activeId);
                 if (!this.activeId || this.loading) return;
                 this.loading = true;
-                const url = `{{ url('/') }}/admin/leases/${this.activeId}/refresh-payments`;
+                const url = `{{ route('admin.leases.show', ':id') }}`.replace(':id', this.activeId) + `?lease_id=${this.activeId}`;
 
                 fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
                 .then(response => {
@@ -69,23 +74,26 @@
                     return response.json();
                 })
                 .then(data => {
-                    const rentEl = document.getElementById('rent-payments-container');
-                    const otherEl = document.getElementById('other-payments-container');
-                    if (rentEl) rentEl.innerHTML = data.rentHtml;
-                    if (otherEl) otherEl.innerHTML = data.otherHtml;
+                    console.log('[Debug] refreshTable success data:', data);
                     if (this.activeLease) {
                         this.activeLease.can_generate = data.can_generate;
+                        if (data.invoices) {
+                            this.activeLease.invoices = data.invoices;
+                        }
                     }
                 })
-                .catch(e => { console.error('Table refresh failed:', e); })
+                .catch(e => { console.error('[Debug] Table refresh failed:', e); })
                 .finally(() => { this.loading = false; });
             },
 
             init() {
+                let self = this;
+                console.log('[Debug] Component initialized. refreshTable is function?', typeof self.refreshTable);
+                
                 this.$watch('activeId', (newVal) => {
                     if (newVal) {
-                        this.invoicePage = 1;
-                        this.refreshTable();
+                        self.invoicePage = 1;
+                        self.refreshTable();
                     }
                 });
             }
@@ -94,18 +102,20 @@
         @open-payment.window="paymentData = $event.detail; openPayment = true;"
         @open-manual-modal.window="openManual = true; manualActionUrl = $event.detail.action;"
         @invoice-generated.window="
+            let self = $data;
+            console.log('[Debug] @invoice-generated event caught. refreshTable type:', typeof self.refreshTable);
             if ($event.detail && $event.detail.success) {
                 if ($event.detail.invoice) {
-                    if (this.activeId && this.source[this.activeId]) {
-                        if (!this.source[this.activeId].invoices) {
-                            this.source[this.activeId].invoices = [];
+                    if (self.activeId && self.source[self.activeId]) {
+                        if (!self.source[self.activeId].invoices) {
+                            self.source[self.activeId].invoices = [];
                         }
                         let inv = $event.detail.invoice;
                         if (!inv.invoice_items && inv.items) inv.invoice_items = inv.items;
-                        this.source[this.activeId].invoices.unshift(inv);
+                        self.source[self.activeId].invoices.unshift(inv);
                     }
                 }
-                this.refreshTable();
+                self.refreshTable();
             }
         ">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -151,6 +161,102 @@
                 </div>
             </div>
 
+            <div class="bg-white shadow-sm border border-gray-200 rounded-xl p-6 mb-6" x-show="activeLease && Object.keys(activeLease).length > 0">
+                <!-- Header Summary Bar -->
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-100 pb-4 mb-6 gap-3">
+                    <div>
+                        <span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Lease Profile</span>
+                        <h3 class="text-base font-bold text-gray-900" x-text="activeLease.property_name"></h3>
+                    </div>
+                    <div>
+                        <span class="px-3 py-1 text-xs font-semibold rounded-full shadow-sm" 
+                            :class="{
+                                'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20': activeLease.status === 'Active',
+                                'bg-blue-50 text-blue-700 ring-1 ring-blue-600/20': activeLease.status === 'New',
+                                'bg-gray-50 text-gray-600 ring-1 ring-gray-500/20': activeLease.status !== 'Active' && activeLease.status !== 'New'
+                            }" 
+                            x-text="activeLease.status"></span>
+                    </div>
+                </div>
+
+                <!-- Structured Grid Cards -->
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 text-sm">
+                    
+                    <!-- Block 1: Terms & Financials -->
+                    <div class="bg-gray-50/60 rounded-lg p-4 border border-gray-100/80 space-y-2.5">
+                        <h4 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Financials & Term</h4>
+                        <div>
+                            <span class="text-gray-500 block text-xs">Term Type</span>
+                            <span class="font-semibold text-gray-900" x-text="activeLease.term_type"></span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block text-xs">Total Rent Price</span>
+                            <span class="font-bold text-emerald-600">RM <span x-text="activeLease.total_rent_price"></span></span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block text-xs">Lease Duration</span>
+                            <span class="font-medium text-gray-900 text-xs"><span x-text="activeLease.start_date"></span> → <span x-text="activeLease.end_date"></span></span>
+                        </div>
+                    </div>
+
+                    <!-- Block 2: Tenant Information -->
+                    <div class="bg-gray-50/60 rounded-lg p-4 border border-gray-100/80 space-y-2.5">
+                        <h4 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Tenant Details</h4>
+                        <div>
+                            <span class="text-gray-500 block text-xs">Name</span>
+                            <span class="font-semibold text-gray-900" x-text="activeLease.tenant_name"></span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block text-xs">IC / ID Number</span>
+                            <span class="font-mono text-gray-700 text-xs" x-text="activeLease.tenant_ic"></span>
+                        </div>
+                    </div>
+
+                    <!-- Block 3: Owner & Compliance -->
+                    <div class="bg-gray-50/60 rounded-lg p-4 border border-gray-100/80 space-y-2.5">
+                        <h4 class="text-xs font-bold tracking-wider text-gray-400 uppercase">Owner & Compliance</h4>
+                        <div>
+                            <span class="text-gray-500 block text-xs">Owner Name</span>
+                            <span class="font-semibold text-gray-900" x-text="activeLease.owner_name"></span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block text-xs">Owner IC / ID</span>
+                            <span class="font-mono text-gray-700 text-xs" x-text="activeLease.owner_ic"></span>
+                        </div>
+                        <div>
+                            <span class="text-gray-500 block text-xs">Stamping Status</span>
+                            <span class="inline-flex items-center gap-1.5 font-medium mt-0.5 text-xs">
+                                <span class="w-2 h-2 rounded-full" :class="activeLease.stamping_status ? 'bg-emerald-500' : 'bg-amber-500'"></span>
+                                <span :class="activeLease.stamping_status ? 'text-emerald-700 font-semibold' : 'text-amber-700'" 
+                                    x-text="activeLease.stamping_status ? 'Stamped (' + (activeLease.stamping_reference_no ?? 'N/A') + ')' : 'Unstamped'"></span>
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- Block 4: Property Address Full Width Banner -->
+                    <div class="md:col-span-2 lg:col-span-3 bg-gray-50/60 rounded-lg p-4 border border-gray-100/80 flex flex-col justify-center">
+                        <h4 class="text-xs font-bold tracking-wider text-gray-400 uppercase mb-1">Property Address</h4>
+                        <span class="font-semibold text-gray-900" x-text="activeLease.property_address"></span>
+                    </div>
+
+                </div>
+
+                <!-- Additional Charges Section (If any) -->
+                <template x-if="activeLease.charges && activeLease.charges.length > 0">
+                    <div class="border-t border-gray-100 pt-4 mt-6">
+                        <h4 class="text-xs font-bold tracking-wider text-gray-400 uppercase mb-3">Additional Charges Breakdown</h4>
+                        <div class="bg-gray-50/50 rounded-lg p-3 border border-gray-100 divide-y divide-gray-200 text-sm">
+                            <template x-for="charge in activeLease.charges" :key="charge.id">
+                                <div class="py-2 first:pt-0 last:pb-0 flex justify-between items-center">
+                                    <span x-text="charge.description" class="text-gray-600 font-medium"></span>
+                                    <span class="font-semibold text-gray-900">RM <span x-text="charge.amount"></span></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
             <!-- Invoice Tables -->
             <div class="mt-8">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-6 space-y-6">
@@ -187,7 +293,7 @@
                                         <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                     </tr>
                                 </thead>
-                                <tbody id="other-payments-container" class="bg-white divide-y divide-gray-200">
+                                <tbody id="invoices-table-body" class="bg-white divide-y divide-gray-200">
                                     <template x-for="invoice in paginatedInvoices" :key="invoice.id">
                                         <tr class="hover:bg-gray-50 transition-colors">
                                             <td class="px-4 py-4 whitespace-nowrap text-sm font-bold text-indigo-600" x-text="invoice.invoice_no"></td>

@@ -12,7 +12,9 @@ class FeeTypeService
      */
     public function getActiveInvoiceFeeTypes()
     {
-        return FeeType::where('user_id', Auth::id())
+        $userId = get_effective_user();
+
+        return FeeType::where('user_id', $userId->id)
             ->where('category', 'invoice')
             ->where('is_active', true)
             ->get();
@@ -25,8 +27,10 @@ class FeeTypeService
     {
         // Fallback to INVOICE enum value if category is not provided or invalid
         $category = FeeTypeCategory::tryFrom($data['category'] ?? '') ?? FeeTypeCategory::INVOICE;
+        $userId = get_effective_user();
+
         return FeeType::create([
-            'user_id' => Auth::id(),
+            'user_id' => $userId->id,
             'name' => $data['name'],
             'category' => $category->value,
             'is_system' => 0,

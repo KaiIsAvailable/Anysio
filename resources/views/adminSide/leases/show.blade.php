@@ -6,6 +6,8 @@
             loading: false,
             invoicePage: 1,
             perPage: 5,
+            voidModalOpen: false, 
+            actionUrl: '',
 
             openUpload: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }},
             shake: {{ $errors->any() ? 'true' : 'false' }},
@@ -54,22 +56,6 @@
             getManualInvoiceUrl() {
                 if (!this.activeId) return '#';
                 return `{{ route('admin.invoices.store-manual', ':lease') }}`.replace(':lease', this.activeId);
-            },
-
-            handleInvoiceGenerated(event) {
-                if (!event.detail || !event.detail.success) return;
-                
-                if (event.detail.invoice) {
-                    if (this.activeId && this.source[this.activeId]) {
-                        if (!this.source[this.activeId].invoices) {
-                            this.source[this.activeId].invoices = [];
-                        }
-                        let inv = event.detail.invoice;
-                        if (!inv.invoice_items && inv.items) inv.invoice_items = inv.items;
-                        this.source[this.activeId].invoices.unshift(inv);
-                    }
-                }
-                this.refreshTable();
             },
 
             refreshTable() {
@@ -272,6 +258,7 @@
                                                 </span>
                                             </td>
                                             <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                                <!-- Record Payment Button -->
                                                 <template x-if="invoice.status !== 'paid' && invoice.status !== 'void'">
                                                     <button type="button"
                                                         @click="$dispatch('open-payment', {
@@ -284,6 +271,18 @@
                                                         <span>Record Payment</span>
                                                     </button>
                                                 </template>
+
+                                                <!-- Void Button -->
+                                                <template x-if="invoice.status !== 'paid' && invoice.status !== 'void'">
+                                                    <button type="button"
+                                                        @click="actionUrl = '{{ route('admin.invoices.void', ':id') }}'.replace(':id', invoice.id); voidModalOpen = true;"
+                                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition-all shadow-sm">
+                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                                                        </svg>
+                                                        <span>Void</span>
+                                                    </button>
+                                                </template>
                                             </td>
                                         </tr>
                                     </template>
@@ -293,6 +292,16 @@
                                 </tbody>
                             </table>
                         </div>
+
+                        <x-modals.confirmation-modal 
+                            id="voidModalOpen"
+                            title="Void Invoice"
+                            method="PATCH"
+                            message="Are you sure you want to void this invoice? This action cannot be undone."
+                            label="Reason for Voiding"
+                            inputName="reason"
+                            inputType="textarea"
+                        />
 
                         <!-- Pagination -->
                         <div class="mt-4 flex items-center justify-between px-2" x-show="totalInvoicePages > 1">

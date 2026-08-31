@@ -38,7 +38,7 @@
                 this.loading = true;
                 // 确保阻止默认的回车行为（防止某些浏览器乱跳），然后主动提交表单
                 e.preventDefault();
-                $el.submit(); 
+                $el.requestSubmit();
                 return;
             }
 

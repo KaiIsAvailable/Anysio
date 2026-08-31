@@ -8,4 +8,4 @@ Route::patch('/invoices/{invoice}/payment', [InvoiceController::class, 'recordPa
 Route::post('/leases/{lease}/invoices/manual', [InvoiceController::class, 'storeManualInvoice'])->name('invoices.store-manual');
 Route::post('/leases/{lease}/invoices/generate', [InvoiceController::class, 'generateInvoice'])->name('invoices.generate');
 Route::post('/invoices/{invoice}/reject-payment', [InvoiceController::class, 'rejectPayment'])->name('invoices.reject-payment');
-Route::delete('/invoices/{invoice}/void', [InvoiceController::class, 'void'])->name('invoices.void');
+Route::patch('/invoices/{invoice}/void', [InvoiceController::class, 'void'])->name('invoices.void');

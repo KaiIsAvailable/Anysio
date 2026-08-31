@@ -26,7 +26,7 @@ class InvoiceService
             }
 
             // Use the currently authenticated user instead of the lease owner
-            $currentUser = Auth::user(); 
+            $currentUser = get_effective_user(); 
 
             if (!$currentUser) {
                 throw new \RuntimeException('Authenticated user required to generate invoices.');

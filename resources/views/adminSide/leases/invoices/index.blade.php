@@ -3,8 +3,10 @@
             loading: false,
             openPayment: false, 
             shakePayment: false,
-            paymentData: { id: '', invoice_no: '', amount_due: 0, actionUrl: '' }
-         }"
+            paymentData: { id: '', invoice_no: '', amount_due: 0, actionUrl: '' },
+            voidModalOpen: false, 
+            actionUrl: ''
+        }"
         @open-payment.window="paymentData = $event.detail; openPayment = true;"
         class="py-12 bg-gray-50 min-h-screen font-sans text-slate-900">
 
@@ -46,7 +48,7 @@
                             @foreach($invoices as $invoice)
                             <tr class="hover:!bg-indigo-50 transition-colors duration-150">
 
-                                <!-- 💡 Documents 欄位 (使用 Alpine x-data 防撞引號) -->
+                                <!-- Documents 欄位 -->
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex flex-col items-start gap-1.5">
                                         <span class="text-sm font-bold text-indigo-600">{{ $invoice->invoice_no }}</span>
@@ -185,24 +187,24 @@
                                         @endphp
                                         <button type="button"
                                             @click="$dispatch('open-payment', {{ $paymentPayload }})"
-                                            class="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-600 transition hover:bg-emerald-100">
-                                            <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 rounded-lg transition-all shadow-sm">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
                                             </svg>
-                                            <span class="text-[10px] font-bold uppercase tracking-tighter">Record Payment</span>
+                                            <span>Record Payment</span>
                                         </button>
                                         @endif
+
+                                        <!-- Void Button (Fixed Blade Conditional instead of Alpine x-if on server loop) -->
                                         @if(!in_array($invoice->status, ['paid', 'void']))
-                                        <form method="POST" action="{{ route('admin.invoices.void', $invoice->id) }}" onsubmit="return confirm('Void this invoice?')">
-                                            @csrf
-                                            @method('PATCH')
-                                            <button type="submit" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200">
-                                                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <circle cx="12" cy="12" r="9" />
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.5 5.5l13 13" />
+                                            <button type="button"
+                                                @click="actionUrl = '{{ route('admin.invoices.void', $invoice->id) }}'; voidModalOpen = true;"
+                                                class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition-all shadow-sm">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
                                                 </svg>
+                                                <span>Void</span>
                                             </button>
-                                        </form>
                                         @endif
                                     </div>
                                 </td>
@@ -224,6 +226,16 @@
                 @endif
             </div>
         </div>
+
+        <x-modals.confirmation-modal 
+            id="voidModalOpen"
+            title="Void Invoice"
+            method="PATCH"
+            message="Are you sure you want to void this invoice? This action cannot be undone."
+            label="Reason for Voiding"
+            inputName="reason"
+            inputType="textarea"
+        />
 
         <x-modals.payment-modal />
 

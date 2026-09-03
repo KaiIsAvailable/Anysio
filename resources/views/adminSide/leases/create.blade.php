@@ -223,6 +223,7 @@
                                     </option>
                                 @endforeach
                             </select>
+                            
                             <x-form.input-error :messages="$errors->get('document_id')" class="mt-1" />
                         </div>
 
@@ -1023,5 +1024,5 @@
             }
         }
     </script>
-    @endpush
+@endpush
 </x-app-layout>

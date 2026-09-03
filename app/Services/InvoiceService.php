@@ -219,7 +219,7 @@ class InvoiceService
             $periodDate = Carbon::parse($lease->start_date ?? now())->startOfMonth()->toDateString();
 
             $invoice = Invoice::create([
-                'user_id'              => $currentUser->id,
+                //'user_id'              => $currentUser->id,
                 'billable_type'        => User::class,
                 'billable_id'          => $currentUser->id,
                 'lease_id'             => $lease->id,

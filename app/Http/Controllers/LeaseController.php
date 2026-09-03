@@ -172,10 +172,14 @@ class LeaseController extends Controller
             ->get();
 
         $units = $this->getAuthorizedUnits()
-            ->select('units.*') // ✅ 強制撈出 unit 的所有欄位
-            ->with(['owner.owner'])
+            ->select('units.*') 
+            ->with(['property', 'owner.owner'])
             ->where('status', 'Vacant')
-            ->get();
+            ->get()
+            ->each(function ($unit) {
+                $propertyName = $unit->property?->name ?? 'N/A';
+                $unit->display_label = "{$unit->unit_no} ({$propertyName})";
+            });
 
         $rooms = $this->getAuthorizedRooms()
             ->select('rooms.*') // ✅ 強制撈出 room 的所有欄位

@@ -157,11 +157,11 @@
                                         id="unit_select_input"
                                         :options="$units"
                                         valueField="id"
-                                        labelField="unit_no"
+                                        labelField="display_label"
                                         :value="old('unit_id')"
                                         @change="filterTemplates()"
                                     />
-                                    <x-form.input-error :messages="$errors->get('unit_id')"  class="mt-1" />
+                                    <x-form.input-error :messages="$errors->get('unit_id')" class="mt-1" />
                                 </div>
 
                                 <div id="room_field" class="lease-field hidden">

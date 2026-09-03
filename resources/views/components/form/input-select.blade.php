@@ -142,8 +142,11 @@
         <ul class="{{ $maxHeight }} overflow-y-auto py-1 divide-y divide-gray-50">
             <template x-for="opt in filteredOptions" :key="opt.value">
                 <li @click="selectOption(opt)"
-                    class="cursor-pointer select-none relative py-2 px-3 hover:bg-indigo-600 hover:text-white text-gray-900 text-sm transition-colors"
-                    class="{'bg-indigo-50 text-indigo-600 font-semibold': selectedValue == opt.value}">
+                    :class="{
+                        'bg-indigo-50 text-indigo-600 font-semibold': selectedValue == opt.value,
+                        'hover:bg-indigo-600 hover:text-white text-gray-900': selectedValue != opt.value
+                    }"
+                    class="cursor-pointer select-none relative py-2 px-3 text-sm transition-colors">
                     <span x-text="opt.label"></span>
                 </li>
             </template>

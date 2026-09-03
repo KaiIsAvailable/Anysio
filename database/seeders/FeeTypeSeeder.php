@@ -25,6 +25,9 @@ class FeeTypeSeeder extends Seeder
             ['name' => 'Monthly Rental', 'category' => FeeTypeCategory::RENT],
             ['name' => 'Yearly Rental', 'category' => FeeTypeCategory::RENT],
 
+            // Service
+            ['name' => 'Agreement Fee', 'category' => FeeTypeCategory::SERVICE],
+
             // Deposits
             ['name' => 'Security Deposit', 'category' => FeeTypeCategory::DEPOSIT],
             ['name' => 'Utilities Deposit', 'category' => FeeTypeCategory::DEPOSIT],

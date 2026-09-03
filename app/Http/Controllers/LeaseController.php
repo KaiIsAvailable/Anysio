@@ -217,6 +217,7 @@ class LeaseController extends Controller
             ->get();
 
         $rentFeeTypes = $feeTypes->where('category', FeeTypeCategory::RENT->value)->values();
+        $serviceFeeTypes = $feeTypes->where('category', FeeTypeCategory::SERVICE->value)->values();
         $depositFeeTypes = $feeTypes->where('category', FeeTypeCategory::DEPOSIT->value)->values();
         $managementFeeTypes = $feeTypes->where('category', FeeTypeCategory::MANAGEMENT->value)->values();
 
@@ -335,6 +336,7 @@ class LeaseController extends Controller
                 'leasePreviewData',
                 'templates',
                 'rentFeeTypes',
+                'serviceFeeTypes',
                 'depositFeeTypes',
                 'managementFeeTypes',
                 'statuses',

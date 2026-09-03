@@ -258,6 +258,10 @@
                                                     <option value="{{ $feeType->id }}" data-type="rent" data-period="{{ $period }}">{{ $feeType->name }}</option>
                                                 @endforeach
 
+                                                @foreach($serviceFeeTypes as $serviceType)
+                                                    <option value="{{ $serviceType->id }}">{{ $serviceType->name }} (Service)</option>
+                                                @endforeach
+
                                                 @foreach($depositFeeTypes as $depositType)
                                                     <option value="{{ $depositType->id }}">{{ $depositType->name }} (Deposit)</option>
                                                 @endforeach

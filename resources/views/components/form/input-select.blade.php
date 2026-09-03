@@ -93,6 +93,17 @@
             this.$dispatch('change', { value: opt.value });
         });
     },
+    init() {
+        // 👇 Listen for external changes (like when 'method' changes via x-model/watcher)
+        this.$watch('method', (newValue) => {
+            let matched = this.options.find(opt => String(opt.value) === String(newValue));
+            if (matched) {
+                this.selectedValue = matched.value;
+                this.selectedLabel = matched.label;
+                this.lastValidLabel = matched.label;
+            }
+        });
+    },
     validateInput() {
         setTimeout(() => {
             if (this.search !== '') {

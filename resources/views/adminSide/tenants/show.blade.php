@@ -231,6 +231,5 @@
                 </div>
             </div>
         </div>
-        <x-manual-invoice-modal />
     </div>
 </x-app-layout>

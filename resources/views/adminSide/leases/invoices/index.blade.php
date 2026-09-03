@@ -36,11 +36,14 @@
                     <table class="table-auto w-full min-w-[1200px] divide-y divide-gray-200 text-left">
                         <thead class="bg-gray-50">
                             <tr>
-                                <x-table.th name="Documents" sortField="inv" />
+                                <x-table.th name="Invoice No" sortField="inv" />
+                                <x-table.th name="Documents" />
                                 <x-table.th name="Tenant Details" sortField="t" />
-                                <x-table.th name="Amount (RM)" sortField="a" />
+                                <x-table.th name="Period" />
+                                <x-table.th name="Due Date" />
+                                <x-table.th name="Amount Details" />
+                                <x-table.th name="Remarks" />
                                 <x-table.th name="Status" sortField="s" />
-                                <x-table.th name="Date" sortField="d" />
                                 <x-table.th name="Actions" />
                             </tr>
                         </thead>
@@ -48,11 +51,16 @@
                             @foreach($invoices as $invoice)
                             <tr class="hover:!bg-indigo-50 transition-colors duration-150">
 
-                                <!-- Documents 欄位 -->
+                                <!-- Invoice No -->
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex flex-col items-start gap-1.5">
                                         <span class="text-sm font-bold text-indigo-600">{{ $invoice->invoice_no }}</span>
+                                    </div>
+                                </td>
 
+                                <!-- Document -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex flex-col items-start gap-1.5">
                                         @php
                                             $template = data_get($invoice, 'documentTemplate');
                                             $templateTitle = is_object($template) ? ($template->title ?? null) : (is_array($template) ? ($template['title'] ?? null) : null);
@@ -75,7 +83,7 @@
                                                     contentExpr="content"
                                                     variablesExpr="vars"
                                                     itemsExpr="items"
-                                                    buttonTextExpr="btnTitle"
+                                                    buttonTextExpr="invNo"
                                                 />
                                             </div>
                                         @endif
@@ -115,7 +123,7 @@
                                                         contentExpr="rContent"
                                                         variablesExpr="invVars"
                                                         itemsExpr="invItems"
-                                                        buttonTextExpr="btnTitle"
+                                                        buttonTextExpr="rNo"
                                                         extraExpr="extraData"
                                                     />
                                                 </div>
@@ -130,29 +138,34 @@
 
                                 <!-- Tenant Details -->
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->user->name ?? 'N/A' }}</div>
-                                    <div class="text-xs text-gray-500">
-                                        @php
-                                        $leasable = $invoice->lease->leasable ?? null;
-                                        @endphp
-                                        @if($leasable instanceof \App\Models\Room)
-                                        Room: {{ $leasable->room_no }} (Unit: {{ $leasable->unit->unit_no ?? 'N/A' }})
-                                        @elseif($leasable instanceof \App\Models\Unit)
-                                        Unit: {{ $leasable->unit_no }}
-                                        @elseif($leasable instanceof \App\Models\Property)
-                                        Property: {{ $leasable->name }}
-                                        @else
-                                        Subscription: {{ $invoice->context ?? 'N/A' }}
-                                        @endif
+                                    <div class="text-sm font-medium text-slate-900">
+                                        {{ $invoice->recipient_name }}
                                     </div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ $invoice->context_label }}
+                                    </div>
+                                </td>
+
+                                <!-- Period -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->period }}</div>
+                                </td>
+
+                                <!-- Due Date -->
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->due_date }}</div>
                                 </td>
 
                                 <!-- Amount -->
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-slate-900 font-semibold">RM {{ number_format($invoice->total_amount / 100, 2) }}</div>
-                                    @if($invoice->amount_paid > 0)
-                                    <div class="text-[10px] text-green-600">Paid: RM {{ number_format($invoice->amount_paid / 100, 2) }}</div>
-                                    @endif
+                                    <div class="text-gray-900 font-semibold">RM {{ number_format($invoice->total_amount / 100, 2) }}</div>
+                                    <div class="text-emerald-600 font-medium text-xs">Paid: RM {{ number_format($invoice->amount_paid / 100, 2) }}</div>
+                                    <div class="text-red-600 font-medium text-xs">Balance: RM {{ number_format($invoice->amount_balance / 100, 2) }}</div>
+                                </td>
+
+                                <!-- Remarks -->
+                                <td class="px-6 py-4">
+                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->remarks }}</div>
                                 </td>
 
                                 <!-- Status Badge -->
@@ -167,22 +180,18 @@
                                     </span>
                                 </td>
 
-                                <!-- Date -->
-                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {{ $invoice->created_at->format('d M Y') }}
-                                </td>
-
                                 <!-- Actions -->
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                     <div class="flex justify-center items-center gap-2">
                                         @if($invoice->status === 'unpaid')
                                         @php
                                         $paymentPayload = json_encode([
-                                        'id' => $invoice->id,
-                                        'invoiceNo' => $invoice->invoice_no,
-                                        'totalAmount' => number_format($invoice->amount_balance / 100, 2),
-                                        'invoiceItems' => $invoice->invoice_items,
-                                        'actionUrl' => route('admin.invoices.payment', $invoice->id)
+                                            'id' => $invoice->id,
+                                            'invoiceNo' => $invoice->invoice_no,
+                                            'totalAmount' => number_format($invoice->amount_balance / 100, 2),
+                                            'invoiceItems' => $invoice->invoice_items,
+                                            'walletBalance' => $invoice->wallet_balance,
+                                            'actionUrl' => route('admin.invoices.payment', $invoice->id)
                                         ]);
                                         @endphp
                                         <button type="button"
@@ -196,7 +205,7 @@
                                         @endif
 
                                         <!-- Void Button (Fixed Blade Conditional instead of Alpine x-if on server loop) -->
-                                        @if(!in_array($invoice->status, ['paid', 'void']))
+                                        @if(!in_array($invoice->status, ['void']))
                                             <button type="button"
                                                 @click="
                                                     $dispatch('open-void-modal', { actionUrl: '{{ route('admin.invoices.void', $invoice->id) }}', invoiceNumber: '{{ $invoice->invoice_no }}' });

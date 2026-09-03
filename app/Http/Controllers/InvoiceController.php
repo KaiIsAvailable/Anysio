@@ -4,13 +4,16 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\Invoice\{StoreInvoiceRequest, RecordPaymentRequest, VoidInvoiceRequest};
 use App\Models\{Invoice, Lease, Payment, Owners, Transaction};
-use App\Services\InvoiceService;
+use App\Services\{InvoiceService, WalletService};
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
 class InvoiceController extends Controller
 {
-    public function __construct(private readonly InvoiceService $invoiceService) {}
+    public function __construct(
+        private readonly InvoiceService $invoiceService,
+        private readonly WalletService $walletService
+    ) {}
 
     public function index()
     {
@@ -110,6 +113,15 @@ class InvoiceController extends Controller
             ];
         })->toArray() : [];
 
+        // 1. Determine the correct user ID depending on whether it's a tenant or standard invoice
+        $tenantUserId = $invoice->isTenantInvoice() ? $invoice->lease?->tenant?->user_id : null;
+
+        // 2. Fetch the balance in cents from your WalletService (defaults to 0 if no tenant/wallet)
+        $walletBalanceCents = $tenantUserId ? $this->walletService->getBalance((string) $tenantUserId) : 0;
+
+        // 3. Convert cents to a clean decimal format for your frontend JavaScript (e.g. 4400.00)
+        $walletBalanceFormatted = number_format($walletBalanceCents / 100, 2, '.', '');
+
         return [
             'id' => $invoice->id,
             'invoice_no' => $invoice->invoice_no ?? $invoice->serial_number,
@@ -123,7 +135,7 @@ class InvoiceController extends Controller
             'context' => $invoice->context,
             'created_at' => $invoice->created_at,
             'period' => $formattedPeriod,
-            'due_date' => $invoice->due_date ? \Carbon\Carbon::parse($invoice->due_date)->format('M d, Y') : '—',
+            'due_date' => \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') ?? '—',
             'remarks' => $invoice->remarks,
             'document_template_id' => $invoice->document_template_id ?? '—',
             'documentTemplate' => $invoice->documentTemplate,
@@ -132,13 +144,31 @@ class InvoiceController extends Controller
             'user' => $invoice->lease?->user ?? null,
             'template_title' => $invoice->documentTemplate?->title,
             'template_html' => $invoice->documentTemplate?->html_content ?? $invoice->documentTemplate?->html_template,
+            'wallet_balance' => $walletBalanceFormatted,
             
             // 打包變數
             'variables' => $this->invoiceService->getInvoiceVariables($invoice),
             
             // 🌟 核心修正 3：將轉換好的 transactions 傳遞給前端的 receipts 變數
             'receipts' => $receipts, 
-        ];
+            'recipient_name' => $invoice->isTenantInvoice() 
+                ? ($invoice->lease?->tenant?->user?->name ?? 'N/A') 
+                : ($invoice->user?->name ?? 'N/A'),
+            'context_label' => (function () use ($invoice) {
+                if ($invoice->isTenantInvoice()) {
+                    $lease = $invoice->lease;
+                    if (!$lease || !$lease->leasable) return 'Tenant Lease';
+                    $model = $lease->leasable;
+                    return match (get_class($model)) {
+                        \App\Models\Property::class => "Property: {$model->name}",
+                        \App\Models\Unit::class     => "Unit: {$model->unit_no} ($model->property->name)",
+                        \App\Models\Room::class     => "Room: {$model->room_no}",
+                        default                     => 'Tenant Lease',
+                    };
+                }
+                return 'Subscription';
+            })(),
+            ];
     }
     
     public function show(Lease $lease, Invoice $invoice)

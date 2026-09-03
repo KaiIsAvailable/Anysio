@@ -45,7 +45,7 @@ class WalletService
         });
     }
 
-    public function getBalance(int $userId): int
+    public function getBalance(string $userId): string
     {
         return Wallet::where('user_id', $userId)->value('balance') ?? 0;
     }

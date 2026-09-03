@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate, Tenants};
+use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate, Tenants, Wallet};
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Auth;
@@ -90,19 +90,54 @@ class InvoiceService
      */
     public function voidInvoice(Invoice $invoice, string $reason): void
     {
+        $allowedStatuses = ['unpaid', 'partial', 'paid'];
+        
         abort_if(
-            !$invoice->isVoidable(),
+            !in_array(strtolower($invoice->status), $allowedStatuses),
             422,
-            'Only unpaid or partial invoices can be voided.'
+            'This invoice cannot be voided.'
         );
 
-        $remarks = $invoice->remarks ? $invoice->remarks . "\n" : '';
-        $remarks .= '[VOIDED ' . now()->format('Y-m-d H:i') . '] ' . $reason;
+        DB::transaction(function () use ($invoice, $reason) {
+            // 1. If the invoice was paid, refund the amount into the user's wallet
+            if (strtolower($invoice->status) === 'paid' || $invoice->paid_amount > 0) {
+                // Determine the amount to refund (use paid_amount or total_amount, converted to cents)
+                $amountToRefund = $invoice->paid_amount ?? $invoice->total_amount;
+                $amountInCents = (int) round($amountToRefund);
 
-        $invoice->update([
-            'status'  => 'void',
-            'remarks' => $remarks,
-        ]);
+                // Get the user ID associated with the tenant/invoice
+                // Adjust based on how your Invoice links to the User (e.g., $invoice->lease->tenant->user_id)
+                $userId = $invoice->lease?->tenant?->user_id;
+
+                if ($userId && $amountInCents > 0) {
+                    // Find or create the user's wallet
+                    $wallet = Wallet::firstOrCreate(
+                        ['user_id' => $userId],
+                        ['balance' => 0]
+                    );
+
+                    // Increment wallet balance
+                    $wallet->increment('balance', $amountInCents);
+
+                    // Log the transaction
+                    $wallet->transactions()->create([
+                        'amount' => $amountInCents, // Positive for credit
+                        'type' => 'refund',
+                        'reference_id' => $invoice->id,
+                        'remarks' => "Refund from voided invoice #{$invoice->invoice_no}: {$reason}",
+                    ]);
+                }
+            }
+
+            // 2. Void the invoice
+            $remarks = $invoice->remarks ? $invoice->remarks . "\n" : '';
+            $remarks .= '[VOIDED ' . now()->format('Y-m-d H:i') . '] ' . $reason;
+
+            $invoice->update([
+                'status'  => 'void',
+                'remarks' => $remarks,
+            ]);
+        });
     }
 
     /**

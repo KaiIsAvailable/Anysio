@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Traits\Auditable;
 
 class User extends Authenticatable implements MustVerifyEmail
@@ -150,6 +151,11 @@ class User extends Authenticatable implements MustVerifyEmail
     public function notificationRecipients()
     {
         return $this->hasMany(NotificationRecipient::class);
+    }
+
+    public function wallet(): HasOne
+    {
+        return $this->hasOne(Wallet::class, 'user_id');
     }
 
     public function unreadNotifications()

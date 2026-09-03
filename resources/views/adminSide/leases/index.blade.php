@@ -196,7 +196,7 @@
                                                         @if (!empty($lease->document_id))
                                                             <button type="button"
                                                                 {{-- 关键修复：属性名要和 JS 里的 baseContent 对应，或者 JS 里改用 dataset.content --}}
-                                                                data-base-content="{{ $lease->documentTemplate?->content }}"
+                                                                data-base-content="{{ $lease->documentTemplate?->html_template }}"
                                                                 data-title="{{ $lease->documentTemplate?->title }}"
 
                                                                 {{-- 传递替换数据 --}}

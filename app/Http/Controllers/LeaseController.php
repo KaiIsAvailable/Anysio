@@ -505,7 +505,7 @@ class LeaseController extends Controller
                     'invoice_items' => $invoiceItems,
                     'receipts'      => $receipts,
                     'period' => $formattedPeriod,
-                    'due_date' => $invoice->due_date ? $invoice->due_date->format('d M Y') : '—',
+                    'due_date' => $invoice->due_date?->format('d/m/Y') ?? '—',
                     'total_amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
                     'amount_paid' => number_format($invoice->amount_paid / 100 ?? 0, 2),
                     'amount_balance' => number_format(($invoice->total_amount / 100 ?? 0) - ($invoice->amount_paid / 100 ?? 0), 2),
@@ -606,6 +606,7 @@ class LeaseController extends Controller
                 'rent_mode' => strtoupper($item->term_type ?? 'N/A'),
                 'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
                 'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
+                'wallet_balance' => $item->tenant?->user?->wallet?->formatted_balance ?? '0.00',
 
                 // 🌟 這裡加上 with(['documentTemplate']) 載入模板關聯
                 // 🌟 加入 transactions.documentTemplate 關聯
@@ -669,7 +670,7 @@ class LeaseController extends Controller
                         'invoice_items' => $invoiceItems,
                         'receipts'      => $receipts, // 💡 新增這行，讓前端拿得到 receipt 陣列！
                         'period' => $formattedPeriod,
-                        'due_date' => $invoice->due_date ? $invoice->due_date->format('d M Y') : '—',
+                        'due_date' => $invoice->due_date->format('d/m/Y') ?? '—',
                         'total_amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
                         'amount_paid' => number_format($invoice->amount_paid / 100 ?? 0, 2),
                         'amount_balance' => number_format(($invoice->total_amount / 100 ?? 0) - ($invoice->amount_paid / 100 ?? 0), 2),

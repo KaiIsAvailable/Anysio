@@ -58,6 +58,7 @@
                     'e-Wallet / Digital Wallet' => 'e-Wallet / Digital Wallet (06)',
                     'Digital Bank' => 'Digital Bank (07)',
                     'Others' => 'Others (08)',
+                    'Wallet' => 'Wallet',
                 ];
                 @endphp
 
@@ -66,25 +67,50 @@
                         method: 'Cash',
                         selectedItems: [],
                         payFull: true,
+                        useWallet: false,
+                        walletBalance: 0,
                         
-                        // Compute total based on selected items or full amount
+                        // Compute total based on selected items or full amount, accounting for wallet balance
                         get computedAmount() {
-                            if (this.payFull || !this.paymentData.invoiceItems || this.paymentData.invoiceItems.length === 0) {
-                                return this.paymentData.totalAmount;
+                            let rawTotal = String(this.paymentData.totalAmount || 0).replace(/,/g, '');
+                            let baseAmount = (this.payFull || !this.paymentData.invoiceItems || this.paymentData.invoiceItems.length === 0)
+                                ? parseFloat(rawTotal)
+                                : this.selectedItems.reduce((sum, index) => {
+                                    let itemAmount = String(this.paymentData.invoiceItems[index].amount || 0).replace(/,/g, '');
+                                    return sum + parseFloat(itemAmount);
+                                }, 0);
+
+                            if (this.useWallet) {
+                                baseAmount = Math.max(0, baseAmount - this.walletBalance);
                             }
-                            let sum = 0;
-                            this.selectedItems.forEach(index => {
-                                sum += parseFloat(this.paymentData.invoiceItems[index].amount || 0);
-                            });
-                            return sum.toFixed(2);
+                            return baseAmount.toFixed(2);
                         },
 
                         init() {
-                            // Watch when payment modal opens/changes to select all items by default
+                            let currentInvoiceId = null;
+
                             this.$watch('paymentData', (val) => {
-                                if (val && val.invoiceItems) {
-                                    this.selectedItems = val.invoiceItems.map((_, i) => i);
-                                    this.payFull = true;
+                                if (val) {
+                                    // Check if this is a different invoice than before
+                                    if (val.id && val.id !== currentInvoiceId) {
+                                        currentInvoiceId = val.id;
+                                        if (val.invoiceItems) {
+                                            this.selectedItems = val.invoiceItems.map((_, i) => i);
+                                            this.payFull = true;
+                                        }
+                                        this.useWallet = false;
+                                    }
+                                    
+                                    let rawBalance = String(val.walletBalance || '0').replace(/,/g, '');
+                                    this.walletBalance = parseFloat(rawBalance) || 0;
+                                }
+                            });
+
+                            this.$watch('useWallet', (value) => {
+                                if (value) {
+                                    this.method = 'Wallet';
+                                } else if (this.method === 'Wallet') {
+                                    this.method = 'Cash';
                                 }
                             });
                         }
@@ -103,10 +129,23 @@
                                 <template x-for="(item, index) in (paymentData.invoiceItems || [])" :key="index">
                                     <div class="py-2 flex items-center justify-between text-sm">
                                         <span class="font-medium text-gray-800 capitalize" x-text="item.description"></span>
-                                        <span class="font-semibold text-gray-900" x-text="'RM ' + (parseFloat(item.amount)).toFixed(2)"></span>
+                                        <span class="font-semibold text-gray-900" x-text="'RM ' + (parseFloat(String(item.amount || 0).replace(/,/g, ''))).toFixed(2)"></span>
                                     </div>
                                 </template>
                             </div>
+                        </div>
+
+                        {{-- Wallet Balance Option --}}
+                        <div x-show="walletBalance > 0" class="p-4 bg-indigo-50 rounded-xl border border-indigo-100 flex items-center justify-between" x-cloak>
+                            <div>
+                                <span class="text-xs font-bold text-indigo-900 uppercase tracking-wider block">Tenant Wallet Available</span>
+                                <span class="text-sm font-semibold text-indigo-700" x-text="'RM ' + walletBalance.toFixed(2)"></span>
+                            </div>
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" name="use_wallet" x-model="useWallet" value="1" class="sr-only peer">
+                                <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                <span class="ml-2 text-xs font-semibold text-gray-700">Apply Wallet</span>
+                            </label>
                         </div>
 
                         {{-- Amount Paid --}}
@@ -116,7 +155,10 @@
                                 x-bind:value="computedAmount" required
                                 @wheel="$event.preventDefault()"
                                 class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-lg" />
-                            <p class="text-xs text-gray-400 mt-2">Total Invoice Balance: RM <span x-text="paymentData.totalAmount"></span></p>
+                            <p class="text-xs text-gray-400 mt-2">
+                                Total Invoice Balance: RM <span x-text="paymentData.totalAmount"></span>
+                                <span x-show="useWallet" class="text-indigo-600 font-medium" x-text="' (After RM ' + Math.min(walletBalance, parseFloat(paymentData.totalAmount || 0)).toFixed(2) + ' wallet deduction)'"></span>
+                            </p>
                             <x-form.input-error :messages="$errors->get('amount_paid')" class="mt-1" />
                         </div>
 
@@ -130,11 +172,18 @@
 
                             <div>
                                 <x-form.input-label value="Payment Method" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
+                                
+                                <!-- Use x-bind: instead of just a colon, or escape it with a backslash if it's a custom Blade component -->
                                 <x-form.input-select name="payment_method" 
-                                       x-model="method"
-                                       :options="$paymentMethods"
-                                       required 
-                                       class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm" />
+                                    x-model="method"
+                                    x-bind:disabled="useWallet"
+                                    :options="$paymentMethods"
+                                    required 
+                                    class="block w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm"
+                                    ::class="useWallet ? 'bg-gray-200 cursor-not-allowed text-gray-500' : 'bg-gray-50'" />
+
+                                <!-- Hidden input ensures the 'Wallet' method submits properly when disabled -->
+                                <input type="hidden" name="payment_method" x-model="method" x-show="useWallet">
                             </div>
                         </div>
 

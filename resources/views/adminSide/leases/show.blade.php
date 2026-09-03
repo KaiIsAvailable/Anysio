@@ -168,7 +168,7 @@
                         <span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Lease Profile</span>
                         <h3 class="text-base font-bold text-gray-900" x-text="activeLease.property_name"></h3>
                     </div>
-                   <div class="bg-white shadow-sm" x-data="{ 
+                    <div class="bg-white shadow-sm" x-data="{ 
                         openUpload: {{ $errors->any() ? 'true' : 'false' }}, 
                         shake: {{ $errors->any() ? 'true' : 'false' }},
                         activeLease: JSON.parse(sessionStorage.getItem('lastActiveLease') || '{}')

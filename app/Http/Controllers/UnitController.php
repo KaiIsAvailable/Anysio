@@ -281,7 +281,6 @@ class UnitController extends Controller
                     ->ignore($unit->id) // 排除当前 unit 自身
             ],
             'owner_id'       => 'nullable|exists:users,id',
-            'owner_id'       => 'nullable|exists:users,id',
             'management_fee' => 'nullable|numeric|min:0',
             'sqft'           => 'nullable|numeric|min:0',
             'has_rooms'      => 'required|Boolean',

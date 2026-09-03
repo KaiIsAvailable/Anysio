@@ -72,6 +72,10 @@
                         
                         // Compute total based on selected items or full amount, accounting for wallet balance
                         get computedAmount() {
+                            if (this.useWallet) {
+                                return '0.00';
+                            }
+
                             let rawTotal = String(this.paymentData.totalAmount || 0).replace(/,/g, '');
                             let baseAmount = (this.payFull || !this.paymentData.invoiceItems || this.paymentData.invoiceItems.length === 0)
                                 ? parseFloat(rawTotal)
@@ -80,9 +84,6 @@
                                     return sum + parseFloat(itemAmount);
                                 }, 0);
 
-                            if (this.useWallet) {
-                                baseAmount = Math.max(0, baseAmount - this.walletBalance);
-                            }
                             return baseAmount.toFixed(2);
                         },
 
@@ -152,9 +153,12 @@
                         <div>
                             <x-form.input-label value="Amount Paid (RM)" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
                             <x-form.text-input type="number" step="0.01" name="amount_paid"
-                                x-bind:value="computedAmount" required
+                                x-bind:value="computedAmount" 
+                                x-bind:readonly="useWallet"
+                                required
                                 @wheel="$event.preventDefault()"
-                                class="block w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-lg" />
+                                class="block w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 transition-all font-semibold text-lg"
+                                ::class="useWallet ? 'bg-gray-200 cursor-not-allowed text-gray-500' : 'bg-gray-50'" />
                             <p class="text-xs text-gray-400 mt-2">
                                 Total Invoice Balance: RM <span x-text="paymentData.totalAmount"></span>
                                 <span x-show="useWallet" class="text-indigo-600 font-medium" x-text="' (After RM ' + Math.min(walletBalance, parseFloat(paymentData.totalAmount || 0)).toFixed(2) + ' wallet deduction)'"></span>
@@ -173,16 +177,16 @@
                             <div>
                                 <x-form.input-label value="Payment Method" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
                                 
-                                <!-- Use x-bind: instead of just a colon, or escape it with a backslash if it's a custom Blade component -->
-                                <x-form.input-select name="payment_method" 
-                                    x-model="method"
-                                    x-bind:disabled="useWallet"
-                                    :options="$paymentMethods"
-                                    required 
-                                    class="block w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm"
-                                    ::class="useWallet ? 'bg-gray-200 cursor-not-allowed text-gray-500' : 'bg-gray-50'" />
+                                <div class="relative" :class="useWallet ? 'pointer-events-none opacity-75' : ''">
+                                    <x-form.input-select name="payment_method" 
+                                        x-model="method"
+                                        x-bind:disabled="useWallet"
+                                        :options="$paymentMethods"
+                                        required 
+                                        class="block w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm"
+                                        ::class="useWallet ? 'bg-gray-200 text-gray-500' : 'bg-gray-50'" />
+                                </div>
 
-                                <!-- Hidden input ensures the 'Wallet' method submits properly when disabled -->
                                 <input type="hidden" name="payment_method" x-model="method" x-show="useWallet">
                             </div>
                         </div>

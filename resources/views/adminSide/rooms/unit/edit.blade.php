@@ -94,14 +94,14 @@
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Floor</label>
                                 <input type="number" name="floor" 
                                     value="{{ old('floor', $unit->floor) }}" 
-                                    class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" min="0" required>
+                                    class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" min="0">
                             </div>
                             <div>
                                 <label class="block text-sm font-medium text-slate-900 mb-1">Size (Sqft)</label>
                                 <div class="relative">
                                     <input type="number" name="sqft" 
                                         value="{{ old('sqft', $unit->sqft) }}" 
-                                        class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" min="0" required>
+                                        class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" min="0">
                                 </div>
                             </div>
                         </div>

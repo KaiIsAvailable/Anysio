@@ -335,7 +335,7 @@ class LeaseService
             ]);
             
             if ($lease->leasable) {
-                $lease->leasable->update(['status' => 'available']);
+                $lease->leasable->update(['status' => 'vacant']);
             }
         });
     }

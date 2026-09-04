@@ -194,36 +194,29 @@
                                                                 data-base-content="{{ $lease->documentTemplate?->html_template }}"
                                                                 data-title="{{ $lease->documentTemplate?->title }}"
                                                                 data-replacements="{{ json_encode([
-                                                                    '{status}' => $lease->status ?? 'N/A',
-                                                                    '{tenant_name}' => $lease->tenant?->user->name ?? 'N/A',
-                                                                    '{tenant_ic}'   => $lease->tenant?->ic_number ?? 'N/A',
-                                                                    '{owner_name}' => $lease->leasable?->owner?->user->name ?? 'N/A',
-                                                                    '{owner_ic}'   => $lease->leasable?->owner?->ic_number ?? 'N/A',
-                                                                    '{property_address}'   => $lease->leasable?->full_address ?? 'N/A',
-                                                                    '{property_type}'   => $lease->leasableTypeLabel ?? 'N/A',
-                                                                    '{property_name}'   => $lease->leasableName ?? 'N/A',
-                                                                    '{rent_mode}'   => $lease->term_type ?? 'N/A',
-                                                                    '{rent_price}'  => number_format($lease->rent_price, 2),
-                                                                    '{deposit_mode}'  => $lease->deposit_mode ?? 'N/A',
-                                                                    '{security_deposit}' => number_format($lease->security_deposit, 2),
-                                                                    '{utilities_deposit}' => number_format($lease->utilities_deposit, 2),
-                                                                    '{start_date}'  => $lease->start_date?->format('d/m/Y') ?? 'N/A',
-                                                                    '{end_date}'    => $lease->end_date?->format('d/m/Y') ?? 'N/A',
-                                                                    '{check_out_date}'    => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
-                                                                    '{end_agreement_date}'    => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
-                                                                ]) }}"
-                                                                @click="
-                                                                    const btn = $el;
-                                                                    let content = btn.dataset.baseContent;
-                                                                    if (!content) { console.error('Agreement content is empty'); return; }
-                                                                    const replacements = JSON.parse(btn.dataset.replacements);
-                                                                    Object.keys(replacements).forEach(key => {
-                                                                        const val = replacements[key];
-                                                                        const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-                                                                        content = content.replace(regex, `<span class='text-inherit font-semibold'>${val}</span>`);
-                                                                    });
-                                                                    $dispatch('open-lease-preview', { content: content, title: btn.dataset.title });
-                                                                "
+                                                                    'status' => $lease->status ?? 'N/A',
+                                                                    'tenant_name' => $lease->tenant?->user->name ?? 'N/A',
+                                                                    'tenant_ic' => $lease->tenant?->ic_number ?? 'N/A',
+                                                                    'owner_name' => ($lease->leasable instanceof Room)
+                                                                        ? ($lease->leasable->unit?->owner?->name ?? 'N/A')
+                                                                        : ($lease->leasable->owner?->name ?? 'N/A'),
+                                                                    'owner_ic' => ($lease->leasable instanceof Room)
+                                                                        ? ($lease->leasable->unit?->owner?->owner?->ic_number ?? 'N/A')
+                                                                        : ($lease->leasable->owner?->owner?->ic_number ?? 'N/A'),
+                                                                    'property_address' => $lease->leasable?->full_address ?? 'N/A',
+                                                                    'property_type' => $lease->leasableTypeLabel ?? 'N/A',
+                                                                    'property_name' => $lease->leasableName ?? 'N/A',
+                                                                    'rent_mode' => $lease->term_type ?? 'N/A',
+                                                                    'rent_price' => number_format($lease->rent_price, 2),
+                                                                    'deposit_mode' => $lease->deposit_mode ?? 'N/A',
+                                                                    'security_deposit' => number_format($lease->security_deposit, 2),
+                                                                    'utilities_deposit' => number_format($lease->utilities_deposit, 2),
+                                                                    'start_date' => $lease->start_date?->format('d/m/Y') ?? 'N/A',
+                                                                    'end_date' => $lease->end_date?->format('d/m/Y') ?? 'N/A',
+                                                                    'check_out_date' => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
+                                                                    'end_agreement_date' => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
+                                                                ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
+                                                                @click="viewAgreement($el)"
                                                                 class="w-full px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
                                                                 VIEW AGREEMENT
                                                             </button>
@@ -253,6 +246,12 @@
                                     @endforeach
                                 </tbody>
                             </table>
+                            <div x-data="{ selectedLeaseId: null }" @open-stamping-modal.window="selectedLeaseId = $detail.leaseId">
+                                <template x-if="selectedLeaseId">
+                                    {{-- Pass the ID or bind via your component framework --}}
+                                    <x-modals.lease-stamping-modal :lease="null" /> 
+                                </template>
+                            </div>
                         @else
                             <div class="text-center py-20 bg-white">
                                 <h3 class="text-lg font-medium text-slate-900">No leases found</h3>
@@ -260,11 +259,6 @@
                         @endif
                     </div>
                 </div>
-
-                {{-- Stamping Modal --}}
-                @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
-                    <x-modals.lease-stamping-modal :lease="$lease" />
-                @endif
 
                 {{-- Cancel Confirmation Modal --}}
                 <x-modals.confirmation-modal id="lease-confirm-modal" title="Cancel Lease">
@@ -310,3 +304,32 @@
         </div>
     </div>
 </x-app-layout>
+
+<script>
+    window.viewAgreement = function(button) {
+        let content = button.dataset.baseContent;
+        if (!content) {
+            console.error('Agreement content is empty');
+            return;
+        }
+
+        const replacements = JSON.parse(button.dataset.replacements);
+
+        Object.keys(replacements).forEach(key => {
+            const val = replacements[key] || 'N/A';
+            const safeVal = `<strong>${val}</strong>`;
+
+            // Replace GrapesJS data-variable elements
+            const dataVarRegex = new RegExp(`<[^>]+data-variable=["']${key}["'][^>]*>[\\s\\S]*?<\\/\\w+>`, 'gi');
+            content = content.replace(dataVarRegex, safeVal);
+
+            // Replace standard or encoded curly brackets variants
+            const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${key}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
+            content = content.replace(textRegex, safeVal);
+        });
+
+        window.dispatchEvent(new CustomEvent('open-lease-preview', { 
+            detail: { content: content, title: button.dataset.title } 
+        }));
+    };
+</script>

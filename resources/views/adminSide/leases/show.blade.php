@@ -168,7 +168,7 @@
                         <span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Lease Profile</span>
                         <h3 class="text-base font-bold text-gray-900" x-text="activeLease.property_name"></h3>
                     </div>
-                    <div class="bg-white shadow-sm" x-data="{ 
+                    <div class="flex items-center gap-2" x-data="{ 
                         openUpload: {{ $errors->any() ? 'true' : 'false' }}, 
                         shake: {{ $errors->any() ? 'true' : 'false' }},
                         activeLease: JSON.parse(sessionStorage.getItem('lastActiveLease') || '{}')
@@ -179,43 +179,30 @@
                                 data-base-content="{{ $lease->documentTemplate?->html_template }}"
                                 data-title="{{ $lease->documentTemplate?->title }}"
                                 data-replacements="{{ json_encode([
-                                    '{status}' => $lease->status ?? 'N/A',
-                                    '{tenant_name}' => $lease->tenant?->user->name ?? 'N/A',
-                                    '{tenant_ic}'   => $lease->tenant?->ic_number ?? 'N/A',
-                                    '{owner_name}' => $lease->leasable?->owner?->user->name ?? 'N/A',
-                                    '{owner_ic}'   => $lease->leasable?->owner?->ic_number ?? 'N/A',
-                                    '{property_address}'   => $lease->leasable?->full_address ?? 'N/A',
-                                    '{property_type}'   => $lease->leasableTypeLabel ?? 'N/A',
-                                    '{property_name}'   => $lease->leasableName ?? 'N/A',
-                                    '{rent_mode}'   => $lease->term_type ?? 'N/A',
-                                    '{rent_price}'  => number_format($lease->rent_price, 2),
-                                    '{deposit_mode}'  => $lease->deposit_mode ?? 'N/A',
-                                    '{security_deposit}' => number_format($lease->security_deposit, 2),
-                                    '{utilities_deposit}' => number_format($lease->utilities_deposit, 2),
-                                    '{start_date}'  => $lease->start_date?->format('d/m/Y') ?? 'N/A',
-                                    '{end_date}'    => $lease->end_date?->format('d/m/Y') ?? 'N/A',
-                                    '{check_out_date}'    => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
-                                    '{end_agreement_date}'    => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
-                                ]) }}"
-                                @click="
-                                    const btn = $el;
-                                    let content = btn.dataset.baseContent;
-                                    if (!content) {
-                                        console.error('Agreement content is empty');
-                                        return;
-                                    }
-                                    const replacements = JSON.parse(btn.dataset.replacements);
-                                    Object.keys(replacements).forEach(key => {
-                                        const val = replacements[key];
-                                        const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-                                        content = content.replace(regex, `<span class='text-inherit font-semibold'>${val}</span>`);
-                                    });
-                                    $dispatch('open-lease-preview', { 
-                                        content: content, 
-                                        title: btn.dataset.title 
-                                    });
-                                "
-                                class="flex-1 px-4 py-2.5 bg-white text-indigo-600 text-xs font-bold rounded-xl border border-indigo-100 hover:bg-indigo-50 transition-all shadow-sm text-center">
+                                    'status' => $lease->status ?? 'N/A',
+                                    'tenant_name' => $lease->tenant?->user->name ?? 'N/A',
+                                    'tenant_ic' => $lease->tenant?->ic_number ?? 'N/A',
+                                    'owner_name' => ($lease->leasable instanceof Room)
+                                        ? ($lease->leasable->unit?->owner?->name ?? 'N/A')
+                                        : ($lease->leasable->owner?->name ?? 'N/A'),
+                                    'owner_ic' => ($lease->leasable instanceof Room)
+                                        ? ($lease->leasable->unit?->owner?->owner?->ic_number ?? 'N/A')
+                                        : ($lease->leasable->owner?->owner?->ic_number ?? 'N/A'),
+                                    'property_address' => $lease->leasable?->full_address ?? 'N/A',
+                                    'property_type' => $lease->leasableTypeLabel ?? 'N/A',
+                                    'property_name' => $lease->leasableName ?? 'N/A',
+                                    'rent_mode' => $lease->term_type ?? 'N/A',
+                                    'rent_price' => number_format($lease->rent_price, 2),
+                                    'deposit_mode' => $lease->deposit_mode ?? 'N/A',
+                                    'security_deposit' => number_format($lease->security_deposit, 2),
+                                    'utilities_deposit' => number_format($lease->utilities_deposit, 2),
+                                    'start_date' => $lease->start_date?->format('d/m/Y') ?? 'N/A',
+                                    'end_date' => $lease->end_date?->format('d/m/Y') ?? 'N/A',
+                                    'check_out_date' => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
+                                    'end_agreement_date' => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
+                                ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
+                                @click="viewAgreement($el)"
+                                class="px-3 py-2 bg-indigo-50 text-indigo-600 text-xs font-black rounded-xl border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center text-center">
                                 VIEW AGREEMENT
                             </button>
                         @endif
@@ -223,7 +210,7 @@
                         {{-- 右侧按钮：Upload Stamping (条件渲染) --}}
                         @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
                             <button @click="openUpload = true" 
-                                class="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm text-center">
+                                class="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm flex items-center justify-center text-center">
                                 UPLOAD STAMPING
                             </button>
                         @endif
@@ -533,3 +520,32 @@
         </div>
     </div>
 </x-app-layout>
+
+<script>
+    window.viewAgreement = function(button) {
+        let content = button.dataset.baseContent;
+        if (!content) {
+            console.error('Agreement content is empty');
+            return;
+        }
+
+        const replacements = JSON.parse(button.dataset.replacements);
+
+        Object.keys(replacements).forEach(key => {
+            const val = replacements[key] || 'N/A';
+            const safeVal = `<strong>${val}</strong>`;
+
+            // Replace GrapesJS data-variable elements
+            const dataVarRegex = new RegExp(`<[^>]+data-variable=["']${key}["'][^>]*>[\\s\\S]*?<\\/\\w+>`, 'gi');
+            content = content.replace(dataVarRegex, safeVal);
+
+            // Replace standard or encoded curly brackets variants
+            const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${key}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
+            content = content.replace(textRegex, safeVal);
+        });
+
+        window.dispatchEvent(new CustomEvent('open-lease-preview', { 
+            detail: { content: content, title: button.dataset.title } 
+        }));
+    };
+</script>

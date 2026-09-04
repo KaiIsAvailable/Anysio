@@ -161,7 +161,7 @@ class InvoiceController extends Controller
                     $model = $lease->leasable;
                     return match (get_class($model)) {
                         \App\Models\Property::class => "Property: {$model->name}",
-                        \App\Models\Unit::class     => "Unit: {$model->unit_no} ($model->property->name)",
+                        \App\Models\Unit::class     => "Unit: {$model->unit_no} ({$model->property->name})",
                         \App\Models\Room::class     => "Room: {$model->room_no}",
                         default                     => 'Tenant Lease',
                     };

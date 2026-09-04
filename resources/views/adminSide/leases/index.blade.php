@@ -157,16 +157,16 @@
                                             </td>
                                             {{-- action --}}
                                             <td class="px-6 py-4" x-data="{ 
-                                                    openUpload: {{ $errors->any() ? 'true' : 'false' }}, 
-                                                    shake: {{ $errors->any() ? 'true' : 'false' }},
-                                                    activeLease: JSON.parse(sessionStorage.getItem('lastActiveLease') || '{}')
-                                                }" @click.stop>
-                                                <div class="flex flex-col gap-3"> {{-- 使用垂直容器包裹所有内容 --}}
+                                                openUpload: {{ $errors->any() && !$errors->has('error') ? 'true' : 'false' }}, 
+                                                shake: {{ $errors->any() ? 'true' : 'false' }},
+                                                errorMessage: '{{ $errors->first('error') }}',
+                                                activeLease: JSON.parse(sessionStorage.getItem('lastActiveLease') || '{}')
+                                            }" @click.stop>
+                                                <div class="flex flex-col gap-3">
                                                     
                                                     {{-- 第一部分：Stamping 状态区 --}}
-                                                    <div class="min-h-[32px] flex items-center"> {{-- 固定最小高度防止跳动 --}}
+                                                    <div class="min-h-[32px] flex items-center">
                                                         @if($lease->stamping_status)
-                                                            {{-- 情况 A: 已经上传了证书 --}}
                                                             <div class="flex items-center gap-2">
                                                                 <span class="p-1 bg-emerald-100 text-emerald-600 rounded-full">
                                                                     <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path></svg>
@@ -175,31 +175,24 @@
                                                                     View Cert
                                                                 </a>
                                                             </div>
-
                                                         @elseif(!in_array(strtolower($lease->status), ['check out', 'end agreement']))
-                                                            {{-- 情况 B: 还没上传且进行中 --}}
                                                             <button @click="openUpload = true" 
-                                                                    class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                                                    class="w-full px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
                                                                 UPLOAD STAMPING
                                                             </button>
-
                                                         @else
-                                                            {{-- 情况 C: 结束了 --}}
                                                             <span class="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
                                                                 NO STAMPING NEEDED
                                                             </span>
                                                         @endif
                                                     </div>
 
-                                                    {{-- 第二部分：始终显示的 View Agreement 按钮 --}}
+                                                    {{-- 第二部分：按钮区 --}}
                                                     <div>
                                                         @if (!empty($lease->document_id))
                                                             <button type="button"
-                                                                {{-- 关键修复：属性名要和 JS 里的 baseContent 对应，或者 JS 里改用 dataset.content --}}
                                                                 data-base-content="{{ $lease->documentTemplate?->html_template }}"
                                                                 data-title="{{ $lease->documentTemplate?->title }}"
-
-                                                                {{-- 传递替换数据 --}}
                                                                 data-replacements="{{ json_encode([
                                                                     '{status}' => $lease->status ?? 'N/A',
                                                                     '{tenant_name}' => $lease->tenant?->user->name ?? 'N/A',
@@ -219,44 +212,42 @@
                                                                     '{check_out_date}'    => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
                                                                     '{end_agreement_date}'    => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
                                                                 ]) }}"
-
                                                                 @click="
                                                                     const btn = $el;
-                                                                    let content = btn.dataset.baseContent; // 这里的 baseContent 对应 data-base-content
-                                                                    
-                                                                    if (!content) {
-                                                                        console.error('Agreement content is empty');
-                                                                        return;
-                                                                    }
-
+                                                                    let content = btn.dataset.baseContent;
+                                                                    if (!content) { console.error('Agreement content is empty'); return; }
                                                                     const replacements = JSON.parse(btn.dataset.replacements);
-
-                                                                    // 执行替换逻辑
                                                                     Object.keys(replacements).forEach(key => {
                                                                         const val = replacements[key];
-                                                                        // 对 key 进行转义，防止 {} 影响正则
                                                                         const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
                                                                         content = content.replace(regex, `<span class='text-inherit font-semibold'>${val}</span>`);
                                                                     });
-
-                                                                    // 发送给 Modal
-                                                                    $dispatch('open-lease-preview', { 
-                                                                        content: content, 
-                                                                        title: btn.dataset.title 
-                                                                    });
+                                                                    $dispatch('open-lease-preview', { content: content, title: btn.dataset.title });
                                                                 "
-                                                                class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm">
+                                                                class="w-full px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
                                                                 VIEW AGREEMENT
                                                             </button>
                                                         @endif
+
+                                                        {{-- Cancel Lease Button --}}
+                                                        @if($lease->status != 'cancelled')
+                                                            <form id="cancel-lease-form-{{ $lease->id }}" action="{{ route('admin.leases.cancel', $lease->id) }}" method="POST" class="mt-3">
+                                                                @csrf
+                                                                @method('PATCH')
+                                                                <input type="hidden" name="cancellation_reason" id="reason-input-{{ $lease->id }}">
+                                                                
+                                                                <button type="button"
+                                                                    @click="
+                                                                        $dispatch('open-modal', 'lease-confirm-modal'); 
+                                                                        $dispatch('open-lease-confirm-modal', { actionUrl: '{{ route('admin.leases.cancel', $lease->id) }}' })
+                                                                    "
+                                                                    class="w-full px-3 py-1.5 bg-red-50 text-red-600 text-xs font-black rounded-lg border border-red-100 hover:bg-red-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-1.5">
+                                                                    <span>CANCEL LEASE</span>
+                                                                </button>
+                                                            </form>
+                                                        @endif
                                                     </div>
-
                                                 </div>
-
-                                                {{-- Modal 只有在需要时渲染 --}}
-                                                @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
-                                                    <x-modals.lease-stamping-modal :lease="$lease" />
-                                                @endif
                                             </td>
                                         </tr>
                                     @endforeach
@@ -269,6 +260,43 @@
                         @endif
                     </div>
                 </div>
+
+                {{-- Stamping Modal --}}
+                @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
+                    <x-modals.lease-stamping-modal :lease="$lease" />
+                @endif
+
+                {{-- Cancel Confirmation Modal --}}
+                <x-modals.confirmation-modal id="lease-confirm-modal" title="Cancel Lease">
+                    <x-form.form x-data="{ targetAction: '', reason: '', loading: false }" 
+                        x-bind:action="targetAction" 
+                        method="POST" 
+                        class="p-6"
+                        @open-lease-confirm-modal.window="targetAction = $event.detail.actionUrl; reason = ''"
+                        @submit="loading = true">
+                        @csrf
+                        @method('PATCH')
+                        
+                        <div class="flex items-center gap-3 text-amber-600 bg-amber-50 p-4 rounded-xl border border-amber-100 mb-4">
+                            <p class="text-sm font-semibold text-gray-700">Are you sure you want to cancel this lease? This action cannot be undone.</p>
+                        </div>
+
+                        <div class="mb-4">
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Cancellation Reason <span class="text-red-500">*</span></label>
+                            <textarea name="cancellation_reason" x-model="reason" rows="3" class="w-full text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl shadow-sm"></textarea>
+                        </div>
+
+                        <div class="flex justify-end gap-2">
+                            <button type="button" @click="$dispatch('close-lease-confirm-modal')" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-all">
+                                Cancel
+                            </button>
+                            <x-form.primary-button type="submit" x-bind:disabled="!reason.trim()" loading="loading"
+                                class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all">
+                                Confirm
+                            </x-form.primary-button>
+                        </div>
+                    </x-form.form>
+                </x-modals.confirmation-modal>
 
                 <x-preview-agreement-modal />
 

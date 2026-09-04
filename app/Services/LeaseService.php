@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Services;
+use Exception;
+use Illuminate\Support\Facades\Auth;
 
 use App\Models\{
     Lease,
@@ -312,5 +314,29 @@ class LeaseService
         }
 
         return Carbon::parse($date)->format('Y-m-d');
+    }
+
+    public function cancelLease(Lease $lease, ?string $reason = null): void
+    {
+        // Guardrail: Check for outstanding unpaid invoices
+        if ($lease->invoices()
+            ->where('amount_balance', '>', 0)
+            ->whereNotIn('status', ['void'])
+            ->exists()) {
+            throw new Exception('Cannot cancel lease with active outstanding unpaid invoices. Please settle or void them first.');
+        }
+
+        DB::transaction(function () use ($lease, $reason) {
+            $lease->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancelled_by' => Auth::id(),
+                'cancellation_reason' => $reason,
+            ]);
+            
+            if ($lease->leasable) {
+                $lease->leasable->update(['status' => 'available']);
+            }
+        });
     }
 }

@@ -8,4 +8,5 @@ Route::get('leases/{lease}/cert-file', [LeaseController::class, 'showCertFile'])
 Route::post('leases/{lease}/upload-stamping', [LeaseController::class, 'uploadStamping'])->name('leases.upload-stamping');
 Route::get('get-units/{propertyId}', [LeaseController::class, 'getUnits'])->name('get-units');
 Route::get('get-rooms/{unitId}', [LeaseController::class, 'getRooms'])->name('get-rooms');
+Route::patch('leases/{lease}/cancel', [LeaseController::class, 'cancel'])->name('leases.cancel');
 Route::resource('leases', LeaseController::class);

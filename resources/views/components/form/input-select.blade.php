@@ -7,6 +7,7 @@
     'valueField' => null,
     'labelField' => null,
     'maxHeight' => 'max-h-60', // 👈 1. Add maxHeight prop with a default value
+    'method' => null,
 ])
 
 @php
@@ -47,6 +48,7 @@
 <div x-data="{
     open: false,
     search: '',
+    method: '{{ $method }}',
     selectedLabel: '{{ $selectedLabel }}',
     selectedValue: '{{ $selectedValue }}',
     lastValidLabel: '{{ $selectedLabel }}',

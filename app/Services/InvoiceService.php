@@ -137,7 +137,7 @@ class InvoiceService
                 ->where('is_active', true)
                 ->where('charge_type', 'recurring')
                 ->whereNotNull('next_billing_date')
-                ->whereDate('next_billing_date', '<=', now())
+                ->whereDate('next_billing_date', '>=', now())
                 ->get();
 
             if ($dueCharges->isEmpty()) {
@@ -164,7 +164,7 @@ class InvoiceService
         if ($dueCharges->isEmpty()) {
             return 0;
         }
-        
+
         Log::channel('testing')->info('Proceeding to generate invoice:', [
             'period' => $period,
             'due_date' => $dueDate,

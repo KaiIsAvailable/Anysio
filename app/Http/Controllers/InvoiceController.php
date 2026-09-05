@@ -66,7 +66,7 @@ class InvoiceController extends Controller
         }
 
         $paginatedInvoices = $query->latest()
-            ->paginate(20)
+            ->paginate(10)
             ->onEachSide(1);
 
         $paginatedInvoices->setCollection(

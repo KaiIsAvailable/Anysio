@@ -11,6 +11,22 @@
             color: black;
         }
     }
+    
+    /* 美化滾動條 (選用) */
+    .custom-scrollbar::-webkit-scrollbar {
+        width: 8px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+        background: #f1f5f9; 
+        border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+        background: #cbd5e1; 
+        border-radius: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+        background: #94a3b8; 
+    }
 </style>
 <x-app-layout>
     <div class="py-12 bg-gray-50 min-h-screen font-sans">
@@ -190,7 +206,8 @@
                             </div>
                         </div>
 
-                        <div class="tos-content text-slate-700 leading-relaxed quill-content"
+                        {{-- 🌟 加入 max-h-[60vh] 和 overflow-y-auto 來限制高度並啟用獨立滾動條 --}}
+                        <div class="tos-content custom-scrollbar text-slate-700 leading-relaxed quill-content max-h-[60vh] overflow-y-auto pr-4 border border-gray-100 rounded-lg p-6 bg-white shadow-inner"
                             x-ref="content_{{ $agreement->id }}"
                             x-html="currentContent"
                             style="font-family: 'Times New Roman', serif;">
@@ -221,9 +238,7 @@
     </div>
 
     <script>
-        // 💡 所有多余的 JS 通知代码都已经彻底删除！
         // 只需要保留原本的 printContract 函数即可
-
         function printContract(content) {
             const iframe = document.createElement('iframe');
             iframe.style.position = 'fixed';

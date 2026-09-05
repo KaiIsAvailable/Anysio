@@ -1,4 +1,5 @@
 <?php
+
 namespace App\Services;
 
 use App\Models\{Invoice, Transaction, DocumentTemplate, UserManagement};
@@ -17,8 +18,14 @@ class PaymentProcessor
     {
         $this->assertNoEarlierOutstanding($invoice);
 
-        $currentUser = get_effective_user(); 
-
+        $currentUser = get_effective_user();
+        Log::info('Receipt template debug', [
+            'current_user_id' => $currentUser?->id,
+            'auth_user_id' => Auth::id(),
+            'invoice_user_id' => $invoice->user_id,
+            'invoice_no' => $invoice->invoice_no,
+            'invoice_template_user_id' => $invoice->documentTemplate?->user_id,
+        ]);
         if (!$currentUser) {
             throw new \RuntimeException('Authenticated user required to generate invoices.');
         }
@@ -47,13 +54,24 @@ class PaymentProcessor
         $totalPaidCents = $rawPaidCents + $walletDeductionCents;
         $appliedCents = min($totalPaidCents, $balanceCents);
         $excessCents = max(0, $totalPaidCents - $balanceCents);
-        
+
         $receiptNo = $this->documentSequenceService->generateReceiptNumber($currentUser);
 
-        $template = DocumentTemplate::where('user_id', $currentUser->id)
-                    ->where('category', 'receipt')
-                    ->where('status', 'active')
-                    ->first();
+        $templateOwnerId =
+            $invoice->documentTemplate?->user_id
+            ?? $currentUser->id;
+
+        $template = DocumentTemplate::where('user_id', $templateOwnerId)
+            ->where('category', 'receipt')
+            ->where('status', 'active')
+            ->latest('updated_at')
+            ->first();
+
+        if (!$template) {
+            throw new \RuntimeException(
+                'No active receipt template was found for the invoice owner.'
+            );
+        }
 
         $transaction = Transaction::create([
             'invoice_id'             => $invoice->id,
@@ -63,7 +81,7 @@ class PaymentProcessor
             'payment_method'         => $data['payment_method'],
             'transaction_ref'        => $data['transaction_ref'] ?? null,
             'receipt_no'             => $receiptNo,
-            'document_template_id'   => $template?->id,
+            'document_template_id'   => $template->id,
             'payment_date'           => $data['payment_date'],
             'approved_by'            => Auth::id(),
             'remarks'                => $data['remarks'] ?? null,

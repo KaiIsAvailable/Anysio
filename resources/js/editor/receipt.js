@@ -63,7 +63,7 @@ const receiptBlocks = [
         </tr>
     </thead>
     <tbody id="dynamic-receipt-tbody">
-        <!-- JavaScript 會自動把 Payment for Invoice: xxx 塞進這裡 -->
+        <!-- Preview 時會自動顯示該 Invoice 的完整收費明細 -->
     </tbody>
 </table>
         `
@@ -73,17 +73,26 @@ const receiptBlocks = [
         label: 'Totals',
         category: 'Receipt Elements',
         content: `
-            <table style="width: 40%; border-collapse: collapse; margin-left: auto; margin-bottom: 40px; font-size: 14px;">
-                <tr>
-                    <td style="padding: 10px 15px; text-align: right; font-weight: 500; color: #475569;">Subtotal:</td>
-                    <td style="padding: 10px 15px; text-align: right; font-weight: 500; color: #0f172a;">RM {{ subtotal_amount }}</td>
-                </tr>
-                <tr>
-                    <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 16px; color: #0f172a; border-top: 1px solid #e2e8f0;">Total Paid:</td>
-                    <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 18px; color: #059669; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-top: 1px solid #e2e8f0;">RM {{ total_amount }}</td>
-                </tr>
-            </table>
-        `
+        <table style="width: 40%; border-collapse: collapse; margin-left: auto; margin-bottom: 40px; font-size: 14px;">
+            <tr>
+                <td style="padding: 10px 15px; text-align: right; font-weight: 500; color: #475569;">
+                    Invoice Total:
+                </td>
+                <td style="padding: 10px 15px; text-align: right; font-weight: 500; color: #0f172a;">
+                    RM {{ invoice_total }}
+                </td>
+            </tr>
+
+            <tr>
+                <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 16px; color: #0f172a; border-top: 1px solid #e2e8f0;">
+                    Total Paid This Receipt:
+                </td>
+                <td style="padding: 15px; text-align: right; font-weight: bold; font-size: 18px; color: #059669; background-color: #ecfdf5; border: 1px solid #a7f3d0; border-top: 1px solid #e2e8f0;">
+                    RM {{ total_amount }}
+                </td>
+            </tr>
+        </table>
+    `
     },
     {
         id: 'receipt-signature',

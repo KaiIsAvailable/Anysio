@@ -74,10 +74,10 @@ class LeaseController extends Controller
                         });
                     }
                 })
-                ->orWhereHas('tenant', function ($tq) use ($effectiveUserId, $actualUserId) {
-                    $tq->where('created_by', $effectiveUserId)
-                    ->orWhere('created_by', $actualUserId);
-                });
+                    ->orWhereHas('tenant', function ($tq) use ($effectiveUserId, $actualUserId) {
+                        $tq->where('created_by', $effectiveUserId)
+                            ->orWhere('created_by', $actualUserId);
+                    });
             });
         }
 
@@ -172,7 +172,7 @@ class LeaseController extends Controller
             ->get();
 
         $units = $this->getAuthorizedUnits()
-            ->select('units.*') 
+            ->select('units.*')
             ->with(['property', 'owner.owner'])
             ->where('status', 'Vacant')
             ->get()
@@ -437,7 +437,12 @@ class LeaseController extends Controller
             $targetLease = Lease::findOrFail($targetLeaseId);
 
             $invoices = $targetLease->invoices()
-                ->with(['documentTemplate', 'items.feeType', 'transactions.documentTemplate'])
+                ->with([
+                    'documentTemplate',
+                    'items.feeType',
+                    'transactions.documentTemplate',
+                    'transactions.approver',
+                ])
                 ->latest()
                 ->get(); // Use get() instead of paginate() so Alpine can handle the 5-per-page slicing uniformly
 
@@ -487,10 +492,21 @@ class LeaseController extends Controller
                         // 我們將 Invoice 的變數 (如租客姓名、物業地址等) 與 Receipt 的專屬變數合併
                         'variables' => array_merge($variables, [
                             'receipt_no'     => $transaction->receipt_no ?? '—',
-                            'amount_paid'    => number_format($transaction->amount_paid / 100 ?? 0, 2),
-                            'payment_date'   => $transaction->payment_date ? \Carbon\Carbon::parse($transaction->payment_date)->format('d/m/Y') : ($transaction->created_at ? $transaction->created_at->format('d/m/Y') : '—'),
+                            'amount_paid'    => number_format(($transaction->amount_paid ?? 0) / 100, 2),
+                            'payment_date'   => $transaction->payment_date
+                                ? \Carbon\Carbon::parse($transaction->payment_date)->format('d/m/Y')
+                                : ($transaction->created_at?->format('d/m/Y') ?? '—'),
+
                             'payment_method' => $transaction->payment_method ?? '—',
-                            'reference_no'   => $transaction->reference_no ?? '—',
+                            'reference_no'   => $transaction->transaction_ref ?? '—',
+
+                            // 當時確認 Payment 的登入用戶
+                            'issued_by_name'  => $transaction->approver?->name ?? 'N/A',
+                            'issued_by_email' => $transaction->approver?->email ?? 'N/A',
+
+                            'issued_by_phone' => $transaction->approver?->phone
+                                ?? $transaction->approver?->phone_number
+                                ?? 'N/A',
                         ]),
                     ];
                 });
@@ -610,74 +626,123 @@ class LeaseController extends Controller
 
                 // 🌟 這裡加上 with(['documentTemplate']) 載入模板關聯
                 // 🌟 加入 transactions.documentTemplate 關聯
-                'invoices' => $item->invoices()->with(['documentTemplate', 'items.feeType', 'transactions.documentTemplate'])->latest()->get()->map(function ($invoice) {
+                'invoices' => $item->invoices()
+                    ->with([
+                        'documentTemplate',
+                        'items.feeType',
+                        'transactions.documentTemplate',
+                        'transactions.approver',
+                    ])->latest()->get()->map(function ($invoice) {
 
-                    // 🌟 呼叫 Service 取得所有發票變數
-                    $variables = $this->invoiceService->getInvoiceVariables($invoice);
+                        // 🌟 呼叫 Service 取得所有發票變數
+                        $variables = $this->invoiceService->getInvoiceVariables($invoice);
 
-                    $rawPeriod = $invoice->period_display ?? $invoice->period;
+                        $rawPeriod = $invoice->period_display ?? $invoice->period;
 
-                    // Format to m/Y if it's a date/carbon instance or parseable string, otherwise keep raw or show '—'
-                    $formattedPeriod = '—';
-                    if ($rawPeriod) {
-                        try {
-                            $formattedPeriod = \Carbon\Carbon::parse($rawPeriod)->format('m/Y');
-                        } catch (\Exception $e) {
-                            $formattedPeriod = $rawPeriod; // Fallback to raw string if parsing fails
+                        // Format to m/Y if it's a date/carbon instance or parseable string, otherwise keep raw or show '—'
+                        $formattedPeriod = '—';
+                        if ($rawPeriod) {
+                            try {
+                                $formattedPeriod = \Carbon\Carbon::parse($rawPeriod)->format('m/Y');
+                            } catch (\Exception $e) {
+                                $formattedPeriod = $rawPeriod; // Fallback to raw string if parsing fails
+                            }
                         }
-                    }
 
-                    // Map each invoice item to include description and formatted price
-                    $invoiceItems = $invoice->items->map(function ($subItem) {
+                        // Map each invoice item to include description and formatted price
+                        $invoiceItems = $invoice->items->map(function ($subItem) {
+                            return [
+                                'description' => $subItem->description ?? 'Item',
+                                'amount' => number_format($subItem->amount / 100 ?? 0, 2),
+                            ];
+                        });
+
+                        // Fallback if no items relationship records exist, but main invoice has a description
+                        if ($invoiceItems->isEmpty() && $invoice->description) {
+                            $invoiceItems->push([
+                                'description' => $invoice->description,
+                                'amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
+                            ]);
+                        }
+
+                        // 💡 關鍵修復：在這裡也要把 Receipts 資料打包進去，和上方 AJAX 保持一致
+                        $receipts = $invoice->transactions->map(function ($transaction) use ($variables) {
+                            return [
+                                'id' => $transaction->id,
+
+                                'receipt_no' => $transaction->receipt_no ?? '—',
+
+                                'document_template_id' =>
+                                $transaction->document_template_id ?? '—',
+
+                                'template_title' =>
+                                $transaction->documentTemplate?->title,
+
+                                'template_html' =>
+                                $transaction->documentTemplate?->html_template,
+
+                                'amount' =>
+                                number_format(($transaction->amount_paid ?? 0) / 100, 2),
+
+                                'date' => $transaction->payment_date
+                                    ? \Carbon\Carbon::parse($transaction->payment_date)->format('d M Y')
+                                    : $transaction->created_at?->format('d M Y'),
+
+                                'variables' => array_merge($variables, [
+
+                                    'receipt_no' =>
+                                    $transaction->receipt_no ?? '—',
+
+                                    'amount_paid' =>
+                                    number_format(($transaction->amount_paid ?? 0) / 100, 2),
+
+                                    'payment_date' => $transaction->payment_date
+                                        ? \Carbon\Carbon::parse($transaction->payment_date)->format('d/m/Y')
+                                        : ($transaction->created_at?->format('d/m/Y') ?? '—'),
+
+                                    'payment_method' =>
+                                    $transaction->payment_method ?? '—',
+
+                                    'reference_no' =>
+                                    $transaction->transaction_ref ?? '—',
+
+                                    // 當時確認這筆 Payment 的用戶
+                                    'issued_by_name' =>
+                                    $transaction->approver?->name ?? 'N/A',
+
+                                    'issued_by_email' =>
+                                    $transaction->approver?->email ?? 'N/A',
+
+                                    'issued_by_phone' =>
+                                    $transaction->approver?->phone
+                                        ?? $transaction->approver?->phone_number
+                                        ?? 'N/A',
+                                ]),
+                            ];
+                        });
+
                         return [
-                            'description' => $subItem->description ?? 'Item',
-                            'amount' => number_format($subItem->amount / 100 ?? 0, 2),
+                            'id' => $invoice->id,
+                            'invoice_no' => $invoice->invoice_no,
+                            'document_template_id' => $invoice->document_template_id ?? '—',
+
+                            'template_title' => $invoice->documentTemplate?->title,
+                            'template_html'  => $invoice->documentTemplate?->html_template,
+
+                            // 🌟 把打包好的變數傳遞給 JSON
+                            'variables'      => $variables,
+
+                            'invoice_items' => $invoiceItems,
+                            'receipts'      => $receipts, // 💡 新增這行，讓前端拿得到 receipt 陣列！
+                            'period' => $formattedPeriod,
+                            'due_date' => $invoice->due_date->format('d/m/Y') ?? '—',
+                            'total_amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
+                            'amount_paid' => number_format($invoice->amount_paid / 100 ?? 0, 2),
+                            'amount_balance' => number_format(($invoice->total_amount / 100 ?? 0) - ($invoice->amount_paid / 100 ?? 0), 2),
+                            'status' => strtolower($invoice->status ?? 'unpaid'),
+                            'remarks' => $invoice->remarks ?? '—',
                         ];
-                    });
-
-                    // Fallback if no items relationship records exist, but main invoice has a description
-                    if ($invoiceItems->isEmpty() && $invoice->description) {
-                        $invoiceItems->push([
-                            'description' => $invoice->description,
-                            'amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
-                        ]);
-                    }
-
-                    // 💡 關鍵修復：在這裡也要把 Receipts 資料打包進去，和上方 AJAX 保持一致
-                    $receipts = $invoice->transactions->map(function ($transaction) {
-                        return [
-                            'id' => $transaction->id,
-                            'receipt_no' => $transaction->receipt_no ?? '—',
-                            'document_template_id' => $transaction->document_template_id ?? '—',
-                            'template_title' => $transaction->documentTemplate?->title,
-                            'template_html' => $transaction->documentTemplate?->html_template,
-                            'amount' => number_format($transaction->amount_paid / 100 ?? 0, 2),
-                            'date' => $transaction->payment_date ? \Carbon\Carbon::parse($transaction->payment_date)->format('d M Y') : $transaction->created_at?->format('d M Y'),
-                        ];
-                    });
-
-                    return [
-                        'id' => $invoice->id,
-                        'invoice_no' => $invoice->invoice_no,
-                        'document_template_id' => $invoice->document_template_id ?? '—',
-
-                        'template_title' => $invoice->documentTemplate?->title,
-                        'template_html'  => $invoice->documentTemplate?->html_template,
-
-                        // 🌟 把打包好的變數傳遞給 JSON
-                        'variables'      => $variables,
-
-                        'invoice_items' => $invoiceItems,
-                        'receipts'      => $receipts, // 💡 新增這行，讓前端拿得到 receipt 陣列！
-                        'period' => $formattedPeriod,
-                        'due_date' => $invoice->due_date->format('d/m/Y') ?? '—',
-                        'total_amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
-                        'amount_paid' => number_format($invoice->amount_paid / 100 ?? 0, 2),
-                        'amount_balance' => number_format(($invoice->total_amount / 100 ?? 0) - ($invoice->amount_paid / 100 ?? 0), 2),
-                        'status' => strtolower($invoice->status ?? 'unpaid'),
-                        'remarks' => $invoice->remarks ?? '—',
-                    ];
-                }),
+                    }),
             ];
         });
 

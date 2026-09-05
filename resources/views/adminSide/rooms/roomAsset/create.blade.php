@@ -25,7 +25,12 @@
                         :options="$userOptions"
                         :value="$selectedUserId"
                         placeholder="-- Choose who this asset belongs to --"
-                        onchange="window.location.href = this.value ? '{{ route('admin.roomAsset.create') }}?user_id=' + this.value : '{{ route('admin.roomAsset.create') }}'"
+                        @change="
+    const userId = $event.detail?.value ?? $event.target.value;
+    window.location.href = userId
+        ? '{{ route('admin.roomAsset.create') }}?user_id=' + userId
+        : '{{ route('admin.roomAsset.create') }}';
+"
                         :class="'w-full transition ' . (auth()->user()->role === 'ownerAdmin' ? 'bg-gray-100 cursor-not-allowed opacity-75' : '')"
                         :disabled="auth()->user()->role === 'ownerAdmin'" />
                 </section>

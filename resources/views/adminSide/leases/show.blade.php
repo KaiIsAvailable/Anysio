@@ -1,6 +1,6 @@
 <x-app-layout>
     @php
-        $defaultActiveId = $leaseHistory->firstWhere('is_current', true)?->id ?? $leaseHistory->first()?->id ?? $lease->id;
+    $defaultActiveId = $leaseHistory->firstWhere('is_current', true)?->id ?? $leaseHistory->first()?->id ?? $lease->id;
     @endphp
     <div class="py-12 bg-gray-50 min-h-screen font-sans"
         x-data="{
@@ -125,7 +125,7 @@
                 </svg>
                 Back to Lease List
             </a>
-            
+
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden mb-3">
                 <div class="mb-8 w-full">
                     <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
@@ -135,10 +135,10 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full z-[101]">
                             @foreach($leaseHistory as $history)
                             @php
-                                $hStatus = strtolower((string)$history->status);
-                                $statusColor = match($hStatus) {
-                                    'new' => 'indigo', 'renew' => 'emerald', 'check out' => 'amber', 'end' => 'gray', default => 'slate'
-                                };
+                            $hStatus = strtolower((string)$history->status);
+                            $statusColor = match($hStatus) {
+                            'new' => 'indigo', 'renew' => 'emerald', 'check out' => 'amber', 'end' => 'gray', default => 'slate'
+                            };
                             @endphp
                             <div @click="activeId = '{{ $history->id }}'"
                                 class="relative p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer group"
@@ -175,10 +175,10 @@
                     }">
                         {{-- 左侧按钮：View Agreement --}}
                         @if (!empty($lease->document_id))
-                            <button type="button"
-                                data-base-content="{{ $lease->documentTemplate?->html_template }}"
-                                data-title="{{ $lease->documentTemplate?->title }}"
-                                data-replacements="{{ json_encode([
+                        <button type="button"
+                            data-base-content="{{ $lease->documentTemplate?->html_template }}"
+                            data-title="{{ $lease->documentTemplate?->title }}"
+                            data-replacements="{{ json_encode([
                                     '{status}' => $lease->status ?? 'N/A',
                                     '{tenant_name}' => $lease->tenant?->user->name ?? 'N/A',
                                     '{tenant_ic}'   => $lease->tenant?->ic_number ?? 'N/A',
@@ -197,7 +197,7 @@
                                     '{check_out_date}'    => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
                                     '{end_agreement_date}'    => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
                                 ]) }}"
-                                @click="
+                            @click="
                                     const btn = $el;
                                     let content = btn.dataset.baseContent;
                                     if (!content) {
@@ -215,29 +215,29 @@
                                         title: btn.dataset.title 
                                     });
                                 "
-                                class="flex-1 px-4 py-2.5 bg-white text-indigo-600 text-xs font-bold rounded-xl border border-indigo-100 hover:bg-indigo-50 transition-all shadow-sm text-center">
-                                VIEW AGREEMENT
-                            </button>
+                            class="flex-1 px-4 py-2.5 bg-white text-indigo-600 text-xs font-bold rounded-xl border border-indigo-100 hover:bg-indigo-50 transition-all shadow-sm text-center">
+                            VIEW AGREEMENT
+                        </button>
                         @endif
 
                         {{-- 右侧按钮：Upload Stamping (条件渲染) --}}
                         @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
-                            <button @click="openUpload = true" 
-                                class="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm text-center">
-                                UPLOAD STAMPING
-                            </button>
+                        <button @click="openUpload = true"
+                            class="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm text-center">
+                            UPLOAD STAMPING
+                        </button>
                         @endif
 
                         {{-- Modal 渲染 --}}
                         @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
-                            <x-modals.lease-stamping-modal :lease="$lease" />
+                        <x-modals.lease-stamping-modal :lease="$lease" />
                         @endif
                     </div>
                 </div>
 
                 <!-- Compact Structured Grid Cards -->
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
-                    
+
                     <!-- Block 1: Terms & Financials -->
                     <div class="bg-gray-50/60 rounded-md p-3 border border-gray-100 space-y-1.5">
                         <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px]">Financials & Term</h4>
@@ -287,7 +287,7 @@
                             <span class="text-gray-500">Stamping</span>
                             <span class="inline-flex items-center gap-1 font-medium">
                                 <span class="w-1.5 h-1.5 rounded-full" :class="activeLease.stamping_status ? 'bg-emerald-500' : 'bg-amber-500'"></span>
-                                <span :class="activeLease.stamping_status ? 'text-emerald-700 font-semibold' : 'text-amber-700'" 
+                                <span :class="activeLease.stamping_status ? 'text-emerald-700 font-semibold' : 'text-amber-700'"
                                     x-text="activeLease.stamping_status ? 'Stamped (' + (activeLease.stamping_reference_no ?? 'N/A') + ')' : 'Unstamped'"></span>
                             </span>
                         </div>
@@ -316,215 +316,261 @@
                     </div>
                 </template>
 
-            <!-- Invoice Tables -->
-            <div class="mt-8">
-                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-6 space-y-6">
-                    <div class="flex items-center justify-between">
-                        <h3 class="text-lg font-bold text-slate-800">Payment Overview</h3>
-                        <div class="flex items-center gap-2">
-                            <button type="button"
-                                @click="$dispatch('open-manual-modal', { action: getManualInvoiceUrl() })"
-                                class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                                </svg>
-                                Add Manual Invoice
-                            </button>
-                            <x-modals.manual-invoice-modal :feeTypes="$feeTypes" />
+                <!-- Invoice Tables -->
+                <div class="mt-8">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-6 space-y-6">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-lg font-bold text-slate-800">Payment Overview</h3>
+                            <div class="flex items-center gap-2">
+                                <button type="button"
+                                    @click="$dispatch('open-manual-modal', { action: getManualInvoiceUrl() })"
+                                    class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
+                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                    </svg>
+                                    Add Manual Invoice
+                                </button>
+                                <x-modals.manual-invoice-modal :feeTypes="$feeTypes" />
+                            </div>
                         </div>
-                    </div>
 
-                    <div>
-                        <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
-                            <span class="w-1.5 h-4 bg-emerald-500 rounded-full"></span>
-                            Invoices
-                        </h4>
-                        <div class="overflow-x-auto border border-gray-100 rounded-xl">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice No</th>
-                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Documents</th>
-                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
-                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Due Date</th>
-                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount Details</th>
-                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Remarks</th>
-                                        <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                        <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="invoices-table-body" class="bg-white divide-y divide-gray-200">
-                                    <template x-for="invoice in paginatedInvoices" :key="invoice.id">
-                                        <tr class="hover:bg-gray-50 transition-colors">
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm font-bold text-indigo-600" x-text="invoice.invoice_no"></td>
-                                            
-                                            <!-- 💡 Alpine Loop Document Preview (Using Component) -->
-                                            <td class="px-4 py-4 whitespace-nowrap">
-                                                <!-- Invoice Component -->
-                                                <div class="flex flex-col items-start gap-1.5">
-                                                    <template x-if="invoice.document_template_id && invoice.document_template_id !== '—' && invoice.template_title">
-                                                        <div>
-                                                            <x-buttons.preview-doc
-                                                                type="invoice"
-                                                                color="indigo"
-                                                                titleExpr="'Invoice: ' + invoice.invoice_no"
-                                                                contentExpr="invoice.template_html || invoice.html_content || ''"
-                                                                variablesExpr="invoice.variables || {}"
-                                                                itemsExpr="invoice.invoice_items || invoice.items || []"
-                                                                buttonTextExpr="invoice.invoice_no"
-                                                            />
-                                                        </div>
-                                                    </template>
+                        <div>
+                            <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
+                                <span class="w-1.5 h-4 bg-emerald-500 rounded-full"></span>
+                                Invoices
+                            </h4>
+                            <div class="overflow-x-auto border border-gray-100 rounded-xl">
+                                <table class="min-w-full divide-y divide-gray-200">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice No</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Documents</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Due Date</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount Details</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Remarks</th>
+                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="invoices-table-body" class="bg-white divide-y divide-gray-200">
+                                        <template x-for="invoice in paginatedInvoices" :key="invoice.id">
+                                            <tr class="hover:bg-gray-50 transition-colors">
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm font-bold text-indigo-600" x-text="invoice.invoice_no"></td>
 
-                                                    <!-- Receipt Component Loop -->
-                                                    <template x-if="invoice.receipts && invoice.receipts.length > 0">
-                                                        <template x-for="receipt in invoice.receipts" :key="receipt.id">
-                                                            <div class="mt-1">
+                                                <!-- 💡 Alpine Loop Document Preview (Using Component) -->
+                                                <td class="px-4 py-4 whitespace-nowrap">
+                                                    <!-- Invoice Component -->
+                                                    <div class="flex flex-col items-start gap-1.5">
+                                                        <template x-if="invoice.document_template_id && invoice.document_template_id !== '—' && invoice.template_title">
+                                                            <div>
                                                                 <x-buttons.preview-doc
-                                                                    type="receipt"
-                                                                    color="emerald"
-                                                                    titleExpr="'Receipt: ' + (receipt.receipt_no || 'N/A')"
-                                                                    contentExpr="receipt.template_html || receipt.html_content || (receipt.documentTemplate ? receipt.documentTemplate.html_template : '') || ''"
+                                                                    type="invoice"
+                                                                    color="indigo"
+                                                                    titleExpr="'Invoice: ' + invoice.invoice_no"
+                                                                    contentExpr="invoice.template_html || invoice.html_content || ''"
                                                                     variablesExpr="invoice.variables || {}"
                                                                     itemsExpr="invoice.invoice_items || invoice.items || []"
-                                                                    buttonTextExpr="receipt.receipt_no"
-                                                                    extraExpr="{
-                                                                        receiptNo: receipt.receipt_no || 'N/A',
-                                                                        paymentDate: receipt.created_at || receipt.payment_date || '—',
-                                                                        receiptVariables: receipt.variables || {},
-                                                                        paidAmount: typeof receipt.amount === 'number' ? (receipt.amount > 100 ? (receipt.amount/100).toFixed(2) : parseFloat(receipt.amount).toFixed(2)) : (receipt.amount || '0.00'),
-                                                                        invoiceNo: invoice.invoice_no
-                                                                    }"
-                                                                />
+                                                                    buttonTextExpr="invoice.invoice_no" />
                                                             </div>
                                                         </template>
-                                                    </template>
-                                                    
-                                                    <template x-if="(!invoice.document_template_id || invoice.document_template_id === '—' || !invoice.template_title) && (!invoice.receipts || invoice.receipts.length === 0)">
-                                                        <span class="text-xs text-gray-400 italic mt-1">- None -</span>
-                                                    </template>
-                                                </div>
-                                            </td>
 
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900" x-text="invoice.period"></td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600" x-text="invoice.due_date"></td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm">
-                                                <div class="space-y-1">
-                                                    <div class="text-gray-900 font-semibold">Total: <span class="font-normal" x-text="'RM ' + invoice.total_amount"></span></div>
-                                                    <div class="text-emerald-600 font-medium text-xs">Paid: <span x-text="'RM ' + invoice.amount_paid"></span></div>
-                                                    <div class="text-red-600 font-medium text-xs">Balance: <span x-text="'RM ' + invoice.amount_balance"></span></div>
-                                                </div>
-                                            </td>
-                                            <td class="px-4 py-4 text-sm text-gray-600" x-text="invoice.remarks"></td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-sm">
-                                                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase"
-                                                    :class="{
+                                                        <!-- Receipt Component Loop -->
+                                                        <template x-if="invoice.receipts && invoice.receipts.length > 0">
+                                                            <template x-for="receipt in invoice.receipts" :key="receipt.id">
+                                                                <div class="mt-1">
+                                                                    <x-buttons.preview-doc
+                                                                        type="receipt"
+                                                                        color="emerald"
+                                                                        titleExpr="'Receipt: ' + (receipt.receipt_no || 'N/A')"
+
+                                                                        contentExpr="
+                    receipt.template_html
+                    || receipt.html_content
+                    || (receipt.documentTemplate
+                        ? (receipt.documentTemplate.html_template || receipt.documentTemplate.html_content || '')
+                        : '')
+                    || (receipt.document_template
+                        ? (receipt.document_template.html_template || receipt.document_template.html_content || '')
+                        : '')
+                    || ''
+                "
+
+                                                                        variablesExpr="invoice.variables || {}"
+
+                                                                        itemsExpr="invoice.invoice_items || invoice.items || []"
+
+                                                                        buttonTextExpr="receipt.receipt_no || 'Receipt'"
+
+                                                                        extraExpr="{
+                    receiptNo: receipt.receipt_no || 'N/A',
+
+                    paymentDate:
+    (receipt.variables && receipt.variables.payment_date)
+    || receipt.payment_date
+    || receipt.created_at
+    || '—',
+
+                    receiptVariables:
+                        receipt.variables || {},
+
+                    paidAmount:
+                        typeof receipt.amount === 'number'
+                            ? (
+                                receipt.amount > 100
+                                    ? (receipt.amount / 100).toFixed(2)
+                                    : parseFloat(receipt.amount).toFixed(2)
+                            )
+                            : (receipt.amount || '0.00'),
+
+                    invoiceNo:
+                        invoice.invoice_no || '—',
+
+                    invoiceTotal:
+                        typeof invoice.total_amount === 'number'
+                            ? (
+                                invoice.total_amount > 100
+                                    ? (invoice.total_amount / 100).toFixed(2)
+                                    : parseFloat(invoice.total_amount).toFixed(2)
+                            )
+                            : (invoice.total_amount || '0.00')
+                }" />
+                                                                    <!-- TEMP DEBUG -->
+                                                                    <pre
+                                                                        class="text-[10px] bg-gray-100 border border-gray-300 p-2 mt-2 whitespace-pre-wrap max-w-xl"
+                                                                        x-text="JSON.stringify(receipt, null, 2)">
+            </pre>
+                                                                </div>
+                                                            </template>
+                                                        </template>
+
+                                                        <template x-if="(!invoice.document_template_id || invoice.document_template_id === '—' || !invoice.template_title) && (!invoice.receipts || invoice.receipts.length === 0)">
+                                                            <span class="text-xs text-gray-400 italic mt-1">- None -</span>
+                                                        </template>
+                                                    </div>
+                                                </td>
+
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900" x-text="invoice.period"></td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600" x-text="invoice.due_date"></td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                    <div class="space-y-1">
+                                                        <div class="text-gray-900 font-semibold">Total: <span class="font-normal" x-text="'RM ' + invoice.total_amount"></span></div>
+                                                        <div class="text-emerald-600 font-medium text-xs">Paid: <span x-text="'RM ' + invoice.amount_paid"></span></div>
+                                                        <div class="text-red-600 font-medium text-xs">Balance: <span x-text="'RM ' + invoice.amount_balance"></span></div>
+                                                    </div>
+                                                </td>
+                                                <td class="px-4 py-4 text-sm text-gray-600" x-text="invoice.remarks"></td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
+                                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase"
+                                                        :class="{
                                                         'bg-green-100 text-green-700 border-green-200': invoice.status === 'paid',
                                                         'bg-yellow-100 text-yellow-700 border-yellow-200': invoice.status === 'unpaid',
                                                         'bg-red-100 text-red-700 border-red-200': invoice.status === 'rejected',
                                                         'bg-gray-100 text-gray-500 border-gray-200 line-through': invoice.status === 'void'
                                                     }" x-text="invoice.status">
-                                                </span>
-                                            </td>
-                                            <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                                <!-- Record Payment Button -->
-                                                <template x-if="invoice.status !== 'paid' && invoice.status !== 'void'">
-                                                    <button type="button"
-                                                        @click="$dispatch('open-payment', {
+                                                    </span>
+                                                </td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                                    <!-- Record Payment Button -->
+                                                    <template x-if="invoice.status !== 'paid' && invoice.status !== 'void'">
+                                                        <button type="button"
+                                                            @click="$dispatch('open-payment', {
                                                             id: invoice.id, invoiceNo: invoice.invoice_no, totalAmount: invoice.amount_balance, invoiceItems: invoice.invoice_items, walletBalance: activeLease.wallet_balance, actionUrl: '{{ route('admin.invoices.payment', ':id') }}'.replace(':id', invoice.id)
                                                         })"
-                                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 rounded-lg transition-all shadow-sm">
-                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
-                                                        </svg>
-                                                        <span>Record Payment</span>
-                                                    </button>
-                                                </template>
+                                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 rounded-lg transition-all shadow-sm">
+                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
+                                                            </svg>
+                                                            <span>Record Payment</span>
+                                                        </button>
+                                                    </template>
 
-                                                <!-- Void Button -->
-                                                <template x-if="invoice.status !== 'void'">
-                                                    <button type="button"
-                                                        @click="
+                                                    <!-- Void Button -->
+                                                    <template x-if="invoice.status !== 'void'">
+                                                        <button type="button"
+                                                            @click="
                                                             $dispatch('open-void-modal', { 
                                                                 actionUrl: '{{ route('admin.invoices.void', ':id') }}'.replace(':id', invoice.id),
                                                                 invoiceNumber: invoice.invoice_no
                                                             });
                                                         "
-                                                        class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition-all shadow-sm">
-                                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
-                                                        </svg>
-                                                        <span>Void</span>
-                                                    </button>
-                                                </template>
-                                            </td>
-                                        </tr>
-                                    </template>
-                                    <template x-if="!activeLease.invoices || activeLease.invoices.length === 0">
-                                        <tr><td colspan="7" class="px-6 py-12 text-center text-sm text-gray-500 italic">No invoices found for this lease.</td></tr>
-                                    </template>
-                                </tbody>
-                            </table>
-                        </div>
+                                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition-all shadow-sm">
+                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                                                            </svg>
+                                                            <span>Void</span>
+                                                        </button>
+                                                    </template>
+                                                </td>
+                                            </tr>
+                                        </template>
+                                        <template x-if="!activeLease.invoices || activeLease.invoices.length === 0">
+                                            <tr>
+                                                <td colspan="7" class="px-6 py-12 text-center text-sm text-gray-500 italic">No invoices found for this lease.</td>
+                                            </tr>
+                                        </template>
+                                    </tbody>
+                                </table>
+                            </div>
 
-                        <x-modals.payment-modal />
+                            <x-modals.payment-modal />
 
-                        <!-- The Confirmation Modal Component with Dynamic actionUrl binding -->
-                        <x-modals.confirmation-modal id="void-modal" title="Void Invoice" maxWidth="sm:max-w-lg">
-                            <div x-data="{ actionUrl: '', invoiceNumber: '', loading: false }" 
-                                @open-void-modal.window="
+                            <!-- The Confirmation Modal Component with Dynamic actionUrl binding -->
+                            <x-modals.confirmation-modal id="void-modal" title="Void Invoice" maxWidth="sm:max-w-lg">
+                                <div x-data="{ actionUrl: '', invoiceNumber: '', loading: false }"
+                                    @open-void-modal.window="
                                     actionUrl = $event.detail.actionUrl;
                                     invoiceNumber = $event.detail.invoiceNumber;
                                 ">
-                                
-                                <!-- Optional: Display invoice number in the modal content -->
-                                <x-form.form :action="''" x-bind:action="actionUrl" method="POST" loading="loading">
-                                    @csrf
-                                    @method('PATCH')
-                                    <input type="hidden" name="redirect" value="{{ request()->url() }}">
 
-                                    <div class="p-6 space-y-4">
-                                        <p class="text-sm text-slate-600 font-medium">
-                                            Are you sure you want to void invoice <span class="font-bold text-slate-900" x-text="invoiceNumber"></span>? This action cannot be undone.
-                                        </p>
+                                    <!-- Optional: Display invoice number in the modal content -->
+                                    <x-form.form :action="''" x-bind:action="actionUrl" method="POST" loading="loading">
+                                        @csrf
+                                        @method('PATCH')
+                                        <input type="hidden" name="redirect" value="{{ request()->url() }}">
 
-                                        <div>
-                                            <x-form.input-label value="Reason for Voiding" class="mb-1" />
-                                            <textarea name="reason" rows="3" required
-                                                class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"></textarea>
+                                        <div class="p-6 space-y-4">
+                                            <p class="text-sm text-slate-600 font-medium">
+                                                Are you sure you want to void invoice <span class="font-bold text-slate-900" x-text="invoiceNumber"></span>? This action cannot be undone.
+                                            </p>
+
+                                            <div>
+                                                <x-form.input-label value="Reason for Voiding" class="mb-1" />
+                                                <textarea name="reason" rows="3" required
+                                                    class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"></textarea>
+                                            </div>
                                         </div>
-                                    </div>
 
-                                    <div class="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex justify-end space-x-3">
-                                        <button type="button" @click="$dispatch('close-void-modal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-xs font-semibold uppercase hover:bg-gray-300 transition-colors">
-                                            Cancel
-                                        </button>
-                                        <x-form.primary-button type="submit" loading="loading" class="px-4 py-2 bg-rose-600 text-white rounded-md text-xs font-semibold uppercase hover:bg-rose-700">
-                                            Confirm Void
-                                        </x-form.primary-button>
-                                    </div>
-                                </x-form.form>
-                            </div>
-                        </x-modals.confirmation-modal>
+                                        <div class="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex justify-end space-x-3">
+                                            <button type="button" @click="$dispatch('close-void-modal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-xs font-semibold uppercase hover:bg-gray-300 transition-colors">
+                                                Cancel
+                                            </button>
+                                            <x-form.primary-button type="submit" loading="loading" class="px-4 py-2 bg-rose-600 text-white rounded-md text-xs font-semibold uppercase hover:bg-rose-700">
+                                                Confirm Void
+                                            </x-form.primary-button>
+                                        </div>
+                                    </x-form.form>
+                                </div>
+                            </x-modals.confirmation-modal>
 
-                        <!-- Pagination -->
-                        <div class="mt-4 flex items-center justify-between px-2" x-show="totalInvoicePages > 1">
-                            <div class="text-xs text-gray-500">Showing page <span class="font-bold" x-text="invoicePage"></span> of <span class="font-bold" x-text="totalInvoicePages"></span></div>
-                            <div class="flex items-center space-x-1">
-                                <button type="button" @click="if(invoicePage > 1) invoicePage--" :disabled="invoicePage === 1" class="px-3 py-1.5 text-xs font-semibold bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">&lsaquo;</button>
-                                <template x-for="page in paginationLinks" :key="page">
-                                    <div>
-                                        <template x-if="page !== '...'"><button type="button" @click="invoicePage = page" class="px-3 py-1.5 text-xs font-semibold border rounded-md transition-all" :class="invoicePage === page ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'" x-text="page"></button></template>
-                                        <template x-if="page === '...'"><span class="px-2 py-1 text-xs text-gray-400 font-bold">...</span></template>
-                                    </div>
-                                </template>
-                                <button type="button" @click="if(invoicePage < totalInvoicePages) invoicePage++" :disabled="invoicePage === totalInvoicePages" class="px-3 py-1.5 text-xs font-semibold bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">&rsaquo;</button>
+                            <!-- Pagination -->
+                            <div class="mt-4 flex items-center justify-between px-2" x-show="totalInvoicePages > 1">
+                                <div class="text-xs text-gray-500">Showing page <span class="font-bold" x-text="invoicePage"></span> of <span class="font-bold" x-text="totalInvoicePages"></span></div>
+                                <div class="flex items-center space-x-1">
+                                    <button type="button" @click="if(invoicePage > 1) invoicePage--" :disabled="invoicePage === 1" class="px-3 py-1.5 text-xs font-semibold bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">&lsaquo;</button>
+                                    <template x-for="page in paginationLinks" :key="page">
+                                        <div>
+                                            <template x-if="page !== '...'"><button type="button" @click="invoicePage = page" class="px-3 py-1.5 text-xs font-semibold border rounded-md transition-all" :class="invoicePage === page ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'" x-text="page"></button></template>
+                                            <template x-if="page === '...'"><span class="px-2 py-1 text-xs text-gray-400 font-bold">...</span></template>
+                                        </div>
+                                    </template>
+                                    <button type="button" @click="if(invoicePage < totalInvoicePages) invoicePage++" :disabled="invoicePage === totalInvoicePages" class="px-3 py-1.5 text-xs font-semibold bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">&rsaquo;</button>
+                                </div>
                             </div>
+
                         </div>
-
                     </div>
                 </div>
             </div>
         </div>
-    </div>
 </x-app-layout>

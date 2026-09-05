@@ -132,18 +132,7 @@ class InvoiceService
 
             $isFillingGap = true;
         } else {
-            // 2. Normal flow: Find due recurring charges based on next_billing_date
-            $dueCharges = $lease->charges()
-                ->where('is_active', true)
-                ->where('charge_type', 'recurring')
-                ->whereNotNull('next_billing_date')
-                ->whereDate('next_billing_date', '>=', now())
-                ->get();
-
-            if ($dueCharges->isEmpty()) {
-                return 0;
-            }
-
+            // 2. Normal flow: Determine the next sequential period based on the latest valid invoice or lease start date
             $latestInvoice = $lease->invoices()
                 ->where('status', '!=', 'void')
                 ->latest('period')
@@ -152,12 +141,33 @@ class InvoiceService
             if ($latestInvoice && $latestInvoice->period) {
                 $billingDate = Carbon::parse($latestInvoice->period)->addMonth();
             } else {
-                $firstCharge = $dueCharges->first();
-                $billingDate = Carbon::parse($firstCharge->next_billing_date);
+                // Fallback to lease start date if no invoice has been generated yet
+                $billingDate = Carbon::parse($lease->start_date);
             }
 
             $period = $billingDate->startOfMonth()->toDateString();
             $dueDate = $billingDate->copy()->addDays(7)->toDateString();
+
+            // Stop generating if the next period exceeds the lease end date
+            if ($lease->end_date && Carbon::parse($period)->greaterThan(Carbon::parse($lease->end_date))) {
+                Log::channel('testing')->info('Lease billing reached end date. Stopping generation.', [
+                    'lease_id' => $lease->id,
+                    'end_date' => $lease->end_date,
+                    'attempted_period' => $period
+                ]);
+                return 0;
+            }
+
+            // Fetch active recurring charges for this generation cycle
+            $dueCharges = $lease->charges()
+                ->where('is_active', true)
+                ->where('charge_type', 'recurring')
+                ->get();
+
+            if ($dueCharges->isEmpty()) {
+                return 0;
+            }
+
             $isFillingGap = false;
         }
 

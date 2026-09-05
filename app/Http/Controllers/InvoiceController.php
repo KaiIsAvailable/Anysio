@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Invoice\{StoreInvoiceRequest, RecordPaymentRequest, VoidInvoiceRequest};
-use App\Models\{Invoice, Lease, Payment, Owners, Transaction};
+use App\Models\{Invoice, Lease, Payment, Owners, Transaction, Room, Unit, Property};
 use App\Services\{InvoiceService, WalletService};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -18,11 +18,10 @@ class InvoiceController extends Controller
 
     public function index()
     {
-        //Gate::authorize('owner-admin');
-        
-        $user = get_effective_user();
+        $actualUserId = Auth::id(); 
+        $effectiveUser = get_effective_user();
+        $effectiveUserId = $effectiveUser?->id;
 
-        // 🌟 核心修正 1：改為預載入 transactions.documentTemplate
         $query = Invoice::with([
             'documentTemplate',
             'user',
@@ -30,27 +29,39 @@ class InvoiceController extends Controller
             'lease.leasable.owner', 
             'lease.tenant.user',
             'items.feeType',
-            'transactions.documentTemplate', // <-- 正確的關聯名稱在這裡！
+            'transactions.documentTemplate',
             'payments' => function ($query) {
                 $query->where('status', 'pending');
             },
         ]);
 
-        if ($user->role === 'ownerAdmin') {
-            $query->where(function ($q) use ($user) {
-                $q->whereHas('lease.leasable', function ($sq) use ($user) {
-                    $sq->where('user_id', $user->id); 
-                })->orWhere('user_id', $user->id); 
-            });
-        } elseif ($user->role === 'agentAdmin') {
-            $managedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-            
-            $query->where(function ($q) use ($user, $managedOwnerIds) {
-                $q->whereHas('lease.leasable', function ($sq) use ($user, $managedOwnerIds) {
-                    $sq->where('user_id', $user->id)
-                      ->orWhereIn('user_id', $managedOwnerIds);
-                })->orWhere('user_id', $user->id)
-                  ->orWhereIn('user_id', $managedOwnerIds); 
+        if (!Gate::allows('super-admin')) {
+            $query->whereHas('lease', function ($leaseQuery) use ($effectiveUserId, $actualUserId) {
+                $leaseQuery->where(function ($q) use ($effectiveUserId, $actualUserId) {
+                    $q->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($effectiveUserId, $actualUserId) {
+                        if ($type === Room::class) {
+                            $mq->whereHas('unit.owner', function ($oq) use ($effectiveUserId, $actualUserId) {
+                                $oq->where(function ($subQ) use ($effectiveUserId, $actualUserId) {
+                                    $subQ->where('created_by', $effectiveUserId)
+                                        ->orWhere('created_by', $actualUserId)
+                                        ->orWhere('owner_id', $effectiveUserId);
+                                });
+                            });
+                        } else {
+                            $mq->whereHas('owner', function ($oq) use ($effectiveUserId, $actualUserId) {
+                                $oq->where(function ($subQ) use ($effectiveUserId, $actualUserId) {
+                                    $subQ->where('created_by', $effectiveUserId)
+                                        ->orWhere('created_by', $actualUserId)
+                                        ->orWhere('owner_id', $effectiveUserId);
+                                });
+                            });
+                        }
+                    })
+                    ->orWhereHas('tenant', function ($tq) use ($effectiveUserId, $actualUserId) {
+                        $tq->where('created_by', $effectiveUserId)
+                           ->orWhere('created_by', $actualUserId);
+                    });
+                });
             });
         }
 

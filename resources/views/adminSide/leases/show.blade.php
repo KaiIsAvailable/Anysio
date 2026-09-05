@@ -130,6 +130,16 @@
                 <div class="mb-8 w-full">
                     <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Lease Progression</h2>
+                        
+                        @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                            <button type="button" 
+                                @click="$dispatch('open-lease-confirm-modal', { 
+                                    actionUrl: '{{ route('admin.leases.cancel', ':id') }}'.replace(':id', activeId) 
+                                })"
+                                class="px-3 py-1.5 bg-rose-50 text-rose-600 text-xs font-black rounded-lg border border-rose-100 hover:bg-rose-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
+                                CANCEL LEASE
+                            </button>
+                        @endif
                     </div>
                     <div class="p-6">
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full z-[101]">
@@ -169,9 +179,8 @@
                         <h3 class="text-base font-bold text-gray-900" x-text="activeLease.property_name"></h3>
                     </div>
                     <div class="flex items-center gap-2" x-data="{ 
-                        openUpload: {{ $errors->any() ? 'true' : 'false' }}, 
-                        shake: {{ $errors->any() ? 'true' : 'false' }},
-                        activeLease: JSON.parse(sessionStorage.getItem('lastActiveLease') || '{}')
+                        openUpload: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }},
+                        shake: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }}
                     }">
                         {{-- 左侧按钮：View Agreement --}}
                         @if (!empty($lease->document_id))
@@ -213,10 +222,7 @@
                                 class="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm flex items-center justify-center text-center">
                                 UPLOAD STAMPING
                             </button>
-                        @endif
 
-                        {{-- Modal 渲染 --}}
-                        @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
                             <x-modals.lease-stamping-modal :lease="$lease" />
                         @endif
                     </div>
@@ -294,9 +300,14 @@
                         <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px] mb-2">Additional Charges Breakdown</h4>
                         <div class="bg-gray-50/50 rounded-md p-2.5 border border-gray-100 flex flex-wrap gap-x-6 gap-y-1.5">
                             <template x-for="charge in activeLease.charges" :key="charge.id">
-                                <div class="flex items-center gap-2">
-                                    <span x-text="charge.description" class="text-gray-600 font-medium"></span>
-                                    <span class="font-semibold text-gray-900">RM <span x-text="charge.amount"></span></span>
+                                <div class="py-2 border-b border-gray-100">
+                                    <div class="flex items-center justify-between">
+                                        <span x-text="charge.description" class="text-gray-600 font-medium"></span>
+                                        <span class="font-semibold text-gray-900">RM <span x-text="charge.amount"></span></span>
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-1" x-show="charge.next_billing_date">
+                                        Next Billing Date <span class="font-medium text-gray-900" x-text="charge.next_billing_date"></span>
+                                    </div>
                                 </div>
                             </template>
                         </div>
@@ -308,15 +319,58 @@
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-6 space-y-6">
                     <div class="flex items-center justify-between">
                         <h3 class="text-lg font-bold text-slate-800">Payment Overview</h3>
-                        <div class="flex items-center gap-2">
+                        <div class="flex items-center gap-2" x-data="{
+                            generating: false,
+                            generateCharges() {
+                                if (!this.activeId) {
+                                    window.dispatchEvent(new CustomEvent('notify', { detail: { type: 'error', message: 'Please select a lease first.' } }));
+                                    return;
+                                }
+
+                                this.generating = true;
+                                // Dynamically append the selected activeId to the route URL
+                                axios.post('{{ url('admin/invoices/generate-auto-invoice') }}/' + this.activeId)
+                                    .then(response => {
+                                        this.generating = false;
+                                        window.dispatchEvent(new CustomEvent('notify', { 
+                                            detail: { 
+                                                type: 'success', 
+                                                message: response.data.message 
+                                            } 
+                                        }));
+
+                                        console.log('[Debug] Auto-generate invoice response:', response.data);
+                                        //this.refreshTable();
+                                        window.location.reload();
+                                    })
+                                    .catch(error => {
+                                        this.generating = false;
+                                        const errorMessage = error.response?.data?.message || 'Failed to generate invoice.';
+                                        
+                                        window.dispatchEvent(new CustomEvent('notify', { 
+                                            detail: { 
+                                                type: 'error', 
+                                                message: errorMessage 
+                                            } 
+                                        }));
+                                        window.location.reload();
+                                    });
+                            }
+                        }">
+                            <x-form.primary-button type="button" loading="generating" @click="generateCharges()">
+                                Auto Generate Invoice
+                            </x-form.primary-button>
+
+                            <!-- Add Manual Invoice Button -->
                             <button type="button"
                                 @click="$dispatch('open-manual-modal', { action: getManualInvoiceUrl() })"
-                                class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
+                                class="uppercase inline-flex items-center px-3 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                                 </svg>
                                 Add Manual Invoice
                             </button>
+                            
                             <x-modals.manual-invoice-modal :feeTypes="$feeTypes" />
                         </div>
                     </div>
@@ -455,6 +509,38 @@
                         </div>
 
                         <x-modals.payment-modal />
+
+                        {{-- Cancel Confirmation Modal --}}
+                        <x-modals.confirmation-modal id="lease-confirm-modal" title="Cancel Lease">
+                            <x-form.form x-data="{ targetAction: '', reason: '', loading: false }" 
+                                x-bind:action="targetAction" 
+                                method="POST" 
+                                class="p-6"
+                                @open-lease-confirm-modal.window="targetAction = $event.detail.actionUrl; reason = ''"
+                                @submit="loading = true">
+                                @csrf
+                                @method('PATCH')
+                                
+                                <div class="flex items-center gap-3 text-amber-600 bg-amber-50 p-4 rounded-xl border border-amber-100 mb-4">
+                                    <p class="text-sm font-semibold text-gray-700">Are you sure you want to cancel this lease? This action cannot be undone.</p>
+                                </div>
+
+                                <div class="mb-4">
+                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Cancellation Reason <span class="text-red-500">*</span></label>
+                                    <textarea name="cancellation_reason" x-model="reason" rows="3" class="w-full text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl shadow-sm"></textarea>
+                                </div>
+
+                                <div class="flex justify-end gap-2">
+                                    <button type="button" @click="$dispatch('close-lease-confirm-modal')" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-all">
+                                        Cancel
+                                    </button>
+                                    <x-form.primary-button type="submit" x-bind:disabled="!reason.trim()" loading="loading"
+                                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all">
+                                        Confirm
+                                    </x-form.primary-button>
+                                </div>
+                            </x-form.form>
+                        </x-modals.confirmation-modal>
 
                         <!-- The Confirmation Modal Component with Dynamic actionUrl binding -->
                         <x-modals.confirmation-modal id="void-modal" title="Void Invoice" maxWidth="sm:max-w-lg">

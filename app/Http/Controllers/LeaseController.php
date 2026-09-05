@@ -580,6 +580,7 @@ class LeaseController extends Controller
                         'id' => $charge->id,
                         'description' => $charge->description,
                         'amount' => number_format($charge->amount / 100, 2),
+                        'next_billing_date' => $charge->next_billing_date?->format('d/m/Y') ?? '',
                     ];
                 }),
                 'edit_url' => route('admin.leases.edit', $item->id),

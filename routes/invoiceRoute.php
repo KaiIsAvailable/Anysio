@@ -9,3 +9,4 @@ Route::post('/leases/{lease}/invoices/manual', [InvoiceController::class, 'store
 Route::post('/leases/{lease}/invoices/generate', [InvoiceController::class, 'generateInvoice'])->name('invoices.generate');
 Route::post('/invoices/{invoice}/reject-payment', [InvoiceController::class, 'rejectPayment'])->name('invoices.reject-payment');
 Route::patch('/invoices/{invoice}/void', [InvoiceController::class, 'void'])->name('invoices.void');
+Route::post('/invoices/generate-auto-invoice/{lease}', [InvoiceController::class, 'generateAutoInvoice'])->name('invoices.generate-auto-invoice');

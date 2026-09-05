@@ -35,6 +35,7 @@ class Lease extends Model
         'security_deposit',
         'utilities_deposit',
         'status',
+        'is_pending_renewal',
         'cancelled_at',
         'cancelled_by',
         'cancellation_reason',

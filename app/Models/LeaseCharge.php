@@ -23,6 +23,8 @@ class LeaseCharge extends Model
         'description',
         'amount',
         'charge_type',
+        'frequency',
+        'next_billing_date',
         'is_active',
         'sort_order',
     ];
@@ -31,6 +33,7 @@ class LeaseCharge extends Model
         'amount'     => 'integer',
         'is_active'  => 'boolean',
         'sort_order' => 'integer',
+        'next_billing_date' => 'date',
     ];
 
     // --- Relationships ---

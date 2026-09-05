@@ -87,6 +87,17 @@
                             return baseAmount.toFixed(2);
                         },
 
+                        handleWalletToggle(event) {
+                            if (event.target.checked) {
+                                if (this.method !== 'Wallet') {
+                                    this.previousMethod = this.method;
+                                }
+                                this.method = 'Wallet';
+                            } else {
+                                this.method = this.previousMethod || 'Cash';
+                            }
+                        },
+
                         init() {
                             let currentInvoiceId = null;
 
@@ -104,14 +115,6 @@
                                     
                                     let rawBalance = String(val.walletBalance || '0').replace(/,/g, '');
                                     this.walletBalance = parseFloat(rawBalance) || 0;
-                                }
-                            });
-
-                            this.$watch('useWallet', (value) => {
-                                if (value) {
-                                    this.method = 'Wallet';
-                                } else if (this.method === 'Wallet') {
-                                    this.method = 'Cash';
                                 }
                             });
                         }
@@ -143,7 +146,9 @@
                                 <span class="text-sm font-semibold text-indigo-700" x-text="'RM ' + walletBalance.toFixed(2)"></span>
                             </div>
                             <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" name="use_wallet" x-model="useWallet" value="1" class="sr-only peer">
+                                <input type="checkbox" name="use_wallet" x-model="useWallet" value="1" 
+                                    @change="handleWalletToggle($event)"
+                                    class="sr-only peer">
                                 <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
                                 <span class="ml-2 text-xs font-semibold text-gray-700">Apply Wallet</span>
                             </label>
@@ -177,17 +182,22 @@
                             <div>
                                 <x-form.input-label value="Payment Method" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
                                 
-                                <div class="relative" :class="useWallet ? 'pointer-events-none opacity-75' : ''">
-                                    <x-form.input-select name="payment_method" 
+                                <!-- Custom Dropdown (Shown when Wallet is OFF) -->
+                                <div x-show="!useWallet">
+                                    <x-form.input-select 
+                                        name="payment_method" 
                                         x-model="method"
-                                        x-bind:disabled="useWallet"
                                         :options="$paymentMethods"
                                         required 
-                                        class="block w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm"
-                                        ::class="useWallet ? 'bg-gray-200 text-gray-500' : 'bg-gray-50'" />
+                                        class="block w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm bg-gray-50" />
                                 </div>
 
-                                <input type="hidden" name="payment_method" x-model="method" x-show="useWallet">
+                                <!-- Static Locked Field (Shown when Wallet is ON) -->
+                                <div x-show="useWallet" style="display: none;">
+                                    <input type="text" value="Wallet" disabled 
+                                        class="block w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-200 text-gray-500 text-sm cursor-not-allowed">
+                                    <input type="hidden" name="payment_method" value="Wallet">
+                                </div>
                             </div>
                         </div>
 

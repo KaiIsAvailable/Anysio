@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\Invoice\{StoreInvoiceRequest, RecordPaymentRequest, VoidInvoiceRequest};
 use App\Models\{Invoice, Lease, Payment, Owners, Transaction};
 use App\Services\{InvoiceService, WalletService};
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
@@ -225,5 +226,34 @@ class InvoiceController extends Controller
         }
 
         return back()->with('success', "Invoice {$invoice->invoice_no} created.");
+    }
+
+    public function generateAutoInvoice(Request $request, Lease $lease)
+    {
+        try {
+            $generatedCount = $this->invoiceService->generateRecurringInvoices($lease);
+
+            $message = $generatedCount > 0 
+                ? "Successfully generated invoice for lease." 
+                : "No due recurring charges found for this lease.";
+
+            // Flash message to session
+            session()->flash('success', $message);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            $errorMessage = 'Failed to generate invoice: ' . $e->getMessage();
+            
+            // Flash error message to session
+            session()->flash('error', $errorMessage);
+
+            return response()->json([
+                'success' => false,
+                'message' => $errorMessage
+            ], 500);
+        }
     }
 }

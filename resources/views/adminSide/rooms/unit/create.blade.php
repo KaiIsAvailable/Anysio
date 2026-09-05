@@ -103,18 +103,17 @@
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                             <div>
-                                <x-form.input-label value="Floor" class="mb-1" required />
+                                <x-form.input-label value="Floor" class="mb-1" />
                                 <x-form.text-input 
                                     type="text" 
                                     name="floor" 
                                     value="{{ old('floor') }}"
                                     class="w-full" 
-                                    required 
                                 />
                                 <x-form.input-error :messages="$errors->get('floor')" class="mt-1" />
                             </div>
                             <div>
-                                <x-form.input-label value="Size (Sqft)" class="mb-1" required />
+                                <x-form.input-label value="Size (Sqft)" class="mb-1" />
                                 <div class="relative">
                                     <x-form.text-input 
                                         type="number" 
@@ -122,7 +121,6 @@
                                         value="{{ old('sqft') }}" 
                                         class="w-full" 
                                         min="0" 
-                                        required 
                                     />
                                 </div>
                                 <x-form.input-error :messages="$errors->get('sqft')" class="mt-1" />

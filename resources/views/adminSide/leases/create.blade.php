@@ -30,7 +30,7 @@
                                         'New' => 'New',
                                         'Renew' => 'Renew',
                                         'Check Out' => 'Check Out',
-                                        'End Agreement' => 'End Agreement'
+                                        //'End Agreement' => 'End Agreement'
                                     ]"
                                     :value="request('status', 'New')"
                                     @change="toggleLeaseSelect()"

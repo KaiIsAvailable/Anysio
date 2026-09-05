@@ -1,6 +1,8 @@
 <?php
 
 namespace App\Services;
+use Exception;
+use Illuminate\Support\Facades\Auth;
 
 use App\Models\{
     Lease,
@@ -285,7 +287,7 @@ class LeaseService
             }
 
             $feeType = FeeType::find($chargeData['fee_type_id']);
-            $description = $feeType ? $feeType->name : 'Charge';
+            $feeTypeName = $feeType->name;
 
             // Determine if it's refundable (deposit) or recurring/other fee
             $chargeType = match ($feeType?->category) {
@@ -293,12 +295,49 @@ class LeaseService
                 default => LeaseCharge::TYPE_RECURRING,
             };
 
+            // Extract frequency from input, falling back to 'monthly' for recurring charges or 'one_time' for deposits
+            $frequency = $chargeData['frequency'] ?? match (true) {
+                $feeTypeName === 'Daily Rental' => 'daily',
+                $feeTypeName === 'Weekly Rental' => 'weekly',
+                $feeTypeName === 'Monthly Rental' => 'monthly',
+                $feeTypeName === 'Yearly Rental' => 'yearly',
+                $feeType?->category === FeeTypeCategory::MANAGEMENT => 'monthly',
+                $feeType?->category === FeeTypeCategory::DEPOSIT => 'one_time',
+                $feeType?->category === FeeTypeCategory::SERVICE => 'one_time',
+
+                default => 'monthly',
+            };
+
+            if ($frequency === 'one_time') {
+                $chargeType = $feeType?->category === FeeTypeCategory::DEPOSIT 
+                    ? LeaseCharge::TYPE_REFUNDABLE 
+                    : 'one_time';
+            }
+
+            // Set next_billing_date for recurring items starting from the lease start date (or today)
+            $nextBillingDate = null;
+            if ($chargeType === LeaseCharge::TYPE_RECURRING && $frequency !== 'one_time') {
+                $startDate = $lease->start_date ? Carbon::parse($lease->start_date) : now();
+
+                // If your initial invoice is generated upon lease creation, 
+                // the *next* automated billing date should be one cycle after the start date:
+                $nextBillingDate = match ($frequency) {
+                    'daily'   => $startDate->copy()->addDay(),
+                    'weekly'  => $startDate->copy()->addWeek(),
+                    'monthly' => $startDate->copy()->addMonth(),
+                    'yearly'  => $startDate->copy()->addYear(),
+                    default   => $startDate->copy()->addMonth(),
+                };
+            }
+
             LeaseCharge::create([
                 'lease_id' => $lease->id,
                 'fee_type_id' => $chargeData['fee_type_id'],
-                'description' => $description,
+                'description' => $feeTypeName,
                 'amount' => (int) round($amount * 100), // Stored in cents
                 'charge_type' => $chargeType,
+                'frequency' => $frequency,
+                'next_billing_date' => $nextBillingDate,
                 'is_active' => true,
                 'sort_order' => $index + 1,
             ]);
@@ -312,5 +351,29 @@ class LeaseService
         }
 
         return Carbon::parse($date)->format('Y-m-d');
+    }
+
+    public function cancelLease(Lease $lease, ?string $reason = null): void
+    {
+        // Guardrail: Check for outstanding unpaid invoices
+        if ($lease->invoices()
+            ->where('amount_balance', '>', 0)
+            ->whereNotIn('status', ['void'])
+            ->exists()) {
+            throw new Exception('Cannot cancel lease with active outstanding unpaid invoices. Please settle or void them first.');
+        }
+
+        DB::transaction(function () use ($lease, $reason) {
+            $lease->update([
+                'status' => 'cancelled',
+                'cancelled_at' => now(),
+                'cancelled_by' => Auth::id(),
+                'cancellation_reason' => $reason,
+            ]);
+            
+            if ($lease->leasable) {
+                $lease->leasable->update(['status' => 'vacant']);
+            }
+        });
     }
 }

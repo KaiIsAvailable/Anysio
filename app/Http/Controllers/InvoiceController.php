@@ -3,8 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\Invoice\{StoreInvoiceRequest, RecordPaymentRequest, VoidInvoiceRequest};
-use App\Models\{Invoice, Lease, Payment, Owners, Transaction};
+use App\Models\{Invoice, Lease, Payment, Owners, Transaction, Room, Unit, Property};
 use App\Services\{InvoiceService, WalletService};
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 
@@ -17,11 +18,16 @@ class InvoiceController extends Controller
 
     public function index()
     {
+<<<<<<< HEAD
         Gate::authorize('owner-admin');
 
         $user = get_effective_user();
+=======
+        $actualUserId = Auth::id(); 
+        $effectiveUser = get_effective_user();
+        $effectiveUserId = $effectiveUser?->id;
+>>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
 
-        // 🌟 核心修正 1：改為預載入 transactions.documentTemplate
         $query = Invoice::with([
             'documentTemplate',
             'user',
@@ -29,13 +35,18 @@ class InvoiceController extends Controller
             'lease.leasable.owner',
             'lease.tenant.user',
             'items.feeType',
+<<<<<<< HEAD
             'transactions.documentTemplate', // <-- 正確的關聯名稱在這裡！
             'transactions.approver',
+=======
+            'transactions.documentTemplate',
+>>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
             'payments' => function ($query) {
                 $query->where('status', 'pending');
             },
         ]);
 
+<<<<<<< HEAD
         if ($user->role === 'ownerAdmin') {
             $query->where(function ($q) use ($user) {
                 $q->whereHas('lease.leasable', function ($sq) use ($user) {
@@ -51,11 +62,40 @@ class InvoiceController extends Controller
                         ->orWhereIn('user_id', $managedOwnerIds);
                 })->orWhere('user_id', $user->id)
                     ->orWhereIn('user_id', $managedOwnerIds);
+=======
+        if (!Gate::allows('super-admin')) {
+            $query->whereHas('lease', function ($leaseQuery) use ($effectiveUserId, $actualUserId) {
+                $leaseQuery->where(function ($q) use ($effectiveUserId, $actualUserId) {
+                    $q->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($effectiveUserId, $actualUserId) {
+                        if ($type === Room::class) {
+                            $mq->whereHas('unit.owner', function ($oq) use ($effectiveUserId, $actualUserId) {
+                                $oq->where(function ($subQ) use ($effectiveUserId, $actualUserId) {
+                                    $subQ->where('created_by', $effectiveUserId)
+                                        ->orWhere('created_by', $actualUserId)
+                                        ->orWhere('owner_id', $effectiveUserId);
+                                });
+                            });
+                        } else {
+                            $mq->whereHas('owner', function ($oq) use ($effectiveUserId, $actualUserId) {
+                                $oq->where(function ($subQ) use ($effectiveUserId, $actualUserId) {
+                                    $subQ->where('created_by', $effectiveUserId)
+                                        ->orWhere('created_by', $actualUserId)
+                                        ->orWhere('owner_id', $effectiveUserId);
+                                });
+                            });
+                        }
+                    })
+                    ->orWhereHas('tenant', function ($tq) use ($effectiveUserId, $actualUserId) {
+                        $tq->where('created_by', $effectiveUserId)
+                           ->orWhere('created_by', $actualUserId);
+                    });
+                });
+>>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
             });
         }
 
         $paginatedInvoices = $query->latest()
-            ->paginate(20)
+            ->paginate(10)
             ->onEachSide(1);
 
         $paginatedInvoices->setCollection(
@@ -171,7 +211,7 @@ class InvoiceController extends Controller
                     $model = $lease->leasable;
                     return match (get_class($model)) {
                         \App\Models\Property::class => "Property: {$model->name}",
-                        \App\Models\Unit::class     => "Unit: {$model->unit_no} ($model->property->name)",
+                        \App\Models\Unit::class     => "Unit: {$model->unit_no} ({$model->property->name})",
                         \App\Models\Room::class     => "Room: {$model->room_no}",
                         default                     => 'Tenant Lease',
                     };
@@ -236,4 +276,37 @@ class InvoiceController extends Controller
 
         return back()->with('success', "Invoice {$invoice->invoice_no} created.");
     }
+<<<<<<< HEAD
 }
+=======
+
+    public function generateAutoInvoice(Request $request, Lease $lease)
+    {
+        try {
+            $generatedCount = $this->invoiceService->generateRecurringInvoices($lease);
+
+            $message = $generatedCount > 0 
+                ? "Successfully generated invoice for lease." 
+                : "No due recurring charges found for this lease.";
+
+            // Flash message to session
+            session()->flash('success', $message);
+
+            return response()->json([
+                'success' => true,
+                'message' => $message
+            ]);
+        } catch (\Exception $e) {
+            $errorMessage = 'Failed to generate invoice: ' . $e->getMessage();
+            
+            // Flash error message to session
+            session()->flash('error', $errorMessage);
+
+            return response()->json([
+                'success' => false,
+                'message' => $errorMessage
+            ], 500);
+        }
+    }
+}
+>>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb

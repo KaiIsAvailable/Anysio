@@ -2,10 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate, Tenants, Wallet};
+use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate, Tenants, Wallet, LeaseCharge};
 use Carbon\Carbon;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\{DB, Log, Auth};
 
 class InvoiceService
 {
@@ -73,6 +72,165 @@ class InvoiceService
 
             return $invoice->load('items.feeType');
         });
+    }
+
+    public function generateRecurringInvoices(Lease $lease): int
+    {
+        $currentUser = get_effective_user();
+        if (!$currentUser) {
+            throw new \RuntimeException('Authenticated user required to generate recurring invoices.');
+        }
+
+        if (!$lease->is_current) {
+            Log::channel('testing')->warning('Lease skipped: Not current.');
+            return 0;
+        }
+
+        // 1. Check if there is a voided invoice gap that needs to be re-generated first
+        $voidedInvoice = $lease->invoices()
+            ->where('status', 'void')
+            ->orderBy('period', 'asc')
+            ->first();
+
+        $voidedInvoice = $lease->invoices()
+            ->where('status', 'void')
+            ->whereNotIn('period', function ($query) use ($lease) {
+                // Exclude periods that already have a valid (non-void) replacement invoice
+                $query->select('period')
+                    ->from('invoices')
+                    ->where('lease_id', $lease->id)
+                    ->where('status', '!=', 'void');
+            })
+            ->orderBy('period', 'asc')
+            ->first();
+
+        if ($voidedInvoice) {
+            Log::channel('testing')->info('Unresolved voided invoice gap detected for lease:', [
+                'lease_id' => $lease->id,
+                'voided_invoice_id' => $voidedInvoice->id,
+                'target_period' => $voidedInvoice->period
+            ]);
+
+            $billingDate = Carbon::parse($voidedInvoice->period);
+            $period = $billingDate->startOfMonth()->toDateString();
+            $dueDate = $billingDate->copy()->addDays(7)->toDateString();
+
+            // Trace back from this specific voided invoice's items to the lease charges
+            $feeTypeIds = $voidedInvoice->items()->pluck('fee_type_id')->toArray();
+
+            $dueCharges = $lease->charges()
+                ->where('charge_type', 'recurring')
+                ->when(!empty($feeTypeIds), function ($query) use ($feeTypeIds) {
+                    $query->whereIn('fee_type_id', $feeTypeIds);
+                })
+                ->get();
+
+            Log::channel('testing')->info('Mapped voided invoice items to lease charges:', [
+                'fee_type_ids' => $feeTypeIds,
+                'found_charges_count' => $dueCharges->count()
+            ]);
+
+            $isFillingGap = true;
+        } else {
+            // 2. Normal flow: Determine the next sequential period based on the latest valid invoice or lease start date
+            $latestInvoice = $lease->invoices()
+                ->where('status', '!=', 'void')
+                ->latest('period')
+                ->first();
+
+            if ($latestInvoice && $latestInvoice->period) {
+                $billingDate = Carbon::parse($latestInvoice->period)->addMonth();
+            } else {
+                // Fallback to lease start date if no invoice has been generated yet
+                $billingDate = Carbon::parse($lease->start_date);
+            }
+
+            $period = $billingDate->startOfMonth()->toDateString();
+            $dueDate = $billingDate->copy()->addDays(7)->toDateString();
+
+            // Stop generating if the next period exceeds the lease end date
+            if ($lease->end_date && Carbon::parse($period)->greaterThan(Carbon::parse($lease->end_date))) {
+                Log::channel('testing')->info('Lease billing reached end date. Stopping generation.', [
+                    'lease_id' => $lease->id,
+                    'end_date' => $lease->end_date,
+                    'attempted_period' => $period
+                ]);
+                return 0;
+            }
+
+            // Fetch active recurring charges for this generation cycle
+            $dueCharges = $lease->charges()
+                ->where('is_active', true)
+                ->where('charge_type', 'recurring')
+                ->get();
+
+            if ($dueCharges->isEmpty()) {
+                return 0;
+            }
+
+            $isFillingGap = false;
+        }
+
+        if ($dueCharges->isEmpty()) {
+            return 0;
+        }
+
+        Log::channel('testing')->info('Proceeding to generate invoice:', [
+            'period' => $period,
+            'due_date' => $dueDate,
+            'is_filling_gap' => $isFillingGap,
+            'charges_count' => $dueCharges->count()
+        ]);
+
+        $generatedCount = 0;
+
+        DB::transaction(function () use ($lease, $dueCharges, $period, $dueDate, $billingDate, $isFillingGap, &$generatedCount) {
+            $items = $dueCharges->map(function ($charge) {
+                return [
+                    'fee_type_id' => $charge->fee_type_id,
+                    'description' => $charge->description,
+                    'amount'      => $charge->amount / 100, 
+                ];
+            })->toArray();
+
+            // Create the invoice
+            $this->createManualInvoice($lease, [
+                'items'    => $items,
+                'period'   => $period,
+                'due_date' => $dueDate,
+                'remarks'  => 'Auto-generated recurring charges for ' . $billingDate->format('F Y'),
+            ]);
+
+            // Only update next billing dates if we are moving forward (not filling a past voided gap)
+            if (!$isFillingGap) {
+                foreach ($dueCharges as $charge) {
+                    $nextDate = match ($charge->frequency) {
+                        'daily'   => Carbon::parse($charge->next_billing_date)->addDay(),
+                        'weekly'  => Carbon::parse($charge->next_billing_date)->addWeek(),
+                        'monthly' => Carbon::parse($charge->next_billing_date)->addMonth(),
+                        'yearly'  => Carbon::parse($charge->next_billing_date)->addYear(),
+                        default   => Carbon::parse($charge->next_billing_date)->addMonth(),
+                    };
+
+                    $nextBillingDate = $nextDate;
+                    $isActive = true;
+
+                    if ($lease->end_date && $nextDate->greaterThan(Carbon::parse($lease->end_date))) {
+                        $nextBillingDate = null;
+                        $isActive = false; 
+                    }
+
+                    LeaseCharge::where('id', $charge->id)->update([
+                        'next_billing_date' => $nextBillingDate,
+                        'is_active'         => $isActive,
+                    ]);
+                }
+            }
+
+            $generatedCount++;
+        });
+
+        return $generatedCount;
     }
 
     /**

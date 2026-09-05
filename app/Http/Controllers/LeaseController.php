@@ -144,7 +144,13 @@ class LeaseController extends Controller
             }
         }
 
-        // 获取数据
+        $user = Auth::user();
+        $isPrivileged = in_array($user->role, ['owner-admin', 'agent-admin', 'admin']) || Gate::allows('super-admin');
+
+        if (!$isPrivileged) {
+            $query->where('status', '!=', 'cancelled');
+        }
+
         $leases = $query->where('is_current', true)
             ->paginate(10)
             ->onEachSide(1)
@@ -590,6 +596,7 @@ class LeaseController extends Controller
                         'id' => $charge->id,
                         'description' => $charge->description,
                         'amount' => number_format($charge->amount / 100, 2),
+                        'next_billing_date' => $charge->next_billing_date?->format('d/m/Y') ?? '',
                     ];
                 }),
                 'edit_url' => route('admin.leases.edit', $item->id),
@@ -827,5 +834,20 @@ class LeaseController extends Controller
     public function showCertFile(Lease $lease, FileService $fileService)
     {
         return $fileService->getStreamResponse($lease->stamping_cert_path);
+    }
+
+    public function cancel(Request $request, Lease $lease, LeaseService $leaseService)
+    {
+        $request->validate([
+            'cancellation_reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        try {
+            $leaseService->cancelLease($lease, $request->cancellation_reason);
+        } catch (\Exception $e) {
+            return redirect()->back()->withErrors(['cancellation_reason' => $e->getMessage()]);
+        }
+
+        return redirect()->back()->with('success', 'Lease has been successfully cancelled.');
     }
 }

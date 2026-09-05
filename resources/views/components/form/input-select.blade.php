@@ -52,6 +52,17 @@
     lastValidLabel: '{{ $selectedLabel }}',
     dropUp: false,
     options: @js($parsedOptions),
+    init() {
+        // 👇 Listen for external changes (like when 'method' changes via x-model)
+        this.$watch('selectedValue', (newValue) => {
+            let matched = this.options.find(opt => String(opt.value) === String(newValue));
+            if (matched) {
+                this.selectedValue = matched.value;
+                this.selectedLabel = matched.label;
+                this.lastValidLabel = matched.label;
+            }
+        });
+    },
     get displayValue() {
         if (this.open) {
             return this.search;
@@ -91,17 +102,6 @@
                 this.$refs.hiddenInput.dispatchEvent(new Event('change', { bubbles: true }));
             }
             this.$dispatch('change', { value: opt.value });
-        });
-    },
-    init() {
-        // 👇 Listen for external changes (like when 'method' changes via x-model/watcher)
-        this.$watch('method', (newValue) => {
-            let matched = this.options.find(opt => String(opt.value) === String(newValue));
-            if (matched) {
-                this.selectedValue = matched.value;
-                this.selectedLabel = matched.label;
-                this.lastValidLabel = matched.label;
-            }
         });
     },
     validateInput() {

@@ -18,7 +18,7 @@ class InvoiceController extends Controller
 
     public function index()
     {
-        Gate::authorize('owner-admin');
+        //Gate::authorize('owner-admin');
         
         $user = get_effective_user();
 

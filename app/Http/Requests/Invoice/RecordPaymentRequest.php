@@ -15,6 +15,9 @@ class RecordPaymentRequest extends FormRequest
             'transaction_ref' => ['nullable', 'string', 'max:100'],
             'receipt_no'      => ['nullable', 'string', 'max:100'],
             'remark'          => ['nullable', 'string', 'max:1000'],
+            'penalty_details' => ['nullable', 'array'],
+            'penalty_details.amount' => ['nullable', 'numeric'],
+            'penalty_details.title'  => ['nullable', 'string'],
         ];
     }
 }

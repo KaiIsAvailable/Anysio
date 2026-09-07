@@ -24,41 +24,31 @@ class InvoiceService
                 throw new \InvalidArgumentException('Invoice must contain at least one item.');
             }
 
-            // Use the currently authenticated user instead of the lease owner
             $currentUser = get_effective_user(); 
-
             if (!$currentUser) {
                 throw new \RuntimeException('Authenticated user required to generate invoices.');
             }
 
-            // 🌟 修復點 1：將 created_by 改為 user_id，並加上系統預設範本的兜底邏輯
             $template = DocumentTemplate::where('category', 'invoice')
                 ->where('status', 'active')
                 ->where(function($query) use ($currentUser) {
                     $query->where('user_id', $currentUser->id)
-                          ->orWhereNull('user_id'); 
+                        ->orWhereNull('user_id'); 
                 })
-                ->first();
+                ->first() ?? DocumentTemplate::where('category', 'invoice')->where('status', 'active')->first();
 
-            if (!$template) {
-                $template = DocumentTemplate::where('category', 'invoice')
-                    ->where('status', 'active')
-                    ->first();
-            }
-
-            // Pass the current user to sequence generation and item validation
             ['validated_items' => $items, 'total_cents' => $totalCents] = $this->processAndValidateItems($currentUser, $data['items']);
 
             $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
 
             $invoice = Invoice::create([
-                //'user_id'              => $lease->tenant_id,
+                'parent_id'            => $data['parent_id'] ?? null,  
                 'billable_type'        => Tenants::class,  
                 'billable_id'          => $lease->tenant_id,
                 'lease_id'             => $lease->id,
-                'document_template_id' => $template?->id, // Assign template if found
+                'document_template_id' => $template?->id,
                 'invoice_no'           => $invoiceNo,
-                'type'                 => 'manual',
+                'type'                 => $data['type'] ?? 'manual', // Allow dynamic type
                 'period'               => Carbon::parse($data['period'])->startOfMonth()->toDateString(),
                 'due_date'             => $data['due_date'],
                 'total_amount'         => $totalCents,
@@ -239,7 +229,7 @@ class InvoiceService
     public function recordPayment(Invoice $invoice, array $data): void
     {
         DB::transaction(function () use ($invoice, $data) {
-            $this->paymentProcessor->process($invoice, $data);
+            $this->paymentProcessor->process($invoice, $data, $this);
         });
     }
 
@@ -257,32 +247,30 @@ class InvoiceService
         );
 
         DB::transaction(function () use ($invoice, $reason) {
-            // 1. If the invoice was paid, refund the amount into the user's wallet
-            if (strtolower($invoice->status) === 'paid' || $invoice->paid_amount > 0) {
-                // Determine the amount to refund (use paid_amount or total_amount, converted to cents)
-                $amountToRefund = $invoice->paid_amount ?? $invoice->total_amount;
-                $amountInCents = (int) round($amountToRefund);
+            // 1. If the invoice was paid or partial, refund the actual amount paid into the user's wallet
+            $amountPaid = $invoice->amount_paid ?? 0;
+            $amountInCents = (int) round($amountPaid); // Ensure you are working with cents consistently
 
+            if (in_array(strtolower($invoice->status), ['paid', 'partial']) && $amountInCents > 0) {
                 // Get the user ID associated with the tenant/invoice
-                // Adjust based on how your Invoice links to the User (e.g., $invoice->lease->tenant->user_id)
                 $userId = $invoice->lease?->tenant?->user_id;
 
-                if ($userId && $amountInCents > 0) {
+                if ($userId) {
                     // Find or create the user's wallet
                     $wallet = Wallet::firstOrCreate(
                         ['user_id' => $userId],
                         ['balance' => 0]
                     );
 
-                    // Increment wallet balance
+                    // Increment wallet balance by the exact amount paid
                     $wallet->increment('balance', $amountInCents);
 
                     // Log the transaction
                     $wallet->transactions()->create([
-                        'amount' => $amountInCents, // Positive for credit
-                        'type' => 'refund',
+                        'amount'       => $amountInCents, // Positive for credit
+                        'type'         => 'refund',
                         'reference_id' => $invoice->id,
-                        'remarks' => "Refund from voided invoice #{$invoice->invoice_no}: {$reason}",
+                        'remarks'      => "Refund from voided invoice #{$invoice->invoice_no}: {$reason}",
                     ]);
                 }
             }
@@ -333,7 +321,10 @@ class InvoiceService
 
             $feeType = FeeType::query()
                 ->where('id', $item['fee_type_id'])
-                ->where('user_id', $owner->id)
+                ->where(function ($query) use ($owner) {
+                    $query->where('user_id', $owner->id)
+                        ->orWhere('is_system', true); // Allow system-wide fee types if applicable
+                })
                 ->where('is_active', true)
                 ->firstOrFail();
 

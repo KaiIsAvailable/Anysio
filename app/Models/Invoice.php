@@ -42,6 +42,7 @@ class Invoice extends Model
     // -------------------------------------------------------------------------
 
     protected $fillable = [
+        'parent_id',
         'context',
         'billable_type',
         'billable_id',

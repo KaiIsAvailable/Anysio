@@ -204,6 +204,7 @@ class InvoiceController extends Controller
     {
         Gate::authorize('owner-admin', $invoice->lease);
         $this->invoiceService->recordPayment($invoice, $request->validated());
+        //dd($request->all());
         return back()->with('success', 'Payment recorded successfully.');
     }
 

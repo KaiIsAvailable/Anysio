@@ -760,7 +760,9 @@ class LeaseController extends Controller
             ->where('is_system', false)
             ->get();
 
-        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'invoices', 'historyJson', 'feeTypes'));
+        $settings = get_effective_user()->settings ?? [];
+
+        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'invoices', 'historyJson', 'feeTypes', 'settings'));
     }
 
     public function edit()

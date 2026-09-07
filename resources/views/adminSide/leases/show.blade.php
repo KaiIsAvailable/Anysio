@@ -481,11 +481,11 @@
                                                                                 )
                                                                                 : (invoice.total_amount || '0.00')
                                                                     }" />
-                                                                    <!-- TEMP DEBUG -->
+                                                                    <!-- TEMP DEBUG
                                                                     <pre
                                                                         class="text-[10px] bg-gray-100 border border-gray-300 p-2 mt-2 whitespace-pre-wrap max-w-xl"
                                                                         x-text="JSON.stringify(receipt, null, 2)">
-                                                                    </pre>
+                                                                    </pre> -->
                                                                 </div>
                                                             </template>
                                                         </template>
@@ -521,8 +521,23 @@
                                                     <template x-if="invoice.status !== 'paid' && invoice.status !== 'void'">
                                                         <button type="button"
                                                             @click="$dispatch('open-payment', {
-                                                            id: invoice.id, invoiceNo: invoice.invoice_no, totalAmount: invoice.amount_balance, invoiceItems: invoice.invoice_items, walletBalance: activeLease.wallet_balance, actionUrl: '{{ route('admin.invoices.payment', ':id') }}'.replace(':id', invoice.id)
-                                                        })"
+                                                                id: invoice.id, 
+                                                                invoiceNo: invoice.invoice_no, 
+                                                                dueDate: invoice.due_date,
+                                                                totalAmount: invoice.amount_balance, 
+                                                                invoiceItems: invoice.invoice_items, 
+                                                                walletBalance: activeLease.wallet_balance, 
+                                                                actionUrl: '{{ route('admin.invoices.payment', ':id') }}'.replace(':id', invoice.id),
+                                                                settings: {{ Js::from($settings ?? []) }},
+                                                                penaltyConfig: {{ Js::from((function($allSettings) {
+                                                                    $match = collect($allSettings)->first(fn($s) => 
+                                                                        (is_array($s) ? ($s['key'] ?? null) : ($s->key ?? null)) === 'late_penalty_config' && 
+                                                                        (is_array($s) ? ($s['is_active'] ?? false) : ($s->is_active ?? false)) === true
+                                                                    );
+                                                                    if (!$match) return null;
+                                                                    return is_array($match) ? ($match['value'] ?? null) : ($match->value ?? null);
+                                                                })($settings ?? [])) }}
+                                                            })"
                                                             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 rounded-lg transition-all shadow-sm">
                                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
@@ -576,9 +591,14 @@
                                         <input type="hidden" name="redirect" value="{{ request()->url() }}">
 
                                         <div class="p-6 space-y-4">
-                                            <p class="text-sm text-slate-600 font-medium">
-                                                Are you sure you want to void invoice <span class="font-bold text-slate-900" x-text="invoiceNumber"></span>? This action cannot be undone.
-                                            </p>
+                                            <div class="flex items-center gap-3 text-amber-600 bg-amber-50 p-4 rounded-xl border border-amber-100 mb-4">
+                                                <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                                                </svg>
+                                                <p class="text-sm text-slate-600 font-medium">
+                                                    Are you sure you want to void invoice <span class="font-bold text-slate-900" x-text="invoiceNumber"></span>? This action cannot be undone.
+                                                </p>
+                                            </div>
 
                                             <div>
                                                 <x-form.input-label value="Reason for Voiding" class="mb-1" />

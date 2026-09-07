@@ -118,7 +118,7 @@
             this.open = false;
         }, 200);
     }
-}" @click.away="open = false" class="relative w-full" {!! $attributes->only(['@change', 'x-on:change']) !!}>
+}" x-modelable="selectedValue" @click.away="open = false" class="relative w-full" {!! $attributes->only(['@change', 'x-on:change']) !!}>
 
     <!-- Hidden native input for form submission with ID support -->
     <input type="hidden" name="{{ $name }}" x-model="selectedValue" x-ref="hiddenInput" {{ $attributes->only('id') }}>

@@ -36,22 +36,6 @@ class InvoiceController extends Controller
             },
         ]);
 
-       //if ($user->role === 'ownerAdmin') {
-       //    $query->where(function ($q) use ($user) {
-       //        $q->whereHas('lease.leasable', function ($sq) use ($user) {
-       //            $sq->where('user_id', $user->id);
-       //        })->orWhere('user_id', $user->id);
-       //    });
-       //} elseif ($user->role === 'agentAdmin') {
-       //    $managedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-
-       //    $query->where(function ($q) use ($user, $managedOwnerIds) {
-       //        $q->whereHas('lease.leasable', function ($sq) use ($user, $managedOwnerIds) {
-       //            $sq->where('user_id', $user->id)
-       //                ->orWhereIn('user_id', $managedOwnerIds);
-       //        })->orWhere('user_id', $user->id)
-       //            ->orWhereIn('user_id', $managedOwnerIds);
-
         if (!Gate::allows('super-admin')) {
             $query->whereHas('lease', function ($leaseQuery) use ($effectiveUserId, $actualUserId) {
                 $leaseQuery->where(function ($q) use ($effectiveUserId, $actualUserId) {

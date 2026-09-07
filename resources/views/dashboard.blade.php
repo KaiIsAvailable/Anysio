@@ -77,7 +77,7 @@
                     ['title' => 'Rooms',      'total' => $counts['total_rooms'] ?? 0,      'vacant' => $counts['vacant_rooms'] ?? 0,      'occ' => $counts['occ_rooms'] ?? 0,      'main' => $counts['main_rooms'] ?? 0,      'clean' => $counts['clean_rooms'] ?? 0],
                 ] as $stat)
 
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100" 
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100" x-cloak
                     x-data="{ view: 'stats' }">
                     
                     <div class="flex justify-between items-center mb-6">

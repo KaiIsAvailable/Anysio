@@ -184,51 +184,6 @@
                     }">
                         {{-- 左侧按钮：View Agreement --}}
                         @if (!empty($lease->document_id))
-<<<<<<< HEAD
-                        <button type="button"
-                            data-base-content="{{ $lease->documentTemplate?->html_template }}"
-                            data-title="{{ $lease->documentTemplate?->title }}"
-                            data-replacements="{{ json_encode([
-                                    '{status}' => $lease->status ?? 'N/A',
-                                    '{tenant_name}' => $lease->tenant?->user->name ?? 'N/A',
-                                    '{tenant_ic}'   => $lease->tenant?->ic_number ?? 'N/A',
-                                    '{owner_name}' => $lease->leasable?->owner?->user->name ?? 'N/A',
-                                    '{owner_ic}'   => $lease->leasable?->owner?->ic_number ?? 'N/A',
-                                    '{property_address}'   => $lease->leasable?->full_address ?? 'N/A',
-                                    '{property_type}'   => $lease->leasableTypeLabel ?? 'N/A',
-                                    '{property_name}'   => $lease->leasableName ?? 'N/A',
-                                    '{rent_mode}'   => $lease->term_type ?? 'N/A',
-                                    '{rent_price}'  => number_format($lease->rent_price, 2),
-                                    '{deposit_mode}'  => $lease->deposit_mode ?? 'N/A',
-                                    '{security_deposit}' => number_format($lease->security_deposit, 2),
-                                    '{utilities_deposit}' => number_format($lease->utilities_deposit, 2),
-                                    '{start_date}'  => $lease->start_date?->format('d/m/Y') ?? 'N/A',
-                                    '{end_date}'    => $lease->end_date?->format('d/m/Y') ?? 'N/A',
-                                    '{check_out_date}'    => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
-                                    '{end_agreement_date}'    => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
-                                ]) }}"
-                            @click="
-                                    const btn = $el;
-                                    let content = btn.dataset.baseContent;
-                                    if (!content) {
-                                        console.error('Agreement content is empty');
-                                        return;
-                                    }
-                                    const replacements = JSON.parse(btn.dataset.replacements);
-                                    Object.keys(replacements).forEach(key => {
-                                        const val = replacements[key];
-                                        const regex = new RegExp(key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-                                        content = content.replace(regex, `<span class='text-inherit font-semibold'>${val}</span>`);
-                                    });
-                                    $dispatch('open-lease-preview', { 
-                                        content: content, 
-                                        title: btn.dataset.title 
-                                    });
-                                "
-                            class="flex-1 px-4 py-2.5 bg-white text-indigo-600 text-xs font-bold rounded-xl border border-indigo-100 hover:bg-indigo-50 transition-all shadow-sm text-center">
-                            VIEW AGREEMENT
-                        </button>
-=======
                             <button type="button"
                                 data-base-content="{{ $lease->documentTemplate?->html_template }}"
                                 data-title="{{ $lease->documentTemplate?->title }}"
@@ -259,29 +214,19 @@
                                 class="px-3 py-2 bg-indigo-50 text-indigo-600 text-xs font-black rounded-xl border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center text-center">
                                 VIEW AGREEMENT
                             </button>
->>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
                         @endif
 
                         {{-- 右侧按钮：Upload Stamping (条件渲染) --}}
                         @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
-<<<<<<< HEAD
-                        <button @click="openUpload = true"
-                            class="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm text-center">
-                            UPLOAD STAMPING
-                        </button>
+                            <button @click="openUpload = true"
+                                class="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm text-center">
+                                UPLOAD STAMPING
+                            </button>
                         @endif
 
                         {{-- Modal 渲染 --}}
                         @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
-                        <x-modals.lease-stamping-modal :lease="$lease" />
-=======
-                            <button @click="openUpload = true" 
-                                class="px-4 py-2 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm flex items-center justify-center text-center">
-                                UPLOAD STAMPING
-                            </button>
-
                             <x-modals.lease-stamping-modal :lease="$lease" />
->>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
                         @endif
                     </div>
                 </div>
@@ -371,25 +316,8 @@
                         </div>
                     </div>
                 </template>
+            </div>
 
-<<<<<<< HEAD
-                <!-- Invoice Tables -->
-                <div class="mt-8">
-                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-6 space-y-6">
-                        <div class="flex items-center justify-between">
-                            <h3 class="text-lg font-bold text-slate-800">Payment Overview</h3>
-                            <div class="flex items-center gap-2">
-                                <button type="button"
-                                    @click="$dispatch('open-manual-modal', { action: getManualInvoiceUrl() })"
-                                    class="inline-flex items-center px-4 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
-                                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                                    </svg>
-                                    Add Manual Invoice
-                                </button>
-                                <x-modals.manual-invoice-modal :feeTypes="$feeTypes" />
-                            </div>
-=======
             <!-- Invoice Tables -->
             <div class="mt-8">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-6 space-y-6">
@@ -448,9 +376,10 @@
                             </button>
                             
                             <x-modals.manual-invoice-modal :feeTypes="$feeTypes" />
->>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
                         </div>
+                    </div>
 
+                    <div>
                         <div>
                             <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
                                 <span class="w-1.5 h-4 bg-emerald-500 rounded-full"></span>
@@ -502,16 +431,16 @@
                                                                         titleExpr="'Receipt: ' + (receipt.receipt_no || 'N/A')"
 
                                                                         contentExpr="
-                    receipt.template_html
-                    || receipt.html_content
-                    || (receipt.documentTemplate
-                        ? (receipt.documentTemplate.html_template || receipt.documentTemplate.html_content || '')
-                        : '')
-                    || (receipt.document_template
-                        ? (receipt.document_template.html_template || receipt.document_template.html_content || '')
-                        : '')
-                    || ''
-                "
+                                                                            receipt.template_html
+                                                                            || receipt.html_content
+                                                                            || (receipt.documentTemplate
+                                                                                ? (receipt.documentTemplate.html_template || receipt.documentTemplate.html_content || '')
+                                                                                : '')
+                                                                            || (receipt.document_template
+                                                                                ? (receipt.document_template.html_template || receipt.document_template.html_content || '')
+                                                                                : '')
+                                                                            || ''
+                                                                        "
 
                                                                         variablesExpr="invoice.variables || {}"
 
@@ -520,43 +449,43 @@
                                                                         buttonTextExpr="receipt.receipt_no || 'Receipt'"
 
                                                                         extraExpr="{
-                    receiptNo: receipt.receipt_no || 'N/A',
+                                                                                        receiptNo: receipt.receipt_no || 'N/A',
 
-                    paymentDate:
-    (receipt.variables && receipt.variables.payment_date)
-    || receipt.payment_date
-    || receipt.created_at
-    || '—',
+                                                                                        paymentDate:
+                                                                        (receipt.variables && receipt.variables.payment_date)
+                                                                        || receipt.payment_date
+                                                                        || receipt.created_at
+                                                                        || '—',
 
-                    receiptVariables:
-                        receipt.variables || {},
+                                                                        receiptVariables:
+                                                                            receipt.variables || {},
 
-                    paidAmount:
-                        typeof receipt.amount === 'number'
-                            ? (
-                                receipt.amount > 100
-                                    ? (receipt.amount / 100).toFixed(2)
-                                    : parseFloat(receipt.amount).toFixed(2)
-                            )
-                            : (receipt.amount || '0.00'),
+                                                                        paidAmount:
+                                                                            typeof receipt.amount === 'number'
+                                                                                ? (
+                                                                                    receipt.amount > 100
+                                                                                        ? (receipt.amount / 100).toFixed(2)
+                                                                                        : parseFloat(receipt.amount).toFixed(2)
+                                                                                )
+                                                                                : (receipt.amount || '0.00'),
 
-                    invoiceNo:
-                        invoice.invoice_no || '—',
+                                                                        invoiceNo:
+                                                                            invoice.invoice_no || '—',
 
-                    invoiceTotal:
-                        typeof invoice.total_amount === 'number'
-                            ? (
-                                invoice.total_amount > 100
-                                    ? (invoice.total_amount / 100).toFixed(2)
-                                    : parseFloat(invoice.total_amount).toFixed(2)
-                            )
-                            : (invoice.total_amount || '0.00')
-                }" />
+                                                                        invoiceTotal:
+                                                                            typeof invoice.total_amount === 'number'
+                                                                                ? (
+                                                                                    invoice.total_amount > 100
+                                                                                        ? (invoice.total_amount / 100).toFixed(2)
+                                                                                        : parseFloat(invoice.total_amount).toFixed(2)
+                                                                                )
+                                                                                : (invoice.total_amount || '0.00')
+                                                                    }" />
                                                                     <!-- TEMP DEBUG -->
                                                                     <pre
                                                                         class="text-[10px] bg-gray-100 border border-gray-300 p-2 mt-2 whitespace-pre-wrap max-w-xl"
                                                                         x-text="JSON.stringify(receipt, null, 2)">
-            </pre>
+                                                                    </pre>
                                                                 </div>
                                                             </template>
                                                         </template>
@@ -629,73 +558,22 @@
                                     </tbody>
                                 </table>
                             </div>
+                        </div>
 
-                            <x-modals.payment-modal />
-
-<<<<<<< HEAD
-                            <!-- The Confirmation Modal Component with Dynamic actionUrl binding -->
-                            <x-modals.confirmation-modal id="void-modal" title="Void Invoice" maxWidth="sm:max-w-lg">
-                                <div x-data="{ actionUrl: '', invoiceNumber: '', loading: false }"
-                                    @open-void-modal.window="
-=======
-                        {{-- Cancel Confirmation Modal --}}
-                        <x-modals.confirmation-modal id="lease-confirm-modal" title="Cancel Lease">
-                            <x-form.form x-data="{ targetAction: '', reason: '', loading: false }" 
-                                x-bind:action="targetAction" 
-                                method="POST" 
-                                class="p-6"
-                                @open-lease-confirm-modal.window="targetAction = $event.detail.actionUrl; reason = ''"
-                                @submit="loading = true">
-                                @csrf
-                                @method('PATCH')
-                                
-                                <div class="flex items-center gap-3 text-amber-600 bg-amber-50 p-4 rounded-xl border border-amber-100 mb-4">
-                                    <p class="text-sm font-semibold text-gray-700">Are you sure you want to cancel this lease? This action cannot be undone.</p>
-                                </div>
-
-                                <div class="mb-4">
-                                    <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Cancellation Reason <span class="text-red-500">*</span></label>
-                                    <textarea name="cancellation_reason" x-model="reason" rows="3" class="w-full text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl shadow-sm"></textarea>
-                                </div>
-
-                                <div class="flex justify-end gap-2">
-                                    <button type="button" @click="$dispatch('close-lease-confirm-modal')" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-all">
-                                        Cancel
-                                    </button>
-                                    <x-form.primary-button type="submit" x-bind:disabled="!reason.trim()" loading="loading"
-                                        class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all">
-                                        Confirm
-                                    </x-form.primary-button>
-                                </div>
-                            </x-form.form>
-                        </x-modals.confirmation-modal>
+                        <x-modals.payment-modal />
 
                         <!-- The Confirmation Modal Component with Dynamic actionUrl binding -->
                         <x-modals.confirmation-modal id="void-modal" title="Void Invoice" maxWidth="sm:max-w-lg">
                             <div x-data="{ actionUrl: '', invoiceNumber: '', loading: false }" 
                                 @open-void-modal.window="
->>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
                                     actionUrl = $event.detail.actionUrl;
                                     invoiceNumber = $event.detail.invoiceNumber;
                                 ">
-
-<<<<<<< HEAD
                                     <!-- Optional: Display invoice number in the modal content -->
                                     <x-form.form :action="''" x-bind:action="actionUrl" method="POST" loading="loading">
                                         @csrf
                                         @method('PATCH')
                                         <input type="hidden" name="redirect" value="{{ request()->url() }}">
-=======
-                                    <div class="p-6 space-y-4">
-                                        <div class="flex items-center gap-3 text-amber-600 bg-amber-50 p-4 rounded-xl border border-amber-100 mb-4">
-                                            <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                                            </svg>
-                                             <p class="text-sm text-slate-600 font-medium">
-                                                Are you sure you want to void invoice <span class="font-bold text-slate-900" x-text="invoiceNumber"></span>? This action cannot be undone.
-                                            </p>
-                                        </div>
->>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
 
                                         <div class="p-6 space-y-4">
                                             <p class="text-sm text-slate-600 font-medium">
@@ -741,9 +619,6 @@
                 </div>
             </div>
         </div>
-<<<<<<< HEAD
-</x-app-layout>
-=======
     </div>
 </x-app-layout>
 
@@ -775,4 +650,3 @@
         }));
     };
 </script>
->>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb

@@ -54,7 +54,7 @@
                             x-data="{ 
                                 editing: false, 
                                 loading: false, 
-                                enabled: {{ $settings['late_penalty_config']['is_active'] ? 'true' : 'false' }} 
+                                enabled: {{ data_get($settings, 'late_penalty_config.is_active', false) ? 'true' : 'false' }} 
                             }"
                             @submit="loading = true">
                     @csrf

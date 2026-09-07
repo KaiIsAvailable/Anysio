@@ -18,15 +18,9 @@ class InvoiceController extends Controller
 
     public function index()
     {
-<<<<<<< HEAD
-        Gate::authorize('owner-admin');
-
-        $user = get_effective_user();
-=======
         $actualUserId = Auth::id(); 
         $effectiveUser = get_effective_user();
         $effectiveUserId = $effectiveUser?->id;
->>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
 
         $query = Invoice::with([
             'documentTemplate',
@@ -35,34 +29,29 @@ class InvoiceController extends Controller
             'lease.leasable.owner',
             'lease.tenant.user',
             'items.feeType',
-<<<<<<< HEAD
-            'transactions.documentTemplate', // <-- 正確的關聯名稱在這裡！
-            'transactions.approver',
-=======
             'transactions.documentTemplate',
->>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
+            'transactions.approver',
             'payments' => function ($query) {
                 $query->where('status', 'pending');
             },
         ]);
 
-<<<<<<< HEAD
-        if ($user->role === 'ownerAdmin') {
-            $query->where(function ($q) use ($user) {
-                $q->whereHas('lease.leasable', function ($sq) use ($user) {
-                    $sq->where('user_id', $user->id);
-                })->orWhere('user_id', $user->id);
-            });
-        } elseif ($user->role === 'agentAdmin') {
-            $managedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
+       //if ($user->role === 'ownerAdmin') {
+       //    $query->where(function ($q) use ($user) {
+       //        $q->whereHas('lease.leasable', function ($sq) use ($user) {
+       //            $sq->where('user_id', $user->id);
+       //        })->orWhere('user_id', $user->id);
+       //    });
+       //} elseif ($user->role === 'agentAdmin') {
+       //    $managedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
 
-            $query->where(function ($q) use ($user, $managedOwnerIds) {
-                $q->whereHas('lease.leasable', function ($sq) use ($user, $managedOwnerIds) {
-                    $sq->where('user_id', $user->id)
-                        ->orWhereIn('user_id', $managedOwnerIds);
-                })->orWhere('user_id', $user->id)
-                    ->orWhereIn('user_id', $managedOwnerIds);
-=======
+       //    $query->where(function ($q) use ($user, $managedOwnerIds) {
+       //        $q->whereHas('lease.leasable', function ($sq) use ($user, $managedOwnerIds) {
+       //            $sq->where('user_id', $user->id)
+       //                ->orWhereIn('user_id', $managedOwnerIds);
+       //        })->orWhere('user_id', $user->id)
+       //            ->orWhereIn('user_id', $managedOwnerIds);
+
         if (!Gate::allows('super-admin')) {
             $query->whereHas('lease', function ($leaseQuery) use ($effectiveUserId, $actualUserId) {
                 $leaseQuery->where(function ($q) use ($effectiveUserId, $actualUserId) {
@@ -90,7 +79,6 @@ class InvoiceController extends Controller
                            ->orWhere('created_by', $actualUserId);
                     });
                 });
->>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
             });
         }
 
@@ -276,9 +264,6 @@ class InvoiceController extends Controller
 
         return back()->with('success', "Invoice {$invoice->invoice_no} created.");
     }
-<<<<<<< HEAD
-}
-=======
 
     public function generateAutoInvoice(Request $request, Lease $lease)
     {
@@ -309,4 +294,3 @@ class InvoiceController extends Controller
         }
     }
 }
->>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb

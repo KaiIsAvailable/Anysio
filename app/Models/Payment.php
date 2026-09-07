@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\Auditable;
 
 class Payment extends Model
 {
-    use HasFactory, HasUlids;
+    use HasFactory, HasUlids, Auditable;
 
     protected $fillable = [
         'invoice_id',

@@ -116,7 +116,19 @@
                                                     {{ strtoupper(mb_substr($tenant->user->name ?? 'T', 0, 1, 'UTF-8')) }}
                                                 </div>
                                                 <div class="ml-4">
-                                                    <div class="text-sm font-medium text-slate-900">{{ $tenant->user->name }}</div>
+                                                    <div class="flex items-center space-x-2">
+                                                        <span class="text-sm font-medium text-slate-900">{{ $tenant->user->name }}</span>
+                                                        
+                                                        @if(optional($tenant->user)->email_verified_at)
+                                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800" title="Email Verified">
+                                                                Verified
+                                                            </span>
+                                                        @else
+                                                            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800" title="Email Unverified">
+                                                                Unverified
+                                                            </span>
+                                                        @endif
+                                                    </div>
                                                     <div class="text-xs text-gray-500">{{ $tenant->user->email }}</div>
                                                 </div>
                                             </div>

@@ -55,12 +55,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/paymentRoute.php';
         require __DIR__.'/feeTypeRoute.php';
         require __DIR__.'/excelImportRoute.php';
+        require __DIR__.'/settingRoute.php';
 
         // --- 只有管理员 (owner-admin) 权限能进的路由 ---
         Route::middleware('can:owner-admin')->group(function () {
             // 特定功能路由
             Route::get('ticket-messages/{ticket}', [TicketController::class, 'getNewMessages'])->name('customerService.newMessages');
         });
+    });
+
+    Route::name('tenants.')->prefix('admin')->group(function () {
+        require __DIR__.'/tenants/tenantRoute.php';
     });
 });
 

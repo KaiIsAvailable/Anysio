@@ -79,7 +79,7 @@ class AuthenticatedSessionController extends Controller
         Log::info("Redirecting based on role", ['role' => $user->role]);
         switch ($user->role) {
             case 'tenant':
-                return redirect()->route('admin.tenants.dashboard');
+                return redirect()->route('tenants.dashboard');
 
             case 'owner':
                 return redirect()->route('admin.owners.dashboard');

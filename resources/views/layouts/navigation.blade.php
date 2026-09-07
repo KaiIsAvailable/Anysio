@@ -12,7 +12,7 @@
                         if (auth()->user()->can('is-owner')) {
                             $dashboardRoute = route('admin.owners.dashboard');
                         } elseif (auth()->user()->can('is-tenant')) {
-                            $dashboardRoute = route('admin.tenants.dashboard');
+                            $dashboardRoute = route('tenants.dashboard');
                         } elseif (auth()->user()->can('owner-admin')) {
                             $dashboardRoute = route('dashboard');
                         }
@@ -39,7 +39,7 @@
                     @endcan
 
                     @can('is-tenant')
-                        <x-nav-link :href="route('admin.tenants.dashboard')" :active="request()->routeIs('admin.tenants.dashboard')">
+                        <x-nav-link :href="route('tenants.dashboard')" :active="request()->routeIs('tenants.dashboard')">
                             {{ __('Dashboard') }}
                         </x-nav-link>
                     @endcan
@@ -65,14 +65,15 @@
                         {{ __('Rooms') }}
                     </x-nav-link>-->
 
-                    <x-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*', 'admin.document-templates.*')">
-                        {{ __('Leases') }}
-                    </x-nav-link>
+                    @can('owner-admin')
+                        <x-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*', 'admin.document-templates.*')">
+                            {{ __('Leases') }}
+                        </x-nav-link>
 
-                    <x-nav-link :href="route('admin.invoices.index')" :active="request()->routeIs('admin.invoices.*')">
-                        {{ __('Invoices') }}
-                    </x-nav-link>
-                    
+                        <x-nav-link :href="route('admin.invoices.index')" :active="request()->routeIs('admin.invoices.*')">
+                            {{ __('Invoices') }}
+                        </x-nav-link>
+                    @endcan
                     <!--<x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
                         {{ __('Maintenance') }}
                     </x-nav-link>-->
@@ -142,6 +143,7 @@
                 <div class="flex items-center">
                     <x-ui.notification-dropdown />
                 </div>
+
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
                         <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none transition ease-in-out duration-150">
@@ -204,6 +206,9 @@
                                     </x-dropdown-link>
                                 </div>
                             </div>
+                        
+
+                            <x-dropdown-link :href="route('admin.settings.index')">{{ __('Setting') }}</x-dropdown-link>
                         @endcan
 
                         <form method="POST" action="{{ route('logout') }}">
@@ -250,7 +255,7 @@
             @endcan
 
             @can('is-tenant')
-                <x-responsive-nav-link :href="route('admin.tenants.dashboard')" :active="request()->routeIs('admin.tenants.dashboard')">
+                <x-responsive-nav-link :href="route('tenants.dashboard')" :active="request()->routeIs('tenants.dashboard')">
                     {{ __('Dashboard') }}
                 </x-responsive-nav-link>
             @endcan

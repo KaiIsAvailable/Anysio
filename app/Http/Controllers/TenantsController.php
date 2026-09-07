@@ -187,6 +187,9 @@ class TenantsController extends Controller
             $tenant->user->update([
                 'name' => $request->name,
                 'email' => $request->email,
+                'email_verified_at' => $request->boolean('is_email_verified') 
+                    ? ($tenant->user->email_verified_at ?? now()) 
+                    : null,
             ]);
 
             // 3. 准备 Tenant 数据
@@ -263,7 +266,7 @@ class TenantsController extends Controller
 
     public function dashboard()
     {
-        return view('adminSide.tenants.dashboard');
+        return view('tenantSide.tenants.dashboard');
     }
 
     public function show(Tenants $tenant)

@@ -6,4 +6,3 @@ Route::get('/tenants/ic_photo/{filename}', [TenantsController::class, 'showIcPho
     ->name('tenants.ic_photo');
 Route::get('tenants/{tenant}/view-ic', [TenantsController::class, 'viewIc'])->name('tenants.view-ic');
 Route::resource('tenants', TenantsController::class);
-Route::get('/tenant/dashboard', [TenantsController::class, 'dashboard'])->name('tenants.dashboard');

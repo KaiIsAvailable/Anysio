@@ -32,7 +32,7 @@
     </div>
 </x-guest-layout>
 
-<script>
+<!-- <script>
     // 每 3 秒检查一次用户是否点击了邮件里的链接
     const checkInterval = setInterval(async () => {
         try {
@@ -48,4 +48,4 @@
             console.error('Error checking verification status:', error);
         }
     }, 3000);
-</script>
+</script> -->

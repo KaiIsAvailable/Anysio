@@ -126,7 +126,9 @@
     <!-- Professional Text Input -->
     <div class="relative">
         <input type="text"
-            @disabled($disabled)
+            @if($disabled) disabled @endif
+            {{ $attributes->whereStartsWith('x-bind') }}
+            {{ $attributes->whereStartsWith(':disabled') }}
             :value="displayValue"
             @focus="open = true; search = ''; $nextTick(() => checkPosition())"
             @input="open = true; search = $event.target.value; selectedValue = ''; $nextTick(() => checkPosition())"

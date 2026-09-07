@@ -43,3 +43,7 @@ input[type="password"]::-webkit-credentials-auto-fill-button {
     position: absolute;
     right: 0;
 }
+
+[x-cloak] {
+    display: none !important;
+}

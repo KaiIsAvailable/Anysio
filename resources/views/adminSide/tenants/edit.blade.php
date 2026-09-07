@@ -22,16 +22,43 @@
                     <div class="mb-6 border-b pb-4">
                         <h2 class="text-xl font-semibold text-slate-800 mb-4">User Details</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <!-- Full Name -->
                             <div class="mb-4">
                                 <x-form.input-label for="name" value="Full Name" class="mb-1" />
                                 <x-form.text-input name="name" id="name" value="{{ old('name', $tenant->user->name) }}" class="w-full" required />
                                 <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                             </div>
 
+                            <!-- Email Address -->
                             <div class="mb-4">
-                                <x-form.input-label for="email" value="Email Address" class="mb-1" />
-                                <x-form.text-input type="email" name="email" id="email" value="{{ old('email', $tenant->user->email) }}" class="w-full" required />
+                                <div class="flex items-center justify-between mb-1">
+                                    <x-form.input-label for="email" value="Email Address" required />
+                                    
+                                    {{-- Email Verification Status Badge --}}
+                                    @if($tenant->user->email_verified_at)
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800">
+                                            Verified ({{ $tenant->user->email_verified_at->format('d/m/Y H:i') }})
+                                        </span>
+                                    @else
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800">
+                                            Unverified
+                                        </span>
+                                    @endif
+                                </div>
+
+                                <x-form.text-input type="email" name="email" id="email" value="{{ old('email', $tenant->user->email) }}" class="w-full" required autocomplete="username" />
                                 <x-form.input-error :messages="$errors->get('email')" class="mt-1" />
+
+                                <!-- Manual Email Verification Checkbox -->
+                                <div class="mt-3 flex items-center">
+                                    <input type="hidden" name="is_email_verified" value="0">
+                                    <input type="checkbox" name="is_email_verified" id="is_email_verified" value="1" 
+                                        class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                                        {{ old('is_email_verified', $tenant->user->email_verified_at ? true : false) ? 'checked' : '' }}>
+                                    <label for="is_email_verified" class="ml-2 block text-sm text-gray-700 font-medium">
+                                        Mark email address as verified
+                                    </label>
+                                </div>
                             </div>
                         </div>
                     </div>

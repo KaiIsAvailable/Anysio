@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\{Invoice, Transaction, DocumentTemplate, UserManagement, feeType};
+use App\Models\{Invoice, Transaction, DocumentTemplate, UserManagement, FeeType};
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Exceptions\HttpResponseException;

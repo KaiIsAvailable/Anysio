@@ -29,30 +29,30 @@
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 
     @vite([
-        'resources/css/app.css',
-        'resources/js/app.js',
-        'resources/js/tenants.js',
-        'resources/js/userManagement.js',
-        'resources/js/room.js',
+    'resources/css/app.css',
+    'resources/js/app.js',
+    'resources/js/tenants.js',
+    'resources/js/userManagement.js',
+    'resources/js/room.js',
     ])
-            @auth
-                @php
-                    $effectiveUser = get_effective_user();
+    @auth
+    @php
+    $effectiveUser = get_effective_user();
 
-                    $userMgmt = \App\Models\UserManagement::where('user_id', $effectiveUser->id)->first();
+    $userMgmt = \App\Models\UserManagement::where('user_id', $effectiveUser->id)->first();
 
-                    $latestSubscriptionInvoice = \App\Models\Invoice::where('user_id', $effectiveUser->id)
-                        ->where('context', 'subscription')
-                        ->whereIn('status', ['unpaid', 'partial', 'overdue'])
-                        ->latest()
-                        ->first();
-                        
-                    // 🔥 Remove 'staff' from the exclusion list so staff also trigger the payment block/modal 
-                    // if their workspace/parent admin hasn't paid.
-                    $mustPay = $latestSubscriptionInvoice !== null
-                        && auth()->user()->role !== 'admin';
-                @endphp
-            @endauth
+    $latestSubscriptionInvoice = \App\Models\Invoice::where('user_id', $effectiveUser->id)
+    ->where('context', 'subscription')
+    ->whereIn('status', ['unpaid', 'partial', 'overdue'])
+    ->latest()
+    ->first();
+
+    // 🔥 Remove 'staff' from the exclusion list so staff also trigger the payment block/modal
+    // if their workspace/parent admin hasn't paid.
+    $mustPay = $latestSubscriptionInvoice !== null
+    && auth()->user()->role !== 'admin';
+    @endphp
+    @endauth
 
 
     @stack('scripts')
@@ -65,36 +65,36 @@
         @include('layouts.navigation')
 
         @auth
-            @php
-                $effectiveUser = get_effective_user();
-                $effectiveUserId = $effectiveUser ? $effectiveUser->id : auth()->id();
+        @php
+        $effectiveUser = get_effective_user();
+        $effectiveUserId = $effectiveUser ? $effectiveUser->id : auth()->id();
 
-                // 1. 检查 User Management 状态 (基于 effective user)
-                $userMgmt = \App\Models\UserManagement::where(
-                    'user_id',
-                    $effectiveUserId
-                )->first();
+        // 1. 检查 User Management 状态 (基于 effective user)
+        $userMgmt = \App\Models\UserManagement::where(
+        'user_id',
+        $effectiveUserId
+        )->first();
 
-                // 2. 获取需要付款的 Subscription Invoice (基于 effective user)
-                $latestSubscriptionInvoice = \App\Models\Invoice::where(
-                    'user_id',
-                    $effectiveUserId
-                )
-                ->where('context', 'subscription')
-                ->whereIn('status', ['unpaid', 'partial', 'overdue'])
-                ->latest()
-                ->first();
+        // 2. 获取需要付款的 Subscription Invoice (基于 effective user)
+        $latestSubscriptionInvoice = \App\Models\Invoice::where(
+        'user_id',
+        $effectiveUserId
+        )
+        ->where('context', 'subscription')
+        ->whereIn('status', ['unpaid', 'partial', 'overdue'])
+        ->latest()
+        ->first();
 
-                $mustPay = $latestSubscriptionInvoice !== null
-                    && optional($effectiveUser)->role !== 'admin';
-            @endphp
+        $mustPay = $latestSubscriptionInvoice !== null
+        && optional($effectiveUser)->role !== 'admin';
+        @endphp
         @endauth
 
 
         {{-- ========================================================= --}}
         {{-- GLOBAL INVOICE PREVIEW MODAL                              --}}
         {{-- ========================================================= --}}
-        {{-- 
+        {{--
             这个必须存在于页面中，
             make_payment.blade.php 的 View Invoice
             才能通过 open-invoice-preview 事件打开它。
@@ -105,56 +105,54 @@
         {{-- ========================================================= --}}
         {{-- PAYMENT MODAL                                             --}}
         {{-- ========================================================= --}}
-        {{-- 
+        {{--
             这里只保留一次 make_payment。
             之前你的 app.blade.php 引入了两次，会造成重复 Modal。
         --}}
         @if($mustPay ?? false)
 
-            <main x-data="{ openPayment: true }">
+        <main x-data="{ openPayment: true }">
 
-                @include(
-                    'components.modals.make_payment',
-                    ['invoice' => $latestSubscriptionInvoice]
-                )
+            @include(
+            'components.modals.make_payment',
+            ['invoice' => $latestSubscriptionInvoice]
+            )
 
-                <x-auth-session-status
-                    class="mb-4"
-                    :status="session('status')"
-                />
+            <x-auth-session-status
+                class="mb-4"
+                :status="session('status')" />
 
-                @isset($header)
-                    <header class="bg-white shadow">
-                        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                            {{ $header }}
-                        </div>
-                    </header>
-                @endisset
+            @isset($header)
+            <header class="bg-white shadow">
+                <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                    {{ $header }}
+                </div>
+            </header>
+            @endisset
 
-                {{ $slot }}
+            {{ $slot }}
 
-            </main>
+        </main>
 
         @else
 
-            <main x-data="{ openPayment: false }">
+        <main x-data="{ openPayment: false }">
 
-                <x-auth-session-status
-                    class="mb-4"
-                    :status="session('status')"
-                />
+            <x-auth-session-status
+                class="mb-4"
+                :status="session('status')" />
 
-                @isset($header)
-                    <header class="bg-white shadow">
-                        <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-                            {{ $header }}
-                        </div>
-                    </header>
-                @endisset
+            @isset($header)
+            <header class="bg-white shadow">
+                <div class="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+                    {{ $header }}
+                </div>
+            </header>
+            @endisset
 
-                {{ $slot }}
+            {{ $slot }}
 
-            </main>
+        </main>
 
         @endif
 
@@ -162,7 +160,6 @@
 
 
     <script>
-
         // =========================================================
         // Toast 自动消失
         // =========================================================
@@ -209,8 +206,7 @@
             // 1. 合并变量
             // -----------------------------------------------------
 
-            let finalVariables = Object.assign(
-                {},
+            let finalVariables = Object.assign({},
                 baseVariables
             );
 
@@ -223,6 +219,10 @@
 
             }
 
+
+            console.log('[Receipt Debug] baseVariables:', baseVariables);
+            console.log('[Receipt Debug] receiptVariables:', extra.receiptVariables);
+            console.log('[Receipt Debug] finalVariables:', finalVariables);
 
             // -----------------------------------------------------
             // Receipt 专属变量
@@ -239,6 +239,9 @@
                 let paidAmount =
                     extra.paidAmount || '0.00';
 
+                let invoiceTotal =
+                    extra.invoiceTotal || paidAmount;
+
 
                 Object.assign(finalVariables, {
 
@@ -249,7 +252,12 @@
                     'payment_date': payDate,
                     'receipt_date': payDate,
 
-                    'subtotal_amount': paidAmount,
+                    // Receipt item table shows the full invoice details.
+                    // Therefore subtotal/invoice_total must represent the full invoice,
+                    // while total_amount/amount_paid represent this specific receipt payment.
+                    'subtotal_amount': invoiceTotal,
+                    'invoice_total': invoiceTotal,
+
                     'total_amount': paidAmount,
                     'total': paidAmount,
 
@@ -381,37 +389,73 @@
 
             } else if (type === 'receipt') {
 
-                let paidAmount =
-                    extra.paidAmount || '0.00';
+                if (items && items.length > 0) {
 
-                let invNo =
-                    extra.invoiceNo || '—';
+                    items.forEach(item => {
 
+                        let itemDesc =
+                            item.description ||
+                            item.fee_type?.name ||
+                            'Item';
 
-                dynamicRows = `
-                    <tr style="border-bottom: 1px solid #e2e8f0;">
+                        let itemAmount =
+                            item.amount || 0;
 
-                        <td style="padding: 12px 15px; color: #0f172a;">
-                            Payment for Invoice: ${invNo}
-                        </td>
+                        if (
+                            typeof itemAmount === 'number' &&
+                            itemAmount > 100
+                        ) {
 
-                        <td style="padding: 12px 15px; text-align: center; color: #475569;">
-                            1
-                        </td>
+                            itemAmount =
+                                (itemAmount / 100).toFixed(2);
 
-                        <td style="padding: 12px 15px; text-align: right; color: #475569;">
-                            RM ${paidAmount}
-                        </td>
+                        } else if (
+                            typeof itemAmount === 'number'
+                        ) {
 
-                        <td style="padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 500;">
-                            RM ${paidAmount}
-                        </td>
+                            itemAmount =
+                                parseFloat(itemAmount).toFixed(2);
 
-                    </tr>
-                `;
+                        }
+
+                        dynamicRows += `
+                <tr style="border-bottom: 1px solid #e2e8f0;">
+
+                    <td style="padding: 12px 15px; color: #0f172a;">
+                        ${itemDesc}
+                    </td>
+
+                    <td style="padding: 12px 15px; text-align: center; color: #475569;">
+                        1
+                    </td>
+
+                    <td style="padding: 12px 15px; text-align: right; color: #475569;">
+                        RM ${itemAmount}
+                    </td>
+
+                    <td style="padding: 12px 15px; text-align: right; color: #0f172a; font-weight: 500;">
+                        RM ${itemAmount}
+                    </td>
+
+                </tr>
+            `;
+
+                    });
+
+                } else {
+
+                    dynamicRows = `
+            <tr>
+                <td colspan="4"
+                    style="padding: 12px 15px; text-align: center; color: #94a3b8; font-style: italic;">
+                    No invoice items recorded.
+                </td>
+            </tr>
+        `;
+
+                }
 
             }
-
 
             // -----------------------------------------------------
             // 5. 找到 Dynamic Items 的 tbody
@@ -541,14 +585,14 @@
 
                     content =
                         content
-                            .replace(
-                                doubleRegex,
-                                replaceHtml
-                            )
-                            .replace(
-                                singleRegex,
-                                replaceHtml
-                            );
+                        .replace(
+                            doubleRegex,
+                            replaceHtml
+                        )
+                        .replace(
+                            singleRegex,
+                            replaceHtml
+                        );
 
                 }
 
@@ -567,8 +611,7 @@
 
                 window.dispatchEvent(
                     new CustomEvent(
-                        'open-invoice-preview',
-                        {
+                        'open-invoice-preview', {
                             detail: {
                                 title: title,
                                 content: content
@@ -585,8 +628,7 @@
 
                 window.dispatchEvent(
                     new CustomEvent(
-                        'open-lease-preview',
-                        {
+                        'open-lease-preview', {
                             detail: {
                                 title: title,
                                 content: content
@@ -602,7 +644,6 @@
                 'hidden';
 
         };
-
     </script>
 
 </body>

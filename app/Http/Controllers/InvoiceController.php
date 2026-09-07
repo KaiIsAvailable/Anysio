@@ -18,23 +18,51 @@ class InvoiceController extends Controller
 
     public function index()
     {
+<<<<<<< HEAD
+        Gate::authorize('owner-admin');
+
+        $user = get_effective_user();
+=======
         $actualUserId = Auth::id(); 
         $effectiveUser = get_effective_user();
         $effectiveUserId = $effectiveUser?->id;
+>>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
 
         $query = Invoice::with([
             'documentTemplate',
             'user',
             'billable',
-            'lease.leasable.owner', 
+            'lease.leasable.owner',
             'lease.tenant.user',
             'items.feeType',
+<<<<<<< HEAD
+            'transactions.documentTemplate', // <-- 正確的關聯名稱在這裡！
+            'transactions.approver',
+=======
             'transactions.documentTemplate',
+>>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
             'payments' => function ($query) {
                 $query->where('status', 'pending');
             },
         ]);
 
+<<<<<<< HEAD
+        if ($user->role === 'ownerAdmin') {
+            $query->where(function ($q) use ($user) {
+                $q->whereHas('lease.leasable', function ($sq) use ($user) {
+                    $sq->where('user_id', $user->id);
+                })->orWhere('user_id', $user->id);
+            });
+        } elseif ($user->role === 'agentAdmin') {
+            $managedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
+
+            $query->where(function ($q) use ($user, $managedOwnerIds) {
+                $q->whereHas('lease.leasable', function ($sq) use ($user, $managedOwnerIds) {
+                    $sq->where('user_id', $user->id)
+                        ->orWhereIn('user_id', $managedOwnerIds);
+                })->orWhere('user_id', $user->id)
+                    ->orWhereIn('user_id', $managedOwnerIds);
+=======
         if (!Gate::allows('super-admin')) {
             $query->whereHas('lease', function ($leaseQuery) use ($effectiveUserId, $actualUserId) {
                 $leaseQuery->where(function ($q) use ($effectiveUserId, $actualUserId) {
@@ -62,6 +90,7 @@ class InvoiceController extends Controller
                            ->orWhere('created_by', $actualUserId);
                     });
                 });
+>>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb
             });
         }
 
@@ -110,13 +139,22 @@ class InvoiceController extends Controller
         $latestPayment = $invoice->payments->first();
 
         // 🌟 核心修正 2：讀取 transactions 並轉換為前端需要的 receipts 陣列
-        $receipts = $invoice->transactions ? $invoice->transactions->map(function($transaction) {
+        $receipts = $invoice->transactions ? $invoice->transactions->map(function ($transaction) {
             return [
                 'id' => $transaction->id,
                 'receipt_no' => $transaction->receipt_no ?? 'Receipt-' . $transaction->id, // 防止空值
                 'amount' => $transaction->amount_paid, // 抓取 Transaction 表的 amount_paid
                 'created_at' => $transaction->payment_date ?? $transaction->created_at, // 優先使用 payment_date
-                'variables' => method_exists($transaction, 'variables') ? $transaction->variables : [],
+                'variables' => array_merge(
+                    method_exists($transaction, 'variables') ? ($transaction->variables ?? []) : [],
+                    [
+                        'issued_by_name'  => $transaction->approver?->name ?? 'N/A',
+                        'issued_by_phone' => $transaction->approver?->phone
+                            ?? $transaction->approver?->phone_number
+                            ?? 'N/A',
+                        'issued_by_email' => $transaction->approver?->email ?? 'N/A',
+                    ]
+                ),
                 'documentTemplate' => $transaction->documentTemplate ? [
                     'title' => $transaction->documentTemplate->title,
                     'html_template' => $transaction->documentTemplate->html_template,
@@ -157,14 +195,14 @@ class InvoiceController extends Controller
             'template_title' => $invoice->documentTemplate?->title,
             'template_html' => $invoice->documentTemplate?->html_content ?? $invoice->documentTemplate?->html_template,
             'wallet_balance' => $walletBalanceFormatted,
-            
+
             // 打包變數
             'variables' => $this->invoiceService->getInvoiceVariables($invoice),
-            
+
             // 🌟 核心修正 3：將轉換好的 transactions 傳遞給前端的 receipts 變數
-            'receipts' => $receipts, 
-            'recipient_name' => $invoice->isTenantInvoice() 
-                ? ($invoice->lease?->tenant?->user?->name ?? 'N/A') 
+            'receipts' => $receipts,
+            'recipient_name' => $invoice->isTenantInvoice()
+                ? ($invoice->lease?->tenant?->user?->name ?? 'N/A')
                 : ($invoice->user?->name ?? 'N/A'),
             'context_label' => (function () use ($invoice) {
                 if ($invoice->isTenantInvoice()) {
@@ -180,9 +218,9 @@ class InvoiceController extends Controller
                 }
                 return 'Subscription';
             })(),
-            ];
+        ];
     }
-    
+
     public function show(Lease $lease, Invoice $invoice)
     {
         Gate::authorize('owner-admin', $lease);
@@ -208,7 +246,7 @@ class InvoiceController extends Controller
     {
         Gate::authorize('owner-admin', $lease);
         $invoice = $this->invoiceService->createManualInvoice($lease, $request->validated());
-        
+
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
@@ -238,6 +276,9 @@ class InvoiceController extends Controller
 
         return back()->with('success', "Invoice {$invoice->invoice_no} created.");
     }
+<<<<<<< HEAD
+}
+=======
 
     public function generateAutoInvoice(Request $request, Lease $lease)
     {
@@ -268,3 +309,4 @@ class InvoiceController extends Controller
         }
     }
 }
+>>>>>>> 2fb939208bcc491741d3c27375b5b320744266eb

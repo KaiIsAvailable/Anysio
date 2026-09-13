@@ -124,19 +124,19 @@
                 openPackage: false, 
                 open: false, 
                 boostData: { 
-                    packageName: '{{ Auth::user()->user_management->package->name ?? "N/A" }}', 
-                    maxLimit: {{ Auth::user()->user_management->package->max_lease_limit ?? 0 }}, 
+                    packageName: '{{ get_effective_user()->user_management->package->name ?? "N/A" }}', 
+                    maxLimit: {{ get_effective_user()->user_management->package->max_lease_limit ?? 0 }}, 
                     balanceLimit: {{ 
-                        (Auth::user()->user_management && Auth::user()->user_management->package) 
-                        ? (Auth::user()->user_management->package->max_lease_limit - Auth::user()->user_management->extra_lease) 
+                        (get_effective_user()->user_management && get_effective_user()->user_management->package) 
+                        ? (get_effective_user()->user_management->package->max_lease_limit - get_effective_user()->user_management->extra_lease) 
                         : 0 
                     }},
-                    extraPrice: {{ Auth::user()->user_management->package->extra_lease_price ?? 0 }},
+                    extraPrice: {{ get_effective_user()->user_management->package->extra_lease_price ?? 0 }},
 
-                    paymentMode: '{{ Auth::user()->user_management->package->price_mode ?? "N/A" }}',
-                    price: '{{ Auth::user()->user_management?->package?->price / 100  ?? 0 }}',
-                    TotalAvailableLease: '{{ Auth::user()->user_management?->package?->base_lease?? 0 }}',
-                    status: '{{ Auth::user()->user_management?->package?->status ?? "N/A" }}'
+                    paymentMode: '{{ get_effective_user()->user_management->package->price_mode ?? "N/A" }}',
+                    price: '{{ get_effective_user()->user_management?->package?->price / 100  ?? 0 }}',
+                    TotalAvailableLease: '{{ get_effective_user()->user_management?->package?->base_lease?? 0 }}',
+                    status: '{{ get_effective_user()->user_management?->package?->status ?? "N/A" }}'
                 } 
             }" class="hidden sm:flex sm:items-center sm:ms-6">
 

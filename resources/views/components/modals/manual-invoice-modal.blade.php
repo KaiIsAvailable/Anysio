@@ -9,6 +9,7 @@
         actionUrl: '',
         shake: false,
         loading: false,
+        dueDate: '',
         currentBillingPeriod: (() => {
             let d = new Date();
             let year = d.getFullYear();
@@ -44,6 +45,7 @@
             let month = String(d.getMonth() + 1).padStart(2, '0');
             let year = d.getFullYear();
             this.currentBillingPeriod = `${year}-${month}-01`;
+            this.dueDate = '';
             this.shake = false;
             this.loading = false;
         },
@@ -118,6 +120,14 @@
      @open-manual-modal.window="
         actionUrl = $event.detail.action; 
         openManual = true;
+        $nextTick(() => {
+            dueDate = $event.detail.defaultDueDate;
+
+            let fpInput = document.querySelector('#due_date_modal');
+            if (fpInput && fpInput._flatpickr) {
+                fpInput._flatpickr.setDate(dueDate, true);
+            }
+        });
      "
      @fee-type-added.window="handleFeeTypeAdded($event.detail)"
      x-show="openManual" 
@@ -170,7 +180,7 @@
                                 <x-form.date-input 
                                     id="due_date_modal" 
                                     name="due_date" 
-                                    value="{{ now()->addDays(7)->format('Y-m-d') }}"
+                                    x-model="dueDate"
                                     class="px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:bg-white text-sm transition-all shadow-none" 
                                 />
                             </div>

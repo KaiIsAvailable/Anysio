@@ -96,15 +96,17 @@ class InvoiceController extends Controller
 
         $invoiceItems = $invoice->items->map(function ($subItem) {
             return [
-                'description' => $subItem->description ?? 'Item',
+                'description' => $subItem->feeType?->name ?? 'Item',
                 'amount' => number_format(($subItem->amount ?? 0) / 100, 2),
+                'category' => $subItem->feeType?->category ?? '—',
             ];
         });
 
         if ($invoiceItems->isEmpty() && $invoice->description) {
             $invoiceItems->push([
-                'description' => $invoice->description,
+                'description' => $invoice->feeType?->name,
                 'amount' => number_format(($invoice->total_amount ?? 0) / 100, 2),
+                'category' => '—',
             ]);
         }
 
@@ -157,7 +159,8 @@ class InvoiceController extends Controller
             'context' => $invoice->context,
             'created_at' => $invoice->created_at,
             'period' => $formattedPeriod,
-            'due_date' => \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') ?? '—',
+            'due_date' => $invoice->due_date?->format('Y-m-d') ?? '',
+            'due_date_formatted' => $invoice->due_date?->format('d/m/Y') ?? '—',
             'remarks' => $invoice->remarks,
             'document_template_id' => $invoice->document_template_id ?? '—',
             'documentTemplate' => $invoice->documentTemplate,
@@ -182,9 +185,9 @@ class InvoiceController extends Controller
                     if (!$lease || !$lease->leasable) return 'Tenant Lease';
                     $model = $lease->leasable;
                     return match (get_class($model)) {
-                        \App\Models\Property::class => "Property: {$model->name}",
-                        \App\Models\Unit::class     => "Unit: {$model->unit_no} ({$model->property->name})",
-                        \App\Models\Room::class     => "Room: {$model->room_no}",
+                        Property::class => "Property: {$model->name}",
+                        Unit::class     => "Unit: {$model->unit_no} ({$model->property->name})",
+                        Room::class     => "Room: {$model->room_no}",
                         default                     => 'Tenant Lease',
                     };
                 }

@@ -84,11 +84,9 @@ class PaymentProcessor
 
         // 1. PROCESS PENALTY FIRST IF APPLICABLE
         if ($penaltyAmount > 0) {
-            $penaltyFeeType = FeeType::where('name', 'Late Payment Panalty')
+            $penaltyFeeType = FeeType::where('name', 'Late Payment Penalty')
                 ->where('category', 'service')
                 ->firstOrFail();
-
-            Log::channel('testing')->info('Processing late penalty', ['amount' => $penaltyAmount]);
 
             $penaltyInvoice = $invoiceService->createManualInvoice($invoice->lease, [
                 'parent_id' => $invoice->id,

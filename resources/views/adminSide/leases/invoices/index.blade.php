@@ -165,7 +165,7 @@
 
                                 <!-- Due Date -->
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->due_date }}</div>
+                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->due_date_formatted }}</div>
                                 </td>
 
                                 <!-- Amount -->
@@ -197,15 +197,16 @@
                                 <!-- Actions -->
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                     <div class="flex justify-center items-center gap-2">
-                                        @if(in_array($invoice->status, ['unpaid', 'partial', 'overdue']))
+                                        @if(in_array($invoice->status, ['unpaid', 'partial']))
                                         @php
                                         $paymentPayload = json_encode([
-                                        'id' => $invoice->id,
-                                        'invoiceNo' => $invoice->invoice_no,
-                                        'totalAmount' => number_format($invoice->amount_balance / 100, 2),
-                                        'invoiceItems' => $invoice->invoice_items,
-                                        'walletBalance' => $invoice->wallet_balance,
-                                        'actionUrl' => route('admin.invoices.payment', $invoice->id)
+                                            'id' => $invoice->id,
+                                            'invoiceNo' => $invoice->invoice_no,
+                                            'dueDate' => $invoice->due_date,
+                                            'totalAmount' => number_format($invoice->amount_balance / 100, 2),
+                                            'invoiceItems' => $invoice->invoice_items,
+                                            'walletBalance' => $invoice->wallet_balance,
+                                            'actionUrl' => route('admin.invoices.payment', $invoice->id)
                                         ]);
                                         @endphp
                                         <button type="button"

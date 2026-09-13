@@ -5,11 +5,18 @@
         </h2>
     </x-slot>
 
-    <div class="py-12" x-data="{ activeTab: 'lease' }">
+    <div class="py-12" x-data="{ activeTab: new URLSearchParams(window.location.search).get('tab') || 'payment' }">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
             
             <!-- Navigation Tabs Header -->
             <div class="bg-white shadow sm:rounded-lg p-4 flex space-x-4 border-b border-gray-200">
+                <button type="button" 
+                        @click="activeTab = 'payment'" 
+                        :class="activeTab === 'payment' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="py-2 px-1 border-b-2 font-medium text-sm transition">
+                    {{ __('Payment Settings') }}
+                </button>
+
                 <button type="button" 
                         @click="activeTab = 'lease'" 
                         :class="activeTab === 'lease' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
@@ -17,14 +24,7 @@
                     {{ __('Lease Settings') }}
                 </button>
 
-                <!--<button type="button" 
-                        @click="activeTab = 'invoice'" 
-                        :class="activeTab === 'invoice' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-                        class="py-2 px-1 border-b-2 font-medium text-sm transition">
-                    {{ __('Invoice Settings') }}
-                </button>
-
-                <button type="button" 
+                <!--button type="button" 
                         @click="activeTab = 'owner'" 
                         :class="activeTab === 'owner' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                         class="py-2 px-1 border-b-2 font-medium text-sm transition">
@@ -47,7 +47,7 @@
             </div>
 
             <!-- TAB 1: LEASE SETTINGS -->
-            <div x-show="activeTab === 'lease'">
+            <div x-show="activeTab === 'payment'" x-cloak>
                 <x-form.form method="POST" 
                             action="{{ route('admin.settings.update') }}" 
                             class="space-y-6" 
@@ -60,6 +60,7 @@
                     @csrf
                     @method('PATCH')
 
+                    <input type="hidden" name="tab" :value="activeTab">
                     <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
                         <div>
                             <section>
@@ -73,13 +74,7 @@
                                         </p>
                                     </div>
                                     <!-- Lock/Edit Toggle Button -->
-                                    <button type="button" 
-                                            @click="editing = !editing"
-                                            :class="editing ? 'bg-amber-50 text-amber-700 border-amber-300' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'"
-                                            class="inline-flex items-center px-3 py-1.5 border text-sm font-medium rounded-md shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500">
-                                        <span x-show="!editing">{{ __('Enable Edit') }}</span>
-                                        <span x-show="editing" x-cloak>{{ __('Editing') }}</span>
-                                    </button>
+                                    <x-form.section-edit-button state="editing" />
                                 </header>
 
                                 <div class="mt-6 space-y-6">
@@ -110,7 +105,7 @@
 
                                     <!-- Configuration Fields in a Grid Row Layout -->
                                     <div x-show="enabled" x-cloak class="space-y-4 border-t border-gray-100 pt-4">
-                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             <!-- Grace Period -->
                                             <div>
                                                 <x-form.input-label for="grace_period_days" :value="__('Grace Period (Days)')" info="{!! __('Extra days allowed after the due date before late fees start accumulating. <br><br> 0 means start immediately. 3 means allow 3 extra days no penalty') !!}"/>
@@ -123,10 +118,10 @@
                                                 <x-form.input-select 
                                                     id="calculation_type" 
                                                     name="settings[late_penalty_config][calculation_type]" 
-                                                    value="{{ $settings['late_penalty_config']['value']['calculation_type'] }}"
+                                                    :value="data_get($settings, 'late_penalty_config.value.calculation_type')"
                                                     :options="[
                                                         ['value' => 'fixed', 'label' => __('Fixed Amount')],
-                                                        ['value' => 'percentage', 'label' => __('Percentage (%)')]
+                                                        //['value' => 'percentage', 'label' => __('Percentage (%)')]
                                                     ]"
                                                     class="mt-1 block w-full" 
                                                     x-bind:disabled="!editing"
@@ -139,7 +134,7 @@
                                                 <x-form.input-select 
                                                     id="frequency" 
                                                     name="settings[late_penalty_config][frequency]" 
-                                                    value="{{ $settings['late_penalty_config']['value']['frequency'] }}"
+                                                    :value="data_get($settings, 'late_penalty_config.value.frequency')"
                                                     :options="collect(range(1, 10))->map(fn($i) => ['value' => (string)$i, 'label' => (string)$i])->toArray()"
                                                     class="mt-1 block w-full" 
                                                     x-bind:disabled="!editing"
@@ -167,6 +162,26 @@
                                                     <x-form.text-input id="maximum_amount" name="settings[late_penalty_config][maximum_amount]" type="number" step="0.01" min="0" class="block w-full pl-12" value="{{ isset($settings['late_penalty_config']['value']['maximum_amount']) ? $settings['late_penalty_config']['value']['maximum_amount'] / 100 : '' }}" x-bind:disabled="!editing" />
                                                 </div>
                                             </div>
+
+                                            <!-- Applicable Fee Type Categories (Custom Multi-Select Component) -->
+                                            <div>
+                                                <x-form.input-label for="applicable_categories" :value="__('Fee Type Categories')" info="{{ __('Select which fee type categories this late penalty applies to.') }}"/>
+                                                
+                                                <div>
+                                                    @php
+                                                        $selectedCategories = $settings['late_penalty_config']['value']['applicable_categories'];
+                                                    @endphp
+
+                                                    <x-form.input-select 
+                                                        id="applicable_categories"
+                                                        name="settings[late_penalty_config][applicable_categories]"
+                                                        :multiple="true"
+                                                        :options="$feeTypeCategoryOptions"
+                                                        :value="$selectedCategories"
+                                                        x-bind:disabled="!editing"
+                                                    />
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -181,24 +196,166 @@
                 </x-form.form>
             </div>
 
-            <!-- TAB 2: INVOICE SETTINGS -->
-            <div x-show="activeTab === 'invoice'" x-cloak>
-                <form method="POST" action="{{ route('admin.settings.update') }}" class="space-y-6">
+            <!-- TAB 2: LEASE SETTINGS -->
+            <div x-show="activeTab === 'lease'" x-cloak>
+                <x-form.form 
+                    method="POST" 
+                    action="{{ route('admin.settings.update') }}" 
+                    class="space-y-6" 
+                    x-data="{ 
+                        loading: false, 
+                        editingFeeType: false, 
+                        editingDueDate: false,
+                        enabled: {{ ($settings['fee_types_config'] ?? false) ? 'true' : 'false' }} 
+                    }" 
+                    @submit="loading = true"
+                >
                     @csrf
                     @method('PATCH')
 
-                    <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
-                        <div class="max-w-xl">
-                            <h2 class="text-lg font-medium text-gray-900">{{ __('Invoice Configuration') }}</h2>
-                            <p class="mt-1 text-sm text-gray-600">{{ __('Manage invoice generation terms, prefixes, and notes.') }}</p>
-                            <p class="mt-1 text-sm text-gray-600">{{ __('Coming Soon...') }}</p>
+                    <input type="hidden" name="tab" :value="activeTab">
+
+                    <!-- Recurring Invoice & Due Date Policy Section -->
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 shadow-sm space-y-6">
+                        <header class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-md font-medium text-gray-950">{{ __('Recurring Invoice Settings') }}</h3>
+                                <p class="mt-0.5 text-sm text-gray-600">{{ __('Configure automated recurring invoice generation and default payment terms.') }}</p>
+                            </div>
+                            <!-- Lock/Edit Toggle Button -->
+                            <x-form.section-edit-button state="editingDueDate" />
+                        </header>
+
+                        <div class="grid grid-cols-1 md:grid-cols-1 gap-6 pt-2">
+                            <!-- Due Date Days Configuration -->
+                            <div class="p-4 border border-gray-100 bg-gray-50 rounded-lg space-y-2">
+                                <x-form.input-label for="due_date_config[days]" :value="__('Due Date Days')" info="{!! __('Number of days given to tenants to settle invoices after issuance. <br><br> Example: The invoice will always be issued on the 1st of the month, if day = 7 mean that 1 + 7 = 8 so the due date will be the 8th of the month.') !!}"/>
+                                <div class="flex items-center gap-2">
+                                    <x-form.text-input type="number" 
+                                        name="due_date_config[days]" 
+                                        value="{{ data_get($settings, 'due_date_config.value.days') }}" 
+                                        min="0" 
+                                        max="365"
+                                        class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-500"
+                                        x-bind:disabled="!editingDueDate">
+                                    </x-form.text-input>
+                                    <span class="text-xs font-medium text-gray-600 shrink-0">Days</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Save Button for this section -->
+                        <div class="flex items-center gap-4 pt-2" x-show="editingDueDate" x-cloak>
+                            <x-form.primary-button x-bind:disabled="!editingDueDate" loading="loading">
+                                {{ __('Save Due Date Settings') }}
+                            </x-form.primary-button>
                         </div>
                     </div>
 
-                    <div class="flex items-center gap-4">
-                        <x-form.primary-button>{{ __('Save Invoice Settings') }}</x-form.primary-button>
+                    <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg space-y-6">
+                         <header class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-lg font-medium text-gray-900">{{ __('Lease Configuration') }}</h2>
+                                <p class="mt-1 text-sm text-gray-600">{{ __('Manage default lease charges and policies.') }}</p>
+                            </div>
+                            <!-- Lock/Edit Toggle Button -->
+                            <x-form.section-edit-button state="editingFeeType" />
+                        </header>
+
+                        <!-- Charges Container -->
+                        <div class="space-y-6">
+                            <h3 class="text-md font-medium text-gray-900">{{ __('Adjust System Fee Types') }}</h3>
+                            <p class="text-sm text-gray-600">{{ __('Toggle which fee types are active and allowed to be selected when creating leases or invoices.') }}</p>
+
+                            <div class="space-y-6">
+                                @php
+                                    $allFeeTypesGroups = [
+                                        'Rent' => $rentFeeTypes,
+                                        'Deposit' => $depositFeeTypes,
+                                        'Utility' => $utilityFeeTypes,
+                                        'Service' => $serviceFeeTypes,
+                                        'Penalty' => $penaltyFeeTypes,
+                                        'Management' => $managementFeeTypes,
+                                    ];
+                                @endphp
+
+                                @foreach($allFeeTypesGroups as $groupName => $feeTypes)
+                                    @if($feeTypes->isNotEmpty())
+                                        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{{ $groupName }} Fees</h4>
+                                            
+                                            <!-- 4-column grid layout -->
+                                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                                                @foreach($feeTypes as $feeType)
+                                                    @php
+                                                        $slug = Str::slug(strtolower($feeType->category->value . '_' . $feeType->name), '_');
+                                                        $isEnabled = filter_var(
+                                                            data_get($settings, "fee_types_config.value.{$slug}.is_active", true), 
+                                                            FILTER_VALIDATE_BOOLEAN
+                                                        );
+                                                        $isLatePenaltyFee = ($slug === 'service_late_payment_penalty');
+                                                        $info = 'Controlled by the <b>Late Payment Penalty</b> setting.';
+                                                    @endphp
+                                                    <div class="flex items-center justify-between p-3 border border-gray-100 bg-gray-50 rounded-lg">
+                                                        <!-- Left side container -->
+                                                        <div class="flex items-center justify-between w-full mr-2 min-w-0">
+                                                            <div class="flex items-center space-x-1.5 min-w-0">
+                                                                <!-- Fee Type Name -->
+                                                                <span class="text-xs font-medium text-gray-800 truncate" title="{{ $feeType->name }}">{{ $feeType->name }}</span>
+                                                                
+                                                                <!-- System Badge -->
+                                                                @if($feeType->is_system)
+                                                                    <span class="inline-block px-1.5 py-0.2 text-[10px] bg-gray-200 text-gray-600 rounded shrink-0">System</span>
+                                                                @endif
+
+                                                                <!-- Info Button with Tooltip placed inline right beside the name/badge -->
+                                                                @if($isLatePenaltyFee)
+                                                                    <div class="relative flex items-center shrink-0" x-data="{ open: false }">
+                                                                        <button type="button" 
+                                                                            @mouseenter="open = true" 
+                                                                            @mouseleave="open = false" 
+                                                                            class="text-gray-400 hover:text-indigo-600 focus:outline-none">
+                                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                                                            </svg>
+                                                                        </button>
+
+                                                                        <!-- Tooltip Popup -->
+                                                                        <div x-show="open" 
+                                                                            x-cloak
+                                                                            class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-gray-900 text-white text-xs rounded-md shadow-xl z-50 pointer-events-auto normal-case font-normal text-left [&>b]:font-bold">
+                                                                            {!! $info !!}
+                                                                        </div>
+                                                                    </div>
+                                                                @endif
+                                                            </div>
+                                                        </div>
+
+                                                        <!-- Toggle Switch -->
+                                                        <label class="relative inline-flex items-center shrink-0 transition-opacity"
+                                                                :class="(!editingFeeType || @json($isLatePenaltyFee)) ? 'opacity-65 cursor-not-allowed' : 'cursor-pointer'">
+                                                            <input type="hidden" name="fee_types_config[{{ $slug }}][is_active]" value="false">
+                                                            <input type="checkbox" name="fee_types_config[{{ $slug }}][is_active]" value="true" 
+                                                                class="sr-only peer" 
+                                                                {{ $isEnabled ? 'checked' : '' }} 
+                                                                x-bind:disabled="!editingFeeType @if($isLatePenaltyFee) || true @endif">
+                                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                        </label>
+                                                    </div>
+                                                @endforeach
+                                            </div>
+                                        </div>
+                                    @endif
+                                @endforeach
+                            </div>
+                        </div>
+                        <x-form.input-error :messages="$errors->get('charges')" class="mt-1" />
+
+                        <div class="flex items-center gap-4" x-show="editingFeeType" x-cloak>
+                            <x-form.primary-button x-bind:disabled="!editingFeeType" loading="loading">{{ __('Save Fee Type Settings') }}</x-form.primary-button>
+                        </div>
                     </div>
-                </form>
+                </x-form.form>
             </div>
 
             <!-- TAB 3: OWNER SETTINGS -->

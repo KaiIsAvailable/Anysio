@@ -5,14 +5,110 @@
         @open-payment.window="
             openPayment = true; 
             paymentData = $event.detail;
+            walletBalance = parseFloat(String(paymentData.walletBalance || '0').replace(/,/g, '')) || 0;
+            useWallet = false;
+            method = 'Cash';
+            if (paymentData.invoiceItems) {
+                selectedItems = paymentData.invoiceItems.map((_, i) => i);
+                payFull = true;
+            }
+            form.payment_date = '{{ date('Y-m-d') }}';
+            form.due_date = paymentData.dueDate || '';
+            form.amount_balance = parseFloat(String(paymentData.totalAmount || '0').replace(/,/g, '')) || 0;
+            updatePenalty();
         "
-        x-effect="if (openPayment) { 
-            $nextTick(() => { 
-                const first = $el.querySelector('input:not([type=hidden]):not([disabled])');
-                if (first) {
-                    first.focus();
+
+        x-data="{
+            method: 'Cash',
+            previousMethod: 'Cash',
+            selectedItems: [],
+            payFull: true,
+            useWallet: false,
+            walletBalance: 0,
+            penaltyLoading: false,
+
+            dynamicPenalty: null,
+            form: {
+                payment_date: '',
+                due_date: '',
+                amount_balance: 0
+            },
+
+            async updatePenalty() {
+                if (!this.paymentData?.id || !this.form.payment_date) {
+                    this.penaltyLoading = false;
+                    return;
                 }
-            }); 
+
+                this.penaltyLoading = true;
+
+                try {
+                    let response = await fetch(`{{ route('admin.setting.calculate-penalty', '__ID__') }}`.replace('__ID__', this.paymentData.id), {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                            'Accept': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            due_date: this.form.due_date,        
+                            total_amount: this.form.amount_balance, 
+                            payment_date: this.form.payment_date  
+                        })
+                    });
+                    
+                    let data = await response.json();
+                    this.dynamicPenalty = data; 
+
+                    console.log('[Debug] Penalty calculation response:', data);
+                } catch (error) {
+                    console.error('Failed to calculate penalty:', error);
+                } finally {
+                    this.penaltyLoading = false; // <-- Always turn off loading when done (success or error)
+                }
+            },
+            
+            get penaltyDetails() {
+                // If dynamicPenalty is empty, null, or missing an amount, ignore it
+                if (!this.dynamicPenalty || Object.keys(this.dynamicPenalty).length === 0 || !this.dynamicPenalty.amount) {
+                    return this.paymentData?.initialPenalty || null;
+                }
+                return this.dynamicPenalty;
+            },
+            
+            get computedAmount() {
+                if (this.useWallet) {
+                    return '0.00';
+                }
+
+                let rawTotal = String(this.paymentData?.totalAmount || 0).replace(/,/g, '');
+                let numericTotal = parseFloat(rawTotal) || 0;
+                
+                let baseAmount = (this.payFull || !this.paymentData?.invoiceItems || this.paymentData.invoiceItems.length === 0)
+                    ? numericTotal
+                    : this.selectedItems.reduce((sum, index) => {
+                        let itemAmount = String(this.paymentData.invoiceItems[index].amount || 0).replace(/,/g, '');
+                        return sum + (parseFloat(itemAmount) || 0);
+                    }, 0);
+
+                if (this.penaltyDetails && this.payFull && this.penaltyDetails.amount) {
+                    let penaltyAmount = String(this.penaltyDetails.amount).replace(/,/g, '');
+                    baseAmount += parseFloat(penaltyAmount) || 0;
+                }
+
+                return baseAmount.toFixed(2);
+            },
+
+            handleWalletToggle(event) {
+                if (event.target.checked) {
+                    if (this.method !== 'Wallet') {
+                        this.previousMethod = this.method;
+                    }
+                    this.method = 'Wallet';
+                } else {
+                    this.method = this.previousMethod || 'Cash';
+                }
+            }
         }"
         class="fixed inset-0 z-[100] overflow-y-auto">
 
@@ -62,148 +158,7 @@
                 ];
                 @endphp
 
-                <x-form.form x-bind:action="paymentData.actionUrl" method="PATCH" 
-                    x-data="{ 
-                        method: 'Cash',
-                        selectedItems: [],
-                        payFull: true,
-                        useWallet: false,
-                        walletBalance: 0,
-                        
-                        get penaltyDetails() {
-                            if (!this.paymentData || !this.paymentData.penaltyConfig || !this.paymentData.dueDate) {
-                                return null;
-                            }
-                            
-                            let config = this.paymentData.penaltyConfig;
-                            if (typeof config === 'string') {
-                                try { config = JSON.parse(config); } catch (e) { return null; }
-                            }
-                            
-                            if (config.is_active === false) return null;
-
-                            // Parse date (supports YYYY-MM-DD or DD/MM/YYYY)
-                            let rawDateStr = String(this.paymentData.dueDate).trim();
-                            let year, month, day;
-                            
-                            if (rawDateStr.includes('/')) {
-                                const parts = rawDateStr.split('/');
-                                day = parseInt(parts[0], 10);
-                                month = parseInt(parts[1], 10) - 1;
-                                year = parseInt(parts[2], 10);
-                            } else {
-                                const parts = rawDateStr.split('T')[0].split('-');
-                                year = parseInt(parts[0], 10);
-                                month = parseInt(parts[1], 10) - 1;
-                                day = parseInt(parts[2], 10);
-                            }
-
-                            const due = new Date(year, month, day);
-                            if (isNaN(due.getTime())) return null;
-
-                            // Apply grace period days
-                            const graceDays = parseInt(config.grace_period_days || 0, 10);
-                            due.setDate(due.getDate() + graceDays);
-
-                            const today = new Date();
-                            today.setHours(0, 0, 0, 0);
-                            due.setHours(0, 0, 0, 0);
-
-                            // If today is on or before the penalty start date, no penalty
-                            if (today <= due) return null;
-
-                            // Calculate how many days overdue after grace period
-                            const diffTime = today.getTime() - due.getTime();
-                            const overdueDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-                            const frequency = Math.max(1, parseInt(config.frequency || 1, 10));
-                            const periods = Math.floor(overdueDays / frequency);
-                            if (periods <= 0) return null;
-
-                            const baseAmount = parseFloat(String(this.paymentData.totalAmount || 0).replace(/,/g, ''));
-                            let penaltyAmount = 0;
-                            let calculationText = '';
-
-                            const type = config.calculation_type || config.type;
-                            const maxAmountCents = parseFloat(config.maximum_amount || 0);
-                            const maxAmount = maxAmountCents > 0 ? maxAmountCents / 100 : Infinity;
-
-                            if (type === 'fixed') {
-                                const unitAmount = parseFloat(config.amount || 0) / 100;
-                                penaltyAmount = unitAmount * periods;
-                                calculationText = `RM ${unitAmount.toFixed(2)} per ${frequency > 1 ? frequency + ' days' : 'day'} (${periods} interval(s))`;
-                            } else if (type === 'percentage') {
-                                const rate = parseFloat(config.rate || 0);
-                                const unitPenalty = baseAmount * (rate / 100);
-                                penaltyAmount = unitPenalty * periods;
-                                calculationText = `${rate}% per ${frequency > 1 ? frequency + ' days' : 'day'} (${periods} interval(s))`;
-                            }
-
-                            // Apply maximum amount cap (0 means infinity)
-                            if (maxAmountCents > 0 && penaltyAmount > maxAmount) {
-                                penaltyAmount = maxAmount;
-                                calculationText += ` (Capped at RM ${maxAmount.toFixed(2)})`;
-                            }
-
-                            return {
-                                amount: penaltyAmount,
-                                title: 'Late Penalty',
-                                calculation: calculationText + (graceDays > 0 ? ` [${graceDays}d grace]` : '')
-                            };
-                        },
-
-                        get computedAmount() {
-                            if (this.useWallet) {
-                                return '0.00';
-                            }
-
-                            let rawTotal = String(this.paymentData.totalAmount || 0).replace(/,/g, '');
-                            let baseAmount = (this.payFull || !this.paymentData.invoiceItems || this.paymentData.invoiceItems.length === 0)
-                                ? parseFloat(rawTotal)
-                                : this.selectedItems.reduce((sum, index) => {
-                                    let itemAmount = String(this.paymentData.invoiceItems[index].amount || 0).replace(/,/g, '');
-                                    return sum + parseFloat(itemAmount);
-                                }, 0);
-
-                            if (this.penaltyDetails && this.payFull) {
-                                baseAmount += this.penaltyDetails.amount;
-                            }
-
-                            return baseAmount.toFixed(2);
-                        },
-
-                        handleWalletToggle(event) {
-                            if (event.target.checked) {
-                                if (this.method !== 'Wallet') {
-                                    this.previousMethod = this.method;
-                                }
-                                this.method = 'Wallet';
-                            } else {
-                                this.method = this.previousMethod || 'Cash';
-                            }
-                        },
-
-                        init() {
-                            let currentInvoiceId = null;
-
-                            this.$watch('paymentData', (val) => {
-                                if (val) {
-                                    if (val.id && val.id !== currentInvoiceId) {
-                                        currentInvoiceId = val.id;
-                                        if (val.invoiceItems) {
-                                            this.selectedItems = val.invoiceItems.map((_, i) => i);
-                                            this.payFull = true;
-                                        }
-                                        this.useWallet = false;
-                                    }
-                                    
-                                    let rawBalance = String(val.walletBalance || '0').replace(/,/g, '');
-                                    this.walletBalance = parseFloat(rawBalance) || 0;
-                                }
-                            });
-                        }
-                    }">
-                    
+                <x-form.form x-bind:action="paymentData.actionUrl" method="POST">
                     <div class="flex flex-col max-h-[85vh]">
                         <!-- Scrollable Form Body -->
                         <div class="p-5 space-y-3 overflow-y-auto flex-1 pr-1">
@@ -228,9 +183,9 @@
                                         <div class="py-2 px-2.5 flex items-center justify-between text-sm bg-amber-50/80 border border-amber-200/60 rounded-lg my-1">
                                             <div class="flex flex-col">
                                                 <span class="font-semibold text-amber-900" x-text="penaltyDetails.title"></span>
-                                                <span class="text-xs text-amber-700/80" x-text="'Calculation: ' + penaltyDetails.calculation"></span>
+                                                <span class="text-xs text-amber-700/80" x-text="'Calculation: ' + penaltyDetails?.calculation"></span>
                                             </div>
-                                            <span class="font-bold text-amber-900" x-text="'+ RM ' + penaltyDetails.amount.toFixed(2)"></span>
+                                            <span class="font-bold text-amber-900" x-text="'+ RM ' + (Number(penaltyDetails.totalAmount || penaltyDetails.amount || 0)).toFixed(2)"></span>
                                         </div>
                                     </template>
                                 </div>
@@ -273,7 +228,9 @@
                             <div class="grid grid-cols-2 gap-3">
                                 <div>
                                     <x-form.input-label value="Payment Date" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
-                                    <x-form.date-input id="payment-date" name="payment_date" label="Payment Date" value="{{ date('Y-m-d') }}" />
+                                    <x-form.date-input id="payment-date" name="payment_date" label="Payment Date" value="{{ date('Y-m-d') }}" 
+                                        x-model="form.payment_date" 
+                                        @change="updatePenalty()" />
                                     <x-form.input-error :messages="$errors->get('payment_date')" class="mt-1" />
                                 </div>
 
@@ -365,6 +322,7 @@
                             </button>
                             <x-form.primary-button type="submit" 
                                 loading="loading"
+                                x-bind:disabled="penaltyLoading"
                                 class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">
                                 <span>Confirm Payment</span>
                             </x-form.primary-button>

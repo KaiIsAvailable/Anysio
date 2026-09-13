@@ -367,7 +367,10 @@
 
                             <!-- Add Manual Invoice Button -->
                             <button type="button"
-                                @click="$dispatch('open-manual-modal', { action: getManualInvoiceUrl() })"
+                                @click="$dispatch('open-manual-modal', { 
+                                    action: getManualInvoiceUrl(),
+                                    defaultDueDate: '{{ now()->addDays($dueDateDays)->format('Y-m-d') }}'
+                                })"
                                 class="uppercase inline-flex items-center px-3 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
@@ -497,7 +500,7 @@
                                                 </td>
 
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900" x-text="invoice.period"></td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600" x-text="invoice.due_date"></td>
+                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600" x-text="invoice.due_date_formatted"></td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm">
                                                     <div class="space-y-1">
                                                         <div class="text-gray-900 font-semibold">Total: <span class="font-normal" x-text="'RM ' + invoice.total_amount"></span></div>
@@ -520,24 +523,19 @@
                                                     <!-- Record Payment Button -->
                                                     <template x-if="invoice.status !== 'paid' && invoice.status !== 'void'">
                                                         <button type="button"
-                                                            @click="$dispatch('open-payment', {
-                                                                id: invoice.id, 
-                                                                invoiceNo: invoice.invoice_no, 
-                                                                dueDate: invoice.due_date,
-                                                                totalAmount: invoice.amount_balance, 
-                                                                invoiceItems: invoice.invoice_items, 
-                                                                walletBalance: activeLease.wallet_balance, 
-                                                                actionUrl: '{{ route('admin.invoices.payment', ':id') }}'.replace(':id', invoice.id),
-                                                                settings: {{ Js::from($settings ?? []) }},
-                                                                penaltyConfig: {{ Js::from((function($allSettings) {
-                                                                    $match = collect($allSettings)->first(fn($s) => 
-                                                                        (is_array($s) ? ($s['key'] ?? null) : ($s->key ?? null)) === 'late_penalty_config' && 
-                                                                        (is_array($s) ? ($s['is_active'] ?? false) : ($s->is_active ?? false)) === true
-                                                                    );
-                                                                    if (!$match) return null;
-                                                                    return is_array($match) ? ($match['value'] ?? null) : ($match->value ?? null);
-                                                                })($settings ?? [])) }}
-                                                            })"
+                                                            @click="
+                                                                let payload = {
+                                                                    id: invoice.id, 
+                                                                    invoiceNo: invoice.invoice_no, 
+                                                                    dueDate: invoice.due_date,
+                                                                    totalAmount: invoice.amount_balance, 
+                                                                    invoiceItems: invoice.invoice_items, 
+                                                                    walletBalance: activeLease.wallet_balance, 
+                                                                    actionUrl: '{{ route('admin.invoices.payment', ':id') }}'.replace(':id', invoice.id),
+                                                                };
+                                                                console.log('[Debug] Dispatching open-payment with payload:', payload);
+                                                                $dispatch('open-payment', payload);
+                                                            "
                                                             class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 rounded-lg transition-all shadow-sm">
                                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
@@ -617,6 +615,38 @@
                                         </div>
                                     </x-form.form>
                                 </div>
+                            </x-modals.confirmation-modal>
+
+                            {{-- Cancel Confirmation Modal --}}
+                            <x-modals.confirmation-modal id="lease-confirm-modal" title="Cancel Lease">
+                                <x-form.form x-data="{ targetAction: '', reason: '', loading: false }" 
+                                    x-bind:action="targetAction" 
+                                    method="POST" 
+                                    class="p-6"
+                                    @open-lease-confirm-modal.window="targetAction = $event.detail.actionUrl; reason = ''"
+                                    @submit="loading = true">
+                                    @csrf
+                                    @method('PATCH')
+                                    
+                                    <div class="flex items-center gap-3 text-amber-600 bg-amber-50 p-4 rounded-xl border border-amber-100 mb-4">
+                                        <p class="text-sm font-semibold text-gray-700">Are you sure you want to cancel this lease? This action cannot be undone.</p>
+                                    </div>
+
+                                    <div class="mb-4">
+                                        <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Cancellation Reason <span class="text-red-500">*</span></label>
+                                        <textarea name="cancellation_reason" x-model="reason" rows="3" class="w-full text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl shadow-sm"></textarea>
+                                    </div>
+
+                                    <div class="flex justify-end gap-2">
+                                        <button type="button" @click="$dispatch('close-lease-confirm-modal')" class="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold rounded-xl transition-all">
+                                            Cancel
+                                        </button>
+                                        <x-form.primary-button type="submit" x-bind:disabled="!reason.trim()" loading="loading"
+                                            class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-bold rounded-xl transition-all">
+                                            Confirm
+                                        </x-form.primary-button>
+                                    </div>
+                                </x-form.form>
                             </x-modals.confirmation-modal>
 
                             <!-- Pagination -->

@@ -12,6 +12,7 @@ class InvoiceService
         private readonly PaymentProcessor $paymentProcessor,
         private readonly WalletService $walletService,
         private readonly DocumentSequenceService $documentSequenceService,
+        private readonly SettingService $settingService,
     ) {}
 
     /**
@@ -76,6 +77,10 @@ class InvoiceService
             return 0;
         }
 
+        
+        $settings = $this->settingService->getEffectiveSettings();
+        $dueDateDays = (int) data_get($settings, 'due_date_config.value.days', 7);
+
         // 1. Check if there is a voided invoice gap that needs to be re-generated first
         $voidedInvoice = $lease->invoices()
             ->where('status', 'void')
@@ -103,7 +108,7 @@ class InvoiceService
 
             $billingDate = Carbon::parse($voidedInvoice->period);
             $period = $billingDate->startOfMonth()->toDateString();
-            $dueDate = $billingDate->copy()->addDays(7)->toDateString();
+            $dueDate = $billingDate->copy()->addDays($dueDateDays)->toDateString();
 
             // Trace back from this specific voided invoice's items to the lease charges
             $feeTypeIds = $voidedInvoice->items()->pluck('fee_type_id')->toArray();
@@ -136,7 +141,7 @@ class InvoiceService
             }
 
             $period = $billingDate->startOfMonth()->toDateString();
-            $dueDate = $billingDate->copy()->addDays(7)->toDateString();
+            $dueDate = $billingDate->copy()->addDays($dueDateDays)->toDateString();
 
             // Stop generating if the next period exceeds the lease end date
             if ($lease->end_date && Carbon::parse($period)->greaterThan(Carbon::parse($lease->end_date))) {

@@ -2,25 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Lease;
-use App\Models\Room;
-use App\Models\Unit;
-use App\Models\Property;
-use App\Models\Tenants;
-use App\Models\User;
-use App\Models\FeeType;
-use App\Models\Owners;
+use App\Models\{Lease, Room, Unit, Property, Tenants, User, FeeType, Owners};
+use App\Services\{FileService, InvoiceService, LeaseService, SettingService};
+use App\Http\Requests\Lease\{StoreLeaseRequest};
+use Illuminate\Support\Facades\{Auth, Gate, Log};
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Traits\RoleBasedDataTrait;
 use App\Models\DocumentTemplate;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate;
-use Illuminate\Support\Facades\Log;
-use App\Services\FileService;
-use App\Services\InvoiceService;
-use App\Services\LeaseService;
-use App\Http\Requests\Lease\{StoreLeaseRequest};
 use App\FeeTypeCategory;
 
 class LeaseController extends Controller
@@ -28,11 +17,13 @@ class LeaseController extends Controller
     use RoleBasedDataTrait;
     protected InvoiceService $invoiceService;
     protected LeaseService $leaseService;
+    protected SettingService $settingService;
 
-    public function __construct(InvoiceService $invoiceService, LeaseService $leaseService)
+    public function __construct(InvoiceService $invoiceService, LeaseService $leaseService, SettingService $settingService)
     {
         $this->invoiceService = $invoiceService;
         $this->leaseService = $leaseService;
+        $this->settingService = $settingService;
     }
     public function index(Request $request)
     {
@@ -165,7 +156,7 @@ class LeaseController extends Controller
         return view('adminSide.leases.index', compact('leases', 'statusOptions'));
     }
 
-    public function create(Request $request)
+    public function create(Request $request, SettingService $settingService)
     {
         /** @var User $user */
         $user = get_effective_user();
@@ -226,10 +217,12 @@ class LeaseController extends Controller
             ->orderBy('name')
             ->get();
 
-        $rentFeeTypes = $feeTypes->where('category', FeeTypeCategory::RENT->value)->values();
-        $serviceFeeTypes = $feeTypes->where('category', FeeTypeCategory::SERVICE->value)->values();
-        $depositFeeTypes = $feeTypes->where('category', FeeTypeCategory::DEPOSIT->value)->values();
-        $managementFeeTypes = $feeTypes->where('category', FeeTypeCategory::MANAGEMENT->value)->values();
+        $filteredFeeTypes = $settingService->filterActiveFeeTypes($feeTypes, $user->id);
+
+        $rentFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::RENT->value)->values();
+        $serviceFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::SERVICE->value)->values();
+        $depositFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::DEPOSIT->value)->values();
+        $managementFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::MANAGEMENT->value)->values();
 
         /*
         |--------------------------------------------------------------------------
@@ -436,6 +429,15 @@ class LeaseController extends Controller
 
     public function show(Request $request, Lease $lease)
     {
+        $settings = $this->settingService->getEffectiveSettings();
+        $latePenaltyConfig = $settings['late_penalty_config'] ?? null;
+        $dueDateDays = (int) data_get($settings, 'due_date_config.value.days', 7);
+
+        Log::channel('testing')->info('Formatted Invoices Payload:', [
+            'settings' => $settings,
+            'latePenaltyConfig' => $latePenaltyConfig,
+        ]);
+
         // If it's an AJAX request, we want to support fetching invoices 
         // for ANY lease in the history chain (passed via query parameter, fallback to current route lease)
         if ($request->ajax()) {
@@ -521,20 +523,26 @@ class LeaseController extends Controller
                     'id' => $invoice->id,
                     'invoice_no' => $invoice->invoice_no,
                     'document_template_id' => $invoice->document_template_id ?? '—',
-                    'template_title' => $invoice->documentTemplate?->title,
-                    'template_html'  => $invoice->documentTemplate?->html_template,
                     'variables'      => $variables,
                     'invoice_items' => $invoiceItems,
                     'receipts'      => $receipts,
                     'period' => $formattedPeriod,
-                    'due_date' => $invoice->due_date?->format('d/m/Y') ?? '—',
+                    'due_date' => $invoice->due_date?->format('Y-m-d') ?? '',
+                    'due_date_formatted' => $invoice->due_date?->format('d/m/Y') ?? '—',
                     'total_amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
                     'amount_paid' => number_format($invoice->amount_paid / 100 ?? 0, 2),
                     'amount_balance' => number_format(($invoice->total_amount / 100 ?? 0) - ($invoice->amount_paid / 100 ?? 0), 2),
                     'status' => strtolower($invoice->status ?? 'unpaid'),
                     'remarks' => $invoice->remarks ?? '—',
+                    'template_title' => $invoice->documentTemplate?->title,
+                    'template_html'  => $invoice->documentTemplate?->html_template,
                 ];
             });
+
+            Log::channel('testing')->info('Formatted Invoices Payload:', [
+                'formattedInvoices' => $formattedInvoices
+            ]);
+
 
             return response()->json([
                 'invoices' => $formattedInvoices,
@@ -579,7 +587,7 @@ class LeaseController extends Controller
 
         $leaseHistory = $leaseHistory->reverse();
 
-        $historyJson = $leaseHistory->keyBy('id')->map(function ($item) {
+        $historyJson = $leaseHistory->keyBy('id')->map(function ($item) use ($latePenaltyConfig) {
             $chargesSum = $item->charges->sum('amount');
             $totalRentPrice = $item->rent_price + $chargesSum;
 
@@ -630,6 +638,7 @@ class LeaseController extends Controller
                 'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
                 'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
                 'wallet_balance' => $item->tenant?->user?->wallet?->formatted_balance ?? '0.00',
+                'settings' => $latePenaltyConfig,
 
                 // 🌟 這裡加上 with(['documentTemplate']) 載入模板關聯
                 // 🌟 加入 transactions.documentTemplate 關聯
@@ -659,16 +668,18 @@ class LeaseController extends Controller
                         // Map each invoice item to include description and formatted price
                         $invoiceItems = $invoice->items->map(function ($subItem) {
                             return [
-                                'description' => $subItem->description ?? 'Item',
+                                'description' => $subItem->feeType?->name ?? 'Item',
                                 'amount' => number_format($subItem->amount / 100 ?? 0, 2),
+                                'category' => $subItem->feeType?->category ?? '—',
                             ];
                         });
 
                         // Fallback if no items relationship records exist, but main invoice has a description
                         if ($invoiceItems->isEmpty() && $invoice->description) {
                             $invoiceItems->push([
-                                'description' => $invoice->description,
+                                'description' => $invoice->feeType?->name,
                                 'amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
+                                'category' => '—',
                             ]);
                         }
 
@@ -676,52 +687,27 @@ class LeaseController extends Controller
                         $receipts = $invoice->transactions->map(function ($transaction) use ($variables) {
                             return [
                                 'id' => $transaction->id,
-
                                 'receipt_no' => $transaction->receipt_no ?? '—',
-
-                                'document_template_id' =>
-                                $transaction->document_template_id ?? '—',
-
-                                'template_title' =>
-                                $transaction->documentTemplate?->title,
-
-                                'template_html' =>
-                                $transaction->documentTemplate?->html_template,
-
-                                'amount' =>
-                                number_format(($transaction->amount_paid ?? 0) / 100, 2),
-
+                                'document_template_id' => $transaction->document_template_id ?? '—',
+                                'template_title' => $transaction->documentTemplate?->title,
+                                'template_html' => $transaction->documentTemplate?->html_template,
+                                'amount' => number_format(($transaction->amount_paid ?? 0) / 100, 2),
                                 'date' => $transaction->payment_date
                                     ? \Carbon\Carbon::parse($transaction->payment_date)->format('d M Y')
                                     : $transaction->created_at?->format('d M Y'),
 
                                 'variables' => array_merge($variables, [
-
-                                    'receipt_no' =>
-                                    $transaction->receipt_no ?? '—',
-
-                                    'amount_paid' =>
-                                    number_format(($transaction->amount_paid ?? 0) / 100, 2),
-
+                                    'receipt_no' =>$transaction->receipt_no ?? '—',
+                                    'amount_paid' =>number_format(($transaction->amount_paid ?? 0) / 100, 2),
                                     'payment_date' => $transaction->payment_date
                                         ? \Carbon\Carbon::parse($transaction->payment_date)->format('d/m/Y')
                                         : ($transaction->created_at?->format('d/m/Y') ?? '—'),
-
-                                    'payment_method' =>
-                                    $transaction->payment_method ?? '—',
-
-                                    'reference_no' =>
-                                    $transaction->transaction_ref ?? '—',
-
+                                    'payment_method' => $transaction->payment_method ?? '—',
+                                    'reference_no' => $transaction->transaction_ref ?? '—',
                                     // 當時確認這筆 Payment 的用戶
-                                    'issued_by_name' =>
-                                    $transaction->approver?->name ?? 'N/A',
-
-                                    'issued_by_email' =>
-                                    $transaction->approver?->email ?? 'N/A',
-
-                                    'issued_by_phone' =>
-                                    $transaction->approver?->phone
+                                    'issued_by_name' => $transaction->approver?->name ?? 'N/A',
+                                    'issued_by_email' => $transaction->approver?->email ?? 'N/A',
+                                    'issued_by_phone' => $transaction->approver?->phone
                                         ?? $transaction->approver?->phone_number
                                         ?? 'N/A',
                                 ]),
@@ -742,7 +728,8 @@ class LeaseController extends Controller
                             'invoice_items' => $invoiceItems,
                             'receipts'      => $receipts, // 💡 新增這行，讓前端拿得到 receipt 陣列！
                             'period' => $formattedPeriod,
-                            'due_date' => $invoice->due_date->format('d/m/Y') ?? '—',
+                            'due_date' => $invoice->due_date?->format('Y-m-d') ?? '',
+                            'due_date_formatted' => $invoice->due_date?->format('d/m/Y') ?? '—',
                             'total_amount' => number_format($invoice->total_amount / 100 ?? 0, 2),
                             'amount_paid' => number_format($invoice->amount_paid / 100 ?? 0, 2),
                             'amount_balance' => number_format(($invoice->total_amount / 100 ?? 0) - ($invoice->amount_paid / 100 ?? 0), 2),
@@ -760,9 +747,7 @@ class LeaseController extends Controller
             ->where('is_system', false)
             ->get();
 
-        $settings = get_effective_user()->settings ?? [];
-
-        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'invoices', 'historyJson', 'feeTypes', 'settings'));
+        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'invoices', 'historyJson', 'feeTypes', 'settings', 'dueDateDays'));
     }
 
     public function edit()

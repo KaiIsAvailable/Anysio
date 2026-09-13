@@ -27,7 +27,7 @@ class FeeTypeSeeder extends Seeder
 
             // Service
             ['name' => 'Agreement Fee', 'category' => FeeTypeCategory::SERVICE],
-            ['name' => 'Late Payment Panalty', 'category' => FeeTypeCategory::SERVICE],
+            ['name' => 'Late Payment Penalty', 'category' => FeeTypeCategory::SERVICE],
 
             // Deposits
             ['name' => 'Security Deposit', 'category' => FeeTypeCategory::DEPOSIT],

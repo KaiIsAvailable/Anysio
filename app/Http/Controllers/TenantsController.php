@@ -17,10 +17,75 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use App\Traits\RoleBasedDataTrait;
 use App\Services\FileService;
+use App\Models\Lease;
+
 
 class TenantsController extends Controller
 {
     use RoleBasedDataTrait;
+
+
+
+
+
+
+    public function leases()
+    {
+        $user = Auth::user();
+
+        $tenant = $user->tenant;
+
+        if (!$tenant) {
+            abort(404, 'Tenant profile not found.');
+        }
+
+        $leases = Lease::with([
+            'tenant.user',
+            'charges',
+            'documentTemplate',
+
+            // 根据不同 Lease 类型加载对应资料
+            'leasable' => function ($morphTo) {
+                $morphTo->morphWith([
+                    Room::class => ['unit.owner'],
+                    Unit::class => ['owner'],
+                    Property::class => ['owner'],
+                ]);
+            },
+        ])
+            // Tenant 只能查看属于自己的 Lease
+            ->where('tenant_id', $tenant->id)
+            ->where('is_current', true)
+            ->latest()
+            ->get();
+
+        return view('tenantSide.tenants.leases.index', compact('leases'));
+    }
+
+    public function leaseShow(Lease $lease)
+    {
+        $user = Auth::user();
+
+        $tenant = $user->tenant;
+
+        if (!$tenant) {
+            abort(404, 'Tenant profile not found.');
+        }
+
+        // 防止 tenant 通过修改 URL 查看别人的 lease
+        if ($lease->tenant_id !== $tenant->id) {
+            abort(403);
+        }
+
+        $lease->load([
+            'tenant.user',
+            'charges',
+            'documentTemplate',
+            'leasable',
+        ]);
+
+        return view('tenantSide.tenants.leases.show', compact('lease'));
+    }
 
     public function index(Request $request)
     {
@@ -49,14 +114,14 @@ class TenantsController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->whereHas('user', function ($uq) use ($search) {
                     $uq->where('users.name', 'like', '%' . $search . '%')
-                       ->orWhere('users.email', 'like', '%' . $search . '%');
+                        ->orWhere('users.email', 'like', '%' . $search . '%');
                 })
-                ->orWhere('tenants.phone', 'like', '%' . $search . '%')
-                ->orWhere('tenants.ic_number', 'like', '%' . $search . '%')
-                ->orWhere('tenants.passport', 'like', '%' . $search . '%')
-                ->orWhere('tenants.nationality', 'like', '%' . $search . '%')
-                ->orWhere('tenants.gender', 'like', '%' . $search . '%')
-                ->orWhere('tenants.occupation', 'like', '%' . $search . '%');
+                    ->orWhere('tenants.phone', 'like', '%' . $search . '%')
+                    ->orWhere('tenants.ic_number', 'like', '%' . $search . '%')
+                    ->orWhere('tenants.passport', 'like', '%' . $search . '%')
+                    ->orWhere('tenants.nationality', 'like', '%' . $search . '%')
+                    ->orWhere('tenants.gender', 'like', '%' . $search . '%')
+                    ->orWhere('tenants.occupation', 'like', '%' . $search . '%');
             });
         }
 
@@ -135,11 +200,11 @@ class TenantsController extends Controller
             // 图片处理
             if ($request->hasFile('ic_photo_path')) {
                 $userId = Auth::id();
-                
+
                 $data['ic_photo_path'] = $fileService->upload(
-                    $request->file('ic_photo_path'), 
-                    $userId, 
-                    'tenant_ic' 
+                    $request->file('ic_photo_path'),
+                    $userId,
+                    'tenant_ic'
                 );
             }
 
@@ -187,8 +252,8 @@ class TenantsController extends Controller
             $tenant->user->update([
                 'name' => $request->name,
                 'email' => $request->email,
-                'email_verified_at' => $request->boolean('is_email_verified') 
-                    ? ($tenant->user->email_verified_at ?? now()) 
+                'email_verified_at' => $request->boolean('is_email_verified')
+                    ? ($tenant->user->email_verified_at ?? now())
                     : null,
             ]);
 
@@ -204,16 +269,16 @@ class TenantsController extends Controller
 
             // 4. 图片处理逻辑
             if ($request->hasFile('ic_photo_path')) {
-                $userId = Auth::id(); 
-                
+                $userId = Auth::id();
+
                 if (!empty($tenant->ic_photo_path)) {
                     $fileService->delete($tenant->ic_photo_path);
                 }
-                
+
                 $data['ic_photo_path'] = $fileService->upload(
-                    $request->file('ic_photo_path'), 
+                    $request->file('ic_photo_path'),
                     $userId,
-                    'tenant_ic' 
+                    'tenant_ic'
                 );
             }
 
@@ -273,7 +338,7 @@ class TenantsController extends Controller
     {
         // 1. 先加载租户的基础关联（不需要分页的）
         $tenant->load([
-            'emergencyContacts', 
+            'emergencyContacts',
             'user:id,name,email'
         ]);
 
@@ -293,14 +358,16 @@ class TenantsController extends Controller
         $latestLease = $leases->first(); // 注意：从分页结果中获取第一个
 
         return view('adminSide.tenants.show', compact(
-            'tenant', 'leases', 'latestLease'
+            'tenant',
+            'leases',
+            'latestLease'
         ));
     }
 
     public function showIcPhoto(Request $request, $filename, FileService $fileService)
     {
         $tenant = Tenants::where('ic_photo_path', 'LIKE', '%' . $filename)->first();
-        
+
         if (!$tenant) {
             abort(404, 'Tenant record not found.');
         }

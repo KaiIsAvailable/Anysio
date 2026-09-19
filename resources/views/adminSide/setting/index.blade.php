@@ -293,7 +293,7 @@
                                                             data_get($settings, "fee_types_config.value.{$slug}.is_active", true), 
                                                             FILTER_VALIDATE_BOOLEAN
                                                         );
-                                                        $isLatePenaltyFee = ($slug === 'service_late_payment_penalty');
+                                                        $isLatePenaltyFee = Str::contains($slug, 'late_payment_penalty');
                                                         $info = 'Controlled by the <b>Late Payment Penalty</b> setting.';
                                                     @endphp
                                                     <div class="flex items-center justify-between p-3 border border-gray-100 bg-gray-50 rounded-lg">

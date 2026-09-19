@@ -100,13 +100,13 @@ class SettingService
         // 1. Resolve late penalty active state
         $latePenaltyActive = filter_var($activeStates['late_penalty_config'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
+        // Always sync fee_types_config's service_late_payment_penalty when saving late_penalty_config
         $feeTypesSetting = Setting::firstOrNew(['user_id' => $userId, 'key' => 'fee_types_config']);
         $feeTypesValue = $feeTypesSetting->value ?? [];
 
-        // Check if the specific penalty fee exists, then update only its 'is_active' value
         if (isset($feeTypesValue['service_late_payment_penalty'])) {
             $feeTypesValue['service_late_payment_penalty']['is_active'] = $latePenaltyActive;
-
+            
             Setting::updateOrCreate(
                 ['user_id' => $userId, 'key' => 'fee_types_config'],
                 [

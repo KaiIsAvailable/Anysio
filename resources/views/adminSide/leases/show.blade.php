@@ -147,7 +147,7 @@
                             @php
                             $hStatus = strtolower((string)$history->status);
                             $statusColor = match($hStatus) {
-                            'new' => 'indigo', 'renew' => 'emerald', 'check out' => 'amber', 'end' => 'gray', default => 'slate'
+                                'new' => 'indigo', 'renew' => 'emerald', 'check out' => 'amber', 'end' => 'gray', default => 'slate'
                             };
                             @endphp
                             <div @click="activeId = '{{ $history->id }}'"
@@ -156,7 +156,9 @@
                                 <div class="flex justify-between items-start mb-3">
                                     <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
                                         :class="activeId == '{{ $history->id }}' ? 'bg-{{ $statusColor }}-200 text-{{ $statusColor }}-800' : 'bg-gray-100 text-gray-500'">
-                                        {{ $history->status }} {{ $history->is_current ? '(Current)' : '' }}
+                                        {{ $history->status }} 
+                                        {{ $history->is_current ? '(Current)' : '' }}
+                                        @if($history->is_pending_renewal) (Pending Renewal) @endif
                                     </span>
                                 </div>
                                 <div class="flex items-center gap-1.5">

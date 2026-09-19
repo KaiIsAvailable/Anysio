@@ -4,6 +4,8 @@ namespace App\Http\Requests\Lease;
 
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
+use Carbon\Carbon;
+use App\Models\Lease;
 
 class StoreLeaseRequest extends FormRequest
 {
@@ -18,7 +20,7 @@ class StoreLeaseRequest extends FormRequest
             'status' => [
                 'required',
                 'string',
-                Rule::in(['New', 'Renew', 'Check Out', 'End Agreement']),
+                Rule::in(['New', 'Renew', 'Check Out']),
             ],
 
             'lease_id' => [
@@ -61,6 +63,21 @@ class StoreLeaseRequest extends FormRequest
                 Rule::requiredIf(in_array($this->input('status'), ['New', 'Renew'])),
                 'nullable',
                 'date',
+                function ($attribute, $value, $fail) {
+                    if ($this->input('status') === 'Renew' && $this->input('lease_id')) {
+                        $previousLease = Lease::find($this->input('lease_id'));
+                        
+                        if ($previousLease && $previousLease->end_date) {
+                            // Use $value (the actual submitted date string, e.g., "2026-10-01")
+                            $startDate = Carbon::parse($value);
+                            $endDate = Carbon::parse($previousLease->end_date);
+
+                            if ($startDate->lessThanOrEqualTo($endDate)) {
+                                $fail("The start date must be after the previous lease's end date ({$previousLease->end_date}).");
+                            }
+                        }
+                    }
+                },
             ],
 
             'end_date' => [

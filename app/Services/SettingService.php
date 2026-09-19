@@ -35,12 +35,17 @@ class SettingService
         $user->loadMissing('settings');
 
         $dbSettings = $user->settings->mapWithKeys(function ($setting) {
-            return [
-                $setting->key => [
+            $val = $setting->value;
+            if ($setting->key === 'fee_types_config' && is_array($val) && !array_key_exists('value', $val)) {
+                $val = ['value' => $val, 'is_active' => (bool) $setting->is_active];
+            } else {
+                $val = [
                     'value' => $setting->value,
                     'is_active' => (bool) $setting->is_active,
-                ]
-            ];
+                ];
+            }
+
+            return [$setting->key => $val];
         })->toArray();
 
         Log::channel('testing')->info('Formatted Invoices Payload:', [
@@ -64,7 +69,7 @@ class SettingService
         $categoryValue = is_object($feeType->category) ? $feeType->category->value : $feeType->category;
         $slug = Str::slug(strtolower($categoryValue . '_' . $feeType->name), '_');
 
-        return filter_var(data_get($resolvedSettings, "fee_types_config.{$slug}.is_active", true), FILTER_VALIDATE_BOOLEAN);
+        return filter_var(data_get($resolvedSettings, "fee_types_config.value.{$slug}.is_active", true), FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
@@ -74,14 +79,16 @@ class SettingService
     {
         $settings = $this->getEffectiveSettings($userId);
 
-        // Supports both query builder and collections
         $collection = $feeTypes instanceof \Illuminate\Database\Eloquent\Builder ? $feeTypes->get() : $feeTypes;
 
         return $collection->filter(function ($feeType) use ($settings) {
             $categoryValue = is_object($feeType->category) ? $feeType->category->value : $feeType->category;
             $slug = Str::slug(strtolower($categoryValue . '_' . $feeType->name), '_');
 
-            return filter_var(data_get($settings, "fee_types_config.{$slug}.is_active", true), FILTER_VALIDATE_BOOLEAN);
+            // Explicitly pass true as the default fallback if the slug path is missing
+            $isActive = data_get($settings, "fee_types_config.value.{$slug}.is_active", true);
+
+            return filter_var($isActive, FILTER_VALIDATE_BOOLEAN);
         });
     }
 

@@ -46,14 +46,15 @@ class Lease extends Model
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'checked_out_at' => 'date',
-        'agreement_ended_at' => 'date',
-        'stamped_at' => 'date',
+        'start_date' => 'date:Y-m-d',
+        'end_date' => 'date:Y-m-d',
+        'checked_out_at' => 'date:Y-m-d',
+        'agreement_ended_at' => 'date:Y-m-d',
+        'stamped_at' => 'date:Y-m-d',
         'monthly_rent' => 'integer',
         'security_deposit' => 'integer',
         'utilities_depost' => 'integer',
+        'is_pending_renewal' => 'boolean',
     ];
 
     public function room(): BelongsTo
@@ -124,6 +125,12 @@ class Lease extends Model
 
     public function user_management() {
         return $this->hasOne(UserManagement::class, 'user_id');
+    }
+
+    public function parentLease()
+    {
+        return $this->belongsTo(Lease::class, 'parent_lease_id')
+                    ->with(['charges.feeType', 'parentLease']); 
     }
 
     protected function leasableName(): Attribute

@@ -152,9 +152,13 @@
                                             {{-- status --}}
                                             <td class="px-6 py-4">
                                                 <span class="whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
-                                                    {{ $lease->status ?? 'N/A' }}
+                                                    {{ $lease->status ?? 'N/A' }} 
+                                                    @if($lease->is_pending_renewal)
+                                                        (Pending Renewal)
+                                                    @endif
                                                 </span>
                                             </td>
+
                                             {{-- action --}}
                                             <td class="px-6 py-4" x-data="{ 
                                                 openUpload: {{ $errors->any() && !$errors->has('error') ? 'true' : 'false' }}, 

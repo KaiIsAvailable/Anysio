@@ -234,7 +234,8 @@ class LeaseController extends Controller
 
         $leases = Lease::with([
             'tenant.user',
-
+            'charges.feeType',
+            'parentLease.charges.feeType',
             'leasable' => function ($morphTo) {
                 $morphTo->morphWith([
                     Room::class => ['unit.owner'],
@@ -254,7 +255,36 @@ class LeaseController extends Controller
                 fn($query) =>
                 $this->applyLeaseOwnershipFilter($query, $user)
             )
-            ->get();
+            ->get()
+            ->each(function ($lease) {
+                $tenantName = $lease->tenant->user->name ?? 'Tenant';
+                //$tenantIc = $lease->tenant->ic_number ?? 'IC';
+                $status = $lease->status ?? '';
+                $isPendingRenew = $lease->is_pending_renewal ? ' - Pending Renewal' : '';
+                
+                $propertyName = 'N/A';
+                $typeLabel = 'N/A';
+                $ownerId = null; // 👈 Initialize owner ID tracker
+
+                if ($lease->leasable instanceof Property) {
+                    $propertyName = $lease->leasable->name;
+                    $typeLabel = 'Property';
+                    $ownerId = $lease->leasable->owner_id ?? $lease->leasable->owner->id ?? null;
+                } elseif ($lease->leasable instanceof Unit) {
+                    $propertyName = $lease->leasable->unit_no;
+                    $typeLabel = 'Unit';
+                    $ownerId = $lease->leasable->owner_id ?? $lease->leasable->owner->id ?? null;
+                } elseif ($lease->leasable instanceof Room) {
+                    $propertyName = $lease->leasable->room_no;
+                    $typeLabel = 'Room';
+                    // Room -> Unit -> Owner structure
+                    $ownerId = $lease->leasable->unit->owner_id ?? $lease->leasable->unit->owner->id ?? null;
+                }
+
+                $dateRange = dateFormat($lease->start_date) . ' - ' . dateFormat($lease->end_date);
+                $lease->computed_label = "{$tenantName}- {$propertyName} ({$typeLabel}) {$dateRange} ({$status}{$isPendingRenew})";
+                $lease->owner_id = $ownerId; 
+            });
 
         /*
         |--------------------------------------------------------------------------
@@ -287,14 +317,11 @@ class LeaseController extends Controller
                 $lease->toArray(),
                 [
                     'leasable_name' => $this->getLeasableName($leasable),
-                    'leasable_address' =>
-                    $this->getLeasableAddress($leasable),
-                    'owner_data' =>
-                    $this->getOwnerData($leasable),
-                    'cumulative_security' =>
-                    $cumulativeSecurity,
-                    'cumulative_utilities' =>
-                    $cumulativeUtilities,
+                    'leasable_address' => $this->getLeasableAddress($leasable),
+                    'owner_data' => $this->getOwnerData($leasable),
+                    'cumulative_security' => $cumulativeSecurity,
+                    'cumulative_utilities' => $cumulativeUtilities,
+                    'charges' => $lease->charges,
                 ]
             );
         });

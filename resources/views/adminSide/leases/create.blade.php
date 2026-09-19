@@ -32,7 +32,7 @@
                                         'Check Out' => 'Check Out',
                                         //'End Agreement' => 'End Agreement'
                                     ]"
-                                    :value="request('status', 'New')"
+                                    ::value="old('status', request('status', 'New'))"
                                     @change="toggleLeaseSelect()"
                                 />
                                 <x-form.input-error :messages="$errors->get('status')" class="mt-1" />
@@ -54,61 +54,17 @@
                             {{-- 2. Select Lease --}}
                             <div id="lease_select_container" class="md:col-span-3 hidden">
                                 <div class="relative">
-                                    <label class="block text-sm font-medium text-gray-700">Select Existing Lease</label>
-                                    <select name="lease_id" id="lease_id"
-                                        class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                        <option value="">-- Choose Lease --</option>
-                                        @foreach($leases as $lease)
-                                        @php
-                                        $leasePropertyType = '';
-                                        $leasePropertyName = '';
-                                        $leaseOwnerName = '';
-                                        $leaseOwnerIc = '';
-                                        $leaseOwnerId = '';
-
-                                        if ($lease->leasable instanceof \App\Models\Property) {
-                                            $leasePropertyType = 'property';
-                                            $leasePropertyName = $lease->leasable->name ?? '';
-                                            $leaseOwnerName = $lease->leasable->owner?->name ?? '';
-                                            $leaseOwnerIc = $lease->leasable->owner?->owner?->ic_number ?? '';
-                                            $leaseOwnerId = $lease->leasable->owner?->id ?? '';
-                                        } elseif ($lease->leasable instanceof \App\Models\Unit) {
-                                            $leasePropertyType = 'unit';
-                                            $leasePropertyName = $lease->leasable->unit_no ?? '';
-                                            $leaseOwnerName = $lease->leasable->owner?->name ?? '';
-                                            $leaseOwnerIc = $lease->leasable->owner?->owner?->ic_number ?? '';
-                                            $leaseOwnerId = $lease->leasable->owner?->id ?? '';
-                                        } elseif ($lease->leasable instanceof \App\Models\Room) {
-                                            $leasePropertyType = 'room';
-                                            $leasePropertyName = $lease->leasable->room_no ?? '';
-                                            $leaseOwnerName = $lease->leasable->unit?->owner?->name ?? '';
-                                            $leaseOwnerIc = $lease->leasable->unit?->owner?->owner?->ic_number ?? '';
-                                            $leaseOwnerId = $lease->leasable->unit?->owner?->id ?? '';
-                                        }
-                                        @endphp
-                                        <option value="{{ $lease->id }}"
-                                            data-property-type="{{ $leasePropertyType }}"
-                                            data-property-name="{{ $leasePropertyName }}"
-                                            data-property-address="{{ optional($lease->leasable)->full_address ?? '' }}"
-                                            data-owner-name="{{ $leaseOwnerName }}"
-                                            data-owner-ic="{{ $leaseOwnerIc }}"
-                                            data-owner-id="{{ $leaseOwnerId }}"
-                                            @selected(old('lease_id')==$lease->id)>
-                                            {{ $lease->tenant->user->name ?? 'Tenant' }}
-                                            ({{ $lease->tenant->ic_number ?? 'IC' }}) -
-                                            @if($lease->leasable instanceof \App\Models\Property)
-                                            {{ $lease->leasable->name }} (Entire)
-                                            @elseif($lease->leasable instanceof \App\Models\Unit)
-                                            {{ $lease->leasable->unit_no }} (Unit)
-                                            @elseif($lease->leasable instanceof \App\Models\Room)
-                                            {{ $lease->leasable->room_no }} (Room)
-                                            @else
-                                            N/A
-                                            @endif
-                                            {{ dateFormat($lease->start_date) . ' - ' . dateFormat($lease->end_date) ?? '' }}
-                                        </option>
-                                        @endforeach
-                                    </select>
+                                    <x-form.input-label value="Select Existing Lease" :required="true" class="mb-1" />
+                                    <x-form.input-select 
+                                        name="lease_id" 
+                                        id="lease_id"
+                                        value="{{ old('lease_id') }}"
+                                        :options="$leases"
+                                        value-field="id"
+                                        label-field="computed_label"
+                                        class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
+                                        @change="window.handleLeaseChange($event)"
+                                    />
                                     @error('lease_id')
                                     <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                                     @enderror
@@ -240,23 +196,15 @@
                             <div id="charges-container" class="space-y-4">
                                 <div class="charge-row rounded-lg border border-gray-200 bg-gray-50 p-4">
                                     <div class="flex justify-between items-center mb-2">
-                                        <span class="text-xs font-semibold text-gray-500 tracking-wider">
-                                            <span style="color: red;">* </span>CHARGE ITEM #1
-                                        </span>
+                                        <span class="text-xs font-semibold text-gray-500 tracking-wider">CHARGE ITEM #1</span>
                                     </div>
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
-                                            <x-form.input-label value="Charge Type" class="mb-1 text-xs" />
-                                            <select name="charges[0][fee_type_id]" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
+                                            <x-form.input-label value="Charge Type" class="mb-1 text-xs" info="You may hide the charge type if not using it in 'Setting (Lease Settings)'"/>
+                                            <select name="charges[0][fee_type_id]" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
                                                 <option value="">-- Select Fee Type --</option>
                                                 @foreach($rentFeeTypes as $feeType)
-                                                    @php
-                                                        $period = str_contains(strtolower($feeType->name), 'daily') ? 'daily' : 
-                                                                (str_contains(strtolower($feeType->name), 'weekly') ? 'weekly' : 
-                                                                (str_contains(strtolower($feeType->name), 'monthly') ? 'monthly' : 
-                                                                (str_contains(strtolower($feeType->name), 'yearly') ? 'yearly' : 'other')));
-                                                    @endphp
-                                                    <option value="{{ $feeType->id }}" data-type="rent" data-period="{{ $period }}">{{ $feeType->name }}</option>
+                                                    <option value="{{ $feeType->id }}" data-type="rent">{{ $feeType->name }}</option>
                                                 @endforeach
 
                                                 @foreach($serviceFeeTypes as $serviceType)
@@ -275,7 +223,7 @@
 
                                         <div>
                                             <x-form.input-label value="Amount (RM)" class="mb-1 text-xs" />
-                                            <x-form.text-input type="text" name="charges[0][amount]" placeholder="0.00" class="w-full text-sm" required />
+                                            <x-form.text-input type="text" name="charges[0][amount]" placeholder="0.00" class="w-full text-sm" />
                                         </div>
                                     </div>
                                 </div>
@@ -285,9 +233,10 @@
 
                         <div id="bring_forward_notice" class="hidden col-span-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                             <p class="text-sm text-blue-800">
-                                <span class="font-semibold">Previous Deposits:</span>
-                                <span id="bf-security">RM 0.00</span> (Security) |
-                                <span id="bf-utilities">RM 0.00</span> (Utilities)
+                                <span class="font-semibold">Previous Deposits & Charges:</span>
+                                <span id="bring-forward-items-container" class="inline">
+                                    <!-- Dynamically injected items will appear here -->
+                                </span>
                                 <span class="block mt-1 text-xs text-blue-600 italic">These amounts are brought forward from your previous lease.</span>
                             </p>
                         </div>
@@ -432,106 +381,6 @@
             }
         }
 
-        // ==========================================
-        // 2. Date & Fee Type Calculations
-        // ==========================================
-        function getFeeTypePeriod(feeTypeName) {
-            const name = feeTypeName.toLowerCase();
-            if (name.includes('daily')) return 'daily';
-            if (name.includes('weekly')) return 'weekly';
-            if (name.includes('monthly')) return 'monthly';
-            if (name.includes('yearly')) return 'yearly';
-            return null;
-        }
-
-        function calculateAvailableFeeTypes() {
-            const startInput = document.getElementById('start-date');
-            const endInput = document.getElementById('end-date');
-
-            if (!startInput || !endInput) return;
-
-            const startVal = startInput.value;
-            const endVal = endInput.value;
-
-            if (startVal) {
-                endInput.min = startVal;
-            }
-
-            if (!startVal || !endVal) return;
-
-            const start = new Date(startVal);
-            const end = new Date(endVal);
-
-            if (end < start) {
-                updateFeeTypeOptions(['daily']);
-                return;
-            }
-
-            const diffTime = end - start;
-            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-            let months = (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-            if (end.getDate() < start.getDate()) months--;
-
-            let years = end.getFullYear() - start.getFullYear();
-            if (end.getMonth() < start.getMonth() || (end.getMonth() === start.getMonth() && end.getDate() < start.getDate())) {
-                years--;
-            }
-
-            let allowed = ['daily'];
-
-            if (diffDays >= 7 && months < 1) {
-                allowed.push('weekly');
-            } else if (months >= 1 && years < 1) {
-                allowed.push('weekly', 'monthly');
-            } else if (years >= 1) {
-                allowed.push('weekly', 'monthly', 'yearly');
-            }
-
-            updateFeeTypeOptions(allowed);
-        }
-
-        function updateFeeTypeOptions(allowedPeriods) {
-            const selects = document.querySelectorAll('select[name$="[fee_type_id]"]');
-
-            selects.forEach(select => {
-                const options = Array.from(select.options);
-                let selectedStillValid = false;
-
-                options.forEach(option => {
-                    if (!option.value) return;
-
-                    const isRentType = option.getAttribute('data-type') === 'rent';
-
-                    if (isRentType) {
-                        const period = option.getAttribute('data-period');
-                        const isAllowed = allowedPeriods.includes(period);
-
-                        option.hidden = !isAllowed;
-                        option.disabled = !isAllowed;
-
-                        if (option.selected && isAllowed) {
-                            selectedStillValid = true;
-                        }
-
-                        if (option.selected && !isAllowed) {
-                            option.selected = false;
-                        }
-                    } else {
-                        option.hidden = false;
-                        option.disabled = false;
-                        if (option.selected) {
-                            selectedStillValid = true;
-                        }
-                    }
-                });
-
-                if (!selectedStillValid && select.value !== "") {
-                    select.value = "";
-                }
-            });
-        }
-
         document.addEventListener('DOMContentLoaded', function() {
             const startInput = document.querySelector('#start-date');
             const endInput = document.querySelector('#end-date');
@@ -551,79 +400,7 @@
                 startPicker.config.onChange.push(function(selectedDates) {
                     if (selectedDates.length > 0) {
                         endPicker.set('minDate', selectedDates[0]);
-                        calculateAvailableFeeTypes();
                     }
-                });
-
-                endPicker.config.onChange.push(function() {
-                    calculateAvailableFeeTypes();
-                });
-            }
-        });
-
-        // ==========================================
-        // 3. Base Form Interactions & Preview Handler
-        // ==========================================
-        document.addEventListener('DOMContentLoaded', function() {
-            calculateAvailableFeeTypes();
-
-            const leaseSelect = document.getElementById('lease_id');
-            if (leaseSelect) {
-                leaseSelect.addEventListener('change', function() {
-                    const leaseId = this.value;
-                    if (!leaseId || !allLeases[leaseId]) return;
-
-                    const lease = allLeases[leaseId];
-
-                    let type = '';
-                    if (lease.leasable_type.includes('Property')) type = 'property';
-                    else if (lease.leasable_type.includes('Unit')) type = 'unit';
-                    else if (lease.leasable_type.includes('Room')) type = 'room';
-
-                    const selection = document.getElementById('lease_selection');
-                    if (selection) {
-                        selection.value = type;
-                        toggleLeaseInput();
-                    }
-
-                    const targetSelect = document.getElementById(type + '_select_input');
-                    if (targetSelect) {
-                        targetSelect.value = lease.leasable_id;
-                    }
-
-                    document.getElementById('term_type').value = lease.term_type || 'Monthly';
-
-                    const firstAmountInput = document.querySelector('input[name="charges[0][amount]"]');
-                    if (firstAmountInput) {
-                        firstAmountInput.value = lease.rent_price || '';
-                    }
-
-                    if (lease.end_date) {
-                        let startDateObj = new Date(lease.end_date);
-                        startDateObj.setDate(startDateObj.getDate() + 1);
-
-                        const startInput = document.getElementById('start-date');
-                        const endInput = document.getElementById('end-date');
-
-                        if (startInput._flatpickr) {
-                            startInput._flatpickr.setDate(startDateObj);
-                        } else {
-                            startInput.value = startDateObj.toISOString().split('T')[0];
-                        }
-
-                        if (endInput._flatpickr) {
-                            endInput._flatpickr.set('minDate', startDateObj);
-                        }
-
-                        calculateAvailableFeeTypes();
-                    }
-
-                    const leaseData = leasePreviewData[leaseId];
-                    const bfSec = document.getElementById('bf-security');
-                    const bfUtil = document.getElementById('bf-utilities');
-
-                    if (bfSec && leaseData) bfSec.innerText = 'RM ' + parseFloat(leaseData.cumulative_security).toFixed(2);
-                    if (bfUtil && leaseData) bfUtil.innerText = 'RM ' + parseFloat(leaseData.cumulative_utilities).toFixed(2);
                 });
             }
         });
@@ -671,8 +448,6 @@
                 'property_select_type': newStatus === 'New',
                 'tenant_field': newStatus === 'New',
                 'date_section': ['New', 'Renew'].includes(newStatus),
-                'fee_section': ['New', 'Renew'].includes(newStatus),
-                'deposit_section': ['New', 'Renew'].includes(newStatus),
                 'bring_forward_notice': newStatus === 'Renew',
                 'check_out_section': newStatus === 'Check Out',
                 'agreement_end_section': newStatus === 'End Agreement',
@@ -698,7 +473,13 @@
             if (typeof toggleLeaseInput === 'function') {
                 toggleLeaseInput();
             }
+            
+            // 🌟 Ensure status toggle runs immediately, and once more after a tiny delay 
+            // to catch any dynamic select components initializing their values
             toggleLeaseSelect();
+            setTimeout(() => {
+                toggleLeaseSelect();
+            }, 50);
         });
 
         // ==========================================
@@ -967,19 +748,22 @@
 
         const currentUserId = @js(function_exists('get_effective_user') ? get_effective_user()->id : null);
         console.log("Current User ID for template filtering:", currentUserId);
-        function filterTemplates() {
-            let ownerId = null;
+        function filterTemplates(overrideOwnerId = null) {
+            console.log("filterTemplates function executed.");
+            let ownerId = overrideOwnerId; // Use passed-in ownerId if available
 
-            // 1. Check if an existing lease is selected
-            const leaseSelect = document.getElementById('lease_id');
-            if (leaseSelect && leaseSelect.value !== "") {
-                const selectedLease = leaseSelect.options[leaseSelect.selectedIndex];
-                if (selectedLease) {
-                    ownerId = selectedLease.getAttribute('data-owner-id');
+            // 1. If no override ownerId was passed, check if an existing lease is selected
+            if (!ownerId) {
+                const leaseSelect = document.getElementById('lease_id');
+                if (leaseSelect && leaseSelect.value !== "") {
+                    const selectedLease = leaseSelect.options[leaseSelect.selectedIndex];
+                    if (selectedLease) {
+                        ownerId = selectedLease.getAttribute('data-owner-id');
+                    }
                 }
             }
 
-            // 2. If no ownerId from lease, check property type selection
+            // 2. If still no ownerId, check property type selection
             if (!ownerId) {
                 const typeEl = document.getElementById('lease_selection');
                 if (typeEl && typeEl.value) {
@@ -1004,23 +788,188 @@
             const agreementSelect = document.getElementById('document_id');
             if (!agreementSelect) return;
 
+            const debugTableData = [];
+
             // Filter template dropdown options based on the ownerId
             Array.from(agreementSelect.options).forEach(option => {
                 if (option.value === "") return;
                 const templateUserId = option.getAttribute('data-agreement-user-id');
+                const documentId = option.value;
+                const documentName = option.text.trim();
                 
                 const matchesOwner = ownerId && String(templateUserId) === String(ownerId);
                 const matchesAuthUser = currentUserId && String(templateUserId) === String(currentUserId);
 
+                let displayStatus = 'hidden';
                 if (matchesOwner || matchesAuthUser) {
                     option.style.display = 'block';
+                    displayStatus = 'visible';
                 } else {
                     option.style.display = 'none';
                 }
+
+                debugTableData.push({
+                    "Owner ID (Context)": ownerId || 'None',
+                    "Document ID": documentId,
+                    "Document Name": documentName,
+                    "Template User ID": templateUserId,
+                    "Status": displayStatus
+                });
             });
+
+            console.log("Template filtering completed. Owner ID:", ownerId, "Current User ID:", currentUserId);
+            console.table(debugTableData);
 
             if (agreementSelect.selectedIndex > 0 && agreementSelect.options[agreementSelect.selectedIndex].style.display === 'none') {
                 agreementSelect.value = "";
+            }
+        }
+
+        function handleLeaseChange(eventOrId) {
+            let leaseId = null;
+
+            // 1. Safely extract value whether it's an Alpine event, custom detail object, or direct string/number ID
+            if (eventOrId !== undefined && eventOrId !== null) {
+                if (typeof eventOrId === 'object') {
+                    leaseId = eventOrId.detail?.value || eventOrId.target?.value || eventOrId.value || null;
+                } else {
+                    leaseId = eventOrId;
+                }
+            }
+
+            // 2. Fallback: Read straight from the DOM element if still not found
+            if (!leaseId) {
+                const leaseSelectInput = document.getElementById('lease_id');
+                if (leaseSelectInput) {
+                    leaseId = leaseSelectInput.value;
+                }
+            }
+
+            if (!leaseId || !allLeases || !allLeases[leaseId]) {
+                return; // Exit silently if no valid lease is selected yet
+            }
+
+            const selectedLease = allLeases[leaseId];
+
+            // 🌟 Console log the full lease details object
+            console.log("📄 Selected Lease Details:", selectedLease);
+
+            // 3. Handle Start Date calculation
+            if (selectedLease.end_date) {
+                const endDate = new Date(selectedLease.end_date);
+                endDate.setDate(endDate.getDate() + 1);
+                const nextDayStr = endDate.toISOString().split('T')[0];
+
+                const startInput = document.querySelector('#start-date');
+                if (startInput) {
+                    startInput.value = nextDayStr;
+                    if (startInput._flatpickr) {
+                        startInput._flatpickr.setDate(nextDayStr, true);
+                    }
+                }
+            }
+
+            // 4. Extract owner ID from the backend-computed property
+            const ownerId = selectedLease.owner_id || null;
+
+            const leaseSelect = document.getElementById('lease_id');
+            if (leaseSelect && ownerId) {
+                const currentOption = leaseSelect.options ? leaseSelect.options[leaseSelect.selectedIndex] : null;
+                if (currentOption) {
+                    currentOption.setAttribute('data-owner-id', ownerId);
+                }
+            }
+
+            // 5. Auto-select the document/template BEFORE filtering so it doesn't get wiped or hidden
+            const docId = selectedLease.document_id || selectedLease.agreement_id || selectedLease.template_id;
+            if (docId) {
+                const documentSelect = document.getElementById('document_id');
+                if (documentSelect) {
+                    documentSelect.value = docId;
+
+                    // Use the allTemplates JSON object directly to get the clean title
+                    let selectedDocumentName = 'N/A';
+                    if (allTemplates && allTemplates[String(docId)]) {
+                        selectedDocumentName = allTemplates[String(docId)].title;
+                    } else {
+                        // Fallback to searching the option text if needed
+                        const targetOption = Array.from(documentSelect.options).find(opt => String(opt.value) === String(docId));
+                        if (targetOption) {
+                            selectedDocumentName = targetOption.text.trim();
+                        }
+                    }
+                    
+                    console.log("Autofilled Document ID:", docId);
+                    console.log("Autofilled Document Name:", selectedDocumentName);
+                }
+            }
+
+            // 🌟 7. Load and callback the selected lease's charges / preview data
+            const noticeBox = document.getElementById('bring_forward_notice');
+            const itemsContainer = document.getElementById('bring-forward-items-container'); 
+
+            const leaseData = leasePreviewData[leaseId];
+
+            if (leaseData && itemsContainer && noticeBox) {
+                itemsContainer.innerHTML = ''; // Clear out old list
+
+                // 1. Get ONLY the CURRENT lease's charges (from leaseData directly)
+                const currentCharges = leaseData.charges || [];
+
+                const currentChargeElements = currentCharges.length > 0 
+                    ? currentCharges.map(charge => {
+                        const name = charge.feeType?.name || charge.fee_type?.name || charge.name || 'Charge';
+                        const amount = parseFloat(charge.amount / 100 || 0);
+                        return `<div>• RM ${amount.toFixed(2)} (${name})</div>`;
+                    }).join('')
+                    : '<div class="text-gray-500 italic">No charges found in this lease.</div>';
+
+                // 2. Recursively gather ALL charges across the entire lineage (for total deposit sum)
+                function collectFullHistory(lease, accumulator = []) {
+                    if (!lease) return accumulator;
+                    if (lease.charges) {
+                        accumulator.push(...lease.charges);
+                    }
+                    const parentLease = lease.parent_lease || lease.parentLease;
+                    return collectFullHistory(parentLease, accumulator);
+                }
+
+                const allHistoryCharges = collectFullHistory(leaseData);
+
+                // 3. Filter strictly for deposit categories across ALL history
+                const depositCharges = allHistoryCharges.filter(charge => {
+                    const category = charge.feeType?.category || charge.fee_type?.category;
+                    return category === 'deposit';
+                });
+
+                let totalDeposit = 0;
+                depositCharges.forEach(charge => {
+                    totalDeposit += parseFloat(charge.amount / 100 || 0);
+                });
+
+                // Show the notice box if either current charges or deposits exist
+                if (currentCharges.length > 0 || depositCharges.length > 0) {
+                    noticeBox.classList.remove('hidden'); 
+
+                    // 4. Render structured HTML
+                    itemsContainer.innerHTML = `
+                        <div class="mb-3">
+                            <span class="font-semibold block text-blue-900 mb-1">Lease Charges:</span>
+                            <div class="text-gray-700 space-y-1">${currentChargeElements}</div>
+                        </div>
+                        <div class="border-t border-blue-200 pt-2">
+                            <span class="font-semibold text-blue-900">Total Deposit Collected:</span> 
+                            <span class="font-bold text-gray-900">RM ${totalDeposit.toFixed(2)}</span>
+                        </div>
+                    `;
+                } else {
+                    noticeBox.classList.add('hidden'); 
+                }
+            }
+
+            // 6. Run filterTemplates
+            if (typeof filterTemplates === 'function') {
+                filterTemplates(ownerId);
             }
         }
     </script>

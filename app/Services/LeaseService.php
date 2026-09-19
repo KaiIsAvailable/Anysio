@@ -52,6 +52,7 @@ class LeaseService
                 if ($oldLease) {
                     $oldLease->update([
                         'is_current' => false,
+                        'is_pending_renewal' => false,
                     ]);
                 }
 

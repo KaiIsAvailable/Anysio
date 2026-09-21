@@ -398,6 +398,21 @@
                             item.fee_type?.name ||
                             'Item';
 
+                        // Add billing period to Monthly Rental on receipt
+                        const billingPeriod =
+                            finalVariables.billing_period || '';
+
+                        if (
+                            billingPeriod &&
+                            itemDesc.toLowerCase().includes('monthly rental')
+                        ) {
+                            itemDesc = `${itemDesc} - ${billingPeriod}`;
+                        }
+
+                        console.log('Receipt billingPeriod:', billingPeriod);
+                        console.log('Receipt itemDesc:', itemDesc);
+
+
                         let itemAmount =
                             item.amount || 0;
 

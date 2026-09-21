@@ -8,9 +8,7 @@
     <div class="py-6 sm:py-10 bg-gray-50 min-h-screen">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
-            {{-- =========================================================
-                Welcome Section
-            ========================================================= --}}
+            {{-- Welcome Section --}}
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 mb-6">
 
                 <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -29,7 +27,6 @@
                         </p>
                     </div>
 
-                    {{-- Role Badge --}}
                     <div class="self-start sm:self-center">
                         <span class="inline-flex items-center px-3 py-1.5
                                      rounded-full
@@ -46,9 +43,7 @@
             </div>
 
 
-            {{-- =========================================================
-                Section Header
-            ========================================================= --}}
+            {{-- Section Header --}}
             <div class="mb-4">
                 <h2 class="text-lg sm:text-xl font-bold text-slate-900">
                     My Tenancy
@@ -74,7 +69,6 @@
 
                         <div class="flex items-center gap-4 min-w-0">
 
-                            {{-- Icon --}}
                             <div class="shrink-0 w-12 h-12 rounded-xl bg-indigo-50
                                         flex items-center justify-center">
 
@@ -126,13 +120,14 @@
 
 
                 {{-- My Invoices --}}
-                <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 opacity-60">
+                <a href="{{ route('tenants.invoices.index') }}"
+                   class="block bg-white rounded-2xl shadow-sm border border-gray-100
+                          p-5 hover:shadow-md hover:border-emerald-200 transition-all">
 
                     <div class="flex items-center justify-between gap-4">
 
                         <div class="flex items-center gap-4 min-w-0">
 
-                            {{-- Icon --}}
                             <div class="shrink-0 w-12 h-12 rounded-xl bg-emerald-50
                                         flex items-center justify-center">
 
@@ -164,15 +159,22 @@
 
                         </div>
 
-                        <span class="shrink-0 text-xs font-semibold
-                                     bg-gray-100 text-gray-500
-                                     px-2.5 py-1 rounded-full">
-                            Coming Soon
-                        </span>
+                        <div class="shrink-0 text-emerald-600">
+                            <svg class="w-5 h-5"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 viewBox="0 0 24 24">
+
+                                <path stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
 
                     </div>
 
-                </div>
+                </a>
 
             </div>
 
@@ -191,7 +193,6 @@
 
                         <div class="flex items-start gap-4">
 
-                            {{-- Icon --}}
                             <div class="w-14 h-14 rounded-xl bg-indigo-50
                                         flex items-center justify-center
                                         group-hover:bg-indigo-100 transition-colors">
@@ -266,16 +267,17 @@
 
 
                 {{-- My Invoices --}}
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200
-                            p-6 opacity-60">
+                <a href="{{ route('tenants.invoices.index') }}"
+                   class="group bg-white rounded-xl shadow-sm border border-gray-200
+                          p-6 hover:shadow-md hover:border-emerald-300 transition-all">
 
                     <div class="flex items-start justify-between gap-6">
 
                         <div class="flex items-start gap-4">
 
-                            {{-- Icon --}}
                             <div class="w-14 h-14 rounded-xl bg-emerald-50
-                                        flex items-center justify-center">
+                                        flex items-center justify-center
+                                        group-hover:bg-emerald-100 transition-colors">
 
                                 <svg class="w-7 h-7 text-emerald-600"
                                      fill="none"
@@ -310,21 +312,39 @@
 
                         </div>
 
-                        <span class="text-xs font-semibold
-                                     bg-gray-100 text-gray-500
-                                     px-2.5 py-1 rounded-full">
-                            Coming Soon
-                        </span>
+                        <div class="text-emerald-600 group-hover:translate-x-1 transition-transform mt-1">
+                            <svg class="w-6 h-6"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 viewBox="0 0 24 24">
+
+                                <path stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M9 5l7 7-7 7" />
+                            </svg>
+                        </div>
 
                     </div>
 
                     <div class="mt-6 pt-4 border-t border-gray-100">
-                        <span class="text-sm font-semibold text-gray-400">
-                            Invoice module will be available soon
+                        <span class="inline-flex items-center text-sm font-semibold text-emerald-600">
+                            View Invoices
+
+                            <svg class="w-4 h-4 ml-1.5"
+                                 fill="none"
+                                 stroke="currentColor"
+                                 viewBox="0 0 24 24">
+
+                                <path stroke-linecap="round"
+                                      stroke-linejoin="round"
+                                      stroke-width="2"
+                                      d="M9 5l7 7-7 7" />
+                            </svg>
                         </span>
                     </div>
 
-                </div>
+                </a>
 
             </div>
 

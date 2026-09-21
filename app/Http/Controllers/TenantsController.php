@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\Log;
 use App\Traits\RoleBasedDataTrait;
 use App\Services\FileService;
 use App\Models\Lease;
-
+use App\Models\Invoice;
 
 class TenantsController extends Controller
 {
@@ -72,16 +72,23 @@ class TenantsController extends Controller
             abort(404, 'Tenant profile not found.');
         }
 
-        // 防止 tenant 通过修改 URL 查看别人的 lease
+        // 防止 Tenant 透過修改 URL 查看其他 Tenant 的 Lease
         if ($lease->tenant_id !== $tenant->id) {
             abort(403);
         }
 
         $lease->load([
             'tenant.user',
-            'charges',
+            'charges.feeType',
             'documentTemplate',
-            'leasable',
+
+            'leasable' => function ($morphTo) {
+                $morphTo->morphWith([
+                    Room::class => ['unit.owner.owner'],
+                    Unit::class => ['owner.owner'],
+                    Property::class => ['owner.owner'],
+                ]);
+            },
         ]);
 
         return view('tenantSide.tenants.leases.show', compact('lease'));
@@ -334,6 +341,42 @@ class TenantsController extends Controller
         return view('tenantSide.tenants.dashboard');
     }
 
+    public function invoices()
+    {
+        $user = Auth::user();
+
+        $tenant = $user->tenant;
+
+        if (!$tenant) {
+            abort(404, 'Tenant profile not found.');
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Tenant Invoices
+    |--------------------------------------------------------------------------
+    | Tenant 只能看到属于自己 Lease 的 Invoice
+    */
+
+        $invoices = Invoice::with([
+            'documentTemplate',
+            'lease.tenant.user',
+            'lease.leasable',
+            'items.feeType',
+            'transactions.documentTemplate',
+            'transactions.approver',
+        ])
+            ->whereHas('lease', function ($query) use ($tenant) {
+                $query->where('tenant_id', $tenant->id);
+            })
+            ->latest()
+            ->paginate(10);
+
+        return view(
+            'tenantSide.tenants.invoices.index',
+            compact('invoices')
+        );
+    }
     public function show(Tenants $tenant)
     {
         // 1. 先加载租户的基础关联（不需要分页的）

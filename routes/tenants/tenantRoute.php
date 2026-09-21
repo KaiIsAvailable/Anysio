@@ -12,3 +12,5 @@ Route::get('/tenant/leases', [TenantsController::class, 'leases'])
 Route::get('/tenant/leases/{lease}', [TenantsController::class, 'leaseShow'])
     ->name('leases.show');
 
+Route::get('/tenant/invoices', [TenantsController::class, 'invoices'])
+    ->name('invoices.index');

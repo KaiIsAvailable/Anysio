@@ -41,8 +41,12 @@ class SubscriptionService
         });
     }
 
-    public function generateInvoice(User $user, RefCodePackage $package): Invoice
+    public function generateInvoice(User $user, RefCodePackage $package): ?Invoice
     {
+        if ($package->price <= 0) {
+            return null; 
+        }
+
         $template = DocumentTemplate::where('category', 'invoice')
             ->where('status', 'active')
             ->whereHas('user', function ($query) {

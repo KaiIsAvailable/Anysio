@@ -302,7 +302,7 @@
 
                         <div class="grid grid-cols-1 md:grid-cols-1 gap-6 pt-2">
                             <div class="p-4 border border-gray-100 bg-gray-50 rounded-lg space-y-4">
-                                <x-form.input-label :value="__('Pending Renewal Notice Period')" info="{!! __('Period prior to lease end date when the system automatically shifts the lease status to pending renewal.') !!}"/>
+                                <x-form.input-label :value="__('Pending Renewal Notice Period')" info="{!! __('Period prior to lease end date when the system automatically shifts the lease status to pending renewal. <br><br> Example: <br> 3 months mean 90 days before lease end date, lease will be flagged as pending renewal.') !!}"/>
                                 
                                 <input type="hidden" name="pending_renewal_config[number]" x-bind:value="number">
                                 <input type="hidden" name="pending_renewal_config[mode]" x-bind:value="mode">

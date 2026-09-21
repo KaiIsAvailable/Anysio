@@ -24,4 +24,9 @@ return [
     'due_date_config' => [
         'days' => 7,
     ],
+    'pending_renewal_config' => [
+        'number' => 3,
+        'mode' => 'months',
+        'days' => 90
+    ],
 ];

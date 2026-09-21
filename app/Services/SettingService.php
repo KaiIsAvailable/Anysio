@@ -1,7 +1,7 @@
 <?php
 namespace App\Services;
 
-use App\Models\Setting;
+use App\Models\{Setting, User};
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
@@ -10,7 +10,13 @@ class SettingService
 {
     public function getEffectiveSettings($user = null): array
     {
-        $user = get_effective_user();
+        if ($user) {
+            if (!$user instanceof User) {
+                $user = User::find($user);
+            }
+        } else {
+            $user = get_effective_user();
+        }
         
         // Fallback to config defaults if no user exists
         $defaultConfig = config('settings', []);
@@ -97,28 +103,11 @@ class SettingService
      */
     public function saveSettings(string $userId, array $requestData, array $activeStates): void
     {
-        // 1. Resolve late penalty active state
-        $latePenaltyActive = filter_var($activeStates['late_penalty_config'] ?? false, FILTER_VALIDATE_BOOLEAN);
-
-        // Always sync fee_types_config's service_late_payment_penalty when saving late_penalty_config
-        $feeTypesSetting = Setting::firstOrNew(['user_id' => $userId, 'key' => 'fee_types_config']);
-        $feeTypesValue = $feeTypesSetting->value ?? [];
-
-        if (isset($feeTypesValue['service_late_payment_penalty'])) {
-            $feeTypesValue['service_late_payment_penalty']['is_active'] = $latePenaltyActive;
-            
-            Setting::updateOrCreate(
-                ['user_id' => $userId, 'key' => 'fee_types_config'],
-                [
-                    'value' => $feeTypesValue, 
-                    'is_active' => $feeTypesSetting->is_active ?? true
-                ]
-            );
-        }
-
         // 1. Process standard settings
         if (isset($requestData['settings'])) {
             foreach ($requestData['settings'] as $key => $configValues) {
+                $isActive = filter_var($activeStates[$key] ?? false, FILTER_VALIDATE_BOOLEAN);
+
                 if ($key === 'late_penalty_config') {
                     $configValues['amount'] = round((float) ($configValues['amount'] ?? 0) * 100);
                     $configValues['maximum_amount'] = !empty($configValues['maximum_amount']) 
@@ -130,11 +119,23 @@ class SettingService
                             array_filter($configValues['applicable_categories'], fn($val) => !is_null($val) && $val !== '')
                         );
                     }
-                }
 
-                $isActive = ($key === 'late_penalty_config') 
-                    ? $latePenaltyActive 
-                    : filter_var($activeStates[$key] ?? false, FILTER_VALIDATE_BOOLEAN);
+                    // SYNC HERE: Only sync fee_types_config if late_penalty_config is explicitly being saved
+                    $feeTypesSetting = Setting::firstOrNew(['user_id' => $userId, 'key' => 'fee_types_config']);
+                    $feeTypesValue = $feeTypesSetting->value ?? [];
+
+                    if (isset($feeTypesValue['service_late_payment_penalty'])) {
+                        $feeTypesValue['service_late_payment_penalty']['is_active'] = $isActive;
+                        
+                        Setting::updateOrCreate(
+                            ['user_id' => $userId, 'key' => 'fee_types_config'],
+                            [
+                                'value' => $feeTypesValue, 
+                                'is_active' => $feeTypesSetting->is_active ?? true
+                            ]
+                        );
+                    }
+                }
 
                 Log::channel('testing')->info("Saving Setting: {$key}", [
                     'user_id' => $userId,
@@ -157,12 +158,17 @@ class SettingService
             $latePenaltySetting = Setting::where('user_id', $userId)->where('key', 'late_penalty_config')->first();
             $isLatePenaltyActive = $latePenaltySetting ? filter_var(data_get($latePenaltySetting->value, 'is_active', $latePenaltySetting->is_active), FILTER_VALIDATE_BOOLEAN) : false;
 
-            $feeTypesConfig = collect($requestData['fee_types_config'])->map(function ($feeType, $slug) use ($isLatePenaltyActive) {
-                // Always force service_late_payment_penalty to match the master late penalty state
+            // Fetch existing fee types from DB so we don't lose previous states
+            $existingSetting = Setting::where('user_id', $userId)->where('key', 'fee_types_config')->first();
+            $existingFeeTypes = $existingSetting->value ?? [];
+
+            $feeTypesConfig = collect($requestData['fee_types_config'])->map(function ($feeType, $slug) use ($isLatePenaltyActive, $existingFeeTypes) {
                 if ($slug === 'service_late_payment_penalty') {
                     $feeType['is_active'] = $isLatePenaltyActive;
-                } elseif (isset($feeType['is_active'])) {
-                    $feeType['is_active'] = filter_var($feeType['is_active'], FILTER_VALIDATE_BOOLEAN);
+                } else {
+                    // If 'is_active' is missing or not provided in the request, fallback to its existing database state
+                    $isActiveValue = $feeType['is_active'] ?? $existingFeeTypes[$slug]['is_active'] ?? false;
+                    $feeType['is_active'] = filter_var($isActiveValue, FILTER_VALIDATE_BOOLEAN);
                 }
                 return $feeType;
             })->toArray();
@@ -179,12 +185,12 @@ class SettingService
             );
         }
 
+        // 3. Process due date config
         if (isset($requestData['due_date_config'])) {
             $isActive = filter_var($activeStates['due_date_config'] ?? true, FILTER_VALIDATE_BOOLEAN);
             
             $dueDateConfig = $requestData['due_date_config'];
             
-            // Normalize data types safely
             if (isset($dueDateConfig['days'])) {
                 $dueDateConfig['days'] = (int) $dueDateConfig['days'];
             }
@@ -201,6 +207,32 @@ class SettingService
             Setting::updateOrCreate(
                 ['user_id' => $userId, 'key' => 'due_date_config'],
                 ['value' => $dueDateConfig, 'is_active' => $isActive]
+            );
+        }
+
+        // 4. Process pending renewal config
+        if (isset($requestData['pending_renewal_config'])) {
+            $isActive = filter_var($activeStates['pending_renewal_config'] ?? true, FILTER_VALIDATE_BOOLEAN);
+            
+            $pendingRenewalConfig = $requestData['pending_renewal_config'];
+            
+            // Normalize and cast types safely
+            if (isset($pendingRenewalConfig['number'])) {
+                $pendingRenewalConfig['number'] = (int) $pendingRenewalConfig['number'];
+            }
+            if (isset($pendingRenewalConfig['days'])) {
+                $pendingRenewalConfig['days'] = (int) $pendingRenewalConfig['days'];
+            }
+
+            Log::channel('testing')->info('Saving Pending Renewal Config', [
+                'user_id' => $userId,
+                'value' => $pendingRenewalConfig,
+                'is_active' => $isActive,
+            ]);
+
+            Setting::updateOrCreate(
+                ['user_id' => $userId, 'key' => 'pending_renewal_config'],
+                ['value' => $pendingRenewalConfig, 'is_active' => $isActive]
             );
         }
     }

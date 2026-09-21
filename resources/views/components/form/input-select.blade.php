@@ -71,6 +71,20 @@
     lastValidLabel: '{{ $selectedLabel }}',
     dropUp: false,
     options: @js($parsedOptions),
+
+    get isDisabled() {
+        if (@js($disabled)) return true;
+        if (typeof editing !== 'undefined' && !editing) return true;
+
+        // Check if editingPendingRenewal exists in the parent scope and use its inverse
+        if (typeof editingPendingRenewal !== 'undefined' && !editingPendingRenewal) return true;
+
+        // Check native HTML attributes as a fallback
+        if (this.$el.hasAttribute('disabled') || this.$el.getAttribute('aria-disabled') === 'true') return true;
+
+        return false;
+    },
+
     init() {
         this.$watch('selectedValues', (newValues) => {
             let labels = {};
@@ -192,19 +206,19 @@
     <!-- Input Container -->
     <div :class="[
             isMultiple ? 'min-h-[38px] py-1 px-2' : 'h-[38px] py-0 px-0',
-            typeof editing !== 'undefined' && !editing ? 'bg-gray-50' : 'bg-white'
+            isDisabled ? 'bg-gray-50 text-gray-500 cursor-not-allowed' : 'bg-white text-gray-900'
         ]" 
         class="w-full flex flex-wrap items-center gap-1.5 border border-gray-300 focus-within:border-indigo-500 focus-within:ring-1 focus-within:ring-indigo-500 rounded-md shadow-sm pr-10 relative overflow-hidden">
         
         <!-- Multi-select Badges / Tags -->
         <template x-if="isMultiple">
             <template x-for="val in selectedValues" :key="val">
-                <span :class="typeof editing !== 'undefined' && !editing ? 'opacity-60' : ''" 
+                <span :class="isDisabled ? 'opacity-60' : ''" 
                     class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs font-medium px-2 py-0.5 rounded border border-indigo-100">
                     <span x-text="selectedLabels[val] || val"></span>
                     <button type="button" 
-                        @click.stop="if (typeof editing !== 'undefined' && !editing) return; removeOption(val)" 
-                        :class="typeof editing !== 'undefined' && !editing ? 'pointer-events-none text-indigo-200' : 'text-indigo-400 hover:text-indigo-600'"
+                        @click.stop="if (isDisabled) return; removeOption(val)" 
+                        :class="isDisabled ? 'pointer-events-none text-indigo-200' : 'text-indigo-400 hover:text-indigo-600'"
                         class="focus:outline-none">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -219,16 +233,20 @@
             @if($disabled) disabled @endif
             {{ $attributes->whereStartsWith('x-bind') }}
             {{ $attributes->whereStartsWith(':disabled') }}
+            :disabled="isDisabled"
             :value="displayValue"
-            @focus="if(typeof editing !== 'undefined' && !editing) return; open = true; search = ''; $nextTick(() => checkPosition())"
-            @input="if(typeof editing !== 'undefined' && !editing) return; open = true; search = $event.target.value; $nextTick(() => checkPosition())"
+            @focus="if(isDisabled) return; open = true; search = ''; $nextTick(() => checkPosition())"
+            @input="if(isDisabled) return; open = true; search = $event.target.value; $nextTick(() => checkPosition())"
             @blur="validateInput()"
             placeholder="{{ $placeholder ?? '' }}"
-            :class="isMultiple ? 'flex-1 bg-transparent border-none focus:outline-none focus:ring-0 p-0 text-sm text-gray-900 min-w-[60px]' : 'w-full h-full border-0 focus:ring-0 bg-transparent text-sm text-gray-900 py-0 px-3'">
+            :class="[
+                isMultiple ? 'flex-1 bg-transparent border-none focus:outline-none focus:ring-0 p-0 text-sm min-w-[60px]' : 'w-full h-full border-0 focus:ring-0 bg-transparent text-sm py-0 px-3',
+                isDisabled ? 'text-gray-500 cursor-not-allowed' : 'text-gray-900'
+            ]">
 
         <!-- Dropdown Arrow Icon -->
-        <div @click="if (typeof editing !== 'undefined' && !editing) return; toggleDropdown(); if(open) $el.previousElementSibling.focus()" 
-            :class="typeof editing !== 'undefined' && !editing ? 'pointer-events-none opacity-40 cursor-not-allowed' : 'cursor-pointer text-gray-400'"
+        <div @click="if (isDisabled) return; toggleDropdown(); if(open) $el.previousElementSibling.focus()" 
+            :class="isDisabled ? 'pointer-events-none opacity-40 cursor-not-allowed' : 'cursor-pointer text-gray-400'"
             class="absolute inset-y-0 right-0 flex items-center px-2.5">
             <svg class="w-4 h-4 transition-transform duration-200" :class="{'rotate-180': open}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
@@ -237,7 +255,7 @@
     </div>
 
     <!-- Dropdown Menu -->
-    <div x-show="open" 
+    <div x-show="open && !isDisabled" 
         x-transition.origin.duration.150ms
         style="display: none;" 
         :class="dropUp ? 'absolute left-0 bottom-full mb-1 w-full' : 'absolute left-0 top-full mt-1 w-full'"

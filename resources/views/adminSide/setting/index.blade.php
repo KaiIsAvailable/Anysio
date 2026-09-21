@@ -197,37 +197,30 @@
             </div>
 
             <!-- TAB 2: LEASE SETTINGS -->
-            <div x-show="activeTab === 'lease'" x-cloak>
+            <div x-show="activeTab === 'lease'" x-cloak class="space-y-6">
+
+                <!-- 1. RECURRING INVOICE & DUE DATE FORM -->
                 <x-form.form 
                     method="POST" 
                     action="{{ route('admin.settings.update') }}" 
                     class="space-y-6" 
-                    x-data="{ 
-                        loading: false, 
-                        editingFeeType: false, 
-                        editingDueDate: false,
-                        enabled: {{ ($settings['fee_types_config'] ?? false) ? 'true' : 'false' }} 
-                    }" 
+                    x-data="{ loading: false, editingDueDate: false }" 
                     @submit="loading = true"
                 >
                     @csrf
                     @method('PATCH')
+                    <input type="hidden" name="tab" value="lease">
 
-                    <input type="hidden" name="tab" :value="activeTab">
-
-                    <!-- Recurring Invoice & Due Date Policy Section -->
                     <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 shadow-sm space-y-6">
                         <header class="flex items-center justify-between">
                             <div>
                                 <h3 class="text-md font-medium text-gray-950">{{ __('Recurring Invoice Settings') }}</h3>
                                 <p class="mt-0.5 text-sm text-gray-600">{{ __('Configure automated recurring invoice generation and default payment terms.') }}</p>
                             </div>
-                            <!-- Lock/Edit Toggle Button -->
                             <x-form.section-edit-button state="editingDueDate" />
                         </header>
 
                         <div class="grid grid-cols-1 md:grid-cols-1 gap-6 pt-2">
-                            <!-- Due Date Days Configuration -->
                             <div class="p-4 border border-gray-100 bg-gray-50 rounded-lg space-y-2">
                                 <x-form.input-label for="due_date_config[days]" :value="__('Due Date Days')" info="{!! __('Number of days given to tenants to settle invoices after issuance. <br><br> Example: The invoice will always be issued on the 1st of the month, if day = 7 mean that 1 + 7 = 8 so the due date will be the 8th of the month.') !!}"/>
                                 <div class="flex items-center gap-2">
@@ -244,13 +237,133 @@
                             </div>
                         </div>
 
-                        <!-- Save Button for this section -->
                         <div class="flex items-center gap-4 pt-2" x-show="editingDueDate" x-cloak>
                             <x-form.primary-button x-bind:disabled="!editingDueDate" loading="loading">
                                 {{ __('Save Due Date Settings') }}
                             </x-form.primary-button>
                         </div>
                     </div>
+                </x-form.form>
+
+
+                <!-- 2. PENDING RENEWAL SETTINGS FORM -->
+                <x-form.form 
+                    method="POST" 
+                    action="{{ route('admin.settings.update') }}" 
+                    class="space-y-6" 
+                    x-data="{ loading: false, editingPendingRenewal: false }" 
+                    @submit="loading = true"
+                >
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="tab" value="lease">
+
+                    <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 shadow-sm space-y-6"
+                        x-data="{
+                            config: @js(
+                                data_get($settings, 'pending_renewal_config.value') 
+                                ?? data_get($settings, 'pending_renewal_config') 
+                            ),
+                            init() {
+                                if (this.config.days === undefined) {
+                                    this.config.days = this.calculateDays();
+                                }
+                            },
+                            get number() { return this.config.number ?? 2; },
+                            set number(val) { 
+                                this.config.number = val; 
+                                this.config.days = this.calculateDays(); 
+                            },
+                            get mode() { return this.config.mode ?? 'months'; },
+                            set mode(val) { 
+                                this.config.mode = val; 
+                                this.config.days = this.calculateDays(); 
+                            },
+                            get days() { return this.config.days ?? this.calculateDays(); },
+                            set days(val) { this.config.days = val; },
+                            updateMode(newMode) {
+                                this.mode = newMode;
+                            },
+                            calculateDays() {
+                                let val = parseInt(this.config.number) || 0;
+                                if (this.config.mode === 'months') return val * 30;
+                                if (this.config.mode === 'years') return val * 365;
+                                return val;
+                            }
+                        }">
+                        
+                        <header class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-md font-medium text-gray-950">{{ __('Pending Renewal Settings') }}</h3>
+                                <p class="mt-0.5 text-sm text-gray-600">{{ __('Configure the notice period before lease expiry to flag leases as pending renewal.') }}</p>
+                            </div>
+                            <x-form.section-edit-button state="editingPendingRenewal" />
+                        </header>
+
+                        <div class="grid grid-cols-1 md:grid-cols-1 gap-6 pt-2">
+                            <div class="p-4 border border-gray-100 bg-gray-50 rounded-lg space-y-4">
+                                <x-form.input-label :value="__('Pending Renewal Notice Period')" info="{!! __('Period prior to lease end date when the system automatically shifts the lease status to pending renewal.') !!}"/>
+                                
+                                <input type="hidden" name="pending_renewal_config[number]" x-bind:value="number">
+                                <input type="hidden" name="pending_renewal_config[mode]" x-bind:value="mode">
+
+                                <div class="flex items-center gap-2">
+                                    <x-form.text-input type="number" 
+                                        x-model="number" 
+                                        x-bind:min="1" 
+                                        x-bind:max="mode === 'days' ? 365 : (mode === 'months' ? 12 : null)"
+                                        class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-500"
+                                        x-bind:disabled="!editingPendingRenewal">
+                                    </x-form.text-input>
+
+                                    <div class="w-48 shrink-0">
+                                        <x-form.input-select 
+                                            id="pending_renewal_unit"
+                                            name="pending_renewal_config[mode]"
+                                            :value="data_get($settings, 'pending_renewal_config.mode', 'months')"
+                                            @change="updateMode($event.detail ? $event.detail.value : $event.target.value)"
+                                            :options="[
+                                                ['value' => 'days', 'label' => __('Days (Max 365)')],
+                                                ['value' => 'months', 'label' => __('Months (Max 12)')],
+                                                ['value' => 'years', 'label' => __('Years')],
+                                            ]"
+                                            class="block w-full"
+                                            x-bind:disabled="!editingPendingRenewal"
+                                        />
+                                    </div>
+                                </div>
+                                
+                                <div class="space-y-1">
+                                    <div class="flex items-center px-1">
+                                        <p class="text-xs font-medium text-gray-900">
+                                            <span x-text="days || 0"></span> Days
+                                        </p>
+                                        <input type="hidden" name="pending_renewal_config[days]" x-model="days">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center gap-4 pt-2" x-show="editingPendingRenewal" x-cloak>
+                            <x-form.primary-button x-bind:disabled="!editingPendingRenewal" loading="loading">
+                                {{ __('Save Pending Renewal Settings') }}
+                            </x-form.primary-button>
+                        </div>
+                    </div>
+                </x-form.form>
+
+
+                <!-- 3. FEE TYPES SETTINGS FORM -->
+                <x-form.form 
+                    method="POST" 
+                    action="{{ route('admin.settings.update') }}" 
+                    class="space-y-6" 
+                    x-data="{ loading: false, editingFeeType: false }" 
+                    @submit="loading = true"
+                >
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="tab" value="lease">
 
                     <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg space-y-6">
                          <header class="flex items-center justify-between">
@@ -258,11 +371,9 @@
                                 <h2 class="text-lg font-medium text-gray-900">{{ __('Lease Configuration') }}</h2>
                                 <p class="mt-1 text-sm text-gray-600">{{ __('Manage default lease charges and policies.') }}</p>
                             </div>
-                            <!-- Lock/Edit Toggle Button -->
                             <x-form.section-edit-button state="editingFeeType" />
                         </header>
 
-                        <!-- Charges Container -->
                         <div class="space-y-6">
                             <h3 class="text-md font-medium text-gray-900">{{ __('Adjust System Fee Types') }}</h3>
                             <p class="text-sm text-gray-600">{{ __('Toggle which fee types are active and allowed to be selected when creating leases or invoices.') }}</p>
@@ -284,7 +395,6 @@
                                         <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
                                             <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{{ $groupName }} Fees</h4>
                                             
-                                            <!-- 4-column grid layout -->
                                             <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                                                 @foreach($feeTypes as $feeType)
                                                     @php
@@ -297,18 +407,14 @@
                                                         $info = 'Controlled by the <b>Late Payment Penalty</b> setting.';
                                                     @endphp
                                                     <div class="flex items-center justify-between p-3 border border-gray-100 bg-gray-50 rounded-lg">
-                                                        <!-- Left side container -->
                                                         <div class="flex items-center justify-between w-full mr-2 min-w-0">
                                                             <div class="flex items-center space-x-1.5 min-w-0">
-                                                                <!-- Fee Type Name -->
                                                                 <span class="text-xs font-medium text-gray-800 truncate" title="{{ $feeType->name }}">{{ $feeType->name }}</span>
                                                                 
-                                                                <!-- System Badge -->
                                                                 @if($feeType->is_system)
                                                                     <span class="inline-block px-1.5 py-0.2 text-[10px] bg-gray-200 text-gray-600 rounded shrink-0">System</span>
                                                                 @endif
 
-                                                                <!-- Info Button with Tooltip placed inline right beside the name/badge -->
                                                                 @if($isLatePenaltyFee)
                                                                     <div class="relative flex items-center shrink-0" x-data="{ open: false }">
                                                                         <button type="button" 
@@ -319,11 +425,7 @@
                                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                                                             </svg>
                                                                         </button>
-
-                                                                        <!-- Tooltip Popup -->
-                                                                        <div x-show="open" 
-                                                                            x-cloak
-                                                                            class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-gray-900 text-white text-xs rounded-md shadow-xl z-50 pointer-events-auto normal-case font-normal text-left [&>b]:font-bold">
+                                                                        <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-gray-900 text-white text-xs rounded-md shadow-xl z-50 pointer-events-auto normal-case font-normal text-left [&>b]:font-bold">
                                                                             {!! $info !!}
                                                                         </div>
                                                                     </div>
@@ -331,7 +433,6 @@
                                                             </div>
                                                         </div>
 
-                                                        <!-- Toggle Switch -->
                                                         <label class="relative inline-flex items-center shrink-0 transition-opacity"
                                                                 :class="(!editingFeeType || @json($isLatePenaltyFee)) ? 'opacity-65 cursor-not-allowed' : 'cursor-pointer'">
                                                             <input type="hidden" name="fee_types_config[{{ $slug }}][is_active]" value="false">
@@ -349,6 +450,7 @@
                                 @endforeach
                             </div>
                         </div>
+
                         <x-form.input-error :messages="$errors->get('charges')" class="mt-1" />
 
                         <div class="flex items-center gap-4" x-show="editingFeeType" x-cloak>
@@ -356,6 +458,7 @@
                         </div>
                     </div>
                 </x-form.form>
+
             </div>
 
             <!-- TAB 3: OWNER SETTINGS -->

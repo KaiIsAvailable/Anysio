@@ -2,24 +2,75 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\Gate;
-use App\Models\{Invoice, Owners, UserManagement, User};
+use App\Models\{Invoice, Owners, UserManagement, User, Lease, Property, Unit, Room};
 use App\Services\SetupCheckerService;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\{Auth, File, DB, Gate};
 use App\Traits\RoleBasedDataTrait;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
     use RoleBasedDataTrait;
-    public function index(SetupCheckerService $checker)
+
+    public function index(SetupCheckerService $checker, Request $request)
     {
         $user = get_effective_user();
+        $actualUserId = Auth::id();
+        $effectiveUser = get_effective_user();
+        $effectiveUserId = $effectiveUser?->id;
 
+        // 1. Base query for Leases needing attention (Pending Renewal or Ended)
+        // Fixed: Removed 'property' which doesn't exist on the Lease model.
+        // Now 'leasable' and 'tenant.user' will load properly.
+        $pendingOrEndedLeasesQuery = Lease::with([
+            'leasable', 
+            'tenant.user'
+        ]);
+
+        // 2. Apply authorization/ownership filtering
+        if (!Gate::allows('super-admin')) {
+            $pendingOrEndedLeasesQuery->where(function ($q) use ($effectiveUserId, $actualUserId) {
+                $q->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($effectiveUserId, $actualUserId) {
+                    if ($type === Room::class) {
+                        $mq->whereHas('unit.owner', function ($oq) use ($effectiveUserId, $actualUserId) {
+                            $oq->where(function ($q) use ($effectiveUserId, $actualUserId) {
+                                $q->where('created_by', $effectiveUserId)
+                                    ->orWhere('created_by', $actualUserId)
+                                    ->orWhere('owner_id', $effectiveUserId);
+                            });
+                        });
+                    } else {
+                        $mq->whereHas('owner', function ($oq) use ($effectiveUserId, $actualUserId) {
+                            $oq->where(function ($q) use ($effectiveUserId, $actualUserId) {
+                                $q->where('created_by', $effectiveUserId)
+                                    ->orWhere('created_by', $actualUserId)
+                                    ->orWhere('owner_id', $effectiveUserId);
+                            });
+                        });
+                    }
+                })
+                ->orWhereHas('tenant', function ($tq) use ($effectiveUserId, $actualUserId) {
+                    $tq->where('created_by', $effectiveUserId)
+                        ->orWhere('created_by', $actualUserId);
+                });
+            });
+        }
+
+        // 3. Filter specifically for "Leases Needing Attention" 
+        $pendingOrEndedLeases = $pendingOrEndedLeasesQuery
+            ->where('is_current', true) // 👈 Applies to everything below
+            ->where(function ($q) {
+                $q->where('is_pending_renewal', true)
+                ->orWhere('status', 'End');
+            })
+            ->orderBy('end_date', 'asc')
+            ->paginate(5)
+            ->appends($request->query());
+
+        // 4. Property Statistics Query
         $statsQuery = DB::table('properties')
-            ->leftJoin('units', 'properties.id', '=', 'units.property_id' )
-            ->leftJoin('rooms', 'units.id', '=', 'rooms.unit_id' );
+            ->leftJoin('units', 'properties.id', '=', 'units.property_id')
+            ->leftJoin('rooms', 'units.id', '=', 'rooms.unit_id');
 
         if (!Gate::allows('super-admin')) {
             $statsQuery->where(function ($q) use ($user) {
@@ -42,33 +93,18 @@ class DashboardController extends Controller
 
         $stats = $statsQuery
             ->selectRaw("
-                /*
-                |--------------------------------------------------------------------------
-                | Property Statistics
-                |--------------------------------------------------------------------------
-                */
                 COUNT(DISTINCT properties.id) AS total_properties,
                 COUNT(DISTINCT CASE WHEN units.status = 'Vacant' THEN properties.id END) AS vacant_properties,
                 COUNT(DISTINCT CASE WHEN units.status = 'Occupied' THEN properties.id END) AS occ_properties,
                 COUNT(DISTINCT CASE WHEN units.status = 'Maintenance' THEN properties.id END) AS main_properties,
                 COUNT(DISTINCT CASE WHEN units.status = 'Cleaning' THEN properties.id END) AS clean_properties,
 
-                /*
-                |--------------------------------------------------------------------------
-                | Unit Statistics
-                |--------------------------------------------------------------------------
-                */
                 COUNT(DISTINCT units.id) AS total_units,
                 COUNT(DISTINCT CASE WHEN units.status = 'Vacant' THEN units.id END) AS vacant_units,
                 COUNT(DISTINCT CASE WHEN units.status = 'Occupied' THEN units.id END) AS occ_units,
                 COUNT(DISTINCT CASE WHEN units.status = 'Maintenance' THEN units.id END) AS main_units,
                 COUNT(DISTINCT CASE WHEN units.status = 'Cleaning' THEN units.id END) AS clean_units,
 
-                /*
-                |--------------------------------------------------------------------------
-                | Room Statistics
-                |--------------------------------------------------------------------------
-                */
                 COUNT(DISTINCT rooms.id) AS total_rooms,
                 COUNT(DISTINCT CASE WHEN rooms.status = 'Vacant' THEN rooms.id END) AS vacant_rooms,
                 COUNT(DISTINCT CASE WHEN rooms.status = 'Occupied' THEN rooms.id END) AS occ_rooms,
@@ -76,22 +112,13 @@ class DashboardController extends Controller
                 COUNT(DISTINCT CASE WHEN rooms.status = 'Cleaning' THEN rooms.id END) AS clean_rooms
             ")
             ->first();
-        /*
-        |--------------------------------------------------------------------------
-        | Convert Statistics To Array
-        |--------------------------------------------------------------------------
-        */
+
         $counts = (array) $stats;
 
-        /*
-        |--------------------------------------------------------------------------
-        | Overdue Invoices
-        |--------------------------------------------------------------------------
-        */
+        // 5. Overdue Invoices
         $overdueInvoices = Invoice::with([
             'lease.tenant.user',
-            'lease.unit',
-            'lease.room',
+            'lease.leasable', // Fixed to use polymorphic relation instead of direct unit/room methods if they aren't standard relationships
             'items',
         ])
             ->where('status', 'unpaid')
@@ -102,21 +129,16 @@ class DashboardController extends Controller
             ->orderBy('due_date', 'asc')
             ->get();
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | Setup Checks
-        |--------------------------------------------------------------------------
-        */
-        $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset',], 'exists');
+        // 6. Setup Checks & Seeders
+        $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset'], 'exists');
 
         $seederPath = database_path('seeders');
         $seeders = collect(File::exists($seederPath) ? File::files($seederPath) : [])
             ->map(fn ($file) => $file->getFilenameWithoutExtension())
             ->reject(fn ($name) => $name === 'DatabaseSeeder')
-            ->mapWithKeys(fn ($name) => [$name => $name]) // 🌟 Map keys to values explicitly
+            ->mapWithKeys(fn ($name) => [$name => $name])
             ->toArray();
 
-        return view('dashboard', compact('overdueInvoices', 'checks', 'counts', 'seeders'));
+        return view('dashboard', compact('overdueInvoices', 'checks', 'counts', 'seeders', 'pendingOrEndedLeases'));
     }
 }

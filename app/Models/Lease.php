@@ -55,6 +55,7 @@ class Lease extends Model
         'security_deposit' => 'integer',
         'utilities_depost' => 'integer',
         'is_pending_renewal' => 'boolean',
+        'is_current' => 'boolean',
     ];
 
     public function room(): BelongsTo

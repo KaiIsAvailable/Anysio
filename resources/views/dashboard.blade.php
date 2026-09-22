@@ -50,16 +50,16 @@
         </div>
     </x-slot>
 
-    <div x-data="{ openPayment: false }" class="py-12 bg-gray-50 min-h-screen">
+    <div class="py-12 bg-gray-50 min-h-screen">
 
         @php
-            $isSetupComplete = !in_array(false, $checks);
+            $isSetupComplete = !in_array(false,$checks);
         @endphp
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             @if(!$isSetupComplete)
                 <x-notification-banner type="warning" class="mb-6">
-                    <span class="font-bold">Getting Started:</span> Please complete the following create your first lease:
+                    <span class="font-bold">Getting Started:</span> Please complete the following to create your first lease:
                     <ul class="mt-2 list-disc list-inside px-4">
                         @if(!$checks['tenant'])   <li><a href="{{ route('admin.tenants.create') }}">Add your first tenant</a></li> @endif
                         @if(!$checks['owner'])   <li><a href="{{ route('admin.owners.create') }}">Add your first owner</a></li> @endif
@@ -70,52 +70,134 @@
                 </x-notification-banner>
             @endif
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                @foreach([
-                    ['title' => 'Properties', 'total' => $counts['total_properties'] ?? 0, 'vacant' => $counts['vacant_properties'] ?? 0, 'occ' => $counts['occ_properties'] ?? 0, 'main' => $counts['main_properties'] ?? 0, 'clean' => $counts['clean_properties'] ?? 0],
-                    ['title' => 'Units',      'total' => $counts['total_units'] ?? 0,      'vacant' => $counts['vacant_units'] ?? 0,      'occ' => $counts['occ_units'] ?? 0,      'main' => $counts['main_units'] ?? 0,      'clean' => $counts['clean_units'] ?? 0],
-                    ['title' => 'Rooms',      'total' => $counts['total_rooms'] ?? 0,      'vacant' => $counts['vacant_rooms'] ?? 0,      'occ' => $counts['occ_rooms'] ?? 0,      'main' => $counts['main_rooms'] ?? 0,      'clean' => $counts['clean_rooms'] ?? 0],
-                ] as $stat)
+            <!-- Main Layout Grid: Left (Leases needing attention) | Right (Stats / Charts) -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100" x-cloak
-                    x-data="{ view: 'stats' }">
-                    
-                    <div class="flex justify-between items-center mb-6">
-                        <h4 class="font-bold text-slate-900 uppercase tracking-wider text-sm">{{ $stat['title'] }}</h4>
-                        <button @click="view = (view === 'stats' ? 'graph' : 'stats'); if(view === 'graph') initChart('{{ $stat['title'] }}')" 
-                                class="text-[10px] px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded font-bold text-slate-600 transition">
-                            <span x-text="view === 'stats' ? 'View Chart' : 'View Stats'"></span>
-                        </button>
-                    </div>
+                <!-- LEFT SIDE: Pending Renewal & Ended Leases List (Takes up 2 columns on large screens) -->
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col h-[500px]">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-slate-900 text-base uppercase tracking-wider">Leases Needing Attention</h3>
+                            <span class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold">
+                                {{ isset($pendingOrEndedLeases) ? $pendingOrEndedLeases->total() : 0 }} Total
+                            </span>
+                        </div>
 
-                    <div x-show="view === 'stats'" x-transition class="grid grid-cols-2 gap-4">
-                        <div class="col-span-2 mb-2">
-                            <span class="text-xs text-slate-400">Total Count</span>
-                            <h3 class="text-3xl font-extrabold text-slate-900">{{ $stat['total'] }}</h3>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="border-b border-slate-100 text-[11px] uppercase tracking-wider font-bold text-slate-400">
+                                        <th class="py-3 px-4">Tenant / Property</th>
+                                        <th class="py-3 px-4">Phone Number</th>
+                                        <th class="py-3 px-4">End Date</th>
+                                        <th class="py-3 px-4">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-slate-50 text-sm">
+                                    @forelse($pendingOrEndedLeases ?? [] as $lease)
+                                        <tr class="hover:bg-slate-50/50 transition">
+                                            <td class="py-3 px-4">
+                                                <p class="font-bold text-slate-800">{{ $lease->tenant->user->name ?? 'N/A' }}</p>
+                                                <p class="text-xs text-slate-400">
+                                                    @php
+                                                        $leasable = $lease->leasable;
+                                                        $locationName = 'Property/Unit';
+                                                        
+                                                        if ($leasable instanceof \App\Models\Property) {
+                                                            $locationName = $leasable->name;
+                                                        } elseif ($leasable instanceof \App\Models\Unit) {
+                                                            $locationName = $leasable->name ?? $leasable->unit_no;
+                                                        } elseif ($leasable instanceof \App\Models\Room) {
+                                                            $locationName = 'Property: ' . ($leasable->unit->property->name ?? '') . ' - Room: ' . ($leasable->room_no ?? '');
+                                                        }
+                                                    @endphp
+                                                    {{ $locationName }}
+                                                </p>
+                                            </td>
+                                            <td class="py-3 px-4">
+                                                {{ $lease->tenant->phone ?? 'N/A' }}
+                                            </td>
+                                            <td class="py-3 px-4 text-slate-600 font-medium">
+                                                {{ \Carbon\Carbon::parse($lease->end_date)->format('d/m/Y') }}
+                                            </td>
+                                            <td class="py-3 px-4">
+                                                @if($lease->status === 'End')
+                                                    <span class="px-2.5 py-1 text-[10px] font-bold uppercase bg-rose-50 text-rose-600 rounded-full">Ended</span>
+                                                @elseif($lease->is_pending_renewal)
+                                                    <span class="px-2.5 py-1 text-[10px] font-bold uppercase bg-amber-50 text-amber-600 rounded-full">{{ $lease->status }} (Pending Renewal)</span>
+                                                @else
+                                                    <span class="px-2.5 py-1 text-[10px] font-bold uppercase bg-slate-100 text-slate-600 rounded-full">{{ $lease->status }}</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @empty
+                                        <tr>
+                                            <td colspan="4" class="py-8 text-center text-slate-400 text-sm font-medium">
+                                                No leases require immediate attention. Great job!
+                                            </td>
+                                        </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                            
+                            @if($pendingOrEndedLeases->hasPages())
+                                <div class="px-4 py-3 border-t border-slate-100">
+                                    {{ $pendingOrEndedLeases->links() }}
+                                </div>
+                            @endif
                         </div>
-                        <div class="border-t pt-3">
-                            <span class="text-[10px] uppercase font-bold text-amber-500">Vacant</span>
-                            <p class="text-lg font-bold text-amber-600">{{ $stat['vacant'] }}</p>
-                        </div>
-                        <div class="border-t pt-3">
-                            <span class="text-[10px] uppercase font-bold text-emerald-500">Occupied</span>
-                            <p class="text-lg font-bold text-emerald-600">{{ $stat['occ'] }}</p>
-                        </div>
-                        <div class="border-t pt-3">
-                            <span class="text-[10px] uppercase font-bold text-purple-500">Cleaning</span>
-                            <p class="text-lg font-bold text-purple-600">{{ $stat['clean'] }}</p>
-                        </div>
-                        <div class="border-t pt-3">
-                            <span class="text-[10px] uppercase font-bold text-rose-500">Maintenance</span>
-                            <p class="text-lg font-bold text-rose-600">{{ $stat['main'] }}</p>
-                        </div>
-                    </div>
-
-                    <div x-show="view === 'graph'" x-transition class="min-h-[220px]">
-                        <div id="chart-{{ $stat['title'] }}"></div>
                     </div>
                 </div>
-                @endforeach
+
+                <!-- RIGHT SIDE: Property, Unit, Room Stats & Charts (Takes up 1 column) -->
+                <div class="space-y-6">
+                    @foreach([
+                        ['title' => 'Properties', 'total' => $counts['total_properties'] ?? 0, 'vacant' =>$counts['vacant_properties'] ?? 0, 'occ' => $counts['occ_properties'] ?? 0, 'main' =>$counts['main_properties'] ?? 0, 'clean' => $counts['clean_properties'] ?? 0],                         
+                        ['title' => 'Units',      'total' =>$counts['total_units'] ?? 0,      'vacant' => $counts['vacant_units'] ?? 0,      'occ' =>$counts['occ_units'] ?? 0,      'main' => $counts['main_units'] ?? 0,      'clean' =>$counts['clean_units'] ?? 0],
+                        ['title' => 'Rooms',      'total' => $counts['total_rooms'] ?? 0,      'vacant' =>$counts['vacant_rooms'] ?? 0,      'occ' => $counts['occ_rooms'] ?? 0,      'main' =>$counts['main_rooms'] ?? 0,      'clean' => $counts['clean_rooms'] ?? 0],                     
+                    ] as $stat)
+
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100" x-cloak
+                        x-data="{ view: 'stats' }">
+                        
+                        <div class="flex justify-between items-center mb-6">
+                            <h4 class="font-bold text-slate-900 uppercase tracking-wider text-sm">{{ $stat['title'] }}</h4>
+                            <button @click="view = (view === 'stats' ? 'graph' : 'stats'); if(view === 'graph') initChart('{{ $stat['title'] }}')" 
+                                    class="text-[10px] px-2 py-1 bg-slate-100 hover:bg-slate-200 rounded font-bold text-slate-600 transition">
+                                <span x-text="view === 'stats' ? 'View Chart' : 'View Stats'"></span>
+                            </button>
+                        </div>
+
+                        <div x-show="view === 'stats'" x-transition class="grid grid-cols-2 gap-4">
+                            <div class="col-span-2 mb-2">
+                                <span class="text-xs text-slate-400">Total Count</span>
+                                <h3 class="text-3xl font-extrabold text-slate-900">{{ $stat['total'] }}</h3>
+                            </div>
+                            <div class="border-t pt-3">
+                                <span class="text-[10px] uppercase font-bold text-amber-500">Vacant</span>
+                                <p class="text-lg font-bold text-amber-600">{{ $stat['vacant'] }}</p>
+                            </div>
+                            <div class="border-t pt-3">
+                                <span class="text-[10px] uppercase font-bold text-emerald-500">Occupied</span>
+                                <p class="text-lg font-bold text-emerald-600">{{ $stat['occ'] }}</p>
+                            </div>
+                            <div class="border-t pt-3">
+                                <span class="text-[10px] uppercase font-bold text-purple-500">Cleaning</span>
+                                <p class="text-lg font-bold text-purple-600">{{ $stat['clean'] }}</p>
+                            </div>
+                            <div class="border-t pt-3">
+                                <span class="text-[10px] uppercase font-bold text-rose-500">Maintenance</span>
+                                <p class="text-lg font-bold text-rose-600">{{ $stat['main'] }}</p>
+                            </div>
+                        </div>
+
+                        <div x-show="view === 'graph'" x-transition class="min-h-[220px]">
+                            <div id="chart-{{ $stat['title'] }}"></div>
+                        </div>
+                    </div>
+                    @endforeach
+                </div>
+
             </div>
         </div>
 
@@ -129,17 +211,11 @@
                 const counts = @json($counts);
                 const element = document.querySelector("#chart-" + title);
                 
-                // 调试：看看获取到的 ID 是否正确
-                console.log("Initializing chart for:", title);
-
                 // 映射数据
                 let series = [];
                 if (title === 'Properties') series = [counts.occ_properties, counts.vacant_properties, counts.main_properties, counts.clean_properties];
                 else if (title === 'Units') series = [counts.occ_units, counts.vacant_units, counts.main_units, counts.clean_units];
-                else if (title === 'Rooms') series = [counts.occ_rooms, counts.vacant_rooms, counts.main_rooms, counts.clean_rooms]; // 请根据你后台实际的 key 检查！
-
-                // 调试：看看 series 到底是什么
-                console.log("Series data:", series);
+                else if (title === 'Rooms') series = [counts.occ_rooms, counts.vacant_rooms, counts.main_rooms, counts.clean_rooms];
 
                 // 将 null 或 undefined 转换为 0，防止 reduce 报错
                 const safeSeries = series.map(val => val || 0);
@@ -159,7 +235,7 @@
 
                 const options = {
                     chart: { type: 'donut', height: 220, width: '100%' },
-                    series: safeSeries, // 使用处理后的安全数据
+                    series: safeSeries,
                     labels: ['Occupied', 'Vacant', 'Cleaning', 'Maintenance'],
                     colors: ['#10b981', '#f59e0b', '#8b5cf6', '#ef4444'],
                     dataLabels: { enabled: false },

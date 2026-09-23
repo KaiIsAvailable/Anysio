@@ -187,7 +187,7 @@
 
                                                 <!-- Amount -->
                                                 <td class="py-3 px-2 text-slate-700 font-semibold text-sm">
-                                                    RM {{ number_format($invoice->total_amount ?? $invoice->amount ?? 0, 2) }}
+                                                    RM {{ number_format($invoice->total_amount / 100 ?? $invoice->amount / 100 ?? 0, 2) }}
                                                 </td>
 
                                                 <!-- Due Date & Status Badge -->

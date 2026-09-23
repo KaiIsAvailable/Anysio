@@ -64,8 +64,10 @@ class DashboardController extends Controller
                 ->orWhere('status', 'End');
             })
             ->orderBy('end_date', 'asc')
-            ->paginate(5)
-            ->appends($request->query());
+            ->paginate(5, ['*'], 'lease_page')
+            ->onEachSide(1)
+            ->appends($request->query())
+            ->fragment('lease-section');
 
         // 4. Property Statistics Query
         $statsQuery = DB::table('properties')
@@ -127,7 +129,10 @@ class DashboardController extends Controller
                 $query->where('created_by', $user->id);
             })
             ->orderBy('due_date', 'asc')
-            ->get();
+            ->paginate(5, ['*'], 'invoice_page')
+            ->onEachSide(1)
+            ->appends($request->query())
+            ->fragment('overdue-section');
 
         // 6. Setup Checks & Seeders
         $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset'], 'exists');

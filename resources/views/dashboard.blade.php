@@ -155,7 +155,7 @@
                             <div class="flex justify-between items-center mb-4 shrink-0">
                                 <h3 class="font-bold text-slate-900 text-base uppercase tracking-wider">Overdue Invoices</h3>
                                 <span class="text-xs bg-rose-50 text-rose-600 px-2.5 py-1 rounded-full font-semibold">
-                                    {{ isset($overdueInvoices) ? $overdueInvoices->count() : 0 }} Total
+                                    {{ isset($overdueInvoices) ? $overdueInvoices->total() : 0 }} Total
                                 </span>
                             </div>
 

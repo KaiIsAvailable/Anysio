@@ -4,7 +4,7 @@ namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Facades\{Gate, Auth, Log};
-use App\Models\{User, lease, Invoice, Staff, UserManagement};
+use App\Models\{User, Lease, Invoice, Staff, UserManagement};
 use App\Observers\{LeaseObserver, InvoiceObserver};
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\PermissionRegistrar;

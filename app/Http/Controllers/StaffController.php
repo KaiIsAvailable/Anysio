@@ -202,7 +202,7 @@ class StaffController extends Controller
         }
 
         // Fetch all roles globally
-        $roles = Role::where('team_id', $user->id)->get();
+        $roles = Role::where('team_id', $staff->user_management->user_id)->get();
 
         return view('adminSide.userManagement.staff.edit', compact('staff', 'managementList', 'roles'));
     }
@@ -261,27 +261,27 @@ class StaffController extends Controller
 
             $user->update($userData);
 
-            // 2. Update Staff record (operational role and status)
-            $staff->update([
-                'role'      => $request->role,
-                'is_active' => $request->is_active,
-            ]);
+            // 2. Determine the correct Team ID based on the staff's management profile (works for both Admin and Owners)
+            $teamId = optional($staff->user_management)->user_id ?? $staff->user_mgnt_id;
 
-            // 3. Sync Spatie Role using team permissions context
-            $bossUserId = get_effective_user()->id;
+            if ($teamId) {
+                // Set Spatie's active team context to the staff's boss team ID
+                app(PermissionRegistrar::class)->setPermissionsTeamId($teamId);
 
-            if ($bossUserId) {
-                // Set Spatie's active team context to the boss's user_id
-                app(PermissionRegistrar::class)->setPermissionsTeamId($bossUserId);
-
-                // Find the role by ID, ensuring it belongs to this specific boss/team scope
-                $role = Role::where('id', $request->role)
-                    ->where('team_id', $bossUserId)
+                // Find the role by NAME instead of ID, scoped to this team
+                $role = Role::where('name', $request->role)
+                    ->where('team_id', $teamId)
                     ->firstOrFail();
 
-                // Sync the Role model instance safely
+                // Sync the Spatie Role model instance safely
                 $user->syncRoles([$role]);
             }
+
+            // 3. Update Staff record with the role name and status
+            $staff->update([
+                'role'      => $request->role, // Stores the role name
+                'is_active' => $request->is_active,
+            ]);
         });
 
         return redirect()->route('admin.staff.index')->with('success', 'Staff updated successfully.');

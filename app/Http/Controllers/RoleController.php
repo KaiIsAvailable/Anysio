@@ -16,39 +16,50 @@ class RoleController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
-        $user = get_effective_user();
-        $userId = $user->id;
+        $currentUser = get_effective_user();
 
-        // 💡 1. Add unique validation scoped to this team/user if needed, 
-        // or keep your standard validation and add unique check with team_id constraint
-        $request->validate([
+        // 💡 1. Determine the target team_id: 
+        // If the current user is an admin (and provided a target user_id in the request), use that. Otherwise, use their own ID.
+        $userId = ($currentUser->role === 'admin' || Gate::allows('super-admin')) 
+            ? $request->input('user_id', $currentUser->id) 
+            : $currentUser->id;
+
+        // 💡 2. Validate request inputs, including an optional validation for admin user selection
+        $validationRules = [
             'name' => [
                 'required',
                 'string',
                 'max:255',
-                // Optional but recommended: ensure role name is unique for this specific team/user
+                // Ensure role name is unique for this specific target team/user
                 Rule::unique('roles')->where(function ($query) use ($userId) {
                     return $query->where('team_id', $userId);
                 }),
             ],
             'permissions' => 'array',
-            'permissions.*' => 'string|exists:permissions,name', // 💡 Optional security check to ensure valid permission names
-        ]);
+            'permissions.*' => 'string|exists:permissions,name',
+        ];
 
-        // 1. Get the effective user model, then extract their ULID string
+        // If admin, validate that the selected user_id actually exists
+        if ($currentUser->role === 'admin' || Gate::allows('super-admin')) {
+            $validationRules['user_id'] = 'nullable|exists:users,id';
+        }
+
+        $request->validate($validationRules);
+
+        // 3. Set Spatie's permission team context
         app(PermissionRegistrar::class)->setPermissionsTeamId($userId);
 
-        // 2. Use 'team_id' so it matches your database column
+        // 4. Create the role using the resolved team_id
         $role = Role::create([
             'team_id' => $userId, 
             'name' => $request->input('name'),
             'guard_name' => 'web',
         ]);
 
-        // 💡 3. Sync permissions safely (fall back to empty array if null)
+        // 5. Sync permissions safely
         $role->syncPermissions($request->input('permissions', []));
 
-        // If requested via AJAX/fetch, flash to session and return success json
+        // If requested via AJAX/fetch
         if ($request->expectsJson()) {
             session()->flash('success', "Staff role ({$role->name}) created successfully.");
 

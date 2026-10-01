@@ -2,20 +2,22 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\{Staff, UserManagement};
-use App\Models\User;
+use App\Models\{Staff, UserManagement, User, Role};
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\{DB, Auth, Gate};
+use Spatie\Permission\PermissionRegistrar;
 
 class StaffController extends Controller
 {
     public function index(Request $request)
     {
-        $user = $request->user();
+        if (Gate::denies('owner-admin') && Gate::denies('staff.tab')) {
+            return view('errors.403');
+        }
+
+        $user = get_effective_user();
 
         $staff = Staff::query()
             ->with(['user_management.user'])
@@ -41,21 +43,34 @@ class StaffController extends Controller
         return view('adminSide.userManagement.staff.index', compact('staff'));
     }
 
-    public function create()
+    public function create(Request $request)
     {
-        $currentUser = Auth::user();
-        $managementList = [];
-
-        // If the logged-in user is a super admin, fetch the list of management accounts for the dropdown
-        if ($currentUser->role === 'admin' || Gate::allows('super-admin')) {
-            $managementList = UserManagement::with('user')->get();
+        if (Gate::denies('owner-admin') && Gate::denies('staff.create')) {
+            return view('errors.403');
         }
 
-        return view('adminSide.userManagement.staff.create', compact('managementList'));
+        $currentUser = get_effective_user();
+        $managementList = [];
+        $roles = collect();
+
+        if ($currentUser->role === 'admin') {
+            $managementList = UserManagement::with('user')->get();
+            // Admin gets all custom roles (with user_id) so Alpine.js can filter them based on the selected management account
+            $roles = Role::pluck('name', 'name')->toArray();
+        } else {
+            // Non-admin only sees their own custom roles
+            $roles = Role::where('team_id', $currentUser->id)->get();
+        }
+
+        return view('adminSide.userManagement.staff.create', compact('managementList', 'roles'));
     }
 
     public function store(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('staff.create')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         // 1. Determine the management ID based on user role (Admin can choose, others use their own)
         $currentUser = $request->user();
         
@@ -103,6 +118,30 @@ class StaffController extends Controller
                 'is_active'    => true,
             ]);
 
+            // 5. 👇 ASSIGN SPATIE ROLE & TEAM CONTEXT
+            // Find the user ID of the owner/agency that owns this management account
+            $ownerUserId = ($currentUser->role === 'admin') 
+                ? UserManagement::where('id', $currentMgntId)->value('user_id') 
+                : $currentUser->id;
+
+            // Set Spatie's team context if you use teams (or leave as needed)
+            // app(PermissionRegistrar::class)->...
+
+            // Find the specific role created by this owner user
+            $role = Role::where('name', $data['role'])
+                ->where('team_id', $ownerUserId)
+                ->first();
+
+            // Fallback to a global role (where user_id is null) if a custom one isn't found
+            if (!$role) {
+                $role = Role::where('name', $data['role'])
+                    ->whereNull('team_id')
+                    ->firstOrFail();
+            }
+
+            // Assign the found role instance directly to the new user
+            $newUser->assignRole($role);
+
             DB::commit();
 
             // 5. Return and flash success session data
@@ -121,7 +160,11 @@ class StaffController extends Controller
      */
     public function show(string $id)
     {
-        $user = Auth::user();
+        if (Gate::denies('owner-admin') && Gate::denies('staff.show')) {
+            return view('errors.403');
+        }
+
+        $user = get_effective_user();
         $currentMgntId = $user->user_management->id ?? null;
 
         $staff = Staff::with(['user', 'user_management.user'])
@@ -136,7 +179,11 @@ class StaffController extends Controller
      */
     public function edit(string $id)
     {
-        $user = Auth::user();
+        if (Gate::denies('owner-admin') && Gate::denies('staff.edit')) {
+            return view('errors.403');
+        }
+
+        $user = get_effective_user();
 
         $staff = Staff::with(['user', 'user_management'])
             ->when($user->role !== 'admin' && !Gate::allows('super-admin'), function ($q) use ($user) {
@@ -144,19 +191,20 @@ class StaffController extends Controller
                 abort_unless($currentMgntId, 403, 'Management profile not found.');
                 $q->where('user_mgnt_id', $currentMgntId);
             })
-            // Use user_id if your route passes the User ID, or change to 'id' if it passes the Staff table ID
             ->where(function ($query) use ($id) {
                 $query->where('id', $id)->orWhere('user_id', $id);
             })
             ->firstOrFail();
 
-        // If an admin needs to select a management account during edit, fetch the list too:
         $managementList = [];
         if ($user->role === 'admin' || Gate::allows('super-admin')) {
             $managementList = UserManagement::with('user')->get();
         }
 
-        return view('adminSide.userManagement.staff.edit', compact('staff', 'managementList'));
+        // Fetch all roles globally
+        $roles = Role::where('team_id', $user->id)->get();
+
+        return view('adminSide.userManagement.staff.edit', compact('staff', 'managementList', 'roles'));
     }
 
     /**
@@ -164,7 +212,11 @@ class StaffController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        $currentUser = Auth::user();
+        if (Gate::denies('owner-admin') && Gate::denies('staff.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
+        $currentUser = get_effective_user();
 
         // Find staff record with admin override capability
         $staff = Staff::with(['user', 'user_management'])
@@ -180,7 +232,7 @@ class StaffController extends Controller
 
         $user = $staff->user;
 
-        // Validate request inputs (including verify_email checkbox and active boolean values)
+        // Validate request inputs (including role validation scoped to the team)
         $request->validate([
             'name'         => 'required|string|max:255',
             'email'        => 'required|email|unique:users,email,' . $user->id,
@@ -198,14 +250,11 @@ class StaffController extends Controller
 
             // Handle Email Verification update
             if ($request->has('verify_email')) {
-                // If checked, verify email now (keep existing timestamp if already verified, or set to now)
                 $userData['email_verified_at'] = $user->email_verified_at ?? now();
             } else {
-                // If unchecked, unverify email
                 $userData['email_verified_at'] = null;
             }
 
-            // If email was explicitly changed and the verification checkbox wasn't ticked, reset verification
             if ($user->email !== $request->email && !$request->has('verify_email')) {
                 $userData['email_verified_at'] = null;
             }
@@ -217,6 +266,22 @@ class StaffController extends Controller
                 'role'      => $request->role,
                 'is_active' => $request->is_active,
             ]);
+
+            // 3. Sync Spatie Role using team permissions context
+            $bossUserId = get_effective_user()->id;
+
+            if ($bossUserId) {
+                // Set Spatie's active team context to the boss's user_id
+                app(PermissionRegistrar::class)->setPermissionsTeamId($bossUserId);
+
+                // Find the role by ID, ensuring it belongs to this specific boss/team scope
+                $role = Role::where('id', $request->role)
+                    ->where('team_id', $bossUserId)
+                    ->firstOrFail();
+
+                // Sync the Role model instance safely
+                $user->syncRoles([$role]);
+            }
         });
 
         return redirect()->route('admin.staff.index')->with('success', 'Staff updated successfully.');
@@ -227,7 +292,11 @@ class StaffController extends Controller
      */
     public function destroy($id)
     {
-        $user = Auth::user();
+        if (Gate::denies('owner-admin') && Gate::denies('staff.delete')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
+        $user = get_effective_user();
         $currentMgntId = $user->user_management->id ?? null;
 
         try {

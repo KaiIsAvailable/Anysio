@@ -123,6 +123,7 @@
                         <span class="text-xs text-slate-400 font-bold uppercase tracking-widest">End of Document</span>
                         <div class="flex items-center gap-3">
                             {{-- Print Button --}}
+                            @canany(['owner-admin', 'document template.print'])
                             <button type="button"
                                 @click="printDocument()"
                                 class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98]">
@@ -131,6 +132,7 @@
                                 </svg>
                                 Print
                             </button>
+                            @endcanany
 
                             {{-- Close Button --}}
                             <button type="button"

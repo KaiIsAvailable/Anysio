@@ -23,7 +23,7 @@
                         </x-form.primary-button>
                     @endcan
 
-                    @can('owner-admin')
+                    @canany(['agent-admin', 'owner.create'])
                         <x-form.primary-button
                             type="button"
                             loading="loading"
@@ -96,7 +96,7 @@
                                     <x-table.th name="Address" />
                                     <x-table.th name="Status" />
                                     <x-table.th name="Joined Date" sortField="jd" />
-                                    @can('owner-admin')
+                                    @canany(['agent-admin', 'owner.edit', 'owner.delete'])
                                         <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                     @endcan
                                 </tr>
@@ -104,7 +104,9 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($owners as $owner)
                                     <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                                        onclick="window.location='{{ route('admin.owners.show', $owner->id) }}'">
+                                        @canany(['agent-admin', 'owner.show'])
+                                        onclick="window.location='{{ route('admin.owners.show', $owner->id) }}'"
+                                        @endcanany>
                                         
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="flex items-center">
@@ -147,14 +149,17 @@
                                             </span>
                                         </td>
                                         
-                                        @can('owner-admin')
+                                        @canany(['agent-admin', 'owner.edit', 'owner.delete'])
                                             <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                                 <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
                                                     <!-- Edit Button -->
+                                                    @can('owner.edit')
                                                     <a href="{{ route('admin.owners.edit', $owner->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors">
                                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                                     </a>
+                                                    @endcan
 
+                                                    @can('owner.delete')
                                                     @if(strtolower($owner->user->status) === 'inactive')
                                                         <!-- Restore Button (When Inactive) -->
                                                         <form action="{{ route('admin.owners.restore', $owner->id) }}" method="POST" class="inline">
@@ -174,9 +179,10 @@
                                                             </button>
                                                         </form>
                                                     @endif
+                                                    @endcan
                                                 </div>
                                             </td>
-                                        @endcan
+                                        @endcanany
                                     </tr>
                                 @endforeach
                             </tbody>

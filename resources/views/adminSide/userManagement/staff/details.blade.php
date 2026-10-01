@@ -16,6 +16,7 @@
                 </div>
 
                 <div class="flex items-center gap-3">
+                    @canany(['owner-admin', 'staff.edit'])
                     <a href="{{ route('admin.staff.edit', $staff->id) }}" 
                        class="inline-flex items-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all">
                         <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -23,7 +24,9 @@
                         </svg>
                         Edit Staff
                     </a>
+                    @endcanany
                     
+                    @canany(['owner-admin', 'staff.delete'])
                     <form action="{{ route('admin.staff.destroy', $staff->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to remove this staff member?');">
                         @csrf @method('DELETE')
                         <button type="submit" class="inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-sm transition-all">
@@ -33,6 +36,7 @@
                             Delete
                         </button>
                     </form>
+                    @endcanany
                 </div>
             </div>
 

@@ -18,6 +18,10 @@ class InvoiceController extends Controller
 
     public function index()
     {
+        if (Gate::denies('owner-admin') && Gate::denies('invoice.tab')) {
+            return view('errors.403');
+        }
+
         $actualUserId = Auth::id(); 
         $effectiveUser = get_effective_user();
         $effectiveUserId = $effectiveUser?->id;
@@ -205,6 +209,10 @@ class InvoiceController extends Controller
 
     public function recordPayment(RecordPaymentRequest $request, Invoice $invoice)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.record payment')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         Gate::authorize('owner-admin', $invoice->lease);
         $this->invoiceService->recordPayment($invoice, $request->validated());
         //dd($request->all());
@@ -213,6 +221,10 @@ class InvoiceController extends Controller
 
     public function void(VoidInvoiceRequest $request, Invoice $invoice)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.void')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         Gate::authorize('owner-admin', $invoice->lease);
         $this->invoiceService->voidInvoice($invoice, $request->validated('reason'));
         return back()->with('success', 'Invoice voided.');
@@ -220,6 +232,10 @@ class InvoiceController extends Controller
 
     public function storeManualInvoice(StoreInvoiceRequest $request, Lease $lease)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.add manual invoice')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         Gate::authorize('owner-admin', $lease);
         $invoice = $this->invoiceService->createManualInvoice($lease, $request->validated());
 
@@ -255,6 +271,11 @@ class InvoiceController extends Controller
 
     public function generateAutoInvoice(Request $request, Lease $lease)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.auto generate invoice')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
+
         try {
             $generatedCount = $this->invoiceService->generateRecurringInvoices($lease);
 

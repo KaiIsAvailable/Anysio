@@ -1,13 +1,13 @@
 <?php
 
 use App\Http\Controllers\{ProfileController, TenantsController, TicketController, WelcomeController, UserController};
-use Illuminate\Support\Facades\{Artisan, Route, File, DB, Storage};
+use Illuminate\Support\Facades\{Artisan, Route, File, DB, Storage, Log, Gate, Auth};
 use Illuminate\Http\Request;
 use App\Models\{User, Tenants, EmergencyContact};
+use Spatie\Permission\PermissionRegistrar;
 
 // 1. 公开路由
-Route::get('/', function () {return view('welcome');})->name('welcome');
-Route::get('/', [WelcomeController::class, 'index']);
+Route::get('/', [WelcomeController::class, 'index'])->name('welcome');
 
 Route::middleware(['auth', 'can:super-admin'])->group(function () {
     Route::post('/user/verify-password', [UserController::class, 'verifyPassword'])->name('user.verify-password');
@@ -56,6 +56,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/feeTypeRoute.php';
         require __DIR__.'/excelImportRoute.php';
         require __DIR__.'/settingRoute.php';
+        require __DIR__.'/roleRoute.php';
 
         // --- 只有管理员 (owner-admin) 权限能进的路由 ---
         Route::middleware('can:owner-admin')->group(function () {

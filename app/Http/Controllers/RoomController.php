@@ -109,6 +109,10 @@ class RoomController extends Controller
 
     public function create(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('room.create')) {
+            return view('errors.403');
+        }
+
         // 💡 已經刪除 Gate::authorize('owner-admin');
         $user = get_effective_user();
 
@@ -127,6 +131,9 @@ class RoomController extends Controller
 
     public function store(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('room.create')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
         // 💡 已經刪除 Gate::authorize('owner-admin');
         $user = get_effective_user();
 
@@ -185,6 +192,10 @@ class RoomController extends Controller
 
     public function show(Room $room)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('room.show')) {
+            return view('errors.403');
+        }
+
         $room->load(['unit.property', 'unit.owner', 'assets', 'leases.tenant.user']);
 
         $property = $room->unit->property;
@@ -200,8 +211,12 @@ class RoomController extends Controller
 
     public function edit(Room $room)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('room.edit')) {
+            return view('errors.403');
+        }
+
         // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = Auth::user();
+        $user = get_effective_user();
 
         $room->load(['unit.property', 'unit.owner']);
         $unit = $room->unit;
@@ -223,6 +238,10 @@ class RoomController extends Controller
 
     public function update(Request $request, Room $room)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('room.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         // 💡 已經刪除 Gate::authorize('owner-admin');
         $user = Auth::user();
 
@@ -273,8 +292,12 @@ class RoomController extends Controller
 
     public function destroy(Room $room)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('room.delete')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = Auth::user();
+        $user = get_effective_user();
 
         // 💡 使用新的權限檢查方法
         $this->checkUnitAccess($user, $room->unit);
@@ -291,8 +314,12 @@ class RoomController extends Controller
 
     public function restore(Room $room)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('room.delete')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = Auth::user();
+        $user = get_effective_user();
 
         // 💡 使用新的權限檢查方法
         $this->checkUnitAccess($user, $room->unit);

@@ -27,6 +27,10 @@ class LeaseController extends Controller
     }
     public function index(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.tab')) {
+            return view('errors.403');
+        }
+
         $userId = get_effective_user();
         $search = $request->input('search');
         $status = $request->input('status');
@@ -158,6 +162,10 @@ class LeaseController extends Controller
 
     public function create(Request $request, SettingService $settingService)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.lease controller')) {
+            return view('errors.403');
+        }
+
         /** @var User $user */
         $user = get_effective_user();
 
@@ -444,7 +452,9 @@ class LeaseController extends Controller
 
     public function store(StoreLeaseRequest $request, LeaseService $leaseService)
     {
-        Gate::authorize('owner-admin');
+        if (Gate::denies('owner-admin') && Gate::denies('leases.lease controller')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
 
         $leaseService->process(
             get_effective_user(),
@@ -456,6 +466,10 @@ class LeaseController extends Controller
 
     public function show(Request $request, Lease $lease)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.show')) {
+            return view('errors.403');
+        }
+
         $settings = $this->settingService->getEffectiveSettings();
         $latePenaltyConfig = $settings['late_penalty_config'] ?? null;
         $dueDateDays = (int) data_get($settings, 'due_date_config.value.days', 7);
@@ -801,6 +815,10 @@ class LeaseController extends Controller
 
     public function uploadStamping(Request $request, Lease $lease, FileService $fileService)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.upload stamping')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $validated = $request->validate([
             'stamping_reference_no' => 'required|string|max:100',
             'stamping_cert' => 'required|mimes:pdf|max:2048',

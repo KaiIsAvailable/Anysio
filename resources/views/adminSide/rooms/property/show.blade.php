@@ -16,7 +16,7 @@
                     </div>
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
-                    @can('owner-admin')
+                    @canany(['owner-admin', 'unit.create'])
                         <x-form.primary-button
                             type="button"
                             loading="loading"
@@ -28,7 +28,7 @@
                             </svg>
                             Add New Unit
                         </x-form.primary-button>
-                    @endcan
+                    @endcanany
                 </div>
             </div>
 
@@ -37,7 +37,7 @@
                     <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                         <h2 class="text-lg font-semibold text-slate-800 italic">Listing Units</h2>
                         
-                        <x-form.form method="GET" action="{{ route('admin.properties.show', $property->id) }}" class="flex items-stretch gap-2">
+                        <!--<x-form.form method="GET" action="{{ route('admin.properties.show', $property->id) }}" class="flex items-stretch gap-2">
                             <div class="flex items-stretch">
                                 <a href="{{ route('admin.roomAsset.index') }}" 
                                 class="inline-flex items-center px-5 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors mr-4">
@@ -48,7 +48,7 @@
                                 </a>
                                 <x-table.search placeholder="Search units name..." />
                             </div>
-                        </x-form.form>
+                        </x-form.form>-->
                     </div>
                 </div>
 
@@ -62,9 +62,9 @@
                                 <x-table.th name="Utilities Info" />
                                 <x-table.th name="Status" sortField="s" />
                                 <x-table.th name="Current Tenant" sortField="c" />  
-                                @can('owner-admin')
+                                @canany(['owner-admin', 'unit.edit', 'unit.delete'])
                                     <x-table.th name="Action" />
-                                @endcan
+                                @endcanany
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -74,7 +74,9 @@
                                     $uStatus = $unit->status;
                                 @endphp
                                 <tr class="hover:bg-indigo-50 transition-colors cursor-pointer group"
+                                    @canany(['owner-admin', 'unit.show room'])
                                     onclick="window.location='{{ route('admin.units.show', $unit->id) }}'"
+                                    @endcanany
                                     style="cursor: pointer;"
                                     >
                                     
@@ -139,13 +141,17 @@
                                         <div class="text-sm text-slate-900">{{ $unit->tenant->name ?? 'No Tenant' }}</div>
                                     </td>
 
-                                    @can('owner-admin')
+                                    @canany(['owner-admin', 'unit.edit', 'unit.delete'])
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
+                                                @canany(['owner-admin', 'unit.edit'])
                                                 <a href="{{ route('admin.units.edit', $unit->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 rounded-lg" title="Edit Unit">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                                 </a>
-                                                    @if($unit->status == 'Removed' && $property->status != 'Removed')
+                                                @endcanany
+
+                                                @canany(['owner-admin', 'unit.delete'])
+                                                @if($unit->status == 'Removed' && $property->status != 'Removed')
                                                     {{-- Restore Unit 按钮 --}}
                                                     <form action="{{ route('admin.units.restore', $unit->id) }}" method="POST" class="inline-block"
                                                         onsubmit="return confirm('Restore unit {{ addslashes($unit->unit_number) }}? This will set the unit and all its rooms back to Vacant.');">
@@ -178,6 +184,7 @@
                                                         </form>
                                                     @endif
                                                 @endif
+                                                @endcanany
                                             </div>
                                         </td>
                                     @endcan

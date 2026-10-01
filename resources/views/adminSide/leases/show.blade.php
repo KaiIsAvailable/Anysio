@@ -131,6 +131,7 @@
                     <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Lease Progression</h2>
                         
+                        @canany(['owner-admin', 'leases.cancel lease'])
                         @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
                             <button type="button" 
                                 @click="$dispatch('open-lease-confirm-modal', { 
@@ -140,6 +141,7 @@
                                 CANCEL LEASE
                             </button>
                         @endif
+                        @endcanany
                     </div>
                     <div class="p-6">
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full z-[101]">
@@ -185,6 +187,7 @@
                         shake: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }}
                     }">
                         {{-- 左侧按钮：View Agreement --}}
+                        @canany(['owner-admin', 'leases.view agreement'])
                         @if (!empty($lease->document_id))
                             <button type="button"
                                 data-base-content="{{ $lease->documentTemplate?->html_template }}"
@@ -217,8 +220,10 @@
                                 VIEW AGREEMENT
                             </button>
                         @endif
+                        @endcanany
 
                         {{-- 右侧按钮：Upload Stamping (条件渲染) --}}
+                        @canany(['owner-admin', 'leases.upload stamping'])
                         @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
                             <button @click="openUpload = true"
                                 class="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm text-center">
@@ -230,6 +235,7 @@
                         @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
                             <x-modals.lease-stamping-modal :lease="$lease" />
                         @endif
+                        @endcanany
                     </div>
                 </div>
 
@@ -363,11 +369,14 @@
                                     });
                             }
                         }">
+                            @canany(['owner-admin', 'leases.auto generate invoice'])
                             <x-form.primary-button type="button" loading="generating" @click="generateCharges()">
                                 Auto Generate Invoice
                             </x-form.primary-button>
+                            @endcanany
 
                             <!-- Add Manual Invoice Button -->
+                            @canany(['owner-admin', 'leases.add manual invoice'])
                             <button type="button"
                                 @click="$dispatch('open-manual-modal', { 
                                     action: getManualInvoiceUrl(),
@@ -381,6 +390,7 @@
                             </button>
                             
                             <x-modals.manual-invoice-modal :feeTypes="$feeTypes" />
+                            @endcanany
                         </div>
                     </div>
 
@@ -395,13 +405,17 @@
                                     <thead class="bg-gray-50">
                                         <tr>
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice No</th>
+                                            @canany(['owner-admin', 'leases.view invoice', 'leases.view receipt'])
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Documents</th>
+                                            @endcanany
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Due Date</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount Details</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Remarks</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
+                                            @canany(['owner-admin', 'leases.record payment', 'leases.void'])
                                             <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                            @endcanany
                                         </tr>
                                     </thead>
                                     <tbody id="invoices-table-body" class="bg-white divide-y divide-gray-200">
@@ -410,9 +424,11 @@
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm font-bold text-indigo-600" x-text="invoice.invoice_no"></td>
 
                                                 <!-- 💡 Alpine Loop Document Preview (Using Component) -->
+                                                @canany(['owner-admin', 'leases.view invoice', 'leases.view receipt'])
                                                 <td class="px-4 py-4 whitespace-nowrap">
                                                     <!-- Invoice Component -->
                                                     <div class="flex flex-col items-start gap-1.5">
+                                                        @canany(['owner-admin', 'leases.view invoice'])
                                                         <template x-if="invoice.document_template_id && invoice.document_template_id !== '—' && invoice.template_title">
                                                             <div>
                                                                 <x-buttons.preview-doc
@@ -425,8 +441,10 @@
                                                                     buttonTextExpr="invoice.invoice_no" />
                                                             </div>
                                                         </template>
+                                                        @endcanany
 
                                                         <!-- Receipt Component Loop -->
+                                                        @canany(['owner-admin', 'leases.view receipt'])
                                                         <template x-if="invoice.receipts && invoice.receipts.length > 0">
                                                             <template x-for="receipt in invoice.receipts" :key="receipt.id">
                                                                 <div class="mt-1">
@@ -494,12 +512,14 @@
                                                                 </div>
                                                             </template>
                                                         </template>
+                                                        @endcanany
 
                                                         <template x-if="(!invoice.document_template_id || invoice.document_template_id === '—' || !invoice.template_title) && (!invoice.receipts || invoice.receipts.length === 0)">
                                                             <span class="text-xs text-gray-400 italic mt-1">- None -</span>
                                                         </template>
                                                     </div>
                                                 </td>
+                                                @endcanany
 
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900" x-text="invoice.period"></td>
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600" x-text="invoice.due_date_formatted"></td>
@@ -521,8 +541,10 @@
                                                     }" x-text="invoice.status">
                                                     </span>
                                                 </td>
+                                                @canany(['owner-admin', 'leases.record payment', 'leases.void'])
                                                 <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
                                                     <!-- Record Payment Button -->
+                                                    @canany(['owner-admin', 'leases.record payment'])
                                                     <template x-if="invoice.status !== 'paid' && invoice.status !== 'void'">
                                                         <button type="button"
                                                             @click="
@@ -545,8 +567,10 @@
                                                             <span>Record Payment</span>
                                                         </button>
                                                     </template>
+                                                    @endcanany
 
                                                     <!-- Void Button -->
+                                                    @canany(['owner-admin', 'leases.void'])
                                                     <template x-if="invoice.status !== 'void'">
                                                         <button type="button"
                                                             @click="
@@ -562,7 +586,9 @@
                                                             <span>Void</span>
                                                         </button>
                                                     </template>
+                                                    @endcanany
                                                 </td>
+                                                @endcanany
                                             </tr>
                                         </template>
                                         <template x-if="!activeLease.invoices || activeLease.invoices.length === 0">

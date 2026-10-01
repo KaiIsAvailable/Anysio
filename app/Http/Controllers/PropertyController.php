@@ -14,6 +14,10 @@ class PropertyController extends Controller
     use RoleBasedDataTrait;
     public function index(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('property.tab')) {
+            return view('errors.403');
+        }
+
         $search = $request->input('search');
         $user = get_effective_user();
 
@@ -29,14 +33,14 @@ class PropertyController extends Controller
                 return; // 超管不过滤
             }
 
-            if (Gate::allows('agent-admin')) {
+            if ($user->role === 'agentAdmin') {
                 // Agent 只能看所属 Owner 的房源
                 $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
                 $q->where(function ($sub) use ($ownerIds, $user) {
                     $sub->whereIn('properties.owner_id', $ownerIds)
                         ->orWhere('properties.created_by', $user->id); 
                 });
-            } elseif (Gate::allows('owner-admin')) {
+            } elseif ($user->role === 'ownerAdmin') {
                 // Owner 只能看自己创建的 OR 自己是 Owner 的
                 $q->where(function ($sub) use ($user) {
                     $sub->where('properties.created_by', $user->id)
@@ -88,6 +92,10 @@ class PropertyController extends Controller
 
     public function create()
     {
+        if (Gate::denies('owner-admin') && Gate::denies('property.create')) {
+            return view('errors.403');
+        }
+
         $user = Auth::user();
 
         $isOwnerAdmin = $user->role === 'ownerAdmin';
@@ -114,6 +122,10 @@ class PropertyController extends Controller
 
     public function store(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('property.create')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $effectiveUser = get_effective_user();
         $effectiveUserId = $effectiveUser ? $effectiveUser->id : Auth::id();
         $validated = $request->validate([
@@ -144,6 +156,11 @@ class PropertyController extends Controller
 
     public function show(Request $request, Property $property)
     {
+
+        if (Gate::denies('owner-admin') && Gate::denies('property.show unit')) {
+            return view('errors.403');
+        }
+
         // 从当前 Property 下的单位开始查询
         $query = Unit::query()
             ->where('property_id', $property->id)
@@ -161,21 +178,6 @@ class PropertyController extends Controller
         }
         
         $user = get_effective_user();
-
-        if (!Gate::allows('super-admin')) {
-            if (Gate::allows('owner-admin')) {
-                if ($property->created_by !== $user->id && $property->owner_id !== $user->id) {
-                    return redirect()->route('admin.properties.index')->with('error', 'You are not authorized to view that property.');
-                }
-            } elseif (Gate::allows('agent-admin')) {
-                $allowedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-                if (!$allowedOwnerIds->contains($property->owner_id)) {
-                    return redirect()->route('admin.properties.index')->with('error', 'You are not authorized to view that property.');
-                }
-            } else {
-                return redirect()->route('admin.properties.index')->with('error', 'You are not authorized to view that property.');
-            }
-        }
 
         $property->load(['units' => function ($query) use ($user) {
             if (!Gate::allows('super-admin')) {
@@ -212,6 +214,10 @@ class PropertyController extends Controller
 
     public function edit(Property $property)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('property.edit')) {
+            return view('errors.403');
+        }
+
         $user = Auth::user();
 
         // 2. 调用 Trait 获取统一权限下的 Owners 列表
@@ -233,6 +239,10 @@ class PropertyController extends Controller
 
     public function update(Request $request, Property $property)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('property.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
             'address'  => 'required|string',
@@ -256,6 +266,10 @@ class PropertyController extends Controller
 
     public function destroy($id)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('property.delete')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         try {
             DB::beginTransaction();
 
@@ -279,6 +293,10 @@ class PropertyController extends Controller
 
     public function restore($id)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('property.delete')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         try {
             DB::beginTransaction();
 

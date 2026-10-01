@@ -8,7 +8,7 @@
                     <p class="mt-2 text-sm text-gray-500">Manage and organize your property directory.</p>
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
-                    @can('owner-admin')
+                    @canany(['owner-admin', 'property.create'])
                         <x-form.primary-button
                             type="button"
                             loading="loading"
@@ -20,7 +20,7 @@
                             </svg>
                             Add New Property
                         </x-form.primary-button>
-                    @endcan
+                    @endcanany
                 </div>
             </div>
 
@@ -29,6 +29,7 @@
                     <div class="flex justify-end">
                         <x-form.form method="GET" action="{{ route('admin.properties.index') }}" class="flex flex-wrap items-center gap-4">
                             <div class="flex items-stretch justify-between">
+                                @canany(['owner-admin', 'property.view room assets'])
                                 <a href="{{ route('admin.roomAsset.index') }}" 
                                 class="inline-flex items-center px-5 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors mr-4">
                                     <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -36,6 +37,7 @@
                                     </svg>
                                     View Room Assets
                                 </a>
+                                @endcanany
                                 <x-table.search placeholder="Search property name..." />
                             </div>
                         </x-form.form>
@@ -53,9 +55,9 @@
                                     <x-table.th name="Status" sortField="st" />
                                     <x-table.th name="Address" sortField="a" />
                                     <x-table.th name="Created" sortField="cr" />
-                                    @can('owner-admin')
+                                    @canany(['owner-admin', 'property.edit', 'property.delete'])
                                         <x-table.th name="Actions" />
-                                    @endcan
+                                    @endcanany
                                 </tr>
                             </thead>
 
@@ -72,7 +74,10 @@
                                 @endphp
                                 <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
                                     data-href="{{ route('admin.properties.show', $property->id) }}"
-                                    onclick="window.location=this.dataset.href">
+                                    @canany(['owner-admin', 'property.show unit'])
+                                    onclick="window.location=this.dataset.href"
+                                    @endcanany
+                                    >
 
                                     <td class="px-6 py-4">
                                         <div class="flex items-center">
@@ -109,14 +114,18 @@
                                         {{ dateFormat($property->created_at) }}
                                     </td>
 
-                                    @can('owner-admin')
+                                    @canany(['owner-admin', 'property.edit', 'property.delete'])
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
+                                                @can('property.edit')
                                                 <a href="{{ route('admin.properties.edit', $property->id) }}"
                                                 class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                                                 title="Edit">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                                 </a>
+                                                @endcan
+
+                                                @can('property.delete')
                                                 @if($property->status == 'Removed')
                                                     {{-- Restore 按钮 --}}
                                                     <form action="{{ route('admin.properties.restore', $property->id) }}" method="POST" class="inline-block"
@@ -143,6 +152,7 @@
                                                         </button>
                                                     </form>
                                                 @endif
+                                                @endcan
                                             </div>
                                         </td>
                                     @endcan

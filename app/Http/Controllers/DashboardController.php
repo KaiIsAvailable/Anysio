@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\{Invoice, Owners, UserManagement, User, Lease, Property, Unit, Room};
 use App\Services\SetupCheckerService;
-use Illuminate\Support\Facades\{Auth, File, DB, Gate};
+use Illuminate\Support\Facades\{Auth, File, DB, Gate, Log};
 use App\Traits\RoleBasedDataTrait;
 use Illuminate\Http\Request;
 
@@ -14,6 +14,10 @@ class DashboardController extends Controller
 
     public function index(SetupCheckerService $checker, Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('dashboard.tab')) {
+            return view('errors.403');
+        }
+
         $user = get_effective_user();
         $actualUserId = Auth::id();
         $effectiveUser = get_effective_user();

@@ -16,6 +16,10 @@ class OwnersController extends Controller
 {
     public function index(Request $request)
     {
+        if (Gate::denies('agent-admin') && Gate::denies('owner.tab')) {
+            return view('errors.403');
+        }
+
         $userId = get_effective_user();
         $users = UserManagement::with('user')->get()->pluck('user');
         $query = Owners::with('user');
@@ -71,6 +75,10 @@ class OwnersController extends Controller
 
     public function create()
     {
+        if (Gate::denies('agent-admin') && Gate::denies('owner.create')) {
+            return view('errors.403');
+        }
+
         $users = User::where('role', 'owner')->whereDoesntHave('owner')->get();
         $worldCountries = WorldCountries::worldCountries();
         return view('adminSide.owners.create', compact('users', 'worldCountries'));
@@ -78,6 +86,10 @@ class OwnersController extends Controller
 
     public function store(StoreOwnerRequest $request)
     {
+        if (Gate::denies('agent-admin') && Gate::denies('owner.create')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $validatedData = $request->validated();
 
         $request->merge([
@@ -131,12 +143,21 @@ class OwnersController extends Controller
 
     public function edit(Owners $owner)
     {
+        if (Gate::denies('agent-admin') && Gate::denies('owner.edit')) {
+            return view('errors.403');
+        }
+
         $worldCountries = WorldCountries::worldCountries();
         return view('adminSide.owners.edit', compact('owner', 'worldCountries'));
     }
 
     public function update(UpdateOwnerRequest $request, Owners $owner)
     {
+
+        if (Gate::denies('agent-admin') && Gate::denies('owner.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         // 1. Update the associated User's name and email
         if ($owner->user) {
             $userData = [
@@ -168,6 +189,11 @@ class OwnersController extends Controller
 
     public function destroy(Owners $owner)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('owner.delete')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
+
         if ($owner->user) {
             $owner->user->update([
                 'status' => 'inactive'
@@ -179,6 +205,10 @@ class OwnersController extends Controller
 
     public function restore($id)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('owner.delete')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         // Find the owner including inactive ones (just in case your global scopes filter them out)
         $owner = Owners::with('user')->findOrFail($id);
 
@@ -193,6 +223,10 @@ class OwnersController extends Controller
 
     public function show(Owners $owner)
     {
+        if (Gate::denies('agent-admin') && Gate::denies('owner.show')) {
+            return view('errors.403');
+        }
+
         $owner->load(['user']);
 
         return view('adminSide.owners.details', compact('owner'));

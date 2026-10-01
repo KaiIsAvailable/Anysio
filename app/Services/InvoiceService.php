@@ -483,7 +483,7 @@ class InvoiceService
         $billedUser = null;
         if ($isLeaseInvoice && $invoice->lease?->tenant?->user) {
             $billedUser = $invoice->lease->tenant->user;
-        } elseif ($invoice->billable instanceof \App\Models\User) {
+        } elseif ($invoice->billable instanceof User) {
             $billedUser = $invoice->billable;
         } else {
             $billedUser = $invoice->user;

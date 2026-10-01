@@ -75,6 +75,7 @@
 
                 <!-- LEFT SIDE: Pending Renewal & Ended Leases List (Takes up 2 columns on large screens) -->
                 <div class="lg:col-span-2 space-y-6">
+                    @canany(['owner-admin', 'dashboard.lease list'])
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
                         <div class="flex justify-between items-center mb-4">
                             <h3 class="font-bold text-slate-900 text-base uppercase tracking-wider">Leases Needing Attention</h3>
@@ -147,14 +148,16 @@
                             @endif
                         </div>
                     </div>
+                    @endcanany
 
+                    @canany(['owner-admin', 'dashboard.invoice list'])
                     <div class="lg:col-span-2 space-y-6" id="overdue-section">
                         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
                             
                             <!-- Header (Fixed) -->
                             <div class="flex justify-between items-center mb-4 shrink-0">
                                 <h3 class="font-bold text-slate-900 text-base uppercase tracking-wider">Overdue Invoices</h3>
-                                <span class="text-xs bg-rose-50 text-rose-600 px-2.5 py-1 rounded-full font-semibold">
+                                <span class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold">
                                     {{ isset($overdueInvoices) ? $overdueInvoices->total() : 0 }} Total
                                 </span>
                             </div>
@@ -222,16 +225,18 @@
                             </div>
                         </div>
                     </div>
+                    @endcanany
                 </div>
 
                 <!-- RIGHT SIDE: Property, Unit, Room Stats & Charts (Takes up 1 column) -->
                 <div class="space-y-6">
                     @foreach([
-                        ['title' => 'Properties', 'total' => $counts['total_properties'] ?? 0, 'vacant' =>$counts['vacant_properties'] ?? 0, 'occ' => $counts['occ_properties'] ?? 0, 'main' =>$counts['main_properties'] ?? 0, 'clean' => $counts['clean_properties'] ?? 0],                         
-                        ['title' => 'Units',      'total' =>$counts['total_units'] ?? 0,      'vacant' => $counts['vacant_units'] ?? 0,      'occ' =>$counts['occ_units'] ?? 0,      'main' => $counts['main_units'] ?? 0,      'clean' =>$counts['clean_units'] ?? 0],
-                        ['title' => 'Rooms',      'total' => $counts['total_rooms'] ?? 0,      'vacant' =>$counts['vacant_rooms'] ?? 0,      'occ' => $counts['occ_rooms'] ?? 0,      'main' =>$counts['main_rooms'] ?? 0,      'clean' => $counts['clean_rooms'] ?? 0],                     
+                        ['title' => 'Properties', 'permission' => 'dashboard.property analysis', 'total' => $counts['total_properties'] ?? 0, 'vacant' =>$counts['vacant_properties'] ?? 0, 'occ' => $counts['occ_properties'] ?? 0, 'main' =>$counts['main_properties'] ?? 0, 'clean' => $counts['clean_properties'] ?? 0],                         
+                        ['title' => 'Units',      'permission' => 'dashboard.unit analysis', 'total' =>$counts['total_units'] ?? 0,      'vacant' => $counts['vacant_units'] ?? 0,      'occ' =>$counts['occ_units'] ?? 0,      'main' => $counts['main_units'] ?? 0,      'clean' =>$counts['clean_units'] ?? 0],
+                        ['title' => 'Rooms',      'permission' => 'dashboard.room analysis', 'total' => $counts['total_rooms'] ?? 0,      'vacant' =>$counts['vacant_rooms'] ?? 0,      'occ' => $counts['occ_rooms'] ?? 0,      'main' =>$counts['main_rooms'] ?? 0,      'clean' => $counts['clean_rooms'] ?? 0],                     
                     ] as $stat)
 
+                    @canany(['owner-admin', $stat['permission']])
                     <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100" x-cloak
                         x-data="{ view: 'stats' }">
                         
@@ -270,6 +275,7 @@
                             <div id="chart-{{ $stat['title'] }}"></div>
                         </div>
                     </div>
+                    @endcanany
                     @endforeach
                 </div>
 

@@ -15,7 +15,7 @@
                     <p class="mt-2 text-sm text-gray-500 italic">Manage and organize rooms within this unit.</p>
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
-                    @can('owner-admin')
+                    @canany(['owner-admin', 'room.create'])
                         <x-form.primary-button
                             type="button"
                             loading="loading"
@@ -27,7 +27,7 @@
                             </svg>
                             Add New Room
                         </x-form.primary-button>
-                    @endcan
+                    @endcanany
                 </div>
             </div>
 
@@ -36,7 +36,7 @@
                     <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                         <h2 class="text-lg font-semibold text-slate-800 italic">Listing Rooms</h2>
                         
-                        <x-form.form method="GET" action="{{ route('admin.units.show', $unit->id) }}" class="flex items-stretch gap-2">
+                        <!--<x-form.form method="GET" action="{{ route('admin.units.show', $unit->id) }}" class="flex items-stretch gap-2">
                             <a href="{{ route('admin.roomAsset.index') }}" 
                             class="inline-flex items-center px-4 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
                                 <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -45,7 +45,7 @@
                                 View Room Assets
                             </a>
                             <x-table.search placeholder="Search rooms name..." />
-                        </x-form.form>
+                        </x-form.form>-->
                     </div>
                 </div>
 
@@ -66,9 +66,9 @@
                                     <x-table.th name="Assets" />
                                     <x-table.th name="Created" sortField="c" />
                                     
-                                    @can('owner-admin')
+                                    @canany(['owner-admin', 'room.edit', 'room.delete'])
                                         <x-table.th name="Actions" />
-                                    @endcan
+                                    @endcanany
                                 </tr>
                             </thead>
 
@@ -81,7 +81,9 @@
                                 @endphp
                                 <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
                                     data-href="{{ route('admin.rooms.show', $room->id) }}"
-                                    onclick="window.location=this.dataset.href">
+                                    @canany(['owner-admin', 'room.show'])
+                                    onclick="window.location=this.dataset.href"
+                                    @endcanany>
 
                                     {{-- 💡 核心修复点：拿掉 whitespace-nowrap，并加上固定宽度和自动折行 --}}
                                     <td class="px-6 py-4">
@@ -127,15 +129,20 @@
 
                                     <td class="px-6 py-4 text-sm text-slate-900">{{ optional($room->created_at)->format('d M Y') }}</td>
                                     
-                                    @can('owner-admin')
+                                    @canany(['owner-admin', 'room.edit', 'room.delete'])
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
+                                                @canany(['owner-admin', 'room.edit'])
+                                                <a href="{{ route('admin.rooms.edit', $room->id) }}"
+                                                class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
+                                                title="Edit">
+                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
+                                                </a>
+                                                @endcanany
+
+                                                @canany(['owner-admin', 'room.delete'])
                                                 @if(strtolower($room->status ?? '') !== 'inactive')
-                                                    <a href="{{ route('admin.rooms.edit', $room->id) }}"
-                                                    class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
-                                                    title="Edit">
-                                                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                                    </a>
+                                                   
                                                     <form action="{{ route('admin.rooms.destroy', $room->id) }}" method="POST"
                                                         onsubmit="return confirm('Delete room {{ addslashes($room->room_no ?? $room->id) }}? This will mark the room and its assets inactive.');"
                                                         class="inline-block">
@@ -160,6 +167,7 @@
                                                         </button>
                                                     </form>
                                                 @endif
+                                                @endcanany
                                             </div>
                                         </td>
                                     @endcan

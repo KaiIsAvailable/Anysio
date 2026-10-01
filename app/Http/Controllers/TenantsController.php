@@ -10,11 +10,9 @@ use App\Models\Property;
 use App\Http\Controllers\InvoiceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\{Auth, Gate, Log, DB};
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use App\Traits\RoleBasedDataTrait;
 use App\Services\FileService;
 use App\Models\Lease;
@@ -24,20 +22,10 @@ class TenantsController extends Controller
 {
     use RoleBasedDataTrait;
 
-
-
-
-
-
     public function leases()
     {
         $user = Auth::user();
-
         $tenant = $user->tenant;
-
-        if (!$tenant) {
-            abort(404, 'Tenant profile not found.');
-        }
 
         $leases = Lease::with([
             'tenant.user',
@@ -96,6 +84,10 @@ class TenantsController extends Controller
 
     public function index(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('tenant.tab')) {
+            return view('errors.403');
+        }
+
         $user = get_effective_user();
         $users = UserManagement::with('user')->get()->pluck('user');
 
@@ -162,11 +154,19 @@ class TenantsController extends Controller
      */
     public function create()
     {
+        if (Gate::denies('owner-admin') && Gate::denies('tenant.create')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         return view('adminSide.tenants.create');
     }
 
     public function store(Request $request, FileService $fileService)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('tenant.create')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+        
         // 1. 处理随机 Email
         if ($request->has('random_email') && $request->random_email == '1') {
             $request->merge(['email' => 'tenant_' . time() . '_' . Str::random(5) . '@anysio.local']);
@@ -239,6 +239,10 @@ class TenantsController extends Controller
      */
     public function edit(Tenants $tenant)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('tenant.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         // No need to fetch users list as the user field is disabled/readonly
         $tenant->load('emergencyContacts'); // Eager load contacts
         //dd($tenant->emergencyContacts->toArray());
@@ -250,6 +254,10 @@ class TenantsController extends Controller
      */
     public function update(Request $request, Tenants $tenant, FileService $fileService)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('tenant.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         // 1. 执行验证（内部若失败会抛出异常，自动返回）
         $this->validateTenantData($request, $tenant->id, $tenant->user_id);
 
@@ -321,6 +329,9 @@ class TenantsController extends Controller
      */
     public function destroy(Tenants $tenant)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('tenant.delete')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
         // 1. 检查是否还有正在进行的有效租约
         // 假设你的 Lease 模型有一个 status 字段（如 'active'）
         // 或者通过日期判断：$tenant->leases()->where('end_date', '>=', now())->exists()
@@ -379,6 +390,10 @@ class TenantsController extends Controller
     }
     public function show(Tenants $tenant)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('tenant.show')) {
+            return view('errors.403');
+        }
+
         // 1. 先加载租户的基础关联（不需要分页的）
         $tenant->load([
             'emergencyContacts',
@@ -420,6 +435,10 @@ class TenantsController extends Controller
 
     public function viewIc(Tenants $tenant)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('tenant.view IC')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         if (empty($tenant->ic_photo_path)) {
             abort(404, 'No identity document uploaded.');
         }

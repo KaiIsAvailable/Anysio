@@ -1,5 +1,12 @@
 <x-app-layout>
-    <div class="py-12 bg-gray-50 min-h-screen font-sans">
+    <div class="py-12 bg-gray-50 min-h-screen font-sans" 
+        x-data="{ showRoleModal: false, 
+                  newRoleName: '', 
+                  selectedPermissions: [],
+                  errorMessage: '', 
+                  isLoading: false, 
+                  isShaking: false }"
+        >
         <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
             
             <div class="mb-8">
@@ -62,21 +69,29 @@
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pl-4">
-                            <!-- Role Selection -->
+                            <!-- Role Selection with Add Button -->
                             <div>
-                                <x-form.input-label for="role" value="Staff Position / Role" required />
+                                <div class="flex items-center justify-between">
+                                    <x-form.input-label for="role" value="Staff Position / Role" required />
+                                    
+                                    <!-- Add Role Trigger Button -->
+                                    <button type="button" @click="showRoleModal = true" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1 transition-colors">
+                                        <svg class="w-4 h-4 bg-indigo-50 rounded-full p-0.5 border border-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                        </svg>
+                                        Add New Role
+                                    </button>
+                                </div>
+
                                 <x-form.input-select 
                                     id="role" 
                                     name="role" 
-                                    class="mt-1"
-                                    placeholder="-- Select Staff Role --"
-                                    :options="[
-                                        'Front Desk' => 'Front Desk',
-                                        'Backend Staff' => 'Backend Staff',
-                                        'Maintenance' => 'Maintenance',
-                                        'Others' => 'Others'
-                                    ]"
-                                    :value="old('role', $staff->role)"
+                                    class="w-full"
+                                    :options="$roles"
+                                    value-field="id"       
+                                    label-field="name"     
+                                    x-model="selectedRole"
+                                    :value="old('role')"
                                     required 
                                 />
                                 <x-form.input-error :messages="$errors->get('role')" class="mt-2" />
@@ -115,5 +130,8 @@
                 </x-form.form>
             </div>
         </div>
+
+        <!-- Include the Role Modal Component -->
+        <x-modals.staff-role-modal />
     </div>
 </x-app-layout>

@@ -15,8 +15,9 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Owner Details</h1>
                 </div>
 
-                @can('owner-admin')
+                @canany(['agent-admin', 'owner.edit', 'owner.delete'])
                 <div class="flex items-center gap-3">
+                    @can('owner.edit')
                     <a href="{{ route('admin.owners.edit', $owner->id) }}" 
                        class="inline-flex items-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all">
                         <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -24,7 +25,9 @@
                         </svg>
                         Edit Owner
                     </a>
+                    @endcan
                     
+                    @can('owner.delete')
                     <form action="{{ route('admin.owners.destroy', $owner->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this owner?');">
                         @csrf @method('DELETE')
                         <button type="submit" class="inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-sm transition-all">
@@ -34,8 +37,9 @@
                             Delete
                         </button>
                     </form>
+                    @endcan
                 </div>
-                @endcan
+                @endcanany
             </div>
 
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">

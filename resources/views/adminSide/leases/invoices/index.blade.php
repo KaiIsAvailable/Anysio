@@ -37,14 +37,18 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <x-table.th name="Invoice No" sortField="inv" />
+                                @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt'])
                                 <x-table.th name="Documents" />
+                                @endcanany
                                 <x-table.th name="Tenant Details" sortField="t" />
                                 <x-table.th name="Period" />
                                 <x-table.th name="Due Date" />
                                 <x-table.th name="Amount Details" />
-                                <x-table.th name="Remarks" />
                                 <x-table.th name="Status" sortField="s" />
+                                @canany(['owner-admin', 'invoice.record payment', 'invoice.void'])
                                 <x-table.th name="Actions" />
+                                @endcanany
+                                <x-table.th name="Remarks" />
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
@@ -59,6 +63,7 @@
                                 </td>
 
                                 <!-- Document -->
+                                @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt'])
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex flex-col items-start gap-1.5">
                                         @php
@@ -68,6 +73,7 @@
                                         @endphp
 
                                         <!-- 1. Invoice Template Component -->
+                                        @canany(['owner-admin', 'invoice.view invoice'])
                                         @if(data_get($invoice, 'document_template_id') && $templateTitle)
                                         <div x-data="{
                                                 invNo: @js($invoice->invoice_no),
@@ -86,67 +92,71 @@
                                                 buttonTextExpr="invNo" />
                                         </div>
                                         @endif
+                                        @endcanany
 
                                         <!-- 2. Loop Through Multiple Receipts Components -->
+                                        @canany(['owner-admin', 'invoice.view receipt'])
                                         @if(!empty($receipts))
-                                        @foreach($receipts as $receipt)
-                                        @php
-                                        $receiptTemplate = data_get($receipt, 'documentTemplate');
-                                        $receiptTitle = is_object($receiptTemplate) ? ($receiptTemplate->title ?? null) : (is_array($receiptTemplate) ? ($receiptTemplate['title'] ?? null) : null);
-                                        $receiptNo = data_get($receipt, 'receipt_no', 'Receipt');
-                                        $rawAmount = data_get($receipt, 'amount', 0);
-                                        $rContent = is_object($receiptTemplate) ? ($receiptTemplate->html_template ?? $receiptTemplate->html_content ?? '') : (is_array($receiptTemplate) ? ($receiptTemplate['html_template'] ?? $receiptTemplate['html_content'] ?? '') : data_get($receipt, 'template_html', ''));
+                                            @foreach($receipts as $receipt)
+                                            @php
+                                            $receiptTemplate = data_get($receipt, 'documentTemplate');
+                                            $receiptTitle = is_object($receiptTemplate) ? ($receiptTemplate->title ?? null) : (is_array($receiptTemplate) ? ($receiptTemplate['title'] ?? null) : null);
+                                            $receiptNo = data_get($receipt, 'receipt_no', 'Receipt');
+                                            $rawAmount = data_get($receipt, 'amount', 0);
+                                            $rContent = is_object($receiptTemplate) ? ($receiptTemplate->html_template ?? $receiptTemplate->html_content ?? '') : (is_array($receiptTemplate) ? ($receiptTemplate['html_template'] ?? $receiptTemplate['html_content'] ?? '') : data_get($receipt, 'template_html', ''));
 
-                                        $payDate = data_get($receipt, 'created_at')
-                                        ? \Carbon\Carbon::parse(data_get($receipt, 'created_at'))->format('Y-m-d')
-                                        : '—';
+                                            $payDate = data_get($receipt, 'created_at')
+                                            ? \Carbon\Carbon::parse(data_get($receipt, 'created_at'))->format('Y-m-d')
+                                            : '—';
 
-                                        \Log::info('Receipt Date Debug', [
-                                        'receipt_no' => $receiptNo,
-                                        'created_at' => data_get($receipt, 'created_at'),
-                                        'payment_date_variable' => data_get($receipt, 'variables.payment_date'),
-                                        'payDate' => $payDate,
-                                        ]);
+                                            \Log::info('Receipt Date Debug', [
+                                            'receipt_no' => $receiptNo,
+                                            'created_at' => data_get($receipt, 'created_at'),
+                                            'payment_date_variable' => data_get($receipt, 'variables.payment_date'),
+                                            'payDate' => $payDate,
+                                            ]);
 
-                                        $btnTitle = $receiptNo . ($receiptTitle ? ' (' . $receiptTitle . ')' : '');
-                                        $paidAmount = is_numeric($rawAmount) ? ($rawAmount > 100 ? number_format($rawAmount/100, 2, '.', '') : number_format((float)$rawAmount, 2, '.', '')) : '0.00';
-                                        $invoiceTotal = number_format($invoice->total_amount / 100, 2, '.', '');
-                                        @endphp
-                                        <div class="mt-1" x-data="{
-                                                    rNo: @js($receiptNo),
-                                                    rContent: @js($rContent),
-                                                    invVars: @js(data_get($invoice, 'variables', [])),
-                                                    invItems: @js(data_get($invoice, 'invoice_items', data_get($invoice, 'items', []))),
-                                                    btnTitle: @js($btnTitle),
-                                                    extraData: {
-                                                        receiptNo: @js($receiptNo),
-                                                        paymentDate: @js($payDate),
-                                                        receiptVariables: @js(data_get($receipt, 'variables', [])),
-                                                        paidAmount: @js($paidAmount),
-                                                        invoiceNo: @js($invoice->invoice_no),
-                                                        invoiceTotal: @js($invoiceTotal)
-                                                    }
-                                                        
-                                                        
-                                                }">
-                                            <x-buttons.preview-doc
-                                                type="receipt"
-                                                color="emerald"
-                                                titleExpr="'Receipt: ' + rNo"
-                                                contentExpr="rContent"
-                                                variablesExpr="invVars"
-                                                itemsExpr="invItems"
-                                                buttonTextExpr="rNo"
-                                                extraExpr="extraData" />
-                                        </div>
-                                        @endforeach
+                                            $btnTitle = $receiptNo . ($receiptTitle ? ' (' . $receiptTitle . ')' : '');
+                                            $paidAmount = is_numeric($rawAmount) ? ($rawAmount > 100 ? number_format($rawAmount/100, 2, '.', '') : number_format((float)$rawAmount, 2, '.', '')) : '0.00';
+                                            $invoiceTotal = number_format($invoice->total_amount / 100, 2, '.', '');
+                                            @endphp
+                                            <div class="mt-1" x-data="{
+                                                        rNo: @js($receiptNo),
+                                                        rContent: @js($rContent),
+                                                        invVars: @js(data_get($invoice, 'variables', [])),
+                                                        invItems: @js(data_get($invoice, 'invoice_items', data_get($invoice, 'items', []))),
+                                                        btnTitle: @js($btnTitle),
+                                                        extraData: {
+                                                            receiptNo: @js($receiptNo),
+                                                            paymentDate: @js($payDate),
+                                                            receiptVariables: @js(data_get($receipt, 'variables', [])),
+                                                            paidAmount: @js($paidAmount),
+                                                            invoiceNo: @js($invoice->invoice_no),
+                                                            invoiceTotal: @js($invoiceTotal)
+                                                        }
+                                                            
+                                                            
+                                                    }">
+                                                <x-buttons.preview-doc
+                                                    type="receipt"
+                                                    color="emerald"
+                                                    titleExpr="'Receipt: ' + rNo"
+                                                    contentExpr="rContent"
+                                                    variablesExpr="invVars"
+                                                    itemsExpr="invItems"
+                                                    buttonTextExpr="rNo"
+                                                    extraExpr="extraData" />
+                                            </div>
+                                            @endforeach
                                         @endif
+                                        @endcanany
 
                                         @if(!data_get($invoice, 'document_template_id') && empty($receipts))
                                         <span class="text-xs text-gray-400 italic mt-1">- None -</span>
                                         @endif
                                     </div>
                                 </td>
+                                @endcanany
 
                                 <!-- Tenant Details -->
                                 <td class="px-6 py-4 whitespace-nowrap">
@@ -175,11 +185,6 @@
                                     <div class="text-red-600 font-medium text-xs">Balance: RM {{ number_format($invoice->amount_balance / 100, 2) }}</div>
                                 </td>
 
-                                <!-- Remarks -->
-                                <td class="px-6 py-4">
-                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->remarks }}</div>
-                                </td>
-
                                 <!-- Status Badge -->
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase
@@ -195,8 +200,10 @@
                                 </td>
 
                                 <!-- Actions -->
+                                @canany(['owner-admin', 'invoice.record payment', 'invoice.void'])
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                     <div class="flex justify-center items-center gap-2">
+                                        @canany(['owner-admin', 'invoice.record payment'])
                                         @if(in_array($invoice->status, ['unpaid', 'partial']))
                                         @php
                                         $paymentPayload = json_encode([
@@ -218,8 +225,10 @@
                                             <span>Record Payment</span>
                                         </button>
                                         @endif
+                                        @endcanany
 
                                         <!-- Void Button (Fixed Blade Conditional instead of Alpine x-if on server loop) -->
+                                        @canany(['owner-admin', 'invoice.void'])
                                         @if(!in_array($invoice->status, ['void']))
                                         <button type="button"
                                             @click="
@@ -232,7 +241,14 @@
                                             <span>Void</span>
                                         </button>
                                         @endif
+                                        @endcanany
                                     </div>
+                                </td>
+                                @endcanany
+
+                                <!-- Remarks -->
+                                <td class="px-6 py-4">
+                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->remarks }}</div>
                                 </td>
                             </tr>
                             @endforeach

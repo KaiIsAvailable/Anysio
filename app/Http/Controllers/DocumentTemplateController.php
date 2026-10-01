@@ -24,6 +24,10 @@ class DocumentTemplateController extends Controller
 
     public function index(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.agreement template')) {
+            return view('errors.403');
+        }
+
         $search = $request->input('search');
         $categoryFilter = $request->input('category'); 
         
@@ -126,6 +130,10 @@ class DocumentTemplateController extends Controller
 
     public function create(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('document template.create')) {
+            return view('errors.403');
+        }
+
         $user = get_effective_user();
 
         $isOwnerAdmin = $user->role === 'ownerAdmin';
@@ -180,6 +188,10 @@ class DocumentTemplateController extends Controller
 
     public function store(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('document template.create')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $validated = $request->validate([
             'user_id' => 'nullable|exists:users,id',
             'category' => 'required|string',
@@ -228,6 +240,10 @@ class DocumentTemplateController extends Controller
 
     public function edit(DocumentTemplate $documentTemplate)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('document template.edit')) {
+            return view('errors.403');
+        }
+
         $user = Auth::user();
 
         $isOwnerAdmin = $user->role === 'ownerAdmin';
@@ -258,6 +274,10 @@ class DocumentTemplateController extends Controller
 
     public function update(Request $request, DocumentTemplate $documentTemplate)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('document template.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $validated = $request->validate([
             'user_id' => 'nullable|exists:users,id',
             'category' => 'required|string',

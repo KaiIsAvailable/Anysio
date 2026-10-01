@@ -24,7 +24,7 @@
                         </x-form.primary-button>
                     @endcan
 
-                    @can('owner-admin')
+                    @canany(['owner-admin', 'tenant.create'])
                         <x-form.primary-button
                             type="button"
                             loading="loading"
@@ -36,7 +36,7 @@
                             </svg>
                             <span>Add New Tenant</span>
                         </x-form.primary-button>
-                    @endcan
+                    @endcanany
                 </div>
 
                 <x-modals.excel-import-modal 
@@ -99,15 +99,17 @@
                                     <x-table.th name="Emergency" />
                                     <x-table.th name="Document" />
                                     <x-table.th name="Joined Date" sortField="jd" />
-                                    @can('owner-admin')
+                                    @canany(['owner-admin', 'tenant.edit', 'tenant.delete'])
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                    @endcan
+                                    @endcanany
                                 </tr>
                             </thead>
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($tenants as $tenant)
                                     <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                                        onclick="window.location='{{ route('admin.tenants.show', $tenant->id) }}'">
+                                        @canany(['owner-admin', 'tenant.show'])
+                                        onclick="window.location='{{ route('admin.tenants.show', $tenant->id) }}'"
+                                        @endcan>
                                         
                                         <!-- Tenant Details (Avatar + Name + Email) -->
                                         <td class="px-6 py-4 whitespace-nowrap">
@@ -188,12 +190,15 @@
                                         </td>
 
                                         <!-- Actions -->
-                                        @can('owner-admin')
+                                        @canany(['owner-admin', 'tenant.edit', 'tenant.delete'])
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
+                                                @can('tenant.edit')
                                                 <a href="{{ route('admin.tenants.edit', $tenant->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors" title="Edit">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                                 </a>
+                                                @endcan
+                                                @can('tenant.delete')
                                                 <form action="{{ route('admin.tenants.destroy', $tenant->id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete tenant {{ addslashes($tenant->user->name) }}?');" class="inline-block">
                                                     @csrf
                                                     @method('DELETE')
@@ -201,9 +206,10 @@
                                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                                                     </button>
                                                 </form>
+                                                @endcan
                                             </div>
                                         </td>
-                                        @endcan
+                                        @endcanany
                                     </tr>
                                 @endforeach
                             </tbody>

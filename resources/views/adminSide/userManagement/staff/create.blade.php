@@ -26,7 +26,6 @@
                                 id="user_mgnt_id" 
                                 name="user_mgnt_id" 
                                 class="mt-1"
-                                placeholder="-- Select Management Account --"
                                 :options="$managementList"
                                 value-field="id"
                                 label-field="user.name"
@@ -73,24 +72,51 @@
                         <x-form.input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
                     </div>
 
-                    <!-- Staff Role (Select Component) -->
-                    <div>
-                        <x-form.input-label for="role" value="Staff Position / Role" required />
-                        <x-form.input-select 
-                            id="role" 
-                            name="role" 
-                            class="mt-1"
-                            placeholder="-- Select Staff Role --"
-                            :options="[
-                                'Front Desk' => 'Front Desk',
-                                'Backend Staff' => 'Backend Staff',
-                                'Maintenance' => 'Maintenance',
-                                'Others' => 'Others'
-                            ]"
-                            :value="old('role')"
-                            required 
-                        />
+                    <!-- Staff Role Section with Quick-Add Modal -->
+                    <div x-data="{ 
+                        showRoleModal: false, 
+                        newRoleName: '', 
+                        roles: @js($roles),
+                        selectedRole: '{{ old('role') }}',
+                        selectedPermissions: [],
+                        isLoading: false,
+                        errorMessage: '',
+                        isShaking: false
+                    }">
+                        <div class="flex items-center justify-between">
+                            <x-form.input-label for="role" value="Staff Position / Role" required />
+                            
+                            <!-- Quick + Button to trigger modal -->
+                            <button type="button" @click="showRoleModal = true" class="inline-flex items-center text-xs font-semibold text-indigo-600 hover:text-indigo-800 gap-1">
+                                <svg class="w-4 h-4 bg-indigo-50 rounded-full p-0.5 border border-indigo-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                </svg>
+                                Add New Role
+                            </button>
+                        </div>
+
+                        <!-- Select Dropdown using your custom x-form.input-select component -->
+                        <div class="mt-1">
+                            <x-form.input-select 
+                                id="role" 
+                                name="role" 
+                                class="w-full"
+                                :options="$roles"
+                                value-field="name"
+                                label-field="name"
+                                x-model="selectedRole"
+                                :value="old('role')"
+                                required 
+                            />
+                        </div>
                         <x-form.input-error :messages="$errors->get('role')" class="mt-2" />
+
+                        <!-- EMPTY STATE NOTICE -->
+                        <p x-show="roles.length === 0" class="text-xs text-amber-600 mt-1">
+                            No custom roles found. Click "Add New Role" above to create one.
+                        </p>
+
+                        <x-modals.staff-role-modal />
                     </div>
 
                     <!-- Action Buttons -->

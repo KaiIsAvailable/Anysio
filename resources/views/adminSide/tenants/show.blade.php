@@ -43,6 +43,7 @@
                 </div>
 
                 <div class="flex items-center gap-3">
+                    @canany(['owner-admin', 'tenant.edit'])
                     <a href="{{ route('admin.tenants.edit', [$tenant->id, 'from' => 'show']) }}" 
                     class="inline-flex items-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all">
                         <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -50,7 +51,9 @@
                         </svg>
                         Edit Tenant
                     </a>
+                    @endcanany
                     
+                    @canany(['owner-admin', 'tenant.delete'])
                     <form action="{{ route('admin.tenants.destroy', $tenant->id) }}" method="POST" class="contents" onsubmit="return confirm('Are you sure you want to delete this tenant?');">
                         @csrf @method('DELETE')
                         <button type="submit" class="inline-flex items-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-lg text-white bg-red-600 hover:bg-red-700 shadow-sm transition-all">
@@ -60,6 +63,7 @@
                             Delete
                         </button>
                     </form>
+                    @endcanany
                 </div>
             </div>
 

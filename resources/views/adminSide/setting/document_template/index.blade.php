@@ -39,7 +39,7 @@
                     <p class="mt-2 text-sm text-gray-500">View and manage your document templates (Agreements, Invoices, Receipts, etc).</p>
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
-                    @can('owner-admin')
+                    @canany(['owner-admin', 'document template.create'])
                     <x-form.primary-button
                         type="button"
                         loading="loading"
@@ -48,9 +48,9 @@
                         <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
-                        New Template
+                        Create New Template
                     </x-form.primary-button>
-                    @endcan
+                    @endcanany
                 </div>
             </div>
 
@@ -135,6 +135,7 @@
                         </div>
 
                         <div class="flex items-center gap-4">
+                            @canany(['owner-admin', 'document template.preview'])
                             <span class="text-sm font-medium text-indigo-600 flex items-center cursor-pointer select-none" @click="expanded = !expanded">
                                 <span x-text="expanded ? 'Click to collapse' : 'Click to preview'"></span>
                                 <svg class="w-4 h-4 ml-1 transition-transform duration-300"
@@ -143,7 +144,9 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
                             </span>
+                            @endcanany
 
+                            @canany(['owner-admin', 'document template.print'])
                             <button type="button"
                                 @click.stop="printContract($refs.content_{{ $agreement->id }}.innerHTML)"
                                 class="p-2 text-gray-400 hover:text-slate-600 hover:bg-gray-100 rounded-lg transition-colors" title="Print Document">
@@ -151,7 +154,9 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
                                 </svg>
                             </button>
+                            @endcanany
 
+                            @canany(['owner-admin', 'document template.edit'])
                             <a :href="'{{ route('admin.document-templates.edit', 'PLACEHOLDER') }}'.replace('PLACEHOLDER', currentId)"
                                 class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                 title="Edit and create a new version">
@@ -159,6 +164,7 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path>
                                 </svg>
                             </a>
+                            @endcanany
                         </div>
                     </div>
 
@@ -190,6 +196,7 @@
                                 </template>
 
                                 {{-- 🌟 情況 B：不是 Active 版本 -> 顯示 Checkbox 讓用戶打勾啟用 --}}
+                                @canany(['owner-admin', 'document template.set active document'])
                                 <template x-if="currentStatus !== 'active'">
                                     <label class="inline-flex items-center cursor-pointer group hover:bg-gray-50 px-2 py-1 rounded transition-colors">
                                         <input type="checkbox"
@@ -202,10 +209,9 @@
                                         </span>
                                     </label>
                                 </template>
-
+                                @endcanany
                             </div>
                         </div>
-
                         {{-- 🌟 加入 max-h-[60vh] 和 overflow-y-auto 來限制高度並啟用獨立滾動條 --}}
                         <div class="tos-content custom-scrollbar text-slate-700 leading-relaxed quill-content max-h-[60vh] overflow-y-auto pr-4 border border-gray-100 rounded-lg p-6 bg-white shadow-inner"
                             x-ref="content_{{ $agreement->id }}"

@@ -8,12 +8,18 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Spatie\Permission\Traits\HasRoles;
 use App\Traits\Auditable;
+
+/**
+ * @mixin \Illuminate\Contracts\Auth\Access\Authorizable
+ * @mixin \Spatie\Permission\Traits\HasRoles
+ */
 
 class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable, HasUlids, Auditable;
+    use HasFactory, Notifiable, HasUlids, Auditable, HasRoles;
 
     const ROLE_ADMIN = 'admin';
     const ROLE_AGENT_ADMIN = 'agentAdmin';

@@ -9,6 +9,7 @@
                     <p class="mt-2 text-sm text-gray-500">Manage and review tenant leases.</p>
                 </div>
                 <div class="flex-shrink-0" x-data="{ loading: false, loadings: false }">
+                    @canany(['owner-admin', 'leases.agreement template'])
                     <x-form.primary-button
                         type="button"
                         loading="loading"
@@ -19,6 +20,9 @@
                         </svg>
                         Agreement Templates
                     </x-form.primary-button>
+                    @endcanany
+
+                    @canany(['owner-admin', 'leases.lease controller'])
                     <x-form.primary-button
                         type="button"
                         loading="loadings"
@@ -29,6 +33,7 @@
                         </svg>
                         Lease Controller
                     </x-form.primary-button>
+                    @endcanany
                 </div>
             </div>
 
@@ -57,7 +62,9 @@
                                         <x-table.th name="Duration" sortField="d"/>
                                         <x-table.th name="Charges"/>
                                         <x-table.th name="Status" sortField="s"/>
+                                        @canany(['owner-admin', 'leases.upload stamping', 'leases.view agreement', 'leases.cancel lease'])
                                         <x-table.th name="Action" />
+                                        @endcanany
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100 bg-white">
@@ -67,7 +74,10 @@
                                             $badge = get_status_badge($lease->status ?? null);
                                         @endphp
                                         <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                                            onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'">
+                                            @canany(['owner-admin', 'leases.show'])
+                                            onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'"
+                                            @endcanany
+                                            >
                                             {{-- leasable_type & leasable_id --}}
                                             <td class="px-6 py-4">
                                                 <div class="text-sm font-semibold text-slate-900">
@@ -160,6 +170,7 @@
                                             </td>
 
                                             {{-- action --}}
+                                            @canany(['owner-admin', 'leases.upload stamping', 'leases.view agreement', 'leases.cancel lease'])
                                             <td class="px-6 py-4" x-data="{ 
                                                 openUpload: {{ $errors->any() && !$errors->has('error') ? 'true' : 'false' }}, 
                                                 shake: {{ $errors->any() ? 'true' : 'false' }},
@@ -169,6 +180,7 @@
                                                 <div class="flex flex-col gap-3">
                                                     
                                                     {{-- 第一部分：Stamping 状态区 --}}
+                                                    @canany(['owner-admin', 'leases.upload stamping'])
                                                     <div class="min-h-[32px] flex items-center">
                                                         @if($lease->stamping_status)
                                                             <div class="flex items-center gap-2">
@@ -184,14 +196,20 @@
                                                                     class="w-full px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-black rounded-lg border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
                                                                 UPLOAD STAMPING
                                                             </button>
+
+                                                            <div x-show="openUpload" style="display: none;">
+                                                                <x-modals.lease-stamping-modal :lease="$lease" />
+                                                            </div>
                                                         @else
                                                             <span class="text-[10px] text-gray-400 font-medium uppercase tracking-tighter">
                                                                 NO STAMPING NEEDED
                                                             </span>
                                                         @endif
                                                     </div>
+                                                    @endcanany
 
                                                     {{-- 第二部分：按钮区 --}}
+                                                    @canany(['owner-admin', 'leases.view agreement'])
                                                     <div>
                                                         @if (!empty($lease->document_id))
                                                             <button type="button"
@@ -225,8 +243,10 @@
                                                                 VIEW AGREEMENT
                                                             </button>
                                                         @endif
+                                                        @endcanany
 
                                                         {{-- Cancel Lease Button --}}
+                                                        @canany(['owner-admin', 'leases.cancel lease'])
                                                         @if($lease->status != 'cancelled')
                                                             <form id="cancel-lease-form-{{ $lease->id }}" action="{{ route('admin.leases.cancel', $lease->id) }}" method="POST" class="mt-3">
                                                                 @csrf
@@ -243,19 +263,15 @@
                                                                 </button>
                                                             </form>
                                                         @endif
+                                                        @endcanany
                                                     </div>
                                                 </div>
                                             </td>
+                                            @endcanany
                                         </tr>
                                     @endforeach
                                 </tbody>
                             </table>
-                            <div x-data="{ selectedLeaseId: null }" @open-stamping-modal.window="selectedLeaseId = $detail.leaseId">
-                                <template x-if="selectedLeaseId">
-                                    {{-- Pass the ID or bind via your component framework --}}
-                                    <x-modals.lease-stamping-modal :lease="null" /> 
-                                </template>
-                            </div>
                         @else
                             <div class="text-center py-20 bg-white">
                                 <h3 class="text-lg font-medium text-slate-900">No leases found</h3>

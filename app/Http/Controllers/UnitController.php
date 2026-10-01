@@ -12,9 +12,8 @@ use App\Models\Owners;
 use App\Models\User;
 use App\Traits\RoleBasedDataTrait;
 use Illuminate\Support\Str;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\{DB, Gate, Auth};
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Auth;
 
 class UnitController extends Controller
 {
@@ -32,6 +31,10 @@ class UnitController extends Controller
      */
     public function create(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('unit.create')) {
+            return view('errors.403');
+        }
+        
         // 1. 获取选中的 Property
         $selectedPropertyId = $request->query('property_id');
         $targetProperty = $selectedPropertyId ? Property::with('owner')->find($selectedPropertyId) : null;
@@ -67,6 +70,10 @@ class UnitController extends Controller
      */
     public function store(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('unit.create')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $effectiveUser = get_effective_user();
         $effectiveUserId = $effectiveUser ? $effectiveUser->id : Auth::id();
 
@@ -191,6 +198,10 @@ class UnitController extends Controller
      */
     public function show(Request $request, Unit $unit)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('unit.show room')) {
+            return view('errors.403');
+        }
+
         // 1. 建立查詢關聯
         $query = $unit->rooms()
             ->with(['unit.owner:id,name,email', 'assets']);
@@ -240,6 +251,10 @@ class UnitController extends Controller
      */
     public function edit(string $id)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('unit.edit')) {
+            return view('errors.403');
+        }
+
         // 1. 预加载 owner，这是最稳妥的
         // 这对应你在 Unit 模型里定义的 public function owner() { return $this->belongsTo(User::class, 'owner_id'); }
         $unit = Unit::with(['rooms', 'roomAssets', 'owner'])->findOrFail($id);
@@ -268,6 +283,10 @@ class UnitController extends Controller
      */
     public function update(Request $request, string $id)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('unit.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $unit = Unit::findOrFail($id);
 
         // 1. 验证数据
@@ -324,6 +343,9 @@ class UnitController extends Controller
      */
     public function destroy($id)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('unit.delete')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
         try {
             DB::beginTransaction();
 
@@ -350,6 +372,10 @@ class UnitController extends Controller
 
     public function restore($id)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('unit.delete')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         try {
             DB::beginTransaction();
 

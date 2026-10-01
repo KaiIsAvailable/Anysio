@@ -15,9 +15,10 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Room Details</h1>
                 </div>
 
-                @can('owner-admin')
+                @canany(['owner-admin', 'room.edit', 'room.delete'])
                     <div class="flex items-center gap-3">
                         {{-- Edit 按钮 --}}
+                        @canany(['owner-admin', 'room.edit'])
                         <a href="{{ route('admin.rooms.edit', $room->id) }}"
                         class="inline-flex items-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all">
                             <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -25,8 +26,10 @@
                             </svg>
                             Edit Room
                         </a>
+                        @endcanany
 
                         {{-- Delete 表单 - 核心修改：添加 class="inline-block" 或 "contents" --}}
+                        @canany(['owner-admin', 'room.delete'])
                         <form action="{{ route('admin.rooms.destroy', $room->id) }}" 
                             method="POST" 
                             class="inline-block" 
@@ -39,8 +42,9 @@
                                 Delete
                             </button>
                         </form>
+                        @endcanany
                     </div>
-                @endcan
+                @endcanany
             </div>
 
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">

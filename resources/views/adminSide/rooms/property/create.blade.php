@@ -38,30 +38,34 @@
 
                                 <input type="hidden" name="owner_id" value="{{ $currentOwner->id }}">
                             @else
-                                <div>
-                                    <x-form.input-label value="Does this property has an owner?" class="mb-1" />
-                                    <x-form.input-select 
-                                        name="has_owner" 
-                                        id="has_owner" 
-                                        onchange="toggleOwnerInput()" 
-                                        :options="['0' => 'No', '1' => 'Yes']"
-                                        class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm"
-                                    >
-                                    </x-form.input-select>
-                                </div>
+                                <div x-data="{ hasOwner: '{{ old('has_owner', '0') }}' }">
+                                    <!-- 1. Does this property have an owner? -->
+                                    <div class="mb-4">
+                                        <x-form.input-label value="Does this property have an owner?" class="mb-1" />
+                                        <x-form.input-select 
+                                            name="has_owner" 
+                                            id="has_owner" 
+                                            :options="['0' => 'No', '1' => 'Yes']"
+                                            value="{{ old('has_owner', '0') }}"
+                                            @change="hasOwner = $event.detail.value"
+                                            class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm"
+                                        />
+                                    </div>
 
-                                {{-- 2. Owner 选择器 (增加了一个 id="owner_input_wrapper") --}}
-                                <div id="owner_input_wrapper" style="{{ old('has_owner') == 1 ? '' : 'display:none;' }}">
-                                    <x-form.input-label value="Owner" class="mb-1" />
-                                    <x-form.input-select 
-                                        name="owner_id" 
-                                        id="owner_selector" 
-                                        :options="$owners->pluck('name', 'id')->toArray()"
-                                        placeholder="Select Owner (Optional)"
-                                    />
-                                    @if($owners->isEmpty())
-                                        <p class="text-sm text-red-500 mt-2">No owner options available for your account.</p>
-                                    @endif
+                                    <!-- 2. Owner Selector (Shown only when '1' / Yes is selected) -->
+                                    <div x-show="hasOwner == '1'" x-cloak class="mb-4">
+                                        <x-form.input-label value="Owner" class="mb-1" />
+                                        <x-form.input-select 
+                                            name="owner_id" 
+                                            id="owner_selector" 
+                                            :options="$owners"
+                                            valueField="id"
+                                            labelField="name"
+                                        />
+                                        @if($owners->isEmpty())
+                                            <p class="text-sm text-red-500 mt-2">No owner options available for your account.</p>
+                                        @endif
+                                    </div>
                                 </div>
                             @endif
 

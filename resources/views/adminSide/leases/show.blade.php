@@ -240,11 +240,11 @@
                 </div>
 
                 <!-- Compact Structured Grid Cards -->
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
 
                     <!-- Block 1: Terms & Financials -->
                     <div class="bg-gray-50/60 rounded-md p-3 border border-gray-100 space-y-1.5">
-                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px]">Financials & Term</h4>
+                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-xs">Financials & Term</h4>
                         <div class="flex justify-between items-center">
                             <span class="text-gray-500">Term Type</span>
                             <span class="font-semibold text-gray-900" x-text="activeLease.term_type"></span>
@@ -261,7 +261,7 @@
 
                     <!-- Block 2: Tenant Information -->
                     <div class="bg-gray-50/60 rounded-md p-3 border border-gray-100 space-y-1.5">
-                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px]">Tenant Details</h4>
+                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-xs">Tenant Details</h4>
                         <div class="flex justify-between items-center">
                             <span class="text-gray-500">Name</span>
                             <span class="font-semibold text-gray-900 truncate max-w-[160px]" :title="activeLease.tenant_name" x-text="activeLease.tenant_name"></span>
@@ -278,7 +278,7 @@
 
                     <!-- Block 3: Owner & Compliance -->
                     <div class="bg-gray-50/60 rounded-md p-3 border border-gray-100 space-y-1.5">
-                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px]">Owner & Compliance</h4>
+                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-xs">Owner & Compliance</h4>
                         <div class="flex justify-between items-center">
                             <span class="text-gray-500">Owner</span>
                             <span class="font-semibold text-gray-900 truncate max-w-[160px]" :title="activeLease.owner_name" x-text="activeLease.owner_name"></span>
@@ -307,7 +307,7 @@
 
                 <!-- Additional Charges Section (Compact Horizontal Wrap) -->
                 <template x-if="activeLease.charges && activeLease.charges.length > 0">
-                    <div class="border-t border-gray-100 pt-3 mt-4 text-xs">
+                    <div class="border-t border-gray-100 pt-3 mt-4 text-sm">
                         <h4 class="font-bold tracking-wider text-gray-400 uppercase text-[10px] mb-2">Additional Charges Breakdown</h4>
                         <div class="bg-gray-50/50 rounded-md p-2.5 border border-gray-100 flex flex-wrap gap-x-6 gap-y-1.5">
                             <template x-for="charge in activeLease.charges" :key="charge.id">
@@ -316,7 +316,7 @@
                                         <span x-text="charge.description" class="text-gray-600 font-medium"></span>
                                         <span class="font-semibold text-gray-900">RM <span x-text="charge.amount"></span></span>
                                     </div>
-                                    <div class="text-xs text-gray-500 mt-1" x-show="charge.next_billing_date">
+                                    <div class="text-sm text-gray-500 mt-1" x-show="charge.next_billing_date">
                                         Next Billing Date <span class="font-medium text-gray-900" x-text="charge.next_billing_date"></span>
                                     </div>
                                 </div>

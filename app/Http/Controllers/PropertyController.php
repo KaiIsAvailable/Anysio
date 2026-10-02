@@ -38,7 +38,7 @@ class PropertyController extends Controller
                 $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
                 $q->where(function ($sub) use ($ownerIds, $user) {
                     $sub->whereIn('properties.owner_id', $ownerIds)
-                        ->orWhere('properties.created_by', $user->id); 
+                        ->orWhere('properties.created_by', $user->id);
                 });
             } elseif ($user->role === 'ownerAdmin') {
                 // Owner 只能看自己创建的 OR 自己是 Owner 的
@@ -102,11 +102,11 @@ class PropertyController extends Controller
         $isAgentAdmin = $user->role === 'agentAdmin';
         $isSuperAdmin = Gate::allows('super-admin');
 
-        $owners = $this->getAuthorizedOwners(); 
+        $owners = $this->getAuthorizedOwners();
 
         $propertyTypes = Property::propertyTypes();
         $worldCountries = WorldCountries::worldCountries();
-        
+
         $currentOwner = $isOwnerAdmin ? $user : null;
 
         return view('adminSide.rooms.property.create', compact(
@@ -160,6 +160,8 @@ class PropertyController extends Controller
         if (Gate::denies('owner-admin') && Gate::denies('property.show unit')) {
             return view('errors.403');
         }
+        
+        $property->load('owner');
 
         // 从当前 Property 下的单位开始查询
         $query = Unit::query()
@@ -176,7 +178,7 @@ class PropertyController extends Controller
                     ->orWhere('owners.name', 'like', "%{$search}%");
             });
         }
-        
+
         $user = get_effective_user();
 
         $property->load(['units' => function ($query) use ($user) {
@@ -193,7 +195,7 @@ class PropertyController extends Controller
         // 💡 重点：排序白名单，严格对齐 show.blade.php 里的 4 个 TH
         $sortMapping = [
             'u' => 'units.unit_no',
-            'o' => 'owner_name',    
+            'o' => 'owner_name',
             's' => 'units.status',
         ];
 

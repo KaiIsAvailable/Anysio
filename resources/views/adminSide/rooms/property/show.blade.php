@@ -11,24 +11,129 @@
                     </nav>
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">{{ $property->name }}</h1>
                     <div class="mt-2 flex items-center text-sm text-gray-500">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
                         {{ $property->address }}, {{ $property->postcode }} {{ $property->city }}
                     </div>
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
                     @canany(['owner-admin', 'unit.create'])
-                        <x-form.primary-button
-                            type="button"
-                            loading="loading"
-                            @click="loading = true; window.location.href = '{{ route('admin.units.create', ['property_id' => $property->id]) }}'"
-                            >
+                    <x-form.primary-button
+                        type="button"
+                        loading="loading"
+                        @click="loading = true; window.location.href = '{{ route('admin.units.create', ['property_id' => $property->id]) }}'">
 
-                            <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                            </svg>
-                            Add New Unit
-                        </x-form.primary-button>
+                        <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Add New Unit
+                    </x-form.primary-button>
                     @endcanany
+                </div>
+            </div>
+
+
+            {{-- Property Details --}}
+            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 mb-8">
+
+                <div class="px-8 py-6 border-b border-gray-100">
+                    <h2 class="text-lg font-bold text-slate-900">
+                        Property Details
+                    </h2>
+                </div>
+
+                <div class="px-8 py-8">
+
+                    @php
+                    $propertyBadge = get_status_badge($property->status ?? null);
+                    @endphp
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-8 gap-x-12">
+
+                        {{-- Property Name --}}
+                        <div>
+                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Property Name
+                            </label>
+
+                            <p class="text-sm font-bold text-slate-900 mt-1">
+                                {{ $property->name ?? '—' }}
+                            </p>
+                        </div>
+
+
+                        {{-- Owner --}}
+                        <div>
+                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Owner
+                            </label>
+
+                            <p class="text-sm font-bold text-slate-900 mt-1">
+                                {{ $property->owner?->name ?? 'No Owner' }}
+                            </p>
+
+                            <p class="text-xs text-gray-500 mt-0.5">
+                                {{ $property->owner?->email ?? '—' }}
+                            </p>
+                        </div>
+
+
+                        {{-- Property Type --}}
+                        <div>
+                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Property Type
+                            </label>
+
+                            <p class="text-sm font-bold text-slate-900 mt-1">
+                                {{ $property->type ?? '—' }}
+                            </p>
+                        </div>
+
+
+                        {{-- Status --}}
+                        <div>
+                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Status
+                            </label>
+
+                            <div class="mt-1">
+                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $propertyBadge }}">
+                                    {{ $property->status ?? '—' }}
+                                </span>
+                            </div>
+                        </div>
+
+
+                        {{-- Address --}}
+                        <div class="md:col-span-2">
+                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Address
+                            </label>
+
+                            <p class="text-sm font-semibold text-slate-700 mt-1">
+                                {{ $property->address ?? '—' }},
+                                {{ $property->postcode ?? '' }}
+                                {{ $property->city ?? '' }},
+                                {{ $property->state ?? '' }}
+                            </p>
+                        </div>
+
+
+                        {{-- Created --}}
+                        <div>
+                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                                Created
+                            </label>
+
+                            <p class="text-sm font-semibold text-slate-700 mt-1">
+                                {{ dateFormat($property->created_at) }}
+                            </p>
+                        </div>
+
+                    </div>
+
                 </div>
             </div>
 
@@ -36,7 +141,7 @@
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex flex-col md:flex-row justify-between items-center gap-4">
                         <h2 class="text-lg font-semibold text-slate-800 italic">Listing Units</h2>
-                        
+
                         <!--<x-form.form method="GET" action="{{ route('admin.properties.show', $property->id) }}" class="flex items-stretch gap-2">
                             <div class="flex items-stretch">
                                 <a href="{{ route('admin.roomAsset.index') }}" 
@@ -61,143 +166,144 @@
                                 <x-table.th name="Unit Info" />
                                 <x-table.th name="Utilities Info" />
                                 <x-table.th name="Status" sortField="s" />
-                                <x-table.th name="Current Tenant" sortField="c" />  
+                                <x-table.th name="Current Tenant" sortField="c" />
                                 @canany(['owner-admin', 'unit.edit', 'unit.delete'])
-                                    <x-table.th name="Action" />
+                                <x-table.th name="Action" />
                                 @endcanany
                             </tr>
                         </thead>
                         <tbody class="bg-white divide-y divide-gray-200">
                             @foreach($units as $unit)
-                                @php
-                                    $uBadge = get_status_badge($unit->status ?? null);
-                                    $uStatus = $unit->status;
-                                @endphp
-                                <tr class="hover:bg-indigo-50 transition-colors cursor-pointer group"
-                                    @canany(['owner-admin', 'unit.show room'])
-                                    onclick="window.location='{{ route('admin.units.show', $unit->id) }}'"
-                                    @endcanany
-                                    style="cursor: pointer;"
-                                    >
-                                    
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="flex items-center">
-                                            <div class="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shadow-sm">
-                                                {{ mb_strtoupper(mb_substr($unit->unit_no ?? 'U', 0, 1, 'UTF-8')) }}
-                                            </div>
-                                            <div class="ml-4">
-                                                <div class="text-sm font-medium text-gray-900">{{ $unit->unit_no }}</div>
-                                                <div class="text-xs text-gray-400">{{ $unit->rooms->count() }} Rooms</div>
-                                            </div>
+                            @php
+                            $uBadge = get_status_badge($unit->status ?? null);
+                            $uStatus = $unit->status;
+                            @endphp
+                            <tr class="hover:bg-indigo-50 transition-colors cursor-pointer group"
+                                @canany(['owner-admin', 'unit.show room' ])
+                                onclick="window.location='{{ route('admin.units.show', $unit->id) }}'"
+                                @endcanany
+                                style="cursor: pointer;">
+
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex items-center">
+                                        <div class="flex-shrink-0 h-10 w-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 font-bold shadow-sm">
+                                            {{ mb_strtoupper(mb_substr($unit->unit_no ?? 'U', 0, 1, 'UTF-8')) }}
                                         </div>
-                                    </td>
-
-                                    <td class="px-6 py-4 text-sm text-slate-600 italic">
-                                        <div class="text-sm font-medium text-slate-900">{{ $unit->owner->name ?? '-' }}</div>
-                                        <div class="text-xs text-gray-500">{{ $unit->owner->email ?? '-' }}</div>
-                                    </td>
-
-                                    <td class="px-6 py-4 text-sm">
-                                        <div class="space-y-1">
-                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
-                                                <span class="font-medium text-slate-500">Block</span>
-                                                <span class="text-sm font-medium text-gray-900">{{ $unit->block ?? '-' }}</span>
-                                            </div>
-                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
-                                                <span class="font-medium text-slate-500">Floor</span>
-                                                <span class="text-sm font-medium text-gray-900">{{ $unit->floor ?? '-' }}</span>
-                                            </div>
-                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
-                                                <span class="font-medium text-slate-500">Sqft</span>
-                                                <span class="text-sm font-medium text-gray-900">{{ $unit->sqft ? $unit->sqft . ' sqft' : '-' }}</span>
-                                            </div>
+                                        <div class="ml-4">
+                                            <div class="text-sm font-medium text-gray-900">{{ $unit->unit_no }}</div>
+                                            <div class="text-xs text-gray-400">{{ $unit->rooms->count() }} Rooms</div>
                                         </div>
-                                    </td>
+                                    </div>
+                                </td>
 
-                                    <td class="px-6 py-4 text-sm">
-                                        <div class="space-y-1">
-                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
-                                                <span class="font-medium text-slate-500">Electric</span>
-                                                <span class="text-sm font-medium text-gray-900">{{ $unit->electricity_acc_no ?? '-' }}</span>
-                                            </div>
-                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
-                                                <span class="font-medium text-slate-500">Water</span>
-                                                <span class="text-sm font-medium text-gray-900">{{ $unit->water_acc_no ?? '-' }}</span>
-                                            </div>
-                                            <div class="text-xs text-slate-600 flex justify-between gap-3">
-                                                <span class="font-medium text-slate-500">Indah Water</span>
-                                                <span class="text-sm font-medium text-gray-900">{{ $unit->indah_water_acc_no ?? '-' }}</span>
-                                            </div>
+                                <td class="px-6 py-4 text-sm text-slate-600 italic">
+                                    <div class="text-sm font-medium text-slate-900">{{ $unit->owner->name ?? '-' }}</div>
+                                    <div class="text-xs text-gray-500">{{ $unit->owner->email ?? '-' }}</div>
+                                </td>
+
+                                <td class="px-6 py-4 text-sm">
+                                    <div class="space-y-1">
+                                        <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                            <span class="font-medium text-slate-500">Block</span>
+                                            <span class="text-sm font-medium text-gray-900">{{ $unit->block ?? '-' }}</span>
                                         </div>
-                                    </td>
-                                    
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $uBadge }}">
-                                            {{ ucfirst($uStatus) }}
-                                        </span>
-                                    </td>
+                                        <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                            <span class="font-medium text-slate-500">Floor</span>
+                                            <span class="text-sm font-medium text-gray-900">{{ $unit->floor ?? '-' }}</span>
+                                        </div>
+                                        <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                            <span class="font-medium text-slate-500">Sqft</span>
+                                            <span class="text-sm font-medium text-gray-900">{{ $unit->sqft ? $unit->sqft . ' sqft' : '-' }}</span>
+                                        </div>
+                                    </div>
+                                </td>
 
-                                    <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm text-slate-900">{{ $unit->tenant->name ?? 'No Tenant' }}</div>
-                                    </td>
+                                <td class="px-6 py-4 text-sm">
+                                    <div class="space-y-1">
+                                        <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                            <span class="font-medium text-slate-500">Electric</span>
+                                            <span class="text-sm font-medium text-gray-900">{{ $unit->electricity_acc_no ?? '-' }}</span>
+                                        </div>
+                                        <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                            <span class="font-medium text-slate-500">Water</span>
+                                            <span class="text-sm font-medium text-gray-900">{{ $unit->water_acc_no ?? '-' }}</span>
+                                        </div>
+                                        <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                            <span class="font-medium text-slate-500">Indah Water</span>
+                                            <span class="text-sm font-medium text-gray-900">{{ $unit->indah_water_acc_no ?? '-' }}</span>
+                                        </div>
+                                    </div>
+                                </td>
 
-                                    @canany(['owner-admin', 'unit.edit', 'unit.delete'])
-                                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                            <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
-                                                @canany(['owner-admin', 'unit.edit'])
-                                                <a href="{{ route('admin.units.edit', $unit->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 rounded-lg" title="Edit Unit">
-                                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
-                                                </a>
-                                                @endcanany
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $uBadge }}">
+                                        {{ ucfirst($uStatus) }}
+                                    </span>
+                                </td>
 
-                                                @canany(['owner-admin', 'unit.delete'])
-                                                @if($unit->status == 'Removed' && $property->status != 'Removed')
-                                                    {{-- Restore Unit 按钮 --}}
-                                                    <form action="{{ route('admin.units.restore', $unit->id) }}" method="POST" class="inline-block"
-                                                        onsubmit="return confirm('Restore unit {{ addslashes($unit->unit_number) }}? This will set the unit and all its rooms back to Vacant.');">
-                                                        @csrf
-                                                        @method('PATCH')
-                                                        <button type="submit" 
-                                                                class="p-2 text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 rounded-lg transition-colors" 
-                                                                title="Restore Unit">
-                                                            {{-- 恢复图标 --}}
-                                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
-                                                            </svg>
-                                                        </button>
-                                                    </form>
-                                                @else
-                                                    @if($property->status != 'Removed')
-                                                        {{-- Destroy (Remove) Unit 按钮 --}}
-                                                        <form action="{{ route('admin.units.destroy', $unit->id) }}" method="POST" class="inline-block"
-                                                            onsubmit="return confirm('Delete unit {{ addslashes($unit->unit_number) }}? This will mark the unit and all its rooms as Removed.');">
-                                                            @csrf
-                                                            @method('DELETE')
-                                                            <button type="submit" 
-                                                                    class="p-2 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 rounded-lg transition-colors" 
-                                                                    title="Remove Unit">
-                                                                {{-- 删除图标 --}}
-                                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                                                                </svg>
-                                                            </button>
-                                                        </form>
-                                                    @endif
-                                                @endif
-                                                @endcanany
-                                            </div>
-                                        </td>
-                                    @endcan
-                                </tr>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="text-sm text-slate-900">{{ $unit->tenant->name ?? 'No Tenant' }}</div>
+                                </td>
+
+                                @canany(['owner-admin', 'unit.edit', 'unit.delete'])
+                                <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                    <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
+                                        @canany(['owner-admin', 'unit.edit'])
+                                        <a href="{{ route('admin.units.edit', $unit->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 rounded-lg" title="Edit Unit">
+                                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                                            </svg>
+                                        </a>
+                                        @endcanany
+
+                                        @canany(['owner-admin', 'unit.delete'])
+                                        @if($unit->status == 'Removed' && $property->status != 'Removed')
+                                        {{-- Restore Unit 按钮 --}}
+                                        <form action="{{ route('admin.units.restore', $unit->id) }}" method="POST" class="inline-block"
+                                            onsubmit="return confirm('Restore unit {{ addslashes($unit->unit_number) }}? This will set the unit and all its rooms back to Vacant.');">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit"
+                                                class="p-2 text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 rounded-lg transition-colors"
+                                                title="Restore Unit">
+                                                {{-- 恢复图标 --}}
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                                                </svg>
+                                            </button>
+                                        </form>
+                                        @else
+                                        @if($property->status != 'Removed')
+                                        {{-- Destroy (Remove) Unit 按钮 --}}
+                                        <form action="{{ route('admin.units.destroy', $unit->id) }}" method="POST" class="inline-block"
+                                            onsubmit="return confirm('Delete unit {{ addslashes($unit->unit_number) }}? This will mark the unit and all its rooms as Removed.');">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                class="p-2 text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 rounded-lg transition-colors"
+                                                title="Remove Unit">
+                                                {{-- 删除图标 --}}
+                                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                                </svg>
+                                            </button>
+                                        </form>
+                                        @endif
+                                        @endif
+                                        @endcanany
+                                    </div>
+                                </td>
+                                @endcan
+                            </tr>
                             @endforeach
                         </tbody>
                     </table>
                 </div>
-                
+
                 @if($units->hasPages())
-                    <div class="bg-white px-6 py-4 border-t border-gray-100">
-                        {{ $units->links() }}
-                    </div>
+                <div class="bg-white px-6 py-4 border-t border-gray-100">
+                    {{ $units->links() }}
+                </div>
                 @endif
             </div>
 

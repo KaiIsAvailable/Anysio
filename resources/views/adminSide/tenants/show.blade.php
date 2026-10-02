@@ -1,5 +1,7 @@
 <style>
-    [x-cloak] { display: none !important; }
+    [x-cloak] {
+        display: none !important;
+    }
 </style>
 <x-app-layout>
     <div x-data="{ 
@@ -18,9 +20,9 @@
                     };
                     this.openPayment = true;
                 }
-            }" 
-            {{-- 3. 核心修改：直接从 $event.detail 中读取驼峰命名的 Key --}}
-            @open-payment.window="
+            }"
+        {{-- 3. 核心修改：直接从 $event.detail 中读取驼峰命名的 Key --}}
+        @open-payment.window="
                 paymentData.id = $event.detail.id;
                 paymentData.invoiceNo = $event.detail.invoiceNo;
                 paymentData.amountDue = $event.detail.amountDue;
@@ -28,7 +30,7 @@
                 openPayment = true;
             ">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            
+
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
                 <div>
                     <nav class="flex mb-2" aria-label="Breadcrumb">
@@ -44,15 +46,15 @@
 
                 <div class="flex items-center gap-3">
                     @canany(['owner-admin', 'tenant.edit'])
-                    <a href="{{ route('admin.tenants.edit', [$tenant->id, 'from' => 'show']) }}" 
-                    class="inline-flex items-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all">
+                    <a href="{{ route('admin.tenants.edit', [$tenant->id, 'from' => 'show']) }}"
+                        class="inline-flex items-center px-4 py-2.5 border border-gray-300 shadow-sm text-sm font-medium rounded-lg text-gray-700 bg-white hover:bg-gray-50 transition-all">
                         <svg class="w-4 h-4 mr-2 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                         </svg>
                         Edit Tenant
                     </a>
                     @endcanany
-                    
+
                     @canany(['owner-admin', 'tenant.delete'])
                     <form action="{{ route('admin.tenants.destroy', $tenant->id) }}" method="POST" class="contents" onsubmit="return confirm('Are you sure you want to delete this tenant?');">
                         @csrf @method('DELETE')
@@ -82,7 +84,7 @@
 
                 <div class="px-8 py-10 bg-white">
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-12">
-                        
+
                         <div class="space-y-4">
                             <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Personal Info</h3>
                             <div class="pl-4">
@@ -109,40 +111,42 @@
                                 <label class="text-xs font-medium text-gray-400">Identity Document</label>
                                 <p class="text-sm font-semibold text-slate-700 mt-0.5">
                                     @if($tenant->ic_number)
-                                        IC: {{ $tenant->ic_number }}
+                                    IC: {{ $tenant->ic_number }}
                                     @elseif($tenant->passport)
-                                        Passport: {{ $tenant->passport }}
+                                    Passport: {{ $tenant->passport }}
                                     @else
-                                        —
+                                    —
                                     @endif
                                 </p>
                             </div>
                             <div class="mt-2">
                                 @if($tenant->ic_photo_path)
-                                    {{-- 统一使用精简版附件样式 --}}
-                                    <a href="{{ route('admin.tenants.view-ic', $tenant->id) }}" 
+                                {{-- 统一使用精简版附件样式 --}}
+                                <a href="{{ route('admin.tenants.view-ic', $tenant->id) }}"
                                     class="group inline-flex items-center gap-3 px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200">
-                                        
-                                        <div class="flex-shrink-0 w-8 h-8 bg-slate-100 group-hover:bg-white rounded-full flex items-center justify-center transition-colors">
-                                            <svg class="w-4 h-4 text-slate-500 group-hover:text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm5 3a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                                            </svg>
-                                        </div>
 
-                                        <div class="flex flex-col">
-                                            <span class="text-[12px] font-bold text-slate-700 group-hover:text-indigo-800 uppercase tracking-tight">Identity Document (IC)</span>
-                                            <span class="text-[10px] text-slate-400 group-hover:text-indigo-500 font-medium">Click to Preview</span>
-                                        </div>
-
-                                        <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                    <div class="flex-shrink-0 w-8 h-8 bg-slate-100 group-hover:bg-white rounded-full flex items-center justify-center transition-colors">
+                                        <svg class="w-4 h-4 text-slate-500 group-hover:text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm5 3a2 2 0 11-4 0 2 2 0 014 0z"></path>
                                         </svg>
-                                    </a>
-                                @else
-                                    <div class="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-400 italic text-sm">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
-                                        No document uploaded
                                     </div>
+
+                                    <div class="flex flex-col">
+                                        <span class="text-[12px] font-bold text-slate-700 group-hover:text-indigo-800 uppercase tracking-tight">Identity Document (IC)</span>
+                                        <span class="text-[10px] text-slate-400 group-hover:text-indigo-500 font-medium">Click to Preview</span>
+                                    </div>
+
+                                    <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                    </svg>
+                                </a>
+                                @else
+                                <div class="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-400 italic text-sm">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                    </svg>
+                                    No document uploaded
+                                </div>
                                 @endif
                             </div>
                         </div>
@@ -150,16 +154,16 @@
                         <div class="space-y-4">
                             <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Emergency Contacts</h3>
                             @forelse($tenant->emergencyContacts as $contact)
-                                <div class="pl-4 mb-3 last:mb-0">
-                                    <p class="text-sm font-bold text-slate-900">{{ $contact->name }}</p>
-                                    <p class="text-xs text-gray-500">{{ $contact->relationship }} • {{ $contact->phone }}</p>
-                                </div>
+                            <div class="pl-4 mb-3 last:mb-0">
+                                <p class="text-sm font-bold text-slate-900">{{ $contact->name }}</p>
+                                <p class="text-xs text-gray-500">{{ $contact->relationship }} • {{ $contact->phone }}</p>
+                            </div>
                             @empty
-                                <div class="pl-4">
-                                    <p class="text-sm text-gray-400 italic">No emergency contacts listed.</p>
-                                </div>
+                            <div class="pl-4">
+                                <p class="text-sm text-gray-400 italic">No emergency contacts listed.</p>
+                            </div>
                             @endforelse
-                            
+
                             <div class="pt-4 mt-2">
                                 <label class="text-xs font-medium text-gray-400 border-l-4 border-indigo-500 pl-3 block mb-2 uppercase tracking-widest">Joined Date</label>
                                 <p class="text-sm font-semibold text-slate-700 pl-4 mt-0.5">
@@ -172,64 +176,216 @@
 
                     <!-- Lease Section -->
                     <div class="mt-12 pt-8 border-t border-gray-100">
+
                         <div class="flex items-center justify-between mb-6">
                             <h3 class="text-lg font-bold text-slate-900 flex items-center gap-2">
-                                <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                                <svg class="w-5 h-5 text-indigo-600"
+                                    fill="none"
+                                    stroke="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path stroke-linecap="round"
+                                        stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
+                                    </path>
                                 </svg>
+
                                 Lease Agreements
                             </h3>
                         </div>
 
                         <div class="overflow-hidden border border-gray-200 rounded-xl shadow-sm">
-                            <table class="min-w-full divide-y divide-gray-200">
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Room</th>
-                                        <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Monthly Rent</th>
-                                        <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Duration</th>
-                                        <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    @forelse($leases as $lease)
+
+                            <div class="overflow-x-auto">
+                                @if($leases && $leases->count() > 0)
+
+                                <table class="w-full min-w-[900px] divide-y divide-gray-200 text-left">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                Property / Unit / Room
+                                            </th>
+
+                                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                Duration
+                                            </th>
+
+                                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                Charges
+                                            </th>
+
+                                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                Status
+                                            </th>
+
+                                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+                                                Action
+                                            </th>
+                                        </tr>
+                                    </thead>
+
+                                    <tbody class="divide-y divide-gray-100 bg-white">
+
+                                        @foreach($leases as $lease)
+
                                         @php
-                                            $isExpired = $lease->end_date->isPast();
+                                        $type = basename(str_replace('\\', '/', $lease->leasable_type));
+                                        $badge = get_status_badge($lease->status ?? null);
                                         @endphp
-                                        <tr class="group hover:bg-gray-50 transition-colors cursor-pointer" onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'">
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold {{ $isExpired ? 'text-gray-500' : 'text-slate-900 group-hover:text-indigo-600' }}">
-                                                {{ $lease->leasable_name }}
-                                                
-                                                {{-- 如果你想让用户清晰看到这是 Room 还是 Unit，可以加一行小字标签 --}}
-                                                <div class="text-[10px] text-gray-400 font-normal uppercase">
-                                                    {{ $lease->leasable_type_label }}
+
+                                        <tr class="hover:!bg-indigo-50 transition-colors group duration-150">
+
+                                            <!-- Property / Unit / Room -->
+                                            <td class="px-6 py-4">
+                                                <div class="text-sm font-semibold text-slate-900">
+
+                                                    @if($type === 'Unit')
+                                                    {{ $lease->leasable?->unit_no ?? 'N/A' }}
+
+                                                    @elseif($type === 'Property')
+                                                    {{ $lease->leasable?->name ?? 'N/A' }}
+
+                                                    @elseif($type === 'Room')
+                                                    {{ $lease->leasable?->room_no ?? 'N/A' }}
+
+                                                    @else
+                                                    {{ $lease->leasable_id }}
+                                                    @endif
+
+                                                </div>
+
+                                                <div class="text-xs text-gray-400 italic">
+                                                    {{ $type }}
                                                 </div>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm font-bold {{ $isExpired ? 'text-gray-500' : 'text-slate-900' }}">
-                                                RM {{ number_format($lease->rent_price, 2) }}
+
+
+                                            <!-- Duration -->
+                                            <td class="px-6 py-4">
+                                                <div class="text-sm text-slate-900">
+                                                    {{ $lease->start_date_formatted }}
+                                                    to
+                                                    {{ $lease->end_date_formatted }}
+
+                                                    @if ($lease->agreement_ended_at)
+                                                    <span class="text-xs text-gray-500 block mt-1">
+                                                        End Date:
+                                                        {{ $lease->agreement_ended_at_formatted }}
+                                                    </span>
+
+                                                    @elseif ($lease->checked_out_at)
+                                                    <span class="text-xs text-gray-500 block mt-1">
+                                                        Check Out:
+                                                        {{ $lease->checked_out_at_formatted }}
+                                                    </span>
+                                                    @endif
+                                                </div>
                                             </td>
-                                            <td class="px-6 py-4 whitespace-nowrap text-sm {{ $isExpired ? 'text-gray-400' : 'text-slate-700' }}">
-                                                {{ $lease->start_date->format('d M Y') }} - {{ $lease->end_date->format('d M Y') }}
-                                            </td>
-                                            <td class="px-6 py-4 whitespace-nowrap">
-                                                <span class="px-2.5 py-0.5 inline-flex text-xs font-bold rounded-full {{ $lease->status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600' }}">
-                                                    {{ ucfirst($lease->status) }}
-                                                </span>
-                                                @if($isExpired)
-                                                    <span class="ml-2 text-[10px] font-bold text-gray-400 uppercase">Expired</span>
+
+
+                                            <!-- Charges -->
+                                            <td class="px-6 py-4">
+                                                <div class="text-sm font-semibold text-indigo-600">
+                                                    RM {{ number_format(
+                                            $lease->rent_price + ($lease->charges->sum('amount') / 100),
+                                            2
+                                        ) }}
+                                                </div>
+
+                                                @if($lease->charges && $lease->charges->count() > 0)
+                                                <div class="space-y-0.5 border-t border-gray-100 pt-1 mt-1">
+
+                                                    @foreach($lease->charges as $charge)
+                                                    <div class="text-[11px] text-slate-600 flex justify-between gap-2">
+
+                                                        <span class="truncate"
+                                                            title="{{ $charge->description }}">
+                                                            {{ $charge->description }}:
+                                                        </span>
+
+                                                        <span class="font-medium text-slate-900 shrink-0">
+                                                            RM {{ number_format($charge->amount / 100, 2) }}
+                                                        </span>
+                                                    </div>
+                                                    @endforeach
+
+                                                </div>
                                                 @endif
                                             </td>
+
+
+                                            <!-- Status -->
+                                            <td class="px-6 py-4">
+
+                                                <span class="whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
+                                                    {{ $lease->status ?? 'N/A' }}
+
+                                                    @if($lease->is_pending_renewal)
+                                                    (Pending Renewal)
+                                                    @endif
+                                                </span>
+
+                                            </td>
+
+
+                                            <!-- Action -->
+                                            <td class="px-6 py-4">
+
+                                                @canany(['owner-admin', 'leases.show'])
+
+                                                <a href="{{ route('admin.leases.show', $lease->id) }}"
+                                                    class="inline-flex items-center gap-2 px-3 py-2
+                                                  bg-indigo-50 text-indigo-600
+                                                  text-xs font-bold rounded-lg
+                                                  border border-indigo-100
+                                                  hover:bg-indigo-600
+                                                  hover:text-white
+                                                  transition-all">
+
+                                                    View Lease
+
+                                                    <svg class="w-3.5 h-3.5"
+                                                        fill="none"
+                                                        stroke="currentColor"
+                                                        viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round"
+                                                            stroke-linejoin="round"
+                                                            stroke-width="2"
+                                                            d="M9 5l7 7-7 7">
+                                                        </path>
+                                                    </svg>
+
+                                                </a>
+
+                                                @endcanany
+
+                                            </td>
+
                                         </tr>
-                                    @empty
-                                        <tr>
-                                            <td colspan="5" class="px-6 py-4 text-center text-sm text-gray-500">No leases found.</td>
-                                        </tr>
-                                    @endforelse
-                                </tbody>
-                            </table>
-                        </div>
-                        <div class="mt-4">
-                            {{ $leases->appends(request()->query())->links() }}
+
+                                        @endforeach
+
+                                    </tbody>
+                                </table>
+
+                                @else
+
+                                <div class="text-center py-12 bg-white">
+                                    <p class="text-sm text-gray-500">
+                                        No leases found.
+                                    </p>
+                                </div>
+
+                                @endif
+                            </div>
+
+
+                            @if($leases && method_exists($leases, 'hasPages') && $leases->hasPages())
+                            <div class="bg-white px-6 py-4 border-t border-gray-100">
+                                {{ $leases->appends(request()->query())->links() }}
+                            </div>
+                            @endif
+
                         </div>
                     </div>
                 </div>

@@ -29,7 +29,7 @@ class OwnersController extends Controller
                 $query->where('agent_id', $userId->id);
             } else {
                 // 如果该用户在 owners 表里竟然没有记录，为了安全，让他什么都搜不到
-                $query->whereRaw('1 = 0'); 
+                $query->whereRaw('1 = 0');
             }
         }
 
@@ -39,12 +39,12 @@ class OwnersController extends Controller
             $query->where(function ($q) use ($search) {
                 $q->whereHas('user', function ($uq) use ($search) {
                     $uq->where('users.name', 'like', '%' . $search . '%')
-                       ->orWhere('users.email', 'like', '%' . $search . '%');
+                        ->orWhere('users.email', 'like', '%' . $search . '%');
                 })
-                ->orWhere('owners.company_name', 'like', '%' . $search . '%')
-                ->orWhere('owners.phone', 'like', '%' . $search . '%')
-                ->orWhere('owners.ic_number', 'like', '%' . $search . '%')
-                ->orWhere('owners.gender', 'like', '%' . $search . '%');
+                    ->orWhere('owners.company_name', 'like', '%' . $search . '%')
+                    ->orWhere('owners.phone', 'like', '%' . $search . '%')
+                    ->orWhere('owners.ic_number', 'like', '%' . $search . '%')
+                    ->orWhere('owners.gender', 'like', '%' . $search . '%');
             });
         }
 
@@ -54,8 +54,8 @@ class OwnersController extends Controller
             if (str_starts_with($sort, 'n_')) {
                 $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
                 $query->join('users', 'owners.user_id', '=', 'users.id')
-                      ->select('owners.*') 
-                      ->orderBy('users.name', $direction);
+                    ->select('owners.*')
+                    ->orderBy('users.name', $direction);
             } elseif (str_starts_with($sort, 'c_')) {
                 $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
                 $query->orderBy('owners.company_name', $direction);
@@ -134,8 +134,7 @@ class OwnersController extends Controller
             DB::commit();
 
             return redirect()->route('admin.owners.index')->with('success', 'Owner and User account created successfully.');
-
-        } catch (\Exception $e) {   
+        } catch (\Exception $e) {
             DB::rollBack();
             return back()->withErrors(['error' => 'Failed to create owner: ' . $e->getMessage()]);
         }
@@ -165,8 +164,8 @@ class OwnersController extends Controller
                 'email' => $request->input('email'),
             ];
 
-            $userData['email_verified_at'] = $owner->user->email === $request->input('email') 
-                ? $owner->user->email_verified_at 
+            $userData['email_verified_at'] = $owner->user->email === $request->input('email')
+                ? $owner->user->email_verified_at
                 : null;
 
             $owner->user->update($userData);
@@ -227,7 +226,11 @@ class OwnersController extends Controller
             return view('errors.403');
         }
 
-        $owner->load(['user']);
+        // Load owner profile together with Property -> Unit -> Room
+        $owner->load([
+            'user',
+            'properties.units.rooms',
+        ]);
 
         return view('adminSide.owners.details', compact('owner'));
     }
@@ -242,8 +245,12 @@ class OwnersController extends Controller
         // 如果该用户甚至不是一个登记的业主，直接返回 0
         if (!$ownerProfile) {
             return view('adminSide.owners.dashboard', [
-                'ownersCount' => 0, 'tenantsCount' => 0, 'roomsCount' => 0, 
-                'leasesCount' => 0, 'roomStatusStats' => collect(), 'payments' => collect()
+                'ownersCount' => 0,
+                'tenantsCount' => 0,
+                'roomsCount' => 0,
+                'leasesCount' => 0,
+                'roomStatusStats' => collect(),
+                'payments' => collect()
             ]);
         }
 
@@ -267,25 +274,25 @@ class OwnersController extends Controller
                     $sq->where('owner_id', $owner_id);
                 });
             })
-            // 2. 或者：如果租的是 Unit，通过 Unit -> Owner 找
-            ->orWhereHasMorph('leasable', [Unit::class], function ($q) use ($owner_id) {
-                $q->where('owner_id', $owner_id);
-            })
-            // 3. 或者：如果租的是 Property，通过 Property -> Owner 找
-            ->orWhereHasMorph('leasable', [Property::class], function ($q) use ($owner_id) {
-                $q->where('owner_id', $owner_id);
-            });
+                // 2. 或者：如果租的是 Unit，通过 Unit -> Owner 找
+                ->orWhereHasMorph('leasable', [Unit::class], function ($q) use ($owner_id) {
+                    $q->where('owner_id', $owner_id);
+                })
+                // 3. 或者：如果租的是 Property，通过 Property -> Owner 找
+                ->orWhereHasMorph('leasable', [Property::class], function ($q) use ($owner_id) {
+                    $q->where('owner_id', $owner_id);
+                });
         })
-        ->where('status', 'active') // 记得只算 active 的，这才是占用名额的
-        ->count();
+            ->where('status', 'active') // 记得只算 active 的，这才是占用名额的
+            ->count();
 
         // 4. 饼图：房间状态
         $roomStatusStats = Room::whereHas('unit', function ($query) use ($owner_id) {
             $query->where('owner_id', $owner_id);
         })
-        ->select('status', DB::raw('count(*) as total'))
-        ->groupBy('status')
-        ->pluck('total', 'status');
+            ->select('status', DB::raw('count(*) as total'))
+            ->groupBy('status')
+            ->pluck('total', 'status');
 
         // 5. 支付动态
         $payments = Payment::with('tenant')
@@ -298,7 +305,11 @@ class OwnersController extends Controller
             ->get();
 
         return view('adminSide.owners.dashboard', compact(
-            'tenantsCount', 'roomsCount', 'leasesCount', 'roomStatusStats', 'payments'
+            'tenantsCount',
+            'roomsCount',
+            'leasesCount',
+            'roomStatusStats',
+            'payments'
         ));
     }
 }

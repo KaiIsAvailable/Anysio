@@ -32,12 +32,14 @@ class Owners extends Model
 
     public function owner()
     {
-        return $this->unit()->with('owner'); 
+        return $this->unit()->with('owner');
     }
 
     public function properties(): HasMany
     {
-        return $this->hasMany(Property::class, 'owner_id');
+        // properties.owner_id stores users.id,
+        // so match it with owners.user_id instead of owners.id
+        return $this->hasMany(Property::class, 'owner_id', 'user_id');
     }
 
     public function leases()
@@ -64,7 +66,7 @@ class Owners extends Model
     protected function fullAddress(): Attribute
     {
         return Attribute::make(
-            get: fn () => collect([
+            get: fn() => collect([
                 $this->address,
                 $this->postcode,
                 $this->city,
@@ -72,4 +74,4 @@ class Owners extends Model
             ])->filter()->implode(', ')
         );
     }
-    }
+}

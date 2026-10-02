@@ -166,7 +166,7 @@ class TenantsController extends Controller
         if (Gate::denies('owner-admin') && Gate::denies('tenant.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
-        
+
         // 1. 处理随机 Email
         if ($request->has('random_email') && $request->random_email == '1') {
             $request->merge(['email' => 'tenant_' . time() . '_' . Str::random(5) . '@anysio.local']);
@@ -402,13 +402,16 @@ class TenantsController extends Controller
 
         // 2. 单独处理 Lease 的分页查询 (核心修正点)
         $leases = $tenant->leases()
-            ->with(['leasable' => function ($morph) {
-                $morph->morphWith([
-                    Room::class     => ['unit'],
-                    Unit::class,
-                    Property::class,
-                ]);
-            }])
+            ->with([
+                'charges',
+                'leasable' => function ($morph) {
+                    $morph->morphWith([
+                        Room::class => ['unit'],
+                        Unit::class,
+                        Property::class,
+                    ]);
+                }
+            ])
             ->orderBy('start_date', 'desc')
             ->paginate(5, ['*'], 'lease_page')
             ->onEachSide(1);

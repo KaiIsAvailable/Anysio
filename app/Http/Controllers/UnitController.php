@@ -34,7 +34,7 @@ class UnitController extends Controller
         if (Gate::denies('owner-admin') && Gate::denies('unit.create')) {
             return view('errors.403');
         }
-        
+
         // 1. 获取选中的 Property
         $selectedPropertyId = $request->query('property_id');
         $targetProperty = $selectedPropertyId ? Property::with('owner')->find($selectedPropertyId) : null;
@@ -42,7 +42,7 @@ class UnitController extends Controller
 
         // 2. 确定 targetOwner (增加 Property 继承逻辑)
         $selectedOwnerId = $request->query('owner_id');
-        
+
         if ($selectedOwnerId) {
             $targetOwner = User::whereIn('role', ['owner', 'ownerAdmin'])->find($selectedOwnerId);
         } elseif ($targetProperty && $targetProperty->owner_id) {
@@ -53,14 +53,14 @@ class UnitController extends Controller
 
         // 3. 其他数据加载
         $owners = $this->getAuthorizedOwners();
-        
+
         $assetLibrary = Asset::select('id', 'name', 'user_id', 'status')->get();
-        
+
         return view('adminSide.rooms.unit.create', compact(
-            'properties', 
-            'owners', 
-            'targetProperty', 
-            'assetLibrary', 
+            'properties',
+            'owners',
+            'targetProperty',
+            'assetLibrary',
             'targetOwner'
         ));
     }
@@ -85,7 +85,7 @@ class UnitController extends Controller
                 'required',
                 'string',
                 // 核心逻辑：在 properties 关联下，unit_no 必须唯一
-                Rule::unique('units')->where(fn ($query) => $query->where('property_id', $request->property_id))
+                Rule::unique('units')->where(fn($query) => $query->where('property_id', $request->property_id))
             ],
             'has_rooms' => 'required|boolean',
             'total_rooms' => 'nullable|integer|min:0',
@@ -98,7 +98,7 @@ class UnitController extends Controller
                 'distinct', // 确保这次提交的数组里，room_no 没有重复的（比如两个 A-01）
             ],
             'rooms.*.room_type' => 'required_if:has_rooms,1',
-            
+
             // --- Assets 验证 ---
             'unit_assets.*.qty' => 'integer|min:0',
             'rooms.*.assets.*.qty' => 'integer|min:0',
@@ -124,7 +124,7 @@ class UnitController extends Controller
             $unit->electricity_acc_no = $request->electricity_acc_no;
             $unit->water_acc_no = $request->water_acc_no;
             $unit->status = $request->status;
-            $unit->has_rooms = $request->has_rooms; 
+            $unit->has_rooms = $request->has_rooms;
             $unit->total_rooms = $request->has_rooms ? count($request->rooms) : 0;
             $unit->created_by = $effectiveUserId;
             $unit->save();
@@ -181,12 +181,11 @@ class UnitController extends Controller
 
             if (method_exists($unit, 'syncStatus')) {
                 // 确保数据已加载
-                $unit->syncStatus(); 
+                $unit->syncStatus();
             }
-            
-            return redirect()->route('admin.properties.show', ['property' => $request->property_id])
-                 ->with('success', 'Unit created successfully!');
 
+            return redirect()->route('admin.properties.show', ['property' => $request->property_id])
+                ->with('success', 'Unit created successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error: ' . $e->getMessage())->withInput();
@@ -202,6 +201,12 @@ class UnitController extends Controller
             return view('errors.403');
         }
 
+        // Load Unit details needed by the show page
+        $unit->load([
+            'property',
+            'owner',
+        ]);
+
         // 1. 建立查詢關聯
         $query = $unit->rooms()
             ->with(['unit.owner:id,name,email', 'assets']);
@@ -209,13 +214,13 @@ class UnitController extends Controller
         // 2. 處理搜尋 (Searching) - 严格匹配前端显示的列 (Room No, Type, Status, Asset Name)
         $search = $request->input('search');
         if ($search) {
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('rooms.room_no', 'like', "%{$search}%")
-                  ->orWhere('rooms.room_type', 'like', "%{$search}%")
-                  ->orWhere('rooms.status', 'like', "%{$search}%")
-                  ->orWhereHas('assets', function($aq) use ($search) {
-                      $aq->where('assets.name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('rooms.room_type', 'like', "%{$search}%")
+                    ->orWhere('rooms.status', 'like', "%{$search}%")
+                    ->orWhereHas('assets', function ($aq) use ($search) {
+                        $aq->where('assets.name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -239,7 +244,7 @@ class UnitController extends Controller
 
         // 4. 分頁並保留 URL 參數
         $rooms = $query->paginate(10)->onEachSide(1)->appends($request->query());
-        
+
         // 將結果綁定回 $unit
         $unit->setRelation('rooms', $rooms);
 
@@ -267,15 +272,21 @@ class UnitController extends Controller
         $targetProperty = Property::find($unit->property_id);
         $owners = $this->getAuthorizedOwners();
         $hasRoomsCount = $unit->rooms()->count() > 0 ? 1 : 0;
-        
+
         // 权限判断现在变得非常安全：如果 $currentOwner 是 null，isOwnerAdmin 自动为 false
         $isOwnerAdmin = ($currentOwner && Auth::id() == $currentOwner->id && Auth::user()->role === 'ownerAdmin');
 
         $assetLibrary = Asset::select('id', 'name', 'user_id', 'status')->get();
 
         return view('adminSide.rooms.unit.edit', compact(
-            'unit', 'properties', 'owners', 'targetProperty', 
-            'assetLibrary', 'hasRoomsCount', 'isOwnerAdmin', 'currentOwner'
+            'unit',
+            'properties',
+            'owners',
+            'targetProperty',
+            'assetLibrary',
+            'hasRoomsCount',
+            'isOwnerAdmin',
+            'currentOwner'
         ));
     }
     /**
@@ -296,7 +307,7 @@ class UnitController extends Controller
                 'required',
                 'string',
                 Rule::unique('units')
-                    ->where(fn ($query) => $query->where('property_id', $request->property_id))
+                    ->where(fn($query) => $query->where('property_id', $request->property_id))
                     ->ignore($unit->id) // 排除当前 unit 自身
             ],
             'owner_id'       => 'nullable|exists:users,id',
@@ -328,10 +339,9 @@ class UnitController extends Controller
             // 否则每次点 Save，房间资产就全没了。
 
             DB::commit();
-            
-            return redirect()->route('admin.properties.show', $request->property_id)
-                            ->with('success', 'Unit updated successfully!');
 
+            return redirect()->route('admin.properties.show', $request->property_id)
+                ->with('success', 'Unit updated successfully!');
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Update Failed: ' . $e->getMessage())->withInput();
@@ -360,10 +370,9 @@ class UnitController extends Controller
             Room::where('unit_id', $id)->update(['status' => 'Removed']);
 
             DB::commit();
-            
+
             return redirect()->back()
                 ->with('success', 'Unit and all its rooms have been marked as removed.');
-
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error while removing unit: ' . $e->getMessage());
@@ -393,7 +402,6 @@ class UnitController extends Controller
 
             DB::commit();
             return redirect()->back()->with('success', 'Unit and its rooms have been restored to Vacant.');
-
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Restore failed: ' . $e->getMessage());

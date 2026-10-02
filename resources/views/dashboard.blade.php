@@ -135,8 +135,19 @@
                                                     <span class="px-2.5 py-1 text-[10px] font-bold uppercase bg-slate-100 text-slate-600 rounded-full">{{ $lease->status }}</span>
                                                 @endif
                                             </td>
-                                            <td class="py-3 px-4"></td>
-                                            
+                                            <td class="py-3 px-4">
+                                                <div class="flex items-center gap-2">
+                                                    {{-- Renew Button --}}
+                                                    <button type="button" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-md shadow-sm transition-colors">
+                                                        Renew
+                                                    </button>
+
+                                                    {{-- Check Out Button --}}
+                                                    <button type="button" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-md shadow-sm transition-colors">
+                                                        Check Out
+                                                    </button>
+                                                </div>
+                                            </td>
                                         </tr>
                                     @empty
                                         <tr>

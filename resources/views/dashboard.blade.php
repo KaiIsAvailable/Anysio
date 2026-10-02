@@ -92,11 +92,16 @@
                                         <th class="py-3 px-4">Phone Number</th>
                                         <th class="py-3 px-4">End Date</th>
                                         <th class="py-3 px-4">Status</th>
+                                        <th class="py-3 px-4">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50 text-sm">
                                     @forelse($pendingOrEndedLeases ?? [] as $lease)
-                                        <tr class="hover:bg-slate-50/50 transition">
+                                        <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
+                                            @canany(['owner-admin', 'leases.show'])
+                                            onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'"
+                                            @endcanany
+                                            >
                                             <td class="py-3 px-4">
                                                 <p class="font-bold text-slate-800">{{ $lease->tenant->user->name ?? 'N/A' }}</p>
                                                 <p class="text-xs text-slate-400">
@@ -130,6 +135,8 @@
                                                     <span class="px-2.5 py-1 text-[10px] font-bold uppercase bg-slate-100 text-slate-600 rounded-full">{{ $lease->status }}</span>
                                                 @endif
                                             </td>
+                                            <td class="py-3 px-4"></td>
+                                            
                                         </tr>
                                     @empty
                                         <tr>

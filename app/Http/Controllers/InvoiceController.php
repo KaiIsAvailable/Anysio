@@ -225,7 +225,7 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
-        Gate::authorize('owner-admin', $invoice->lease);
+        //Gate::authorize('owner-admin', $invoice->lease);
         $this->invoiceService->voidInvoice($invoice, $request->validated('reason'));
         return back()->with('success', 'Invoice voided.');
     }

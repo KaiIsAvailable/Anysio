@@ -28,6 +28,14 @@
                          @submit.prevent="
                             loading = true;
                             errorMessage = '';
+
+                            let formData = new FormData($el);
+                            let payload = {
+                                name: newRoleName,
+                                permissions: selectedPermissions,
+                                user_id: formData.get('user_id') // Matches $request->input('user_id') in your controller
+                            };
+
                             fetch('{{ route('admin.roles.store') }}', {
                                 method: 'POST',
                                 headers: {
@@ -35,11 +43,7 @@
                                     'X-CSRF-TOKEN': '{{ csrf_token() }}',
                                     'Accept': 'application/json'
                                 },
-                                body: JSON.stringify({ 
-                                    name: newRoleName,
-                                    permissions: selectedPermissions, <!-- 💡 Send selected permissions -->
-                                    user_mgnt_id: typeof currentUserMgntId !== 'undefined' ? currentUserMgntId : null 
-                                })
+                                body: JSON.stringify(payload)
                             })
                             .then(res => res.json().then(data => ({ status: res.status, body: data })))
                             .then(res => {
@@ -57,6 +61,37 @@
                             })
                          ">
                 <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
+                    {{-- 💡 Admin User Selection Field (Visible only if current user is admin/super-admin) --}}
+                    @if(auth()->user()->role === 'admin' || app(\Illuminate\Contracts\Auth\Access\Gate::class)->allows('super-admin'))
+                        <div>
+                            @php
+                                $managementUsers = \App\Models\UserManagement::with('user')
+                                    ->has('user')
+                                    ->get()
+                                    ->map(function($management) {
+                                        $u = $management->user;
+                                        return [
+                                            'value' => (string) $u->id,              // Changed from 'id' to 'value'
+                                            'label' => "{$u->name} ({$u->email})"    // Changed from 'name' to 'label'
+                                        ];
+                                    })
+                                    ->toArray();
+                            @endphp
+
+                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Assign Role To User / Management</label>
+                            <x-form.input-select 
+                                id="user_id" 
+                                name="user_id" 
+                                class="w-full"
+                                :options="$managementUsers"
+                                value-field="value"     
+                                label-field="label"     
+                                x-model="selectedTargetUserId"
+                                :value="old('user_id')"
+                            />
+                        </div>
+                    @endif
+
                     <div>
                         <label class="block text-xs font-semibold text-gray-700 uppercase">Role Name</label>
                         <input type="text" x-model="newRoleName" class="mt-1 w-full border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">

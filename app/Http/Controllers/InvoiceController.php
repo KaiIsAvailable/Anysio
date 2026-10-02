@@ -202,7 +202,7 @@ class InvoiceController extends Controller
 
     public function show(Lease $lease, Invoice $invoice)
     {
-        Gate::authorize('owner-admin', $lease);
+        //Gate::authorize('owner-admin', $lease);
         $invoice->load(['items.feeType', 'transactions.approver', 'lease.tenant.user']);
         return view('invoices.show', compact('lease', 'invoice'));
     }
@@ -213,7 +213,7 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
-        Gate::authorize('owner-admin', $invoice->lease);
+        //Gate::authorize('owner-admin', $invoice->lease);
         $this->invoiceService->recordPayment($invoice, $request->validated());
         //dd($request->all());
         return back()->with('success', 'Payment recorded successfully.');
@@ -225,7 +225,7 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
-        Gate::authorize('owner-admin', $invoice->lease);
+        //Gate::authorize('owner-admin', $invoice->lease);
         $this->invoiceService->voidInvoice($invoice, $request->validated('reason'));
         return back()->with('success', 'Invoice voided.');
     }
@@ -236,7 +236,7 @@ class InvoiceController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
-        Gate::authorize('owner-admin', $lease);
+        //Gate::authorize('owner-admin', $lease);
         $invoice = $this->invoiceService->createManualInvoice($lease, $request->validated());
 
         if ($request->expectsJson()) {

@@ -88,10 +88,10 @@
                                     name="role" 
                                     class="w-full"
                                     :options="$roles"
-                                    value-field="id"       
+                                    value-field="name"       
                                     label-field="name"     
                                     x-model="selectedRole"
-                                    :value="old('role')"
+                                    :value="old('role', $staff->role ?? '')"
                                     required 
                                 />
                                 <x-form.input-error :messages="$errors->get('role')" class="mt-2" />

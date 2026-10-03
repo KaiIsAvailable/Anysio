@@ -96,289 +96,195 @@
                     {{-- Property / Unit / Room --}}
                     <div class="mt-12 pt-8 border-t border-gray-100">
 
-                        <div class="mb-6">
+                        <div class="mb-8">
                             <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">
                                 Property / Unit / Room
                             </h3>
-
                             <p class="text-sm text-gray-500 mt-2 pl-4">
                                 Properties, units and rooms belonging to this owner.
                             </p>
                         </div>
 
+                        <div class="space-y-10">
 
-                        <div class="space-y-4">
+                            {{-- =========================
+             PROPERTY
+        ========================== --}}
+                            <div>
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-bold text-slate-900">
+                                        Property
+                                    </h4>
+                                    <span class="text-xs text-gray-500">
+                                        Total: {{ $properties->count() }}
+                                    </span>
+                                </div>
 
-                            {{-- =========================================================
-             PROPERTIES
-        ========================================================== --}}
-                            <div
-                                x-data="{ open: false }"
-                                class="bg-white border border-gray-200 rounded-xl overflow-hidden">
-
-                                <button
-                                    type="button"
-                                    @click="open = !open"
-                                    class="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition">
-                                    <div class="flex items-center gap-4">
-
-                                        <svg
-                                            class="w-5 h-5 text-gray-400 transition-transform duration-200"
-                                            :class="{ 'rotate-90': open }"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24">
-                                            <path
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                                stroke-width="2"
-                                                d="M9 5l7 7-7 7"></path>
-                                        </svg>
-
-                                        <div class="text-left">
-                                            <p class="text-xs font-bold uppercase tracking-wider text-indigo-600">
-                                                Properties
-                                            </p>
-
-                                            <p class="text-sm text-gray-500 mt-1">
-                                                {{ $properties->count() }}
-                                                {{ Str::plural('Property', $properties->count()) }}
-                                            </p>
-                                        </div>
-
-                                    </div>
-                                </button>
-
-
-                                <div
-                                    x-show="open"
-                                    x-collapse
-                                    class="border-t border-gray-200">
-
-                                    @forelse($properties as $property)
-
+                                @if($properties->count() > 0)
+                                <div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, 180px);">
+                                    @foreach($properties as $property)
                                     @php
                                     $propertyBadge = get_status_badge($property->status ?? null);
                                     @endphp
 
                                     <div
                                         onclick="window.location='{{ route('admin.properties.show', $property->id) }}'"
-                                        class="px-10 py-4 flex items-center justify-between gap-4 border-b border-gray-100 last:border-b-0 cursor-pointer hover:bg-indigo-50 transition-colors">
-
+                                        title="Click to view property details"
+                                        class="cursor-pointer rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all min-h-[105px] flex flex-col justify-between">
                                         <div>
-                                            <p class="text-xs font-bold text-indigo-500 uppercase tracking-wider">
+                                            <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-500 mb-2">
                                                 Property
                                             </p>
 
-                                            <p class="text-sm font-semibold text-slate-900 mt-1">
+                                            <p class="text-sm font-semibold text-slate-900 break-words whitespace-normal leading-5">
                                                 {{ $property->name ?? 'Unnamed Property' }}
-                                            </p>
-
-                                            <p class="text-xs text-gray-500 mt-1">
-                                                {{ $property->address ?? 'No address' }}
                                             </p>
                                         </div>
 
-                                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $propertyBadge }}">
-                                            {{ $property->status ?? 'N/A' }}
-                                        </span>
-
+                                        <div class="mt-4">
+                                            <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium {{ $propertyBadge }}">
+                                                {{ $property->status ?? 'N/A' }}
+                                            </span>
+                                        </div>
                                     </div>
-
-                                    @empty
-
-                                    <div class="px-10 py-5 text-sm text-gray-500 italic">
-                                        No properties assigned directly to this owner.
-                                    </div>
-
-                                    @endforelse
-
+                                    @endforeach
                                 </div>
+                                @else
+                                <div class="rounded-xl border border-gray-200 bg-gray-50 px-6 py-8 text-center text-sm text-gray-500">
+                                    No properties assigned directly to this owner.
+                                </div>
+                                @endif
                             </div>
 
 
-                            {{-- =========================================================
-             UNITS
-        ========================================================== --}}
-                            <div
-                                x-data="{ open: false }"
-                                class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            {{-- =========================
+             UNIT
+        ========================== --}}
+                            <div>
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-bold text-slate-900">
+                                        Unit
+                                    </h4>
+                                    <span class="text-xs text-gray-500">
+                                        Total: {{ $units->count() }}
+                                    </span>
+                                </div>
 
-                                <button
-                                    type="button"
-                                    @click="open = !open"
-                                    class="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition">
-                                    <div class="flex items-center gap-4">
-
-                                        <svg
-                                            class="w-5 h-5 text-gray-400 transition-transform duration-200"
-                                            :class="{ 'rotate-90': open }"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24">
-                                            <path
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                                stroke-width="2"
-                                                d="M9 5l7 7-7 7"></path>
-                                        </svg>
-
-                                        <div class="text-left">
-                                            <p class="text-xs font-bold uppercase tracking-wider text-blue-600">
-                                                Units
-                                            </p>
-
-                                            <p class="text-sm text-gray-500 mt-1">
-                                                {{ $units->count() }}
-                                                {{ Str::plural('Unit', $units->count()) }}
-                                            </p>
-                                        </div>
-
-                                    </div>
-                                </button>
-
-
-                                <div
-                                    x-show="open"
-                                    x-collapse
-                                    class="border-t border-gray-200">
-
-                                    @forelse($units as $unit)
-
+                                @if($units->count() > 0)
+                                <div class="grid gap-3" style="grid-template-columns: repeat(auto-fill, 180px);">
+                                    @foreach($units as $unit)
                                     @php
                                     $unitBadge = get_status_badge($unit->status ?? null);
                                     @endphp
 
                                     <div
                                         onclick="window.location='{{ route('admin.units.show', $unit->id) }}'"
-                                        class="px-10 py-4 flex items-center justify-between gap-4 border-b border-gray-100 last:border-b-0 cursor-pointer hover:bg-indigo-50 transition-colors">
-
+                                        title="Click to view unit details"
+                                        class="cursor-pointer rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all min-h-[105px] flex flex-col justify-between">
                                         <div>
-
-                                            <p class="text-xs font-bold text-blue-500 uppercase tracking-wider">
+                                            <p class="text-[11px] font-bold uppercase tracking-wider text-blue-500 mb-2">
                                                 Unit
                                             </p>
 
-                                            <p class="text-sm font-semibold text-slate-900 mt-1">
+                                            <p class="text-sm font-semibold text-slate-900 break-words whitespace-normal leading-5">
                                                 {{ $unit->unit_no ?? 'Unnamed Unit' }}
                                             </p>
 
-                                            <p class="text-xs text-gray-500 mt-1">
-                                                Property:
-                                                {{ $unit->property?->name ?? 'No Property' }}
-                                            </p>
-
+                                            <div class="mt-3 space-y-1">
+                                                <p class="text-xs text-gray-500">
+                                                    <span class="font-medium text-gray-600">Property:</span>
+                                                </p>
+                                                <p class="text-xs text-slate-700 break-words whitespace-normal leading-5">
+                                                    {{ $unit->property?->name ?? 'No Property' }}
+                                                </p>
+                                            </div>
                                         </div>
 
-                                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $unitBadge }}">
-                                            {{ $unit->status ?? 'N/A' }}
-                                        </span>
-
+                                        <div class="mt-4">
+                                            <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium {{ $unitBadge }}">
+                                                {{ $unit->status ?? 'N/A' }}
+                                            </span>
+                                        </div>
                                     </div>
-
-                                    @empty
-
-                                    <div class="px-10 py-5 text-sm text-gray-500 italic">
-                                        No units assigned directly to this owner.
-                                    </div>
-
-                                    @endforelse
-
+                                    @endforeach
                                 </div>
+                                @else
+                                <div class="rounded-xl border border-gray-200 bg-gray-50 px-6 py-8 text-center text-sm text-gray-500">
+                                    No units assigned directly to this owner.
+                                </div>
+                                @endif
                             </div>
 
 
-                            {{-- =========================================================
-             ROOMS
-        ========================================================== --}}
-                            <div
-                                x-data="{ open: false }"
-                                class="bg-white border border-gray-200 rounded-xl overflow-hidden">
+                            {{-- =========================
+             ROOM
+        ========================== --}}
+                            <div>
+                                <div class="flex items-center justify-between mb-4">
+                                    <h4 class="text-sm font-bold text-slate-900">
+                                        Room
+                                    </h4>
+                                    <span class="text-xs text-gray-500">
+                                        Total: {{ $rooms->count() }}
+                                    </span>
+                                </div>
 
-                                <button
-                                    type="button"
-                                    @click="open = !open"
-                                    class="w-full px-6 py-5 flex items-center justify-between hover:bg-gray-50 transition">
-                                    <div class="flex items-center gap-4">
-
-                                        <svg
-                                            class="w-5 h-5 text-gray-400 transition-transform duration-200"
-                                            :class="{ 'rotate-90': open }"
-                                            fill="none"
-                                            stroke="currentColor"
-                                            viewBox="0 0 24 24">
-                                            <path
-                                                stroke-linecap="round"
-                                                stroke-linejoin="round"
-                                                stroke-width="2"
-                                                d="M9 5l7 7-7 7"></path>
-                                        </svg>
-
-                                        <div class="text-left">
-                                            <p class="text-xs font-bold uppercase tracking-wider text-gray-600">
-                                                Rooms
-                                            </p>
-
-                                            <p class="text-sm text-gray-500 mt-1">
-                                                {{ $rooms->count() }}
-                                                {{ Str::plural('Room', $rooms->count()) }}
-                                            </p>
-                                        </div>
-
-                                    </div>
-                                </button>
-
-
+                                @if($rooms->count() > 0)
                                 <div
-                                    x-show="open"
-                                    x-collapse
-                                    class="border-t border-gray-200">
-
-                                    @forelse($rooms as $room)
-
+                                    class="grid gap-3"
+                                    style="grid-template-columns: repeat(auto-fill, 180px);">
+                                    @foreach($rooms as $room)
                                     @php
                                     $roomBadge = get_status_badge($room->status ?? null);
                                     @endphp
 
                                     <div
                                         onclick="window.location='{{ route('admin.rooms.show', $room->id) }}'"
-                                        class="px-10 py-4 flex items-center justify-between gap-4 border-b border-gray-100 last:border-b-0 cursor-pointer hover:bg-indigo-50 transition-colors">
-
+                                        title="Click to view room details"
+                                        class="cursor-pointer rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all min-h-[105px] flex flex-col justify-between">
                                         <div>
-
-                                            <p class="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                                            <p class="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">
                                                 Room
                                             </p>
 
-                                            <p class="text-sm font-semibold text-slate-900 mt-1">
+                                            <p class="text-sm font-semibold text-slate-900 break-words whitespace-normal leading-5">
                                                 {{ $room->room_no ?? 'Unnamed Room' }}
                                             </p>
 
-                                            <p class="text-xs text-gray-500 mt-1">
-                                                Property:
-                                                {{ $room->unit?->property?->name ?? 'No Property' }}
-                                                ·
-                                                Unit:
-                                                {{ $room->unit?->unit_no ?? 'No Unit' }}
-                                            </p>
+                                            <div class="mt-3 space-y-2">
+                                                <div>
+                                                    <p class="text-xs text-gray-500">
+                                                        <span class="font-medium text-gray-600">Property:</span>
+                                                    </p>
+                                                    <p class="text-xs text-slate-700 break-words whitespace-normal leading-5">
+                                                        {{ $room->unit?->property?->name ?? 'No Property' }}
+                                                    </p>
+                                                </div>
 
+                                                <div>
+                                                    <p class="text-xs text-gray-500">
+                                                        <span class="font-medium text-gray-600">Unit:</span>
+                                                    </p>
+                                                    <p class="text-xs text-slate-700 break-words whitespace-normal leading-5">
+                                                        {{ $room->unit?->unit_no ?? 'No Unit' }}
+                                                    </p>
+                                                </div>
+                                            </div>
                                         </div>
 
-                                        <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $roomBadge }}">
-                                            {{ $room->status ?? 'N/A' }}
-                                        </span>
-
+                                        <div class="mt-4">
+                                            <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-medium {{ $roomBadge }}">
+                                                {{ $room->status ?? 'N/A' }}
+                                            </span>
+                                        </div>
                                     </div>
-
-                                    @empty
-
-                                    <div class="px-10 py-5 text-sm text-gray-500 italic">
-                                        No rooms assigned to units owned by this owner.
-                                    </div>
-
-                                    @endforelse
-
+                                    @endforeach
                                 </div>
+                                @else
+                                <div class="rounded-xl border border-gray-200 bg-gray-50 px-6 py-8 text-center text-sm text-gray-500">
+                                    No rooms assigned to units owned by this owner.
+                                </div>
+                                @endif
                             </div>
 
                         </div>

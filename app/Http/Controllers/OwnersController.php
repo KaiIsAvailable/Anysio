@@ -232,13 +232,13 @@ class OwnersController extends Controller
         // Property / Unit 的 owner_id 都储存 users.id
         $ownerUserId = $owner->user_id;
 
-        // 1. 直接属于这个 Owner 的 Properties
-        $properties = Property::where('owner_id', $ownerUserId)
+        $properties = Property::withCount('units')
+            ->where('owner_id', $ownerUserId)
             ->orderBy('name')
             ->get();
 
-        // 2. 直接属于这个 Owner 的 Units
         $units = Unit::with('property')
+            ->withCount('rooms')
             ->where('owner_id', $ownerUserId)
             ->orderBy('unit_no')
             ->get();

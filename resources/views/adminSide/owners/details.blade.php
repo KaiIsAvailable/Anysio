@@ -132,12 +132,12 @@
                                         title="Click to view property details"
                                         class="cursor-pointer rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all min-h-[105px] flex flex-col justify-between">
                                         <div>
-                                            <p class="text-[11px] font-bold uppercase tracking-wider text-indigo-500 mb-2">
-                                                Property
-                                            </p>
-
                                             <p class="text-sm font-semibold text-slate-900 break-words whitespace-normal leading-5">
                                                 {{ $property->name ?? 'Unnamed Property' }}
+                                            </p>
+                                            <p class="text-xs text-gray-500 mt-2">
+                                                {{ $property->units_count }}
+                                                {{ Str::plural('Unit', $property->units_count) }}
                                             </p>
                                         </div>
 
@@ -182,12 +182,15 @@
                                         title="Click to view unit details"
                                         class="cursor-pointer rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all min-h-[105px] flex flex-col justify-between">
                                         <div>
-                                            <p class="text-[11px] font-bold uppercase tracking-wider text-blue-500 mb-2">
-                                                Unit
-                                            </p>
+
 
                                             <p class="text-sm font-semibold text-slate-900 break-words whitespace-normal leading-5">
                                                 {{ $unit->unit_no ?? 'Unnamed Unit' }}
+                                            </p>
+
+                                            <p class="text-xs text-gray-500 mt-2">
+                                                {{ $unit->rooms_count }}
+                                                {{ Str::plural('Room', $unit->rooms_count) }}
                                             </p>
 
                                             <div class="mt-3 space-y-1">
@@ -243,14 +246,13 @@
                                         title="Click to view room details"
                                         class="cursor-pointer rounded-lg border border-gray-200 bg-white p-3 shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all min-h-[105px] flex flex-col justify-between">
                                         <div>
-                                            <p class="text-[11px] font-bold uppercase tracking-wider text-gray-500 mb-2">
-                                                Room
-                                            </p>
+                                           
 
                                             <p class="text-sm font-semibold text-slate-900 break-words whitespace-normal leading-5">
                                                 {{ $room->room_no ?? 'Unnamed Room' }}
                                             </p>
 
+                                            
                                             <div class="mt-3 space-y-2">
                                                 <div>
                                                     <p class="text-xs text-gray-500">

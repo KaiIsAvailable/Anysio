@@ -218,9 +218,6 @@
                                                 Status
                                             </th>
 
-                                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                                Action
-                                            </th>
                                         </tr>
                                     </thead>
 
@@ -233,7 +230,13 @@
                                         $badge = get_status_badge($lease->status ?? null);
                                         @endphp
 
-                                        <tr class="hover:!bg-indigo-50 transition-colors group duration-150">
+                                        <tr
+                                            @canany(['owner-admin', 'leases.show' ])
+                                            onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'"
+                                            class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
+                                            @else
+                                            class="group duration-150"
+                                            @endcanany>
 
                                             <!-- Property / Unit / Room -->
                                             <td class="px-6 py-4">
@@ -328,38 +331,7 @@
                                             </td>
 
 
-                                            <!-- Action -->
-                                            <td class="px-6 py-4">
-
-                                                @canany(['owner-admin', 'leases.show'])
-
-                                                <a href="{{ route('admin.leases.show', $lease->id) }}"
-                                                    class="inline-flex items-center gap-2 px-3 py-2
-                                                  bg-indigo-50 text-indigo-600
-                                                  text-xs font-bold rounded-lg
-                                                  border border-indigo-100
-                                                  hover:bg-indigo-600
-                                                  hover:text-white
-                                                  transition-all">
-
-                                                    View Lease
-
-                                                    <svg class="w-3.5 h-3.5"
-                                                        fill="none"
-                                                        stroke="currentColor"
-                                                        viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round"
-                                                            stroke-linejoin="round"
-                                                            stroke-width="2"
-                                                            d="M9 5l7 7-7 7">
-                                                        </path>
-                                                    </svg>
-
-                                                </a>
-
-                                                @endcanany
-
-                                            </td>
+                                            
 
                                         </tr>
 

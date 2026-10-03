@@ -226,13 +226,38 @@ class OwnersController extends Controller
             return view('errors.403');
         }
 
-        // Load owner profile together with Property -> Unit -> Room
-        $owner->load([
-            'user',
-            'properties.units.rooms',
-        ]);
+        // Owner profile
+        $owner->load('user');
 
-        return view('adminSide.owners.details', compact('owner'));
+        // Property / Unit 的 owner_id 都储存 users.id
+        $ownerUserId = $owner->user_id;
+
+        // 1. 直接属于这个 Owner 的 Properties
+        $properties = Property::where('owner_id', $ownerUserId)
+            ->orderBy('name')
+            ->get();
+
+        // 2. 直接属于这个 Owner 的 Units
+        $units = Unit::with('property')
+            ->where('owner_id', $ownerUserId)
+            ->orderBy('unit_no')
+            ->get();
+
+        // 3. Room 本身没有 owner_id
+        //    所以通过 Unit 的 owner_id 判断 Room 属于哪个 Owner
+        $rooms = Room::with('unit.property')
+            ->whereHas('unit', function ($query) use ($ownerUserId) {
+                $query->where('owner_id', $ownerUserId);
+            })
+            ->orderBy('room_no')
+            ->get();
+
+        return view('adminSide.owners.details', compact(
+            'owner',
+            'properties',
+            'units',
+            'rooms'
+        ));
     }
 
     public function dashboard()

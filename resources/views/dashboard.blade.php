@@ -77,11 +77,55 @@
                 <div class="lg:col-span-2 space-y-6">
                     @canany(['owner-admin', 'dashboard.lease list'])
                     <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
-                        <div class="flex justify-between items-center mb-4">
+                        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                             <h3 class="font-bold text-slate-900 text-base uppercase tracking-wider">Leases Needing Attention</h3>
-                            <span class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold">
-                                {{ isset($pendingOrEndedLeases) ? $pendingOrEndedLeases->total() : 0 }} Total
-                            </span>
+                            
+                            <div class="flex items-center gap-3">
+                                {{-- Month Filter Form --}}
+                                <form id="leaseFilterForm" method="GET" action="{{ url()->current() }}" class="flex items-center gap-2">
+                                    {{-- Preserve other query parameters except lease_month so the page doesn't break other filters --}}
+                                    @foreach(request()->except(['lease_month', 'lease_page']) as $key => $value)
+                                        @if(is_array($value))
+                                            @foreach($value as $v)
+                                                <input type="hidden" name="{{ $key }}[]" value="{{ $v }}">
+                                            @endforeach
+                                        @else
+                                            <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                                        @endif
+                                    @endforeach
+
+                                    <input type="hidden" name="lease_year" value="{{ request('lease_year', date('Y')) }}">
+
+                                    @php
+                                        // Start with "All Months" as the first option (with an empty value)
+                                        $monthOptions = [
+                                            '' => 'All Months'
+                                        ];
+
+                                        // Append the 12 months
+                                        for ($m = 1; $m <= 12; $m++) {
+                                            $monthValue = str_pad($m, 2, '0', STR_PAD_LEFT);
+                                            $monthName = date('F', mktime(0, 0, 0, $m, 1));
+                                            $monthOptions[$monthValue] = $monthName;
+                                        }
+                                    @endphp
+
+                                    <div class="w-44">
+                                        <x-form.input-select 
+                                            name="lease_month" 
+                                            id="lease_month_filter"
+                                            :options="$monthOptions"
+                                            :value="request('lease_month', '')"
+                                            placeholder="All Months"
+                                            @change="document.getElementById('leaseFilterForm').submit()"
+                                        />
+                                    </div>
+                                </form>
+
+                                <span class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold whitespace-nowrap">
+                                    {{ isset($pendingOrEndedLeases) ? $pendingOrEndedLeases->total() : 0 }} Total
+                                </span>
+                            </div>
                         </div>
 
                         <div class="overflow-x-auto">
@@ -92,7 +136,9 @@
                                         <th class="py-3 px-4">Phone Number</th>
                                         <th class="py-3 px-4">End Date</th>
                                         <th class="py-3 px-4">Status</th>
+                                        @canany(['owner-admin', 'leases.renew lease', 'leases.check out lease'])
                                         <th class="py-3 px-4">Actions</th>
+                                        @endcanany
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-slate-50 text-sm">
@@ -135,19 +181,33 @@
                                                     <span class="px-2.5 py-1 text-[10px] font-bold uppercase bg-slate-100 text-slate-600 rounded-full">{{ $lease->status }}</span>
                                                 @endif
                                             </td>
-                                            <td class="py-3 px-4">
-                                                <div class="flex items-center gap-2">
-                                                    {{-- Renew Button --}}
-                                                    <button type="button" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold rounded-md shadow-sm transition-colors">
-                                                        Renew
-                                                    </button>
+                                            @canany(['owner-admin', 'leases.renew lease', 'leases.check out lease'])
+                                            <td class="py-3 px-4" @click.stop>
+                                                <div class="flex flex-col gap-1.5 w-full">
+                                                    {{-- Renew Button (Emerald Theme) --}}
+                                                    @canany(['owner-admin', 'leases.renew lease'])
+                                                    @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                                                        <button type="button" 
+                                                            @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: '{{ $lease->id }}' } }))"
+                                                            class="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-black rounded-lg border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
+                                                            RENEW LEASE
+                                                        </button>
+                                                    @endif
+                                                    @endcanany
 
-                                                    {{-- Check Out Button --}}
-                                                    <button type="button" class="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-md shadow-sm transition-colors">
-                                                        Check Out
-                                                    </button>
+                                                    {{-- Check Out Button (Amber Theme) --}}
+                                                    @canany(['owner-admin', 'leases.check out lease'])
+                                                    @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                                                        <button type="button" 
+                                                            @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } }))"
+                                                            class="px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-black rounded-lg border border-amber-100 hover:bg-amber-600 hover:text-white transition-all shadow-sm flex items-center justify-center whitespace-nowrap">
+                                                            CHECK OUT LEASE
+                                                        </button>
+                                                    @endif
+                                                    @endcanany
                                                 </div>
                                             </td>
+                                            @endcanany
                                         </tr>
                                     @empty
                                         <tr>
@@ -158,6 +218,20 @@
                                     @endforelse
                                 </tbody>
                             </table>
+
+                            <x-modals.lease-create-modal 
+                                :tenants="$tenants" 
+                                :leases="$modalLeases" {{-- Use unfiltered modal leases here --}}
+                                :properties="$properties" 
+                                :units="$units" 
+                                :rooms="$rooms" 
+                                :templates="$templates" 
+                                :rentFeeTypes="$rentFeeTypes" 
+                                :serviceFeeTypes="$serviceFeeTypes" 
+                                :depositFeeTypes="$depositFeeTypes" 
+                                :managementFeeTypes="$managementFeeTypes" 
+                                :leasePreviewData="$leasePreviewData" 
+                            />
                             
                             @if($pendingOrEndedLeases->hasPages())
                                 <div class="px-4 py-3 border-t border-slate-100">

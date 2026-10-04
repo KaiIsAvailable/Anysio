@@ -25,7 +25,7 @@ class LeaseController extends Controller
         $this->leaseService = $leaseService;
         $this->settingService = $settingService;
     }
-    public function index(Request $request)
+    public function index(Request $request, LeaseService $leaseService)
     {
         if (Gate::denies('owner-admin') && Gate::denies('leases.tab')) {
             return view('errors.403');
@@ -157,297 +157,27 @@ class LeaseController extends Controller
             return view('adminSide.leases._table', compact('leases', 'statusOptions'));
         }
 
-        return view('adminSide.leases.index', compact('leases', 'statusOptions'));
+        $leaseModalData = $leaseService->getLeaseFormPayload($userId, $request);
+
+        return view('adminSide.leases.index', array_merge([
+            'leases' => $leases,
+            'statusOptions' => $statusOptions,
+        ], $leaseModalData));
     }
 
-    public function create(Request $request, SettingService $settingService)
+    public function create(Request $request, LeaseService $leaseService)
     {
         if (Gate::denies('owner-admin') && Gate::denies('leases.lease controller')) {
             return view('errors.403');
         }
 
-        /** @var User $user */
         $user = get_effective_user();
+        $payload = $leaseService->getLeaseFormPayload($user, $request);
 
-        // ✅ 強制加上 ->select('properties.*')，防止 owner_id 遺失！
-        $properties = $this->getAuthorizedProperties()
-            ->select('properties.*')
-            ->with(['owner.owner'])
-            ->where('status', 'Vacant')
-            ->get();
-
-        $units = $this->getAuthorizedUnits()
-            ->select('units.*')
-            ->with(['property', 'owner.owner'])
-            ->where('status', 'Vacant')
-            ->get()
-            ->each(function ($unit) {
-                $propertyName = $unit->property?->name ?? 'N/A';
-                $unit->display_label = "{$unit->unit_no} ({$propertyName})";
-            });
-
-        $rooms = $this->getAuthorizedRooms()
-            ->select('rooms.*') // ✅ 強制撈出 room 的所有欄位
-            ->with(['unit.owner.owner', 'owner.owner'])
-            ->where('status', 'Vacant')
-            ->get();
-
-        $tenants = $this->applyOwnershipFilter(
-            Tenants::query(),
-            $user
-        )->get();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Fee Types
-        |--------------------------------------------------------------------------
-        */
-
-        $feeTypesQuery = FeeType::query()
-            ->where('is_active', true)
-            ->where(function ($query) use ($user) {
-                // System fee types are visible to everyone
-                $query->where('is_system', true);
-                // User-owned fee types
-                if ($user->role === 'ownerAdmin') {
-                    $query->orWhere('user_id', $user->id);
-                } elseif ($user->role === 'agentAdmin') {
-                    $managedOwnerIds = Owners::where('agent_id', $user->id)
-                        ->select('user_id');
-
-                    $query->orWhere('user_id', $user->id)
-                        ->orWhereIn('user_id', $managedOwnerIds);
-                }
-            });
-
-        $feeTypes = $feeTypesQuery
-            ->orderBy('category')
-            ->orderBy('name')
-            ->get();
-
-        $filteredFeeTypes = $settingService->filterActiveFeeTypes($feeTypes, $user->id);
-
-        $rentFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::RENT->value)->values();
-        $serviceFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::SERVICE->value)->values();
-        $depositFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::DEPOSIT->value)->values();
-        $managementFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::MANAGEMENT->value)->values();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Existing Leases
-        |--------------------------------------------------------------------------
-        */
-
-        $status = $request->query('status');
-
-        $leases = Lease::with([
-            'tenant.user',
-            'charges.feeType',
-            'parentLease.charges.feeType',
-            'leasable' => function ($morphTo) {
-                $morphTo->morphWith([
-                    Room::class => ['unit.owner'],
-                    Unit::class => ['owner'],
-                    Property::class => ['owner'],
-                ]);
-            }
-        ])
-            ->where('is_current', true)
-            ->when(
-                $status === 'End Agreement',
-                fn($q) => $q->where('status', 'Check Out'),
-                fn($q) => $q->whereIn('status', ['New', 'Renew'])
-            )
-            ->when(
-                $user->role !== 'admin',
-                fn($query) =>
-                $this->applyLeaseOwnershipFilter($query, $user)
-            )
-            ->get()
-            ->each(function ($lease) {
-                $tenantName = $lease->tenant->user->name ?? 'Tenant';
-                //$tenantIc = $lease->tenant->ic_number ?? 'IC';
-                $status = $lease->status ?? '';
-                $isPendingRenew = $lease->is_pending_renewal ? ' - Pending Renewal' : '';
-                
-                $propertyName = 'N/A';
-                $typeLabel = 'N/A';
-                $ownerId = null; // 👈 Initialize owner ID tracker
-
-                if ($lease->leasable instanceof Property) {
-                    $propertyName = $lease->leasable->name;
-                    $typeLabel = 'Property';
-                    $ownerId = $lease->leasable->owner_id ?? $lease->leasable->owner->id ?? null;
-                } elseif ($lease->leasable instanceof Unit) {
-                    $propertyName = $lease->leasable->unit_no;
-                    $typeLabel = 'Unit';
-                    $ownerId = $lease->leasable->owner_id ?? $lease->leasable->owner->id ?? null;
-                } elseif ($lease->leasable instanceof Room) {
-                    $propertyName = $lease->leasable->room_no;
-                    $typeLabel = 'Room';
-                    // Room -> Unit -> Owner structure
-                    $ownerId = $lease->leasable->unit->owner_id ?? $lease->leasable->unit->owner->id ?? null;
-                }
-
-                $dateRange = dateFormat($lease->start_date) . ' - ' . dateFormat($lease->end_date);
-                $lease->computed_label = "{$tenantName}- {$propertyName} ({$typeLabel}) {$dateRange} ({$status}{$isPendingRenew})";
-                $lease->owner_id = $ownerId; 
-            });
-
-        /*
-        |--------------------------------------------------------------------------
-        | Lease Preview Data
-        |--------------------------------------------------------------------------
-        */
-
-        $leasePreviewData = $leases->map(function ($lease) {
-            $leasable = $this->getLeasableWithOwner($lease);
-
-            $cumulativeSecurity = 0;
-            $cumulativeUtilities = 0;
-
-            $current = $lease;
-
-            while ($current) {
-                $cumulativeSecurity += $current->security_deposit ?? 0;
-                $cumulativeUtilities += $current->utilities_deposit ?? 0;
-
-                if ($current->parent_lease_id) {
-                    $current = Lease::find(
-                        $current->parent_lease_id
-                    );
-                } else {
-                    $current = null;
-                }
-            }
-
-            return array_merge(
-                $lease->toArray(),
-                [
-                    'leasable_name' => $this->getLeasableName($leasable),
-                    'leasable_address' => $this->getLeasableAddress($leasable),
-                    'owner_data' => $this->getOwnerData($leasable),
-                    'cumulative_security' => $cumulativeSecurity,
-                    'cumulative_utilities' => $cumulativeUtilities,
-                    'charges' => $lease->charges,
-                ]
-            );
-        });
-
-        /*
-        |--------------------------------------------------------------------------
-        | Agreement Templates
-        |--------------------------------------------------------------------------
-        */
-
-        $templates = $this->applyOwnershipFilter(
-            DocumentTemplate::query()
-                ->where('category', 'agreement')
-                ->where('status', 'active'),
-            $user,
-            'user_id'
-        )->get();
-
-        /*
-        |--------------------------------------------------------------------------
-        | Initial Variables
-        |--------------------------------------------------------------------------
-        */
-
-        $selectedRoom = null;
-        $selectedTenant = null;
-        $statuses = [
-            'New',
-            'Renew',
-            'Check Out',
-            'End Agreement',
-        ];
-
-        return view(
-            'adminSide.leases.create',
-            compact(
-                'properties',
-                'units',
-                'rooms',
-                'tenants',
-                'leases',
-                'leasePreviewData',
-                'templates',
-                'rentFeeTypes',
-                'serviceFeeTypes',
-                'depositFeeTypes',
-                'managementFeeTypes',
-                'statuses',
-                'selectedRoom',
-                'selectedTenant'
-            )
-        );
-    }
-
-    private function getLeasableWithOwner($lease)
-    {
-        if ($lease->leasable_type === 'App\Models\Property' || strpos($lease->leasable_type, 'Property') !== false) {
-            return Property::with('owner')->find($lease->leasable_id);
-        } elseif ($lease->leasable_type === 'App\Models\Unit' || strpos($lease->leasable_type, 'Unit') !== false) {
-            return Unit::with('owner')->find($lease->leasable_id);
-        } elseif ($lease->leasable_type === 'App\Models\Room' || strpos($lease->leasable_type, 'Room') !== false) {
-            return Room::with('unit.owner')->find($lease->leasable_id);
-        }
-        return null;
-    }
-
-    private function getLeasableName($leasable)
-    {
-        if ($leasable) {
-            if ($leasable instanceof Property) {
-                return $leasable->name;
-            } elseif ($leasable instanceof Unit) {
-                return $leasable->unit_no;
-            } elseif ($leasable instanceof Room) {
-                return $leasable->room_no;
-            }
-        }
-        return '';
-    }
-
-    private function getLeasableAddress($leasable)
-    {
-        if ($leasable) {
-            if ($leasable instanceof Property) {
-                return $leasable->full_address ?? '';
-            } elseif ($leasable instanceof Unit) {
-                return $leasable->full_address ?? '';
-            } elseif ($leasable instanceof Room) {
-                return $leasable->full_address ?? '';
-            }
-        }
-        return '';
-    }
-
-    private function getOwnerData($leasable)
-    {
-        if ($leasable) {
-            if ($leasable instanceof Property && $leasable->owner) {
-                return [
-                    'id' => $leasable->owner->id ?? '',
-                    'name' => $leasable->owner->name ?? '',
-                    'ic_number' => $leasable->owner->ic_number ?? '',
-                ];
-            } elseif ($leasable instanceof Unit && $leasable->owner) {
-                return [
-                    'id' => $leasable->owner->id ?? '',
-                    'name' => $leasable->owner->name ?? '',
-                    'ic_number' => $leasable->owner->ic_number ?? '',
-                ];
-            } elseif ($leasable instanceof Room && $leasable->unit && $leasable->unit->owner) {
-                return [
-                    'id' => $leasable->unit->owner->id ?? '',
-                    'name' => $leasable->unit->owner->name ?? '',
-                    'ic_number' => $leasable->unit->owner->ic_number ?? '',
-                ];
-            }
-        }
-        return ['id' => '', 'name' => '', 'ic_number' => ''];
+        return view('adminSide.leases.create', array_merge($payload, [
+            'selectedRoom' => null,
+            'selectedTenant' => null,
+        ]));
     }
 
     public function store(StoreLeaseRequest $request, LeaseService $leaseService)
@@ -461,10 +191,14 @@ class LeaseController extends Controller
             $request->validated()
         );
 
+        if ($request->input('redirect_to') === 'dashboard') {
+            return redirect()->route('admin.dashboard')->with('success', 'Lease created successfully.');
+        }
+
         return redirect()->route('admin.leases.index')->with('success', 'Lease processed successfully.');
     }
 
-    public function show(Request $request, Lease $lease)
+    public function show(Request $request, Lease $lease, LeaseService $leaseService)
     {
         if (Gate::denies('owner-admin') && Gate::denies('leases.show')) {
             return view('errors.403');
@@ -788,7 +522,17 @@ class LeaseController extends Controller
             ->where('is_system', false)
             ->get();
 
-        return view('adminSide.leases.show', compact('lease', 'leaseHistory', 'invoices', 'historyJson', 'feeTypes', 'settings', 'dueDateDays'));
+        $leaseModalData = $leaseService->getLeaseFormPayload($userId, $request);
+
+        return view('adminSide.leases.show', array_merge([
+            'lease' => $lease,
+            'leaseHistory' => $leaseHistory,
+            'invoices' => $invoices,
+            'historyJson' => $historyJson,
+            'feeTypes' => $feeTypes,
+            'settings' => $settings,
+            'dueDateDays' => $dueDateDays,
+        ], $leaseModalData));
     }
 
     public function edit()

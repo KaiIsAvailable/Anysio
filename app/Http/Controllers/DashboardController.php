@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\{Invoice, Owners, UserManagement, User, Lease, Property, Unit, Room};
-use App\Services\SetupCheckerService;
+use App\Services\{SetupCheckerService, LeaseService};
 use Illuminate\Support\Facades\{Auth, File, DB, Gate, Log};
 use App\Traits\RoleBasedDataTrait;
 use Illuminate\Http\Request;
@@ -12,7 +12,7 @@ class DashboardController extends Controller
 {
     use RoleBasedDataTrait;
 
-    public function index(SetupCheckerService $checker, Request $request)
+    public function index(SetupCheckerService $checker, Request $request, LeaseService $leaseService)
     {
         if (Gate::denies('owner-admin') && Gate::denies('dashboard.tab')) {
             return view('errors.403');
@@ -62,10 +62,16 @@ class DashboardController extends Controller
 
         // 3. Filter specifically for "Leases Needing Attention" 
         $pendingOrEndedLeases = $pendingOrEndedLeasesQuery
-            ->where('is_current', true) // 👈 Applies to everything below
+            ->where('is_current', true)
             ->where(function ($q) {
                 $q->where('is_pending_renewal', true)
                 ->orWhere('status', 'End');
+            })
+            // 👇 Make sure this is present and handles both month and year
+            ->when($request->filled('lease_month'), function ($q) use ($request) {
+                $year = $request->input('lease_year', date('Y'));
+                $q->whereYear('end_date', $year)
+                ->whereMonth('end_date', $request->input('lease_month'));
             })
             ->orderBy('end_date', 'asc')
             ->paginate(5, ['*'], 'lease_page')
@@ -147,7 +153,15 @@ class DashboardController extends Controller
             ->reject(fn ($name) => $name === 'DatabaseSeeder')
             ->mapWithKeys(fn ($name) => [$name => $name])
             ->toArray();
+        
+        $leaseModalData = $leaseService->getLeaseFormPayload($user, $request);
 
-        return view('dashboard', compact('overdueInvoices', 'checks', 'counts', 'seeders', 'pendingOrEndedLeases'));
+        return view('dashboard', array_merge([
+            'overdueInvoices' => $overdueInvoices,
+            'checks' => $checks,
+            'counts' => $counts,
+            'seeders' => $seeders,
+            'pendingOrEndedLeases' => $pendingOrEndedLeases,
+        ], $leaseModalData));
     }
 }

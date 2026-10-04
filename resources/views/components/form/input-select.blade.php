@@ -86,27 +86,40 @@
     },
 
     init() {
-        this.$watch('selectedValues', (newValues) => {
+        // Helper function to sync labels and values safely
+        const syncSelection = (val) => {
+            // Ensure valuesArray is always an array, whether val is scalar or array
+            let valuesArray = Array.isArray(val) ? val : (val !== null && val !== undefined && val !== '' ? [val] : []);
+            
             let labels = {};
-            newValues.forEach(val => {
-                let matched = this.options.find(opt => String(opt.value) === String(val));
+            valuesArray.forEach(v => {
+                let matched = this.options.find(opt => String(opt.value) === String(v));
                 if (matched) {
                     labels[matched.value] = matched.label;
                 }
             });
             this.selectedLabels = labels;
-            if (!this.isMultiple && newValues.length > 0) {
-                let matched = this.options.find(opt => String(opt.value) === String(newValues[0]));
+
+            if (!this.isMultiple && valuesArray.length > 0) {
+                let matched = this.options.find(opt => String(opt.value) === String(valuesArray[0]));
                 if (matched) {
                     this.selectedValue = matched.value;
                     this.selectedLabel = matched.label;
                     this.lastValidLabel = matched.label;
                 }
-            } else if (!this.isMultiple && newValues.length === 0) {
+            } else if (!this.isMultiple && valuesArray.length === 0) {
                 this.selectedValue = '';
                 this.selectedLabel = '';
                 this.lastValidLabel = '';
             }
+        };
+
+        // 1. Run immediately when the component mounts to catch pre-filled values
+        syncSelection(this.selectedValues);
+
+        // 2. Watch for any subsequent changes coming from the parent modal
+        this.$watch('selectedValues', (newValues) => {
+            syncSelection(newValues);
         });
     },
     get displayValue() {
@@ -186,7 +199,13 @@
             this.open = false;
         }, 200);
     }
-}" x-modelable="selectedValues" @click.away="open = false" class="relative w-full" {!! $attributes->only(['@change', 'x-on:change']) !!}>
+}" 
+x-modelable="selectedValues" 
+@click.away="open = false" 
+class="relative w-full" 
+{{ $attributes->whereStartsWith('x-model') }}
+{!! $attributes->only(['@change', 'x-on:change']) !!}
+>
 
     <!-- Hidden native input(s) for form submission -->
     <template x-if="isMultiple">

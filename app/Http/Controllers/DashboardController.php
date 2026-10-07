@@ -151,13 +151,19 @@ class DashboardController extends Controller
             ->whereHas('lease.tenant', function ($query) use ($user) {
                 $query->where('created_by', $user->id);
             })
+            // 👇 Add month and year filtering for overdue invoices
+            ->when($request->filled('invoice_month'), function ($q) use ($request) {
+                $year = $request->input('invoice_year', date('Y'));
+                $q->whereYear('due_date', $year)
+                  ->whereMonth('due_date', $request->input('invoice_month'));
+            })
             ->orderBy('due_date', 'asc')
             ->paginate(5, ['*'], 'invoice_page')
             ->onEachSide(1)
             ->appends($request->query())
             ->fragment('overdue-section');
 
-        // 3. Transform the collection using InvoiceService so items & wallet balances are correctly structured
+        // Transform collection using InvoiceService
         $paginatedOverdueInvoices->setCollection(
             $paginatedOverdueInvoices->getCollection()->map(function ($invoice) {
                 return (object) $this->invoiceService->transformInvoice($invoice);

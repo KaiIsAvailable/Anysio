@@ -257,11 +257,55 @@
                             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
                                 
                                 <!-- Header (Fixed) -->
-                                <div class="flex justify-between items-center mb-4 shrink-0">
+                                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 shrink-0">
                                     <h3 class="font-bold text-slate-900 text-base uppercase tracking-wider">Overdue Invoices</h3>
-                                    <span class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold">
-                                        {{ isset($overdueInvoices) ? $overdueInvoices->total() : 0 }} Total
-                                    </span>
+                                    
+                                    <div class="flex items-center gap-3">
+                                        {{-- Invoice Month Filter Form --}}
+                                        <form id="invoiceFilterForm" method="GET" action="{{ url()->current() }}#overdue-section" class="flex items-center gap-2">
+                                            {{-- Preserve other query parameters except invoice_month and invoice_page --}}
+                                            @if(request()->except(['invoice_month', 'invoice_page']))
+                                                @foreach(request()->except(['invoice_month', 'invoice_page']) as $key => $value)
+                                                    @if(is_array($value))
+                                                        @foreach($value as $v)
+                                                            <input type="hidden" name="{{ $key }}[]" value="{{ $v }}">
+                                                        @endforeach
+                                                    @else
+                                                        <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                                                    @endif
+                                                @endforeach
+                                            @endif
+
+                                            <input type="hidden" name="invoice_year" value="{{ request('invoice_year', date('Y')) }}">
+
+                                            @php
+                                                $invoiceMonthOptions = [
+                                                    '' => 'All Months'
+                                                ];
+
+                                                for ($m = 1; $m <= 12; $m++) {
+                                                    $monthValue = str_pad($m, 2, '0', STR_PAD_LEFT);
+                                                    $monthName = date('F', mktime(0, 0, 0, $m, 1));
+                                                    $invoiceMonthOptions[$monthValue] = $monthName;
+                                                }
+                                            @endphp
+
+                                            <div class="w-44">
+                                                <x-form.input-select 
+                                                    name="invoice_month" 
+                                                    id="invoice_month_filter"
+                                                    :options="$invoiceMonthOptions"
+                                                    :value="request('invoice_month', '')"
+                                                    placeholder="All Months"
+                                                    @change="document.getElementById('invoiceFilterForm').submit()"
+                                                />
+                                            </div>
+                                        </form>
+
+                                        <span class="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold whitespace-nowrap">
+                                            {{ isset($overdueInvoices) ? $overdueInvoices->total() : 0 }} Total
+                                        </span>
+                                    </div>
                                 </div>
 
                                 <!-- Content Area (Scrollable / Flexible Container) -->

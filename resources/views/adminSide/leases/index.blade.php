@@ -39,12 +39,34 @@
 
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
                 <div class="p-5 border-b border-gray-100 bg-white">
-                    <div class="flex justify-end">
-                        <x-form.form method="GET" action="{{ route('admin.leases.index') }}" class="flex flex-wrap items-center gap-4">
-                            <div class="flex items-stretch justify-between">
-                                <x-table.search :isAdvanceSearch="true" :withDate="true" placeholder="Search by name, unit, property..." />
+                    <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+                        @if(isset($packageLimitInfo))
+                            <div class="flex flex-col sm:flex-row items-start sm:items-center rounded-lg bg-gray-50 p-3 border border-gray-100 gap-3 w-full md:w-auto">
+                                <div class="flex items-center space-x-3">
+                                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold {{ $packageLimitInfo['isReached'] ? 'bg-red-100 text-red-800' : 'bg-emerald-100 text-emerald-800' }}">
+                                        Active Leases: {{ $packageLimitInfo['current'] }} / {{ $packageLimitInfo['limit'] }}
+                                    </span>
+                                </div>
+
+                                @if($packageLimitInfo['isReached'])
+                                    <span class="text-xs font-medium text-red-600">
+                                        ⚠️ Limit reached.
+                                    </span>
+                                @endif
                             </div>
-                        </x-form.form>
+                        @else
+                            <div></div>
+                        @endif
+
+                        <!-- Right Side: Search Form -->
+                        <div class="w-full md:w-auto flex justify-end">
+                            <x-form.form method="GET" action="{{ route('admin.leases.index') }}" class="flex flex-wrap items-center gap-4">
+                                <div class="flex items-stretch justify-between w-full md:w-auto">
+                                    <x-table.search :isAdvanceSearch="true" :withDate="true" placeholder="Search by name, unit, property..." />
+                                </div>
+                            </x-form.form>
+                        </div>
+
                     </div>
                 </div>
 
@@ -192,7 +214,7 @@
                                                                     View Cert
                                                                 </a>
                                                             </div>
-                                                        @elseif(!in_array(strtolower($lease->status), ['check out', 'end agreement']))
+                                                        @elseif(!in_array(strtolower($lease->status), ['check out', 'end']))
                                                             <span class="text-sm font-semibold text-amber-600 flex items-center gap-1 whitespace-nowrap">
                                                                 Stamping Pending
                                                             </span>
@@ -230,7 +252,7 @@
 
                                                             {{-- 1. Upload Stamping (if not checked out/ended and no cert yet) --}}
                                                             @canany(['owner-admin', 'leases.upload stamping'])
-                                                                @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
+                                                                @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out']))
                                                                     <button type="button" 
                                                                         @click="openUpload = true; openDropdown = false;"
                                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center whitespace-nowrap">
@@ -273,7 +295,7 @@
 
                                                             {{-- 3. Renew Lease --}}
                                                             @canany(['owner-admin', 'leases.renew lease'])
-                                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out']))
                                                                     <button type="button" 
                                                                         @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
                                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center">
@@ -284,7 +306,7 @@
 
                                                             {{-- 4. Check Out --}}
                                                             @canany(['owner-admin', 'leases.check out lease'])
-                                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out']))
                                                                     <button type="button" 
                                                                         @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
                                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50 transition-colors flex items-center">

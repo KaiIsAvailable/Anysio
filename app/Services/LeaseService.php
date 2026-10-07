@@ -196,7 +196,7 @@ class LeaseService
     {
         $targetStatus = match ($status) {
             'Check Out' => 'Cleaning',
-            'End Agreement' => 'Vacant',
+            'End' => 'Vacant',
             default => 'Occupied',
         };
 
@@ -206,7 +206,7 @@ class LeaseService
             'status' => $targetStatus,
         ]);
 
-        if (in_array($status, ['Check Out', 'End Agreement'])) {
+        if (in_array($status, ['Check Out', 'End'])) {
             $leasable->syncStatus();
         }
     }
@@ -227,7 +227,7 @@ class LeaseService
             ? $this->parseDate($data['checked_out_at'] ?? null)
             : null;
 
-        $agreementEndedAt = $status === 'End Agreement'
+        $agreementEndedAt = $status === 'End'
             ? $this->parseDate($data['agreement_ended_at'] ?? null)
             : null;
 
@@ -365,10 +365,16 @@ class LeaseService
                 'cancelled_at' => now(),
                 'cancelled_by' => Auth::id(),
                 'cancellation_reason' => $reason,
+                'is_current' => 0,
             ]);
-            
-            if ($lease->leasable) {
-                $lease->leasable->update(['status' => 'vacant']);
+
+            // If there is a previous lease, reactivate it. Otherwise, mark the unit vacant.
+            if ($lease->parent_lease_id) {
+                Lease::where('id', $lease->parent_lease_id)->update(['is_current' => 1]);
+            } else {
+                if ($lease->leasable) {
+                    $lease->leasable->update(['status' => 'vacant']);
+                }
             }
         });
     }
@@ -473,7 +479,7 @@ class LeaseService
         $leases = Lease::with($leaseRelations)
             ->where('is_current', true)
             ->when(
-                $status === 'End Agreement',
+                $status === 'End',
                 fn($q) => $q->where('status', 'Check Out'),
                 fn($q) => $q->whereIn('status', ['New', 'Renew'])
             )
@@ -521,7 +527,7 @@ class LeaseService
             'user_id'
         )->get();
 
-        $statuses = ['New', 'Renew', 'Check Out', 'End Agreement'];
+        $statuses = ['New', 'Renew', 'Check Out', 'End'];
 
         return compact(
             'properties',

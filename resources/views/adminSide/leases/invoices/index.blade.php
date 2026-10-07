@@ -248,7 +248,7 @@
 
                                 <!-- Remarks -->
                                 <td class="px-6 py-4">
-                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->remarks }}</div>
+                                    <div class="text-sm font-medium text-slate-900 whitespace-nowrap">{{ $invoice->remarks }}</div>
                                 </td>
                             </tr>
                             @endforeach

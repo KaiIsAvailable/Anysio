@@ -32,6 +32,7 @@ class LeaseController extends Controller
         }
 
         $userId = get_effective_user();
+        $effectiveUserId = $userId->id;
         $search = $request->input('search');
         $status = $request->input('status');
 
@@ -146,12 +147,17 @@ class LeaseController extends Controller
             $query->where('status', '!=', 'cancelled');
         }
 
+        $countQuery = clone $query;
+        $currentActiveCount = $countQuery->where('is_current', true)
+            ->whereIn('status', ['New', 'Renew', 'Check Out', 'End'])
+            ->count();
+
         $leases = $query->where('is_current', true)
             ->paginate(10)
             ->onEachSide(1)
             ->appends($request->query());
 
-        $statusOptions = ['New', 'Renew', 'Check out', 'End Agreement'];
+        $statusOptions = ['New', 'Renew', 'Check Out', 'End'];
 
         if ($request->ajax()) {
             return view('adminSide.leases._table', compact('leases', 'statusOptions'));
@@ -159,10 +165,31 @@ class LeaseController extends Controller
 
         $leaseModalData = $leaseService->getLeaseFormPayload($userId, $request);
 
-        return view('adminSide.leases.index', array_merge([
-            'leases' => $leases,
-            'statusOptions' => $statusOptions,
-        ], $leaseModalData));
+        $packageLimitInfo = null;
+        if (!in_array($user->role, ['admin']) && $userId) {
+            $management = $userId->user_management;
+            if ($management && $management->package) {
+                $baseLimit = (int) $management->package->base_lease;
+                $extraLimit = (int) $management->extra_lease;
+                $totalLimit = $baseLimit + $extraLimit;
+
+                $packageLimitInfo = [
+                    'packageName' => $management->package->name,
+                    'current' => $currentActiveCount, // Uses the filtered count above
+                    'limit' => $totalLimit,
+                    'isReached' => $currentActiveCount >= $totalLimit,
+                ];
+            }
+        }
+
+        return view('adminSide.leases.index', array_merge(
+            $leaseModalData,
+            [
+                'statusOptions' => $statusOptions,
+                'packageLimitInfo' => $packageLimitInfo,
+                'leases' => $leases, // 🌟 Placing it here ensures it always wins and uses the controller's paginated list!
+            ]
+        ));
     }
 
     public function create(Request $request, LeaseService $leaseService)
@@ -624,6 +651,6 @@ class LeaseController extends Controller
             return redirect()->back()->withErrors(['cancellation_reason' => $e->getMessage()]);
         }
 
-        return redirect()->back()->with('success', 'Lease has been successfully cancelled.');
+        return redirect()->route('admin.leases.index')->with('success', 'Lease has been successfully cancelled.');
     }
 }

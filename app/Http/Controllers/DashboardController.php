@@ -63,6 +63,7 @@ class DashboardController extends Controller
         // 3. Filter specifically for "Leases Needing Attention" 
         $pendingOrEndedLeases = $pendingOrEndedLeasesQuery
             ->where('is_current', true)
+            ->where('status', '!=', 'cancelled')
             ->where(function ($q) {
                 $q->where('is_pending_renewal', true)
                 ->orWhere('status', 'End');

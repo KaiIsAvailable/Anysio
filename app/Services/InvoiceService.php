@@ -355,13 +355,13 @@ class InvoiceService
     /**
      * 自動為新租約 (New/Renew) 產生第一期帳單，並自動關聯 Active 的 Invoice Template
      */
-    public function createInitialInvoiceForLease(Lease $lease, User $currentUser): ?Invoice
+    public function createInitialInvoiceForLease(Lease $lease, User $currentUser): \Illuminate\Support\Collection
     {
         return DB::transaction(function () use ($lease, $currentUser) {
             $charges = $lease->charges()->with('feeType')->get();
             
             if ($charges->isEmpty()) {
-                return null;
+                return collect();
             }
 
             $ownerId = $currentUser->id;
@@ -377,56 +377,55 @@ class InvoiceService
                 ->where('status', 'active')
                 ->where(function($query) use ($ownerId, $currentUser) {
                     $query->whereIn('user_id', [$ownerId, $currentUser->id])
-                          ->orWhereNull('user_id'); 
+                        ->orWhereNull('user_id'); 
                 })
-                ->first();
-
-            if (!$template) {
-                $template = DocumentTemplate::where('category', 'invoice')
+                ->first() ?? DocumentTemplate::where('category', 'invoice')
                     ->where('status', 'active')
                     ->first();
-            }
 
-            $totalCents = 0;
-            $items = [];
-
-            foreach ($charges as $charge) {
-                $items[] = [
-                    'fee_type'     => $charge->feeType,
-                    'amount_cents' => $charge->amount,
-                    'description'  => $charge->description,
-                ];
-                $totalCents += $charge->amount;
-            }
-
-            if ($totalCents <= 0) {
-                return null;
-            }
-
-            $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
+            $invoices = collect();
             $dueDate = $lease->start_date ?? now()->toDateString();
             $periodDate = Carbon::parse($lease->start_date ?? now())->startOfMonth()->toDateString();
 
-            $invoice = Invoice::create([
-                //'user_id'              => $currentUser->id,
-                'billable_type'        => User::class,
-                'billable_id'          => $currentUser->id,
-                'lease_id'             => $lease->id,
-                'document_template_id' => $template?->id,
-                'invoice_no'           => $invoiceNo,
-                'type'                 => 'rent',
-                'period'               => $periodDate,
-                'due_date'             => $dueDate,
-                'total_amount'         => $totalCents,
-                'amount_paid'          => 0,
-                'amount_balance'       => $totalCents,
-                'status'               => 'unpaid',
-                'remarks'              => 'Initial Invoice for Lease (Includes Deposits & First Rent)',
-            ]);
+            foreach ($charges as $charge) {
+                $amountCents = $charge->amount;
 
-            $this->saveInvoiceItems($invoice, $items);
+                if ($amountCents <= 0) {
+                    continue;
+                }
 
-            return $invoice->load('items.feeType', 'documentTemplate');
+                // Generate a unique invoice number for each individual invoice item
+                $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
+
+                $invoice = Invoice::create([
+                    'billable_type'        => User::class,
+                    'billable_id'          => $currentUser->id,
+                    'lease_id'             => $lease->id,
+                    'document_template_id' => $template?->id,
+                    'invoice_no'           => $invoiceNo,
+                    'type'                 => 'rent',
+                    'period'               => $periodDate,
+                    'due_date'             => $dueDate,
+                    'total_amount'         => $amountCents,
+                    'amount_paid'          => 0,
+                    'amount_balance'       => $amountCents,
+                    'status'               => 'unpaid',
+                    'remarks'              => $charge->description ? "Invoice for: {$charge->description}" : 'Initial Lease Charge Invoice',
+                ]);
+
+                // Save the single charge item to this specific invoice
+                $this->saveInvoiceItems($invoice, [
+                    [
+                        'fee_type'     => $charge->feeType,
+                        'amount_cents' => $amountCents,
+                        'description'  => $charge->description,
+                    ]
+                ]);
+
+                $invoices->push($invoice->load('items.feeType', 'documentTemplate'));
+            }
+
+            return $invoices;
         });
     }
 

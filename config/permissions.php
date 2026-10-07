@@ -9,7 +9,7 @@ return [
         'property'          => ['tab', 'create', 'edit', 'delete', 'show unit'],
         'unit'              => ['create', 'edit', 'delete', 'show room'],
         'room'              => ['create', 'edit', 'delete', 'show'],
-        'leases'            => ['tab', 'agreement template', 'lease controller', 'upload stamping', 'view agreement', 'cancel lease', 'show', 'auto generate invoice', 'add manual invoice', 'record payment', 'void', 'view invoice', 'view receipt'],
+        'leases'            => ['tab', 'agreement template', 'lease controller', 'upload stamping', 'view agreement', 'renew lease', 'check out lease', 'cancel lease', 'show', 'auto generate invoice', 'add manual invoice', 'record payment', 'void', 'view invoice', 'view receipt'],
         'document template' => ['create', 'preview', 'print', 'edit', 'set active document'],
         'invoice'           => ['tab', 'record payment', 'void', 'view invoice', 'view receipt'],
         'staff'             => ['tab', 'create', 'edit', 'delete', 'show'],

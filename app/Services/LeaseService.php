@@ -3,24 +3,19 @@
 namespace App\Services;
 use Exception;
 use Illuminate\Support\Facades\Auth;
-
-use App\Models\{
-    Lease,
-    LeaseCharge,
-    FeeType,
-    Property,
-    Unit,
-    Room,
-    User
-};
+use App\Traits\RoleBasedDataTrait;
+use App\Models\{Lease, LeaseCharge, FeeType, Property, Unit, Room, User, Tenants, Owners, DocumentTemplate};
 use App\FeeTypeCategory;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Http\Request;
 
 class LeaseService
 {
+    use RoleBasedDataTrait;
+
     public function __construct(
         protected InvoiceService $invoiceService
     ) {
@@ -201,7 +196,7 @@ class LeaseService
     {
         $targetStatus = match ($status) {
             'Check Out' => 'Cleaning',
-            'End Agreement' => 'Vacant',
+            'End' => 'Vacant',
             default => 'Occupied',
         };
 
@@ -211,7 +206,7 @@ class LeaseService
             'status' => $targetStatus,
         ]);
 
-        if (in_array($status, ['Check Out', 'End Agreement'])) {
+        if (in_array($status, ['Check Out', 'End'])) {
             $leasable->syncStatus();
         }
     }
@@ -232,7 +227,7 @@ class LeaseService
             ? $this->parseDate($data['checked_out_at'] ?? null)
             : null;
 
-        $agreementEndedAt = $status === 'End Agreement'
+        $agreementEndedAt = $status === 'End'
             ? $this->parseDate($data['agreement_ended_at'] ?? null)
             : null;
 
@@ -370,11 +365,251 @@ class LeaseService
                 'cancelled_at' => now(),
                 'cancelled_by' => Auth::id(),
                 'cancellation_reason' => $reason,
+                'is_current' => 0,
             ]);
-            
-            if ($lease->leasable) {
-                $lease->leasable->update(['status' => 'vacant']);
+
+            // If there is a previous lease, reactivate it. Otherwise, mark the unit vacant.
+            if ($lease->parent_lease_id) {
+                Lease::where('id', $lease->parent_lease_id)->update(['is_current' => 1]);
+            } else {
+                if ($lease->leasable) {
+                    $lease->leasable->update(['status' => 'vacant']);
+                }
             }
         });
     }
+
+    public function getLeaseFormPayload($user, Request $request): array
+    {
+        // 1. Properties
+        $properties = $this->getAuthorizedProperties($user)
+            ->select('properties.*')
+            ->with(['owner.owner'])
+            ->where('status', 'Vacant')
+            ->get();
+
+        // 2. Units
+        $units = $this->getAuthorizedUnits($user)
+            ->select('units.*')
+            ->with(['property', 'owner.owner'])
+            ->where('status', 'Vacant')
+            ->get()
+            ->each(function ($unit) {
+                $propertyName = $unit->property?->name ?? 'N/A';
+                $unit->display_label = "{$unit->unit_no} ({$propertyName})";
+            });
+
+        // 3. Rooms
+        $rooms = $this->getAuthorizedRooms($user)
+            ->select('rooms.*')
+            ->with(['unit.owner.owner', 'owner.owner'])
+            ->where('status', 'Vacant')
+            ->get();
+
+        // 4. Tenants
+        $tenants = $this->applyOwnershipFilter(Tenants::query(), $user)->get();
+
+        // 5. Fee Types
+        $feeTypesQuery = FeeType::query()
+            ->where('is_active', true)
+            ->where(function ($query) use ($user) {
+                $query->where('is_system', true);
+                if ($user->role === 'ownerAdmin') {
+                    $query->orWhere('user_id', $user->id);
+                } elseif ($user->role === 'agentAdmin') {
+                    $managedOwnerIds = Owners::where('agent_id', $user->id)->select('user_id');
+                    $query->orWhere('user_id', $user->id)
+                          ->orWhereIn('user_id', $managedOwnerIds);
+                }
+            });
+
+        $feeTypes = $feeTypesQuery->orderBy('category')->orderBy('name')->get();
+        $settingService = app(SettingService::class);
+        $filteredFeeTypes = $settingService->filterActiveFeeTypes($feeTypes, $user->id);
+
+        $rentFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::RENT->value)->values();
+        $serviceFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::SERVICE->value)->values();
+        $depositFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::DEPOSIT->value)->values();
+        $managementFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::MANAGEMENT->value)->values();
+
+        // Base shared eager-loading and formatter closure for leases
+        $leaseRelations = [
+            'tenant.user',
+            'charges.feeType',
+            'parentLease.charges.feeType',
+            'leasable' => function ($morphTo) {
+                $morphTo->morphWith([
+                    Room::class => ['unit.owner'],
+                    Unit::class => ['owner'],
+                    Property::class => ['owner'],
+                ]);
+            }
+        ];
+
+        $formatLeaseCallback = function ($lease) {
+            $tenantName = $lease->tenant->user->name ?? 'Tenant';
+            $status = $lease->status ?? '';
+            $isPendingRenew = $lease->is_pending_renewal ? ' - Pending Renewal' : '';
+            
+            $propertyName = 'N/A';
+            $typeLabel = 'N/A';
+            $ownerId = null;
+
+            if ($lease->leasable instanceof Property) {
+                $propertyName = $lease->leasable->name;
+                $typeLabel = 'Property';
+                $ownerId = $lease->leasable->owner_id ?? $lease->leasable->owner->id ?? null;
+            } elseif ($lease->leasable instanceof Unit) {
+                $propertyName = $lease->leasable->unit_no;
+                $typeLabel = 'Unit';
+                $ownerId = $lease->leasable->owner_id ?? $lease->leasable->owner->id ?? null;
+            } elseif ($lease->leasable instanceof Room) {
+                $propertyName = $lease->leasable->room_no;
+                $typeLabel = 'Room';
+                $ownerId = $lease->leasable->unit->owner_id ?? $lease->leasable->unit->owner->id ?? null;
+            }
+
+            $dateRange = dateFormat($lease->start_date) . ' - ' . dateFormat($lease->end_date);
+            $lease->computed_label = "{$tenantName}- {$propertyName} ({$typeLabel}) {$dateRange} ({$status}{$isPendingRenew})";
+            $lease->owner_id = $ownerId; 
+        };
+
+        // 6. Filtered Existing Leases (For Table / Tabs)
+        $status = $request->query('status');
+        $leases = Lease::with($leaseRelations)
+            ->where('is_current', true)
+            ->when(
+                $status === 'End',
+                fn($q) => $q->where('status', 'Check Out'),
+                fn($q) => $q->whereIn('status', ['New', 'Renew'])
+            )
+            ->when($user->role !== 'admin', fn($query) => $this->applyLeaseOwnershipFilter($query, $user))
+            ->get()
+            ->each($formatLeaseCallback);
+
+        // 6b. ALL Current Leases (For Modals so checkout/renew selections never fail)
+        $modalLeases = Lease::with($leaseRelations)
+            ->where('is_current', true)
+            ->when($user->role !== 'admin', fn($query) => $this->applyLeaseOwnershipFilter($query, $user))
+            ->get()
+            ->each($formatLeaseCallback);
+
+        // 7. Lease Preview Data (Built from $modalLeases to ensure preview capability for all current leases)
+        $leasePreviewData = $modalLeases->map(function ($lease) {
+            $leasable = $this->getLeasableWithOwner($lease);
+            $cumulativeSecurity = 0;
+            $cumulativeUtilities = 0;
+            $current = $lease;
+
+            while ($current) {
+                $cumulativeSecurity += $current->security_deposit ?? 0;
+                $cumulativeUtilities += $current->utilities_deposit ?? 0;
+                $current = $current->parent_lease_id ? Lease::find($current->parent_lease_id) : null;
+            }
+
+            return array_merge(
+                $lease->toArray(),
+                [
+                    'leasable_name' => $this->getLeasableName($leasable),
+                    'leasable_address' => $this->getLeasableAddress($leasable),
+                    'owner_data' => $this->getOwnerData($leasable),
+                    'cumulative_security' => $cumulativeSecurity,
+                    'cumulative_utilities' => $cumulativeUtilities,
+                    'charges' => $lease->charges,
+                ]
+            );
+        });
+
+        // 8. Templates
+        $templates = $this->applyOwnershipFilter(
+            DocumentTemplate::query()->where('category', 'agreement')->where('status', 'active'),
+            $user,
+            'user_id'
+        )->get();
+
+        $statuses = ['New', 'Renew', 'Check Out', 'End'];
+
+        return compact(
+            'properties',
+            'units',
+            'rooms',
+            'tenants',
+            'leases',
+            'modalLeases', // <--- Pass this to your payload array
+            'leasePreviewData',
+            'templates',
+            'rentFeeTypes',
+            'serviceFeeTypes',
+            'depositFeeTypes',
+            'managementFeeTypes',
+            'statuses'
+        );
+    }
+
+    private function getLeasableWithOwner($lease)
+    {
+        if ($lease->leasable_type === 'App\Models\Property' || strpos($lease->leasable_type, 'Property') !== false) {
+            return Property::with('owner')->find($lease->leasable_id);
+        } elseif ($lease->leasable_type === 'App\Models\Unit' || strpos($lease->leasable_type, 'Unit') !== false) {
+            return Unit::with('owner')->find($lease->leasable_id);
+        } elseif ($lease->leasable_type === 'App\Models\Room' || strpos($lease->leasable_type, 'Room') !== false) {
+            return Room::with('unit.owner')->find($lease->leasable_id);
+        }
+        return null;
+    }
+
+    private function getLeasableName($leasable)
+    {
+        if ($leasable) {
+            if ($leasable instanceof Property) {
+                return $leasable->name;
+            } elseif ($leasable instanceof Unit) {
+                return $leasable->unit_no;
+            } elseif ($leasable instanceof Room) {
+                return $leasable->room_no;
+            }
+        }
+        return '';
+    }
+
+    private function getLeasableAddress($leasable)
+    {
+        if ($leasable) {
+            if ($leasable instanceof Property) {
+                return $leasable->full_address ?? '';
+            } elseif ($leasable instanceof Unit) {
+                return $leasable->full_address ?? '';
+            } elseif ($leasable instanceof Room) {
+                return $leasable->full_address ?? '';
+            }
+        }
+        return '';
+    }
+
+    private function getOwnerData($leasable)
+    {
+        if ($leasable) {
+            if ($leasable instanceof Property && $leasable->owner) {
+                return [
+                    'id' => $leasable->owner->id ?? '',
+                    'name' => $leasable->owner->name ?? '',
+                    'ic_number' => $leasable->owner->ic_number ?? '',
+                ];
+            } elseif ($leasable instanceof Unit && $leasable->owner) {
+                return [
+                    'id' => $leasable->owner->id ?? '',
+                    'name' => $leasable->owner->name ?? '',
+                    'ic_number' => $leasable->owner->ic_number ?? '',
+                ];
+            } elseif ($leasable instanceof Room && $leasable->unit && $leasable->unit->owner) {
+                return [
+                    'id' => $leasable->unit->owner->id ?? '',
+                    'name' => $leasable->unit->owner->name ?? '',
+                    'ic_number' => $leasable->unit->owner->ic_number ?? '',
+                ];
+            }
+        }
+        return ['id' => '', 'name' => '', 'ic_number' => ''];
+    }
+
 }

@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate, Tenants, Wallet, LeaseCharge};
+use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate, Tenants, Wallet, LeaseCharge, Property, Unit, Room};
 use Carbon\Carbon;
 use Illuminate\Support\Facades\{DB, Log, Auth};
 
@@ -355,13 +355,13 @@ class InvoiceService
     /**
      * 自動為新租約 (New/Renew) 產生第一期帳單，並自動關聯 Active 的 Invoice Template
      */
-    public function createInitialInvoiceForLease(Lease $lease, User $currentUser): ?Invoice
+    public function createInitialInvoiceForLease(Lease $lease, User $currentUser): \Illuminate\Support\Collection
     {
         return DB::transaction(function () use ($lease, $currentUser) {
             $charges = $lease->charges()->with('feeType')->get();
             
             if ($charges->isEmpty()) {
-                return null;
+                return collect();
             }
 
             $ownerId = $currentUser->id;
@@ -377,56 +377,55 @@ class InvoiceService
                 ->where('status', 'active')
                 ->where(function($query) use ($ownerId, $currentUser) {
                     $query->whereIn('user_id', [$ownerId, $currentUser->id])
-                          ->orWhereNull('user_id'); 
+                        ->orWhereNull('user_id'); 
                 })
-                ->first();
-
-            if (!$template) {
-                $template = DocumentTemplate::where('category', 'invoice')
+                ->first() ?? DocumentTemplate::where('category', 'invoice')
                     ->where('status', 'active')
                     ->first();
-            }
 
-            $totalCents = 0;
-            $items = [];
-
-            foreach ($charges as $charge) {
-                $items[] = [
-                    'fee_type'     => $charge->feeType,
-                    'amount_cents' => $charge->amount,
-                    'description'  => $charge->description,
-                ];
-                $totalCents += $charge->amount;
-            }
-
-            if ($totalCents <= 0) {
-                return null;
-            }
-
-            $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
+            $invoices = collect();
             $dueDate = $lease->start_date ?? now()->toDateString();
             $periodDate = Carbon::parse($lease->start_date ?? now())->startOfMonth()->toDateString();
 
-            $invoice = Invoice::create([
-                //'user_id'              => $currentUser->id,
-                'billable_type'        => User::class,
-                'billable_id'          => $currentUser->id,
-                'lease_id'             => $lease->id,
-                'document_template_id' => $template?->id,
-                'invoice_no'           => $invoiceNo,
-                'type'                 => 'rent',
-                'period'               => $periodDate,
-                'due_date'             => $dueDate,
-                'total_amount'         => $totalCents,
-                'amount_paid'          => 0,
-                'amount_balance'       => $totalCents,
-                'status'               => 'unpaid',
-                'remarks'              => 'Initial Invoice for Lease (Includes Deposits & First Rent)',
-            ]);
+            foreach ($charges as $charge) {
+                $amountCents = $charge->amount;
 
-            $this->saveInvoiceItems($invoice, $items);
+                if ($amountCents <= 0) {
+                    continue;
+                }
 
-            return $invoice->load('items.feeType', 'documentTemplate');
+                // Generate a unique invoice number for each individual invoice item
+                $invoiceNo = $this->documentSequenceService->generateInvoiceNumber($currentUser);
+
+                $invoice = Invoice::create([
+                    'billable_type'        => User::class,
+                    'billable_id'          => $currentUser->id,
+                    'lease_id'             => $lease->id,
+                    'document_template_id' => $template?->id,
+                    'invoice_no'           => $invoiceNo,
+                    'type'                 => 'rent',
+                    'period'               => $periodDate,
+                    'due_date'             => $dueDate,
+                    'total_amount'         => $amountCents,
+                    'amount_paid'          => 0,
+                    'amount_balance'       => $amountCents,
+                    'status'               => 'unpaid',
+                    'remarks'              => $charge->description ? "Invoice for: {$charge->description}" : 'Initial Lease Charge Invoice',
+                ]);
+
+                // Save the single charge item to this specific invoice
+                $this->saveInvoiceItems($invoice, [
+                    [
+                        'fee_type'     => $charge->feeType,
+                        'amount_cents' => $amountCents,
+                        'description'  => $charge->description,
+                    ]
+                ]);
+
+                $invoices->push($invoice->load('items.feeType', 'documentTemplate'));
+            }
+
+            return $invoices;
         });
     }
 
@@ -572,6 +571,109 @@ class InvoiceService
             'owner_email'             => $ownerEmail,
             'company_email'           => $ownerEmail,
             'company_registration_no' => $companyNo, 
+        ];
+    }
+
+    public function transformInvoice($invoice)
+    {
+        $rawPeriod = $invoice->period_display ?? $invoice->period;
+
+        $formattedPeriod = '—';
+        if ($rawPeriod) {
+            try {
+                $formattedPeriod = \Carbon\Carbon::parse($rawPeriod)->format('m/Y');
+            } catch (\Exception $e) {
+                $formattedPeriod = $rawPeriod;
+            }
+        }
+
+        $invoiceItems = $invoice->items->map(function ($subItem) {
+            return [
+                'description' => $subItem->feeType?->name ?? 'Item',
+                'amount' => number_format(($subItem->amount ?? 0) / 100, 2),
+                'category' => $subItem->feeType?->category ?? '—',
+            ];
+        });
+
+        if ($invoiceItems->isEmpty() && $invoice->description) {
+            $invoiceItems->push([
+                'description' => $invoice->feeType?->name ?? 'Invoice Charge',
+                'amount' => number_format(($invoice->total_amount ?? 0) / 100, 2),
+                'category' => '—',
+            ]);
+        }
+
+        $latestPayment = $invoice->payments?->first();
+
+        $receipts = $invoice->transactions ? $invoice->transactions->map(function ($transaction) {
+            return [
+                'id' => $transaction->id,
+                'receipt_no' => $transaction->receipt_no ?? 'Receipt-' . $transaction->id,
+                'amount' => $transaction->amount_paid,
+                'created_at' => $transaction->payment_date ?? $transaction->created_at,
+                'variables' => array_merge(
+                    method_exists($transaction, 'variables') ? ($transaction->variables ?? []) : [],
+                    [
+                        'issued_by_name'  => $transaction->approver?->name ?? 'N/A',
+                        'issued_by_phone' => $transaction->approver?->phone ?? $transaction->approver?->phone_number ?? 'N/A',
+                        'issued_by_email' => $transaction->approver?->email ?? 'N/A',
+                    ]
+                ),
+                'documentTemplate' => $transaction->documentTemplate ? [
+                    'title' => $transaction->documentTemplate->title,
+                    'html_template' => $transaction->documentTemplate->html_template,
+                    'html_content' => $transaction->documentTemplate->html_content,
+                ] : null,
+            ];
+        })->toArray() : [];
+
+        $tenantUserId = $invoice->isTenantInvoice() ? $invoice->lease?->tenant?->user_id : null;
+        $walletBalanceCents = $tenantUserId ? $this->walletService->getBalance((string) $tenantUserId) : 0;
+        $walletBalanceFormatted = number_format($walletBalanceCents / 100, 2, '.', '');
+
+        return [
+            'id' => $invoice->id,
+            'invoice_no' => $invoice->invoice_no ?? $invoice->serial_number,
+            'total_amount' => $invoice->total_amount,
+            'amount_due' => $invoice->amount_due ?? $invoice->total_amount,
+            'amount_balance' => $invoice->amount_balance,
+            'amount_paid' => $invoice->amount_paid,
+            'status' => $invoice->status,
+            'invoice_items' => $invoiceItems,
+            'actionUrl' => route('admin.invoices.payment', $invoice->id),
+            'context' => $invoice->context,
+            'created_at' => $invoice->created_at,
+            'period' => $formattedPeriod,
+            'due_date' => $invoice->due_date?->format('Y-m-d') ?? '',
+            'due_date_formatted' => $invoice->due_date?->format('d/m/Y') ?? '—',
+            'remarks' => $invoice->remarks,
+            'document_template_id' => $invoice->document_template_id ?? '—',
+            'documentTemplate' => $invoice->documentTemplate,
+            'receipt_path' => $invoice->receipt_path ?? $latestPayment?->receipt_path,
+            'latestPayment' => $latestPayment,
+            'user' => $invoice->lease?->user ?? null,
+            'template_title' => $invoice->documentTemplate?->title,
+            'template_html' => $invoice->documentTemplate?->html_content ?? $invoice->documentTemplate?->html_template,
+            'wallet_balance' => $walletBalanceFormatted,
+            'variables' => $this->getInvoiceVariables($invoice),
+            'receipts' => $receipts,
+            'recipient_name' => $invoice->isTenantInvoice()
+                ? ($invoice->lease?->tenant?->user?->name ?? 'N/A')
+                : ($invoice->user?->name ?? 'N/A'),
+            'context_label' => (function () use ($invoice) {
+                if ($invoice->isTenantInvoice()) {
+                    $lease = $invoice->lease;
+                    if (!$lease || !$lease->leasable) return 'Tenant Lease';
+                    $model = $lease->leasable;
+                    return match (get_class($model)) {
+                        Property::class => "Property: {$model->name}",
+                        Unit::class     => "Unit: {$model->unit_no} ({$model->property->name})",
+                        Room::class     => "Room: {$model->room_no}",
+                        default         => 'Tenant Lease',
+                    };
+                }
+                return 'Subscription';
+            })(),
         ];
     }
 }

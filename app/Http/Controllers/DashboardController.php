@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\{Invoice, Owners, UserManagement, User, Lease, Property, Unit, Room};
-use App\Services\SetupCheckerService;
+use App\Services\{SetupCheckerService, LeaseService, InvoiceService};
 use Illuminate\Support\Facades\{Auth, File, DB, Gate, Log};
 use App\Traits\RoleBasedDataTrait;
 use Illuminate\Http\Request;
@@ -12,7 +12,11 @@ class DashboardController extends Controller
 {
     use RoleBasedDataTrait;
 
-    public function index(SetupCheckerService $checker, Request $request)
+    public function __construct(
+        private readonly InvoiceService $invoiceService
+    ) {}
+
+    public function index(SetupCheckerService $checker, Request $request, LeaseService $leaseService)
     {
         if (Gate::denies('owner-admin') && Gate::denies('dashboard.tab')) {
             return view('errors.403');
@@ -62,10 +66,17 @@ class DashboardController extends Controller
 
         // 3. Filter specifically for "Leases Needing Attention" 
         $pendingOrEndedLeases = $pendingOrEndedLeasesQuery
-            ->where('is_current', true) // 👈 Applies to everything below
+            ->where('is_current', true)
+            ->where('status', '!=', 'cancelled')
             ->where(function ($q) {
                 $q->where('is_pending_renewal', true)
                 ->orWhere('status', 'End');
+            })
+            // 👇 Make sure this is present and handles both month and year
+            ->when($request->filled('lease_month'), function ($q) use ($request) {
+                $year = $request->input('lease_year', date('Y'));
+                $q->whereYear('end_date', $year)
+                ->whereMonth('end_date', $request->input('lease_month'));
             })
             ->orderBy('end_date', 'asc')
             ->paginate(5, ['*'], 'lease_page')
@@ -122,21 +133,44 @@ class DashboardController extends Controller
         $counts = (array) $stats;
 
         // 5. Overdue Invoices
-        $overdueInvoices = Invoice::with([
+        $paginatedOverdueInvoices = Invoice::with([
+            'documentTemplate',
+            'user',
+            'billable',
             'lease.tenant.user',
-            'lease.leasable', // Fixed to use polymorphic relation instead of direct unit/room methods if they aren't standard relationships
-            'items',
+            'lease.leasable.owner',
+            'items.feeType',
+            'transactions.documentTemplate',
+            'transactions.approver',
+            'payments' => function ($query) {
+                $query->where('status', 'pending');
+            },
         ])
             ->where('status', 'unpaid')
             ->where('due_date', '<', now())
             ->whereHas('lease.tenant', function ($query) use ($user) {
                 $query->where('created_by', $user->id);
             })
+            // 👇 Add month and year filtering for overdue invoices
+            ->when($request->filled('invoice_month'), function ($q) use ($request) {
+                $year = $request->input('invoice_year', date('Y'));
+                $q->whereYear('due_date', $year)
+                  ->whereMonth('due_date', $request->input('invoice_month'));
+            })
             ->orderBy('due_date', 'asc')
             ->paginate(5, ['*'], 'invoice_page')
             ->onEachSide(1)
             ->appends($request->query())
             ->fragment('overdue-section');
+
+        // Transform collection using InvoiceService
+        $paginatedOverdueInvoices->setCollection(
+            $paginatedOverdueInvoices->getCollection()->map(function ($invoice) {
+                return (object) $this->invoiceService->transformInvoice($invoice);
+            })
+        );
+
+        $overdueInvoices = $paginatedOverdueInvoices;
 
         // 6. Setup Checks & Seeders
         $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset'], 'exists');
@@ -147,7 +181,15 @@ class DashboardController extends Controller
             ->reject(fn ($name) => $name === 'DatabaseSeeder')
             ->mapWithKeys(fn ($name) => [$name => $name])
             ->toArray();
+        
+        $leaseModalData = $leaseService->getLeaseFormPayload($user, $request);
 
-        return view('dashboard', compact('overdueInvoices', 'checks', 'counts', 'seeders', 'pendingOrEndedLeases'));
+        return view('dashboard', array_merge([
+            'overdueInvoices' => $overdueInvoices,
+            'checks' => $checks,
+            'counts' => $counts,
+            'seeders' => $seeders,
+            'pendingOrEndedLeases' => $pendingOrEndedLeases,
+        ], $leaseModalData));
     }
 }

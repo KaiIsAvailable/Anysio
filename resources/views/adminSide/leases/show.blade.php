@@ -131,18 +131,58 @@
                     <div class="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
                         <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wider">Lease Progression</h2>
                         
-                        @canany(['owner-admin', 'leases.cancel lease'])
-                        @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
-                            <button type="button" 
-                                @click="$dispatch('open-lease-confirm-modal', { 
-                                    actionUrl: '{{ route('admin.leases.cancel', ':id') }}'.replace(':id', activeId) 
-                                })"
-                                class="px-3 py-1.5 bg-rose-50 text-rose-600 text-xs font-black rounded-lg border border-rose-100 hover:bg-rose-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
-                                CANCEL LEASE
-                            </button>
-                        @endif
-                        @endcanany
+                        <div class="flex items-center gap-2">
+                            {{-- 1. Renew Lease Button --}}
+                            @canany(['owner-admin', 'leases.renew lease'])
+                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                                    <button type="button" 
+                                        @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: activeId } }))"
+                                        class="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-black rounded-lg border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
+                                        RENEW LEASE
+                                    </button>
+                                @endif
+                            @endcanany
+
+                            {{-- 2. Check Out Lease Button --}}
+                            @canany(['owner-admin', 'leases.check out lease'])
+                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                                    <button type="button" 
+                                        @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: activeId } }))"
+                                        class="px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-black rounded-lg border border-amber-100 hover:bg-amber-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
+                                        CHECK OUT
+                                    </button>
+                                @endif
+                            @endcanany
+
+                            {{-- 3. Cancel Lease Button --}}
+                            @canany(['owner-admin', 'leases.cancel lease'])
+                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                                    <button type="button" 
+                                        @click="$dispatch('open-lease-confirm-modal', { 
+                                            actionUrl: '{{ route('admin.leases.cancel', ':id') }}'.replace(':id', activeId) 
+                                        })"
+                                        class="px-3 py-1.5 bg-rose-50 text-rose-600 text-xs font-black rounded-lg border border-rose-100 hover:bg-rose-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
+                                        CANCEL LEASE
+                                    </button>
+                                @endif
+                            @endcanany
+                        </div>
                     </div>
+
+                    <x-modals.lease-create-modal 
+                        :tenants="$tenants" 
+                        :leases="$modalLeases"
+                        :properties="$properties" 
+                        :units="$units" 
+                        :rooms="$rooms" 
+                        :templates="$templates" 
+                        :rentFeeTypes="$rentFeeTypes" 
+                        :serviceFeeTypes="$serviceFeeTypes" 
+                        :depositFeeTypes="$depositFeeTypes" 
+                        :managementFeeTypes="$managementFeeTypes" 
+                        :leasePreviewData="$leasePreviewData" 
+                    />
+
                     <div class="p-6">
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full z-[101]">
                             @foreach($leaseHistory as $history)

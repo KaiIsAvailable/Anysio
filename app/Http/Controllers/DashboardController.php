@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\{Invoice, Owners, UserManagement, User, Lease, Property, Unit, Room};
-use App\Services\{SetupCheckerService, LeaseService};
+use App\Services\{SetupCheckerService, LeaseService, InvoiceService};
 use Illuminate\Support\Facades\{Auth, File, DB, Gate, Log};
 use App\Traits\RoleBasedDataTrait;
 use Illuminate\Http\Request;
@@ -11,6 +11,10 @@ use Illuminate\Http\Request;
 class DashboardController extends Controller
 {
     use RoleBasedDataTrait;
+
+    public function __construct(
+        private readonly InvoiceService $invoiceService
+    ) {}
 
     public function index(SetupCheckerService $checker, Request $request, LeaseService $leaseService)
     {
@@ -129,10 +133,18 @@ class DashboardController extends Controller
         $counts = (array) $stats;
 
         // 5. Overdue Invoices
-        $overdueInvoices = Invoice::with([
+        $paginatedOverdueInvoices = Invoice::with([
+            'documentTemplate',
+            'user',
+            'billable',
             'lease.tenant.user',
-            'lease.leasable', // Fixed to use polymorphic relation instead of direct unit/room methods if they aren't standard relationships
-            'items',
+            'lease.leasable.owner',
+            'items.feeType',
+            'transactions.documentTemplate',
+            'transactions.approver',
+            'payments' => function ($query) {
+                $query->where('status', 'pending');
+            },
         ])
             ->where('status', 'unpaid')
             ->where('due_date', '<', now())
@@ -144,6 +156,15 @@ class DashboardController extends Controller
             ->onEachSide(1)
             ->appends($request->query())
             ->fragment('overdue-section');
+
+        // 3. Transform the collection using InvoiceService so items & wallet balances are correctly structured
+        $paginatedOverdueInvoices->setCollection(
+            $paginatedOverdueInvoices->getCollection()->map(function ($invoice) {
+                return (object) $this->invoiceService->transformInvoice($invoice);
+            })
+        );
+
+        $overdueInvoices = $paginatedOverdueInvoices;
 
         // 6. Setup Checks & Seeders
         $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset'], 'exists');

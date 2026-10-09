@@ -223,7 +223,13 @@
 
                                         <div>
                                             <x-form.input-label value="Amount (RM)" class="mb-1 text-xs" />
-                                            <x-form.text-input type="text" name="charges[0][amount]" placeholder="0.00" class="w-full text-sm" />
+                                            <x-form.text-input oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
+                                                inputmode="numeric"
+                                                @wheel="$event.preventDefault()" 
+                                                name="charges[0][amount]" 
+                                                placeholder="0.00" 
+                                                class="w-full text-sm" 
+                                            />
                                         </div>
                                     </div>
                                 </div>

@@ -92,7 +92,15 @@
                                     </td>
 
                                     <td class="px-6 py-4 whitespace-nowrap">
-                                        <div class="text-sm font-medium text-slate-900">{{ $property->owner->name ?? 'No Owner' }}</div>
+                                        <div class="text-sm font-medium">
+                                            @if($property->owner)
+                                                <a href="{{ route('admin.owners.show', $property->owner->owner->id) }}" class="text-indigo-600 hover:text-indigo-900 hover:underline transition-colors font-semibold">
+                                                    {{ $property->owner->name }}
+                                                </a>
+                                            @else
+                                                <span class="text-slate-500">No Owner</span>
+                                            @endif
+                                        </div>
                                         <div class="text-xs text-gray-500">{{ $property->owner->email ?? "No Owner's Gmail" }}</div>
                                     </td>
 

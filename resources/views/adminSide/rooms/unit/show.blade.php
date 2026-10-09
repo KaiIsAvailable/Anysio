@@ -32,174 +32,162 @@
 
 
             {{-- Unit Details --}}
-            <div class="bg-white shadow-sm border border-gray-200 rounded-xl p-6 mb-6">
-
-                @php
-                $unitBadge = get_status_badge($unit->status ?? null);
-                @endphp
-
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden mb-8">
                 {{-- Header --}}
-                <div class="flex items-center justify-between border-b border-gray-100 pb-4 mb-4">
-                    <div>
-                        <span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">
-                            Unit Details
-                        </span>
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <h2 class="text-base font-semibold text-slate-900">
+                        Unit Details
+                    </h2>
 
-                        <h3 class="text-base font-bold text-gray-900">
-                            Unit {{ $unit->unit_no ?? '—' }}
-                        </h3>
-                    </div>
+                    @php
+                        $unitBadge = get_status_badge($unit->status ?? null);
+                    @endphp
 
-                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $unitBadge }}">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $unitBadge }}">
                         {{ ucfirst($unit->status ?? 'N/A') }}
                     </span>
+
                 </div>
 
-                {{-- Compact Details --}}
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                {{-- Body --}}
+                <div class="px-6 py-6">
 
-                    {{-- Unit Information --}}
-                    <div class="bg-gray-50/60 rounded-md p-3 border border-gray-100 space-y-1.5">
+                    <dl class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
 
-                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-xs">
-                            Unit Information
-                        </h4>
+                        {{-- Unit Number --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Unit No
+                            </dt>
 
-                        <div class="flex justify-between items-center gap-4">
-                            <span class="text-gray-500">Unit No</span>
-                            <span class="font-semibold text-gray-900">
+                            <dd class="text-sm font-medium text-slate-900 mt-1">
                                 {{ $unit->unit_no ?? '—' }}
-                            </span>
+                            </dd>
                         </div>
 
-                        <div class="flex justify-between items-center gap-4">
-                            <span class="text-gray-500">Block</span>
-                            <span class="font-semibold text-gray-900">
+                        {{-- Block --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Block
+                            </dt>
+
+                            <dd class="text-sm font-medium text-slate-900 mt-1">
                                 {{ $unit->block ?? '—' }}
-                            </span>
+                            </dd>
                         </div>
 
-                        <div class="flex justify-between items-center gap-4">
-                            <span class="text-gray-500">Floor</span>
-                            <span class="font-semibold text-gray-900">
+                        {{-- Floor --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Floor
+                            </dt>
+
+                            <dd class="text-sm font-medium text-slate-900 mt-1">
                                 {{ $unit->floor ?? '—' }}
-                            </span>
+                            </dd>
                         </div>
 
-                        <div class="flex justify-between items-center gap-4">
-                            <span class="text-gray-500">Rooms</span>
-                            <span class="font-semibold text-gray-900">
+                        {{-- Rooms --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Rooms
+                            </dt>
+
+                            <dd class="text-sm font-medium text-slate-900 mt-1">
                                 {{ $rooms->total() }}
-                            </span>
+                            </dd>
                         </div>
 
-                        <div class="flex justify-between items-center gap-4">
-                            <span class="text-gray-500">SQFT</span>
-                            <span class="font-semibold text-gray-900">
+                        {{-- SQFT --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                SQFT
+                            </dt>
+
+                            <dd class="text-sm font-medium text-slate-900 mt-1">
                                 {{ $unit->sqft ? $unit->sqft . ' sqft' : '—' }}
-                            </span>
+                            </dd>
                         </div>
 
-                    </div>
+                        {{-- Property --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Property
+                            </dt>
 
-
-                    {{-- Property Information --}}
-                    <div class="bg-gray-50/60 rounded-md p-3 border border-gray-100 space-y-1.5">
-
-                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-xs">
-                            Property Information
-                        </h4>
-
-                        <div class="flex justify-between items-start gap-4">
-                            <span class="text-gray-500 shrink-0">Property</span>
-
-                            <div class="text-right min-w-0">
-                                <div
-                                    class="font-semibold text-gray-900 truncate max-w-[180px]"
-                                    title="{{ $unit->property?->name ?? '—' }}">
+                            <dd class="text-sm mt-1">
+                                <span class="font-medium text-slate-900">
                                     {{ $unit->property?->name ?? '—' }}
-                                </div>
+                                </span>
 
                                 @if($unit->property?->address)
-                                <div
-                                    class="text-xs text-gray-400 truncate max-w-[180px]"
-                                    title="{{ $unit->property->address }}">
-                                    {{ $unit->property->address }}
-                                </div>
+                                    <span class="block text-xs text-slate-500 mt-0.5">
+                                        {{ $unit->property->address }}
+                                    </span>
                                 @endif
-                            </div>
+                            </dd>
                         </div>
 
-                        <div class="flex justify-between items-start gap-4">
-                            <span class="text-gray-500 shrink-0">Owner</span>
+                        {{-- Owner --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Owner
+                            </dt>
 
-                            <div class="text-right min-w-0">
-                                <div
-                                    class="font-semibold text-gray-900 truncate max-w-[180px]"
-                                    title="{{ $unit->owner?->name ?? 'No Owner' }}">
-                                    {{ $unit->owner?->name ?? 'No Owner' }}
-                                </div>
+                            <dd class="text-sm mt-1">
+                                @if($unit->owner)
+                                    <a href="{{ route('admin.owners.show', $unit->owner->owner->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                        {{ $unit->owner->name }}
+                                    </a>
 
-                                <div
-                                    class="text-xs text-gray-400 truncate max-w-[180px]"
-                                    title="{{ $unit->owner?->email ?? '—' }}">
-                                    {{ $unit->owner?->email ?? '—' }}
-                                </div>
-                            </div>
+                                    <span class="block text-xs text-slate-500 mt-0.5">
+                                        {{ $unit->owner->email ?? '—' }}
+                                    </span>
+                                @else
+                                    <span class="text-slate-500">
+                                        No Owner
+                                    </span>
+                                @endif
+                            </dd>
                         </div>
 
-                        <div class="flex justify-between items-center gap-4">
-                            <span class="text-gray-500">Status</span>
 
-                            <span class="px-2 py-0.5 rounded-full text-xs font-medium {{ $unitBadge }}">
-                                {{ ucfirst($unit->status ?? 'N/A') }}
-                            </span>
-                        </div>
+                        {{-- Electricity --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Electricity
+                            </dt>
 
-                    </div>
-
-
-                    {{-- Utilities --}}
-                    <div class="bg-gray-50/60 rounded-md p-3 border border-gray-100 space-y-1.5">
-
-                        <h4 class="font-bold tracking-wider text-gray-400 uppercase text-xs">
-                            Utilities
-                        </h4>
-
-                        <div class="flex justify-between items-center gap-4">
-                            <span class="text-gray-500">Electricity</span>
-
-                            <span
-                                class="font-mono text-xs font-medium text-gray-900 truncate max-w-[160px]"
-                                title="{{ $unit->electricity_acc_no ?? '—' }}">
+                            <dd class="text-sm font-medium text-slate-900 mt-1 font-mono">
                                 {{ $unit->electricity_acc_no ?? '—' }}
-                            </span>
+                            </dd>
                         </div>
 
-                        <div class="flex justify-between items-center gap-4">
-                            <span class="text-gray-500">Water</span>
+                        {{-- Water --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Water
+                            </dt>
 
-                            <span
-                                class="font-mono text-xs font-medium text-gray-900 truncate max-w-[160px]"
-                                title="{{ $unit->water_acc_no ?? '—' }}">
+                            <dd class="text-sm font-medium text-slate-900 mt-1 font-mono">
                                 {{ $unit->water_acc_no ?? '—' }}
-                            </span>
+                            </dd>
                         </div>
 
-                        <div class="flex justify-between items-center gap-4">
-                            <span class="text-gray-500">Indah Water</span>
+                        {{-- Indah Water --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Indah Water
+                            </dt>
 
-                            <span
-                                class="font-mono text-xs font-medium text-gray-900 truncate max-w-[160px]"
-                                title="{{ $unit->indah_water_acc_no ?? '—' }}">
+                            <dd class="text-sm font-medium text-slate-900 mt-1 font-mono">
                                 {{ $unit->indah_water_acc_no ?? '—' }}
-                            </span>
+                            </dd>
                         </div>
 
-                    </div>
+                    </dl>
 
                 </div>
-
             </div>
 
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">

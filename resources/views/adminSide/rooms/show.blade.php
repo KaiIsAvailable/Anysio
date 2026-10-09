@@ -47,74 +47,102 @@
                 @endcanany
             </div>
 
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
-                <div class="px-8 py-8 border-b border-gray-100 bg-white">
-                    <div class="flex items-center">
-                        <div class="h-16 w-16 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-700 text-2xl font-bold">
-                            {{ mb_strtoupper(mb_substr($room->room_no ?? 'U', 0, 1, 'UTF-8')) }}
-                        </div>
-                        <div class="ml-6">
-                            <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Room {{ $room->room_no ?? $room->id }}</h2>
-                            <p class="text-sm text-gray-500 font-medium">{{ $room->room_type ?? '—' }}</p>
-                        </div>
+            {{-- Room Details --}}
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden mb-8">
+                {{-- Header --}}
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <div>
+                        <h2 class="text-base font-semibold text-slate-900">
+                            Room Details
                     </div>
+
+                    @php
+                        $status = $room->status ?? null;
+
+                        $badge = match ($status) {
+                            'Vacant' => 'bg-green-100 text-green-800',
+                            'Occupied' => 'bg-amber-100 text-amber-800',
+                            'Maintenance' => 'bg-blue-100 text-blue-800',
+                            default => 'bg-gray-100 text-gray-800',
+                        };
+                    @endphp
+
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
+                        {{ $room->status ?? '—' }}
+                    </span>
+
                 </div>
 
-                <div class="px-8 py-10 bg-white">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-12">
+                {{-- Body --}}
+                <div class="px-6 py-6">
 
-                        <div class="space-y-4">
-                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Room Info</h3>
-                            <div class="pl-4">
-                                <label class="text-xs font-medium text-gray-400">Room No</label>
-                                <p class="text-sm font-bold text-slate-900 mt-0.5 tracking-tight">{{ $room->room_no ?? '—' }}</p>
-                            </div>
-                            <div class="pl-4">
-                                <label class="text-xs font-medium text-gray-400">Address</label>
-                                <p class="text-sm font-semibold text-slate-700 mt-0.5">{{ $fullAddress ?? '—' }}</p>
-                            </div>
+                    <dl class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
+
+                        {{-- Room Number --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Room No
+                            </dt>
+
+                            <dd class="text-sm font-medium text-slate-900 mt-1">
+                                {{ $room->room_no ?? '—' }}
+                            </dd>
                         </div>
 
-                        <div class="space-y-4">
-                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Owner Info</h3>
-                            <div class="pl-4">
-                                <label class="text-xs font-medium text-gray-400">Owner Name</label>
-                                <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $room->unit->owner->user->name ?? '—' }}</p>
-                            </div>
-                            <div class="pl-4">
-                                <label class="text-xs font-medium text-gray-400">Owner Email</label>
-                                <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $room->unit->owner->user->email ?? '—' }}</p>
-                            </div>
+                        {{-- Room Type --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Room Type
+                            </dt>
+
+                            <dd class="text-sm font-medium text-slate-900 mt-1">
+                                {{ $room->room_type ?? '—' }}
+                            </dd>
                         </div>
 
-                        <div class="space-y-4">
-                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">System Info</h3>
-                            @php
-                                $status = $room->status ?? '';
-                                $badge = match ($status) {
-                                    'Vacant' => 'bg-green-100 text-green-800',
-                                    'Occupied' => 'bg-amber-100 text-amber-800',
-                                    'Maintenance' => 'bg-blue-100 text-blue-800',
-                                    default => 'bg-gray-100 text-gray-800',
-                                };
-                            @endphp
-                            <div class="pl-4">
-                                <label class="text-xs font-medium text-gray-400">Status</label>
-                                <div class="mt-1">
-                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
-                                        {{ $room->status ?? '—' }}
+                        {{-- Owner Name --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Owner
+                            </dt>
+
+                            <dd class="text-sm mt-1">
+                                <a href="{{ route('admin.owners.show', $room->unit->owner->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                        {{ $room->unit->owner->name }}
+                                </a>
+
+                                @if($room->unit->owner?->email)
+                                    <span class="block text-xs text-slate-500 mt-0.5">
+                                        {{ $room->unit->owner->email }}
                                     </span>
-                                </div>
-                            </div>
-                            <div class="pl-4">
-                                <label class="text-xs font-medium text-gray-400">Created Date</label>
-                                <p class="text-sm font-semibold text-slate-700 mt-0.5">
-                                    {{ $room->created_at ? $room->created_at->format('d M Y, H:i') : 'N/A' }}
-                                </p>
-                            </div>
+                                @endif
+                            </dd>
                         </div>
 
-                    </div>
+                        {{-- Address --}}
+                        <div class="md:col-span-2">
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Address
+                            </dt>
+
+                            <dd class="text-sm font-medium text-slate-800 mt-1">
+                                {{ $fullAddress ?? '—' }}
+                            </dd>
+                        </div>
+
+                        {{-- Created Date --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Created Date
+                            </dt>
+
+                            <dd class="text-sm font-medium text-slate-800 mt-1">
+                                {{ $room->created_at ? $room->created_at->format('d M Y, H:i') : '—' }}
+                            </dd>
+                        </div>
+
+                    </dl>
+
                 </div>
             </div>
 
@@ -210,98 +238,7 @@
 
                     <div class="overflow-x-auto">
                         @if($room->leases->count() > 0)
-                            <table class="table-fixed w-full min-w-[1050px] divide-y divide-gray-200">
-                                <colgroup>
-                                    <col class="w-[28%]">
-                                    <col class="w-[18%]">
-                                    <col class="w-[18%]">
-                                    <col class="w-[10%]">
-                                    <col class="w-[16%]">
-                                    <col class="w-[10%]">
-                                </colgroup>
-
-                                <thead class="bg-gray-50">
-                                    <tr>
-                                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            <span class="block w-full text-left">Tenant</span>
-                                        </th>
-                                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            <span class="block w-full text-center">Start</span>
-                                        </th>
-                                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            <span class="block w-full text-center">End</span>
-                                        </th>
-                                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            <span class="block w-full text-center">Rent (RM)</span>
-                                        </th>
-                                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            <span class="block w-full text-left">Deposit</span>
-                                        </th>
-                                        <th class="px-6 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            <span class="block w-full text-center">Status</span>
-                                        </th>
-                                    </tr>
-                                </thead>
-
-                                <tbody class="bg-white divide-y divide-gray-200">
-                                    @foreach($room->leases as $lease)
-                                        @php
-                                            $ls = strtolower((string) ($lease->status ?? ''));
-                                            $lBadge = match ($ls) {
-                                                'active' => 'bg-green-100 text-green-800',
-                                                'ended', 'expired' => 'bg-gray-100 text-gray-800',
-                                                default => 'bg-blue-100 text-blue-800',
-                                            };
-
-                                            $t  = $tenantsById[$lease->tenant_id] ?? null;
-                                            $tu = $t?->user;
-                                        @endphp
-
-                                        <tr class="hover:bg-gray-50 transition-colors duration-150">
-                                            <td class="px-6 py-4">
-                                                <div class="w-full text-left">
-                                                    <div class="text-sm font-medium text-slate-900">{{ $tu->name ?? '—' }}</div>
-                                                    <div class="text-xs text-gray-500">{{ $tu->email ?? '—' }}</div>
-                                                    <div class="text-xs text-gray-400">ID: {{ $lease->tenant_id ?? '—' }}</div>
-                                                </div>
-                                            </td>
-
-                                            <td class="px-6 py-4">
-                                                <div class="w-full text-center text-sm text-slate-900 whitespace-nowrap">
-                                                    {{ $lease->start_date ?? '—' }}
-                                                </div>
-                                            </td>
-
-                                            <td class="px-6 py-4">
-                                                <div class="w-full text-center text-sm text-slate-900 whitespace-nowrap">
-                                                    {{ $lease->end_date ?? '—' }}
-                                                </div>
-                                            </td>
-
-                                            <td class="px-6 py-4">
-                                                <div class="w-full text-center text-sm text-slate-900 whitespace-nowrap">
-                                                    {{ $lease->monthly_rent ?? '—' }}
-                                                </div>
-                                            </td>
-
-                                            <td class="px-6 py-4">
-                                                <div class="w-full text-left text-sm text-slate-900">
-                                                    SD: {{ $lease->security_deposit ?? '—' }}
-                                                    <div class="text-xs text-gray-500">Util: {{ $lease->utilities_depost ?? '—' }}</div>
-                                                </div>
-                                            </td>
-
-                                            <td class="px-6 py-4">
-                                                <div class="w-full text-center whitespace-nowrap">
-                                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $lBadge }}">
-                                                        {{ $lease->status ?? '—' }}
-                                                    </span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
+                            <x-table.lease-table :leases="$room->leases" :showOwner="true" :showTenant="true" :showAction="true" />
                         @else
                             <div class="p-8 text-center">
                                 <div class="text-sm font-medium text-slate-900">No leases</div>

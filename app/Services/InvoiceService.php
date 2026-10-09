@@ -366,7 +366,7 @@ class InvoiceService
 
             $ownerId = $currentUser->id;
             if ($lease->leasable) {
-                if ($lease->leasable instanceof \App\Models\Room) {
+                if ($lease->leasable instanceof Room) {
                     $ownerId = $lease->leasable->unit->owner_id ?? $currentUser->id;
                 } else {
                     $ownerId = $lease->leasable->owner_id ?? $currentUser->id;
@@ -383,9 +383,24 @@ class InvoiceService
                     ->where('status', 'active')
                     ->first();
 
+            $settings = $this->settingService->getEffectiveSettings();
+            $dueDateDays = (int) data_get($settings, 'due_date_config.value.days', 7);
+
             $invoices = collect();
-            $dueDate = $lease->start_date ?? now()->toDateString();
-            $periodDate = Carbon::parse($lease->start_date ?? now())->startOfMonth()->toDateString();
+
+            // Safely parse start_date into a Carbon instance
+            $startDate = Carbon::parse($lease->start_date);
+
+            $dueDate = $startDate->copy()->addDays($dueDateDays)->toDateString();
+            $periodDate = $startDate->copy()->startOfMonth()->toDateString();
+
+            // Log the due date to the 'testing' channel
+            Log::channel('testing')->info('Calculated lease due date', [
+                'lease_id' => $lease->id ?? null,
+                'start_date' => $startDate->toDateString(),
+                'due_date_days' => $dueDateDays,
+                'calculated_due_date' => $dueDate,
+            ]);
 
             foreach ($charges as $charge) {
                 $amountCents = $charge->amount;

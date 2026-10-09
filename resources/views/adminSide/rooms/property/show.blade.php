@@ -36,104 +36,93 @@
 
 
             {{-- Property Details --}}
-            <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100 mb-8">
-
-                <div class="px-8 py-6 border-b border-gray-100">
-                    <h2 class="text-lg font-bold text-slate-900">
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden mb-8">
+                
+                {{-- Header --}}
+                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                    <h2 class="text-base font-semibold text-slate-900">
                         Property Details
                     </h2>
                 </div>
 
-                <div class="px-8 py-8">
-
+                {{-- Body --}}
+                <div class="px-6 py-6">
                     @php
                     $propertyBadge = get_status_badge($property->status ?? null);
                     @endphp
 
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-8 gap-x-12">
+                    <dl class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
 
                         {{-- Property Name --}}
                         <div>
-                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                                 Property Name
-                            </label>
-
-                            <p class="text-sm font-bold text-slate-900 mt-1">
+                            </dt>
+                            <dd class="text-sm font-medium text-slate-900 mt-1">
                                 {{ $property->name ?? '—' }}
-                            </p>
+                            </dd>
                         </div>
 
-
-                        {{-- Owner --}}
+                        {{-- Owner (with clickable link) --}}
                         <div>
-                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                                 Owner
-                            </label>
-
-                            <p class="text-sm font-bold text-slate-900 mt-1">
-                                {{ $property->owner?->name ?? 'No Owner' }}
-                            </p>
-
-                            <p class="text-xs text-gray-500 mt-0.5">
-                                {{ $property->owner?->email ?? '—' }}
-                            </p>
+                            </dt>
+                            <dd class="text-sm mt-1">
+                                @if($property->owner)
+                                    <a href="{{ route('admin.owners.show', $property->owner->owner->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                        {{ $property->owner->name }}
+                                    </a>
+                                    <span class="block text-xs text-slate-500 mt-0.5">{{ $property->owner->email }}</span>
+                                @else
+                                    <span class="text-slate-500">No Owner</span>
+                                @endif
+                            </dd>
                         </div>
-
 
                         {{-- Property Type --}}
                         <div>
-                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                                 Property Type
-                            </label>
-
-                            <p class="text-sm font-bold text-slate-900 mt-1">
+                            </dt>
+                            <dd class="text-sm font-medium text-slate-900 mt-1">
                                 {{ $property->type ?? '—' }}
-                            </p>
+                            </dd>
                         </div>
-
 
                         {{-- Status --}}
                         <div>
-                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                                 Status
-                            </label>
-
-                            <div class="mt-1">
-                                <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $propertyBadge }}">
+                            </dt>
+                            <dd class="mt-1">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $propertyBadge }}">
                                     {{ $property->status ?? '—' }}
                                 </span>
-                            </div>
+                            </dd>
                         </div>
 
-
-                        {{-- Address --}}
+                        {{-- Address (Span 2 columns) --}}
                         <div class="md:col-span-2">
-                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                                 Address
-                            </label>
-
-                            <p class="text-sm font-semibold text-slate-700 mt-1">
-                                {{ $property->address ?? '—' }},
-                                {{ $property->postcode ?? '' }}
-                                {{ $property->city ?? '' }},
-                                {{ $property->state ?? '' }}
-                            </p>
+                            </dt>
+                            <dd class="text-sm font-medium text-slate-800 mt-1">
+                                {{ collect([$property->address, $property->postcode, $property->city, $property->state])->filter()->implode(', ') ?: '—' }}
+                            </dd>
                         </div>
-
 
                         {{-- Created --}}
                         <div>
-                            <label class="text-xs font-medium text-gray-400 uppercase tracking-wider">
-                                Created
-                            </label>
-
-                            <p class="text-sm font-semibold text-slate-700 mt-1">
-                                {{ dateFormat($property->created_at) }}
-                            </p>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Created Date
+                            </dt>
+                            <dd class="text-sm font-medium text-slate-800 mt-1">
+                                {{ $property->created_at ? dateFormat($property->created_at) : '—' }}
+                            </dd>
                         </div>
 
-                    </div>
-
+                    </dl>
                 </div>
             </div>
 
@@ -166,7 +155,6 @@
                                 <x-table.th name="Unit Info" />
                                 <x-table.th name="Utilities Info" />
                                 <x-table.th name="Status" sortField="s" />
-                                <x-table.th name="Current Tenant" sortField="c" />
                                 @canany(['owner-admin', 'unit.edit', 'unit.delete'])
                                 <x-table.th name="Action" />
                                 @endcanany
@@ -196,9 +184,17 @@
                                     </div>
                                 </td>
 
-                                <td class="px-6 py-4 text-sm text-slate-600 italic">
-                                    <div class="text-sm font-medium text-slate-900">{{ $unit->owner->name ?? '-' }}</div>
-                                    <div class="text-xs text-gray-500">{{ $unit->owner->email ?? '-' }}</div>
+                                <td class="px-6 py-4 text-sm text-slate-600">
+                                    <div class="text-sm font-medium text-slate-900">
+                                        @if($unit->owner)
+                                            <a href="{{ route('admin.owners.show', $unit->owner->owner->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                {{ $unit->owner->name }}
+                                            </a>
+                                        @else
+                                            <span class="text-slate-400 italic">-</span>
+                                        @endif
+                                    </div>
+                                    <div class="text-xs text-gray-500 mt-0.5">{{ $unit->owner->email ?? '-' }}</div>
                                 </td>
 
                                 <td class="px-6 py-4 text-sm">
@@ -239,10 +235,6 @@
                                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $uBadge }}">
                                         {{ ucfirst($uStatus) }}
                                     </span>
-                                </td>
-
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm text-slate-900">{{ $unit->tenant->name ?? 'No Tenant' }}</div>
                                 </td>
 
                                 @canany(['owner-admin', 'unit.edit', 'unit.delete'])

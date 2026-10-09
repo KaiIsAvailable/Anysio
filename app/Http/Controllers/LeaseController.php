@@ -141,12 +141,6 @@ class LeaseController extends Controller
         }
 
         $user = Auth::user();
-        $isPrivileged = in_array($user->role, ['owner-admin', 'agent-admin', 'admin']) || Gate::allows('super-admin');
-
-        if (!$isPrivileged) {
-            $query->where('status', '!=', 'cancelled');
-        }
-
         $countQuery = clone $query;
         $currentActiveCount = $countQuery->where('is_current', true)
             ->whereIn('status', ['New', 'Renew', 'Check Out', 'End'])
@@ -157,7 +151,7 @@ class LeaseController extends Controller
             ->onEachSide(1)
             ->appends($request->query());
 
-        $statusOptions = ['New', 'Renew', 'Check Out', 'End'];
+        $statusOptions = ['New', 'Renew', 'Check Out', 'End', 'cancelled'];
 
         if ($request->ajax()) {
             return view('adminSide.leases._table', compact('leases', 'statusOptions'));
@@ -187,7 +181,7 @@ class LeaseController extends Controller
             [
                 'statusOptions' => $statusOptions,
                 'packageLimitInfo' => $packageLimitInfo,
-                'leases' => $leases, // 🌟 Placing it here ensures it always wins and uses the controller's paginated list!
+                'leases' => $leases,
             ]
         ));
     }

@@ -194,151 +194,12 @@
                             </h3>
                         </div>
 
-                        <div class="overflow-hidden border border-gray-200 rounded-xl shadow-sm">
+                        <div class="border border-gray-200 rounded-xl shadow-sm">
 
-                            <div class="overflow-x-auto">
+                            <div>
                                 @if($leases && $leases->count() > 0)
 
-                                <table class="w-full min-w-[900px] divide-y divide-gray-200 text-left">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                                Property / Unit / Room
-                                            </th>
-
-                                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                                Duration
-                                            </th>
-
-                                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                                Charges
-                                            </th>
-
-                                            <th class="px-6 py-3 text-left text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-                                                Status
-                                            </th>
-
-                                        </tr>
-                                    </thead>
-
-                                    <tbody class="divide-y divide-gray-100 bg-white">
-
-                                        @foreach($leases as $lease)
-
-                                        @php
-                                        $type = basename(str_replace('\\', '/', $lease->leasable_type));
-                                        $badge = get_status_badge($lease->status ?? null);
-                                        @endphp
-
-                                        <tr
-                                            @canany(['owner-admin', 'leases.show' ])
-                                            onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'"
-                                            class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                                            @else
-                                            class="group duration-150"
-                                            @endcanany>
-
-                                            <!-- Property / Unit / Room -->
-                                            <td class="px-6 py-4">
-                                                <div class="text-sm font-semibold text-slate-900">
-
-                                                    @if($type === 'Unit')
-                                                    {{ $lease->leasable?->unit_no ?? 'N/A' }}
-
-                                                    @elseif($type === 'Property')
-                                                    {{ $lease->leasable?->name ?? 'N/A' }}
-
-                                                    @elseif($type === 'Room')
-                                                    {{ $lease->leasable?->room_no ?? 'N/A' }}
-
-                                                    @else
-                                                    {{ $lease->leasable_id }}
-                                                    @endif
-
-                                                </div>
-
-                                                <div class="text-xs text-gray-400 italic">
-                                                    {{ $type }}
-                                                </div>
-                                            </td>
-
-
-                                            <!-- Duration -->
-                                            <td class="px-6 py-4">
-                                                <div class="text-sm text-slate-900">
-                                                    {{ $lease->start_date_formatted }}
-                                                    to
-                                                    {{ $lease->end_date_formatted }}
-
-                                                    @if ($lease->agreement_ended_at)
-                                                    <span class="text-xs text-gray-500 block mt-1">
-                                                        End Date:
-                                                        {{ $lease->agreement_ended_at_formatted }}
-                                                    </span>
-
-                                                    @elseif ($lease->checked_out_at)
-                                                    <span class="text-xs text-gray-500 block mt-1">
-                                                        Check Out:
-                                                        {{ $lease->checked_out_at_formatted }}
-                                                    </span>
-                                                    @endif
-                                                </div>
-                                            </td>
-
-
-                                            <!-- Charges -->
-                                            <td class="px-6 py-4">
-                                                <div class="text-sm font-semibold text-indigo-600">
-                                                    RM {{ number_format(
-                                            $lease->rent_price + ($lease->charges->sum('amount') / 100),
-                                            2
-                                        ) }}
-                                                </div>
-
-                                                @if($lease->charges && $lease->charges->count() > 0)
-                                                <div class="space-y-0.5 border-t border-gray-100 pt-1 mt-1">
-
-                                                    @foreach($lease->charges as $charge)
-                                                    <div class="text-[11px] text-slate-600 flex justify-between gap-2">
-
-                                                        <span class="truncate"
-                                                            title="{{ $charge->description }}">
-                                                            {{ $charge->description }}:
-                                                        </span>
-
-                                                        <span class="font-medium text-slate-900 shrink-0">
-                                                            RM {{ number_format($charge->amount / 100, 2) }}
-                                                        </span>
-                                                    </div>
-                                                    @endforeach
-
-                                                </div>
-                                                @endif
-                                            </td>
-
-
-                                            <!-- Status -->
-                                            <td class="px-6 py-4">
-
-                                                <span class="whitespace-nowrap px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
-                                                    {{ $lease->status ?? 'N/A' }}
-
-                                                    @if($lease->is_pending_renewal)
-                                                    (Pending Renewal)
-                                                    @endif
-                                                </span>
-
-                                            </td>
-
-
-                                            
-
-                                        </tr>
-
-                                        @endforeach
-
-                                    </tbody>
-                                </table>
+                                <x-table.lease-table :leases="$leases" :showOwner="false" :showTenant="true" :showAction="true" />
 
                                 @else
 
@@ -363,5 +224,19 @@
                 </div>
             </div>
         </div>
+
+        <x-modals.lease-create-modal 
+            :tenants="$tenants" 
+            :leases="$modalLeases" {{-- Use unfiltered modal leases here --}}
+            :properties="$properties" 
+            :units="$units" 
+            :rooms="$rooms" 
+            :templates="$templates" 
+            :rentFeeTypes="$rentFeeTypes" 
+            :serviceFeeTypes="$serviceFeeTypes" 
+            :depositFeeTypes="$depositFeeTypes" 
+            :managementFeeTypes="$managementFeeTypes" 
+            :leasePreviewData="$leasePreviewData" 
+        />
     </div>
 </x-app-layout>

@@ -202,7 +202,8 @@
                                 <!-- Actions -->
                                 @canany(['owner-admin', 'invoice.record payment', 'invoice.void'])
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                    <div class="flex justify-center items-center gap-2">
+                                    <div class="flex flex-col gap-1.5 w-full">
+                                        {{-- Record Payment Button --}}
                                         @canany(['owner-admin', 'invoice.record payment'])
                                         @if(in_array($invoice->status, ['unpaid', 'partial']))
                                         @php
@@ -218,7 +219,7 @@
                                         @endphp
                                         <button type="button"
                                             @click="$dispatch('open-payment', {{ $paymentPayload }})"
-                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 rounded-lg transition-all shadow-sm">
+                                            class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 rounded-lg transition-all shadow-sm w-full">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
                                             </svg>
@@ -227,14 +228,12 @@
                                         @endif
                                         @endcanany
 
-                                        <!-- Void Button (Fixed Blade Conditional instead of Alpine x-if on server loop) -->
+                                        {{-- Void Button --}}
                                         @canany(['owner-admin', 'invoice.void'])
                                         @if(!in_array($invoice->status, ['void']))
                                         <button type="button"
-                                            @click="
-                                                    $dispatch('open-void-modal', { actionUrl: '{{ route('admin.invoices.void', $invoice->id) }}', invoiceNumber: '{{ $invoice->invoice_no }}' });
-                                                "
-                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition-all shadow-sm">
+                                            @click="$dispatch('open-void-modal', { actionUrl: '{{ route('admin.invoices.void', $invoice->id) }}', invoiceNumber: '{{ $invoice->invoice_no }}' })"
+                                            class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition-all shadow-sm w-full">
                                             <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
                                             </svg>

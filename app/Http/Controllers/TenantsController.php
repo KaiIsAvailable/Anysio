@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\{Tenants, UserManagement};
+use App\Services\{LeaseService};
 use App\Models\User;
 use App\Models\Room;
 use App\Models\Unit;
@@ -388,7 +389,7 @@ class TenantsController extends Controller
             compact('invoices')
         );
     }
-    public function show(Tenants $tenant)
+    public function show(Tenants $tenant, LeaseService $leaseService, Request $request)
     {
         if (Gate::denies('owner-admin') && Gate::denies('tenant.show')) {
             return view('errors.403');
@@ -418,10 +419,16 @@ class TenantsController extends Controller
 
         $latestLease = $leases->first(); // 注意：从分页结果中获取第一个
 
-        return view('adminSide.tenants.show', compact(
-            'tenant',
-            'leases',
-            'latestLease'
+        $user = get_effective_user();
+        $leaseModalData = $leaseService->getLeaseFormPayload($user, $request);
+
+        return view('adminSide.tenants.show', array_merge(
+            $leaseModalData,
+            [
+                'tenant' => $tenant,
+                'leases' => $leases,
+                'latestLease' => $latestLease,
+            ]
         ));
     }
 

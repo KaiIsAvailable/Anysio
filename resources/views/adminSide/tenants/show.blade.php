@@ -199,7 +199,7 @@
                             <div>
                                 @if($leases && $leases->count() > 0)
 
-                                <x-table.lease-table :leases="$leases" :showOwner="false" :showTenant="true" :showAction="true" />
+                                <x-table.lease-table :leases="$leases" :showOwner="false" :showTenant="false" :showAction="true" />
 
                                 @else
 

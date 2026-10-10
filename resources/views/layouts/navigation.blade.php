@@ -42,6 +42,9 @@
                         <x-nav-link :href="route('tenants.dashboard')" :active="request()->routeIs('tenants.dashboard')">
                             {{ __('Dashboard') }}
                         </x-nav-link>
+                        <x-nav-link :href="route('tenants.customerService.index')" :active="request()->routeIs('tenants.customerService.*')">
+                            {{ __('Customer Service') }}
+                        </x-nav-link>
                     @endcan
 
                     @canany(['agent-admin', 'owner.tab'])
@@ -269,6 +272,9 @@
             @can('is-tenant')
                 <x-responsive-nav-link :href="route('tenants.dashboard')" :active="request()->routeIs('tenants.dashboard')">
                     {{ __('Dashboard') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('tenants.customerService.index')" :active="request()->routeIs('tenants.customerService.*')">
+                    {{ __('Customer Service') }}
                 </x-responsive-nav-link>
             @endcan
 

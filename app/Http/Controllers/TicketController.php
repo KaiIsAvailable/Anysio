@@ -17,6 +17,7 @@ class TicketController extends Controller
      * Route: customerService.index
      */
     public function index() {
+        abort_if(Auth::user()->isTenant(), 403, 'Please use the tenant Customer Service page.');
         $userRole = Auth::user()->role;
 
         if (Gate::allows('super-admin')) {
@@ -41,6 +42,7 @@ class TicketController extends Controller
      * Route: customerService.store
      */
     public function store(Request $request) {
+        abort_if(Auth::user()->isTenant(), 403, 'Please use the tenant Customer Service page.');
         $request->validate([
             'category' => 'required|string',
             'subject' => 'required|string|max:255',
@@ -73,6 +75,7 @@ class TicketController extends Controller
      * Route: customerService.show
      */
     public function show($id) {
+        abort_if(Auth::user()->isTenant(), 403, 'Please use the tenant Customer Service page.');
         // Find ticket or fail
         $ticket = Ticket::with(['messages', 'sender', 'receiver'])->findOrFail($id);
 
@@ -92,6 +95,7 @@ class TicketController extends Controller
      * Route: customerService.update
      */
     public function update(Request $request, $id) {
+        abort_if(Auth::user()->isTenant(), 403, 'Please use the tenant Customer Service page.');
         $request->validate([
             'message' => 'required|string'
         ]);
@@ -116,6 +120,7 @@ class TicketController extends Controller
      * Route: customerService.grab
      */
     public function grab($customerService) {
+        abort_if(Auth::user()->isTenant(), 403, 'Please use the tenant Customer Service page.');
         // Only admin can grab tickets
         if (Auth::user()->role !== 'admin') {
             abort(403, 'Unauthorized action.');
@@ -137,6 +142,7 @@ class TicketController extends Controller
      * Route: customerService.close
      */
     public function close($customerService) {
+        abort_if(Auth::user()->isTenant(), 403, 'Please use the tenant Customer Service page.');
         // Only admin can close tickets
         if (Auth::user()->role !== 'admin') {
             abort(403, 'Unauthorized action.');
@@ -157,6 +163,7 @@ class TicketController extends Controller
      * Route: customerService.newMessages
      */
     public function getNewMessages(Request $request, $ticket) {
+        abort_if(Auth::user()->isTenant(), 403, 'Please use the tenant Customer Service page.');
         $ticketModel = Ticket::findOrFail($ticket);
 
         // Security check

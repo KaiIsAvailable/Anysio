@@ -37,7 +37,7 @@
             this.min_amount = '';
             this.max_amount = '';
             this.status = '';
-            this.pending_renewal = false;
+            this.pending_renewal = '';
             this.stampingStatus = '';
 
             // Directly clear Flatpickr instances using their IDs
@@ -168,9 +168,9 @@
                                 x-model="leaseable_name"
                                 value="{{ request('leaseable_name') }}"
                                 :options="[
-                                    'Room' => 'Room',
-                                    'Unit' => 'Unit',
-                                    'Property' => 'Property',
+                                    'R' => 'Room',
+                                    'U' => 'Unit',
+                                    'P' => 'Property',
                                 ]"
                             />
                         </div>
@@ -232,6 +232,7 @@
                                     />
                                     <x-form.input-error :messages="$errors->get('start_date')" class="mt-1" />
                                 </div>
+                                <span class="text-sm font-medium text-gray-400 text-center">to</span>
                                 <div>
                                     <x-form.date-input 
                                         id="end-date" 
@@ -255,11 +256,10 @@
                                 x-model="status"
                                 value="{{ request('status') }}"
                                 :options="[
-                                    'New' => 'New',
-                                    'Renew' => 'Renew',
-                                    'End' => 'End',
-                                    'Check Out' => 'Check Out',
-                                    'Cancelled' => 'Cancelled',
+                                    'N' => 'New',
+                                    'R' => 'Renew',
+                                    'E' => 'End',
+                                    'C' => 'Check Out',
                                 ]"
                             />
                         </div>
@@ -268,18 +268,16 @@
                     @if($showPendingRenewalField)
                         <div>
                             <x-form.input-label value="Pending Renewal" class="mb-1.5 text-sm font-bold uppercase" />
-                            <div class="flex items-center h-10">
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input 
-                                        type="checkbox" 
-                                        name="show_pending_renewal" 
-                                        value="1" 
-                                        {{ request('show_pending_renewal') ? 'checked' : '' }} 
-                                        class="sr-only peer"
-                                    >
-                                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
-                                </label>
-                            </div>
+                            <x-form.input-select
+                                name="pending_renewal"
+                                id="pending_renewal"
+                                x-model="pending_renewal"
+                                value="{{ request('pending_renewal') }}"
+                                :options="[
+                                    'T' => 'True',
+                                    'F' => 'False',
+                                ]"
+                            />
                         </div>
                     @endif
 
@@ -327,9 +325,9 @@
                                 x-model="stampingStatus"
                                 value="{{ request('stampingStatus') }}"
                                 :options="[
-                                    'Stamped' => 'Stamped',
-                                    'Pending Stamping' => 'Pending Stamping',
-                                    'No Need Stamping' => 'No Need Stamping',
+                                    'S' => 'Stamped',
+                                    'P' => 'Pending Stamping',
+                                    'N' => 'No Need Stamping',
                                 ]"
                             />
                         </div>
@@ -346,7 +344,15 @@
                 >
                     Reset
                 </button>
-                <x-form.primary-button type="submit" class="h-9 px-4 text-sm !py-0 flex items-center justify-center">
+                <x-form.primary-button 
+                    type="submit" 
+                    loading="loading"
+                    @click="
+                        // Blur any active inputs so they stop editing/searching
+                        if (document.activeElement) document.activeElement.blur();
+                    "
+                    class="h-9 px-4 text-sm !py-0 flex items-center justify-center"
+                >
                     Apply Filters
                 </x-form.primary-button>
             </div>

@@ -407,11 +407,11 @@ class Lease extends Model
         if ($request->filled('leaseable_name')) {
             $typeSearch = $request->input('leaseable_name');
             
-            if ($typeSearch === 'Room') {
+            if ($typeSearch === 'R') {
                 $query->where('leasable_type', Room::class);
-            } elseif ($typeSearch === 'Unit') {
+            } elseif ($typeSearch === 'U') {
                 $query->where('leasable_type', Unit::class);
-            } elseif ($typeSearch === 'Property') {
+            } elseif ($typeSearch === 'P') {
                 $query->where('leasable_type', Property::class);
             }
         }
@@ -466,12 +466,28 @@ class Lease extends Model
 
         // 6. Status Filter
         if ($request->filled('status')) {
-            $query->where('leases.status', $request->input('status'));
+            $typeSearch = $request->input('status');
+
+            if ($typeSearch === 'N') {
+                $query->where('status', 'New');
+            } elseif ($typeSearch === 'R') {
+                $query->where('status', 'Renew');
+            } elseif ($typeSearch === 'E') {
+                $query->where('status', 'End');
+            } elseif ($typeSearch === 'C') {
+                $query->where('status', 'Check Out');
+            }
         }
 
         // 7. Pending Renewal Toggle Filter
-        if ($request->filled('show_pending_renewal')) {
-            $query->where('leases.is_pending_renewal', true);
+        if ($request->filled('pending_renewal')) {
+            $typeSearch = $request->input('pending_renewal');
+
+            if ($typeSearch === 'T') {
+                $query->where('leases.is_pending_renewal', true);
+            } elseif ($typeSearch === 'F') {
+                $query->where('leases.is_pending_renewal', false);
+            }
         }
 
         // 8. Charges Min Amount Filter (converted from RM to cents)
@@ -495,12 +511,13 @@ class Lease extends Model
         // 10. Stamping Status Filter
         if ($request->filled('stampingStatus')) {
             $stampingStatus = $request->input('stampingStatus');
-            if ($stampingStatus === 'Stamped') {
+
+            if ($stampingStatus === 'S') {
                 $query->where('leases.stamping_status', true);
-            } elseif ($stampingStatus === 'Pending Stamping') {
+            } elseif ($stampingStatus === 'P') {
                 $query->where('leases.stamping_status', false)
                     ->whereNotIn('leases.status', ['Check Out', 'End']);
-            } elseif ($stampingStatus === 'No Need Stamping') {
+            } elseif ($stampingStatus === 'N') {
                 $query->whereIn('leases.status', ['Check Out', 'End']);
             }
         }

@@ -185,18 +185,28 @@
         this.dropUp = spaceBelow < dropdownHeight && rect.top > dropdownHeight;
     },
     validateInput() {
-        setTimeout(() => {
-            if (!this.isMultiple && this.search !== '') {
-                let matched = this.options.find(opt => String(opt.label).toLowerCase() === String(this.search).toLowerCase());
-                if (matched) {
-                    this.toggleOption(matched);
-                } else {
-                    this.search = '';
-                    this.selectedLabel = this.lastValidLabel;
+        if (!this.isMultiple && this.search !== '') {
+            let matched = this.options.find(opt => String(opt.label).toLowerCase() === String(this.search).toLowerCase());
+            if (matched) {
+                this.toggleOption(matched);
+            } else {
+                // If typed text doesn't match an option, revert to last valid selection
+                this.search = '';
+                this.selectedLabel = this.lastValidLabel;
+                let validOpt = this.options.find(opt => String(opt.label) === String(this.lastValidLabel));
+                if (validOpt) {
+                    this.selectedValues = [validOpt.value];
                 }
             }
-            this.open = false;
-        }, 200);
+        } else if (!this.isMultiple && this.search === '' && this.selectedValues.length === 0 && this.lastValidLabel !== '') {
+            // Restore last valid selection if search was cleared
+            let validOpt = this.options.find(opt => String(opt.label) === String(this.lastValidLabel));
+            if (validOpt) {
+                this.selectedValues = [validOpt.value];
+                this.selectedLabel = validOpt.label;
+            }
+        }
+        this.open = false;
     }
 }" 
 x-modelable="selectedValues" 
@@ -252,15 +262,21 @@ class="relative w-full"
             {{ $attributes->whereStartsWith('x-bind') }}
             {{ $attributes->whereStartsWith(':disabled') }}
             :disabled="isDisabled"
-            :value="open ? search : displayValue"
+            :value="open ? search : (selectedLabel || '')"
             @focus="if(isDisabled) return; open = true; search = ''; $nextTick(() => checkPosition())"
             @input="if(isDisabled) return; open = true; search = $event.target.value; $nextTick(() => checkPosition())"
-            @blur="validateInput()"
+            @blur="
+                // Prevent premature clearing if clicking an option
+                setTimeout(() => {
+                    if (!open) validateInput();
+                }, 150)
+            "
             placeholder="{{ $placeholder ?? '' }}"
             :class="[
                 isMultiple ? 'flex-1 bg-transparent border-none focus:outline-none focus:ring-0 p-0 text-sm min-w-[60px]' : 'w-full h-full border-0 focus:ring-0 bg-transparent text-sm py-0 px-3',
                 isDisabled ? 'text-gray-500 cursor-not-allowed' : 'text-gray-900'
-            ]">
+            ]"
+        >
 
         <!-- Dropdown Arrow Icon -->
         <div @click="if (isDisabled) return; toggleDropdown(); if(open) $el.previousElementSibling.focus()" 

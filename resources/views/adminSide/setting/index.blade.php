@@ -116,13 +116,13 @@
                                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                                             <!-- Grace Period -->
                                             <div>
-                                                <x-form.input-label for="grace_period_days" :value="__('Grace Period (Days)')" info="{!! __('Extra days allowed after the due date before late fees start accumulating. <br><br> 0 means start immediately. 3 means allow 3 extra days no penalty') !!}"/>
+                                                <x-form.input-label for="grace_period_days" :value="__('Grace Period (Days)')" info="{!! __('The first penalty is due on the due date plus the grace period. <br><br> 0 means the due date itself. 1 means the following day. Dates use Asia/Kuala_Lumpur time.') !!}"/>
                                                 <x-form.text-input id="grace_period_days" name="settings[late_penalty_config][grace_period_days]" type="number" class="block w-full" value="{{ $settings['late_penalty_config']['value']['grace_period_days'] }}" min="0" x-bind:disabled="!editing" />
                                             </div>
 
                                             <!-- Calculation Type -->
                                             <div>
-                                                <x-form.input-label for="calculation_type" :value="__('Calculation Type')" info="{!! __('<b>Fixed Amount</b>: Every freqency increate fixed amount.<br>Example: Rent = RM100, Amount = RM10, Frequency = 1. Mean each day after due date add RM10. <br> First day after due = RM110, second day = RM120, etc. <br><br><b>Percentage</b>: Every frequency increases the penalty by a certain percentage. <br> Example: Rent = RM100, Percentage = 5%, Frequency = 1. Mean each day after due date add 5% of RM100. First day after due = RM105, second day = RM110, etc.') !!}"/>
+                                                <x-form.input-label for="calculation_type" :value="__('Calculation Type')" info="{!! __('<b>Fixed Amount</b>: Charge the configured amount on the penalty start date, then every frequency days.<br>Example: RM10, frequency 3: RM10 on the start date, RM20 three days later.<br><br><b>Percentage</b>: Each charge uses the configured percentage of the outstanding invoice balance. The same start date and frequency apply.') !!}"/>
                                                 <x-form.input-select 
                                                     id="calculation_type" 
                                                     name="settings[late_penalty_config][calculation_type]" 
@@ -138,7 +138,7 @@
 
                                             <!-- Frequency -->
                                             <div>
-                                                <x-form.input-label for="frequency" :value="__('Penalty Frequency')" info="{!! __('Select how often the penalty will be applied. <br><br> Example: If Frequency = 1, penalty is applied daily. 2 means applied every 2 days.') !!}"/>
+                                                <x-form.input-label for="frequency" :value="__('Penalty Frequency')" info="{!! __('The first charge applies on the penalty start date. Each additional charge applies after this many days. <br><br> Frequency 3: charges on the start date, 3 days later, 6 days later, and so on.') !!}"/>
                                                 <x-form.input-select 
                                                     id="frequency" 
                                                     name="settings[late_penalty_config][frequency]" 

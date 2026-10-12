@@ -6,7 +6,22 @@
     </x-slot>
 
     <div class="py-6 sm:py-10 bg-gray-50 min-h-screen">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" data-complaint-create data-redirect-after-create="true">
+
+            @foreach($banners as $banner)
+                <x-notification-banner :type="$banner['type']" :message="$banner['message']"
+                    :actionLabel="$banner['actionLabel'] ?? null" :actionUrl="$banner['actionUrl'] ?? '#'" />
+            @endforeach
+
+            <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-6 flex flex-wrap items-center gap-4">
+                <button type="button" data-open-complaint @disabled($creationReason) class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Complaint</button>
+                @include('tenantSide.tenants.partials.current-leases', ['activeLeases' => $activeLeases])
+                <a href="{{ route('tenants.invoices.index') }}" class="inline-flex items-center justify-center rounded-xl bg-emerald-50 px-5 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-100">Unpaid {{ $unpaidCount }}/{{ $invoiceTotal }}</a>
+            </div>
+            @if($creationReason)
+                <p class="mb-4 text-sm text-amber-800">{{ $creationReason }}</p>
+            @endif
+            <x-customer-service.create-modal :action="route('tenants.customerService.store')" />
 
             {{-- Welcome Section --}}
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 mb-6">

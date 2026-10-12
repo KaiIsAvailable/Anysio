@@ -13,9 +13,7 @@
             <div class="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
                 <div class="p-5 border-b border-gray-100 flex justify-center">
                     <form method="GET" action="{{ route('tenants.customerService.index') }}" data-ticket-search class="flex w-full max-w-xl gap-2">
-                        <label class="sr-only" for="ticket-search">Search by subject</label>
-                        <input id="ticket-search" type="search" name="search" value="{{ $search }}" maxlength="255" placeholder="Search by subject..." class="w-full rounded-xl border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                        <button class="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-200">Search</button>
+                        <x-table.search :isAdvanceSearch="false" placeholder="Search by subject..." />
                     </form>
                 </div>
                 <div data-ticket-list>@include('tenantSide.customerService.table', compact('tickets'))</div>

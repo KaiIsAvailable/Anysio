@@ -19,8 +19,8 @@
             default => 'bg-indigo-50 border-indigo-200 text-indigo-800',
         }
     }}">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
+        <div class="flex flex-col sm:flex-row sm:flex-wrap items-start sm:items-center justify-between gap-4">
+            <div class="flex min-w-0 w-full flex-1 items-start gap-3 sm:w-auto sm:basis-64">
                 <div class="flex-shrink-0">
                     @if($type === 'warning')
                         <svg class="h-5 w-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
@@ -32,20 +32,21 @@
                 </div>
 
                 {{-- 支持 Slot 或者普通 Message --}}
-                <div class="text-sm font-medium leading-relaxed">
+                <div class="min-w-0 flex-1 text-sm font-medium leading-relaxed [overflow-wrap:anywhere]">
                     {{ $slot->isEmpty() ? $message : $slot }}
                 </div>
             </div>
 
-            <div class="flex items-center gap-2 w-full sm:w-auto">
+            @if($actionLabel || $secondaryActionLabel)
+            <div class="flex w-full max-w-full shrink-0 flex-wrap items-center gap-2 sm:w-auto">
                 @if($secondaryActionLabel)
-                    <a href="{{ $secondaryActionUrl }}" class="flex-1 sm:flex-none text-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors text-slate-700">
+                    <a href="{{ $secondaryActionUrl }}" class="flex-1 sm:flex-none max-w-full [overflow-wrap:anywhere] text-center px-3 py-1.5 text-xs font-semibold rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors text-slate-700">
                         {{ $secondaryActionLabel }}
                     </a>
                 @endif
 
                 @if($actionLabel)
-                    <a href="{{ $actionUrl }}" class="flex-1 sm:flex-none text-center px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors {{
+                    <a href="{{ $actionUrl }}" class="flex-1 sm:flex-none max-w-full [overflow-wrap:anywhere] text-center px-3 py-1.5 text-xs font-semibold rounded-lg text-white transition-colors {{
                         match($type) {
                             'warning' => 'bg-amber-600 hover:bg-amber-700',
                             'danger' => 'bg-rose-600 hover:bg-rose-700',
@@ -57,6 +58,7 @@
                     </a>
                 @endif
             </div>
+            @endif
         </div>
     </div>
 </div>

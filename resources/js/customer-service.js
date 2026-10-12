@@ -14,28 +14,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const index = document.querySelector('[data-customer-service]');
     if (index) initIndex(index);
+    document.querySelectorAll('[data-complaint-create]').forEach((root) => initComplaint(root));
     document.querySelectorAll('[data-ticket-chat]').forEach(initChat);
 
-    function initIndex(root) {
+    function initComplaint(root, onCreated = null) {
         const find = (selector) => root.querySelector(selector);
-        const list = find('[data-ticket-list]');
-        const feedback = find('[data-page-feedback]');
         const complaint = find('[data-complaint-modal]');
         const createForm = find('[data-complaint-form]');
         const createError = find('[data-create-error]');
         let creating = false;
-        let listSequence = 0;
-        const refreshList = async (url = window.location.href) => {
-            const sequence = ++listSequence;
-            const data = await request(url);
-            if (sequence !== listSequence) return false;
-            list.innerHTML = data.html;
-            const reason = find('[data-creation-reason]');
-            reason.textContent = data.creation_reason || '';
-            reason.hidden = !data.creation_reason;
-            find('[data-open-complaint]').disabled = !!data.creation_reason;
-            return true;
-        };
         find('[data-open-complaint]').addEventListener('click', () => {
             createError.textContent = '';
             createForm.reset();
@@ -51,17 +38,39 @@ document.addEventListener('DOMContentLoaded', () => {
             creating = true;
             toggleControls(createForm, true);
             try {
-                await request(createForm.action, { method: 'POST', body });
+                const data = await request(createForm.action, { method: 'POST', body });
                 complaint.close();
                 createForm.reset();
-                feedback.textContent = 'Complaint created.';
-                const url = new URL(window.location.href);
-                url.searchParams.delete('page');
-                window.history.replaceState(null, '', url);
-                try { await refreshList(url); }
-                catch { feedback.textContent = 'Complaint created. Refresh the list to see the latest tickets.'; }
+                if (root.dataset.redirectAfterCreate === 'true') window.location.assign(data.ticket.show_url);
+                else if (onCreated) await onCreated(data);
             } catch (error) { createError.textContent = error.message; }
             finally { creating = false; toggleControls(createForm, false); }
+        });
+    }
+
+    function initIndex(root) {
+        const find = (selector) => root.querySelector(selector);
+        const list = find('[data-ticket-list]');
+        const feedback = find('[data-page-feedback]');
+        let listSequence = 0;
+        const refreshList = async (url = window.location.href) => {
+            const sequence = ++listSequence;
+            const data = await request(url);
+            if (sequence !== listSequence) return false;
+            list.innerHTML = data.html;
+            const reason = find('[data-creation-reason]');
+            reason.textContent = data.creation_reason || '';
+            reason.hidden = !data.creation_reason;
+            find('[data-open-complaint]').disabled = !!data.creation_reason;
+            return true;
+        };
+        initComplaint(root, async () => {
+            feedback.textContent = 'Complaint created.';
+            const url = new URL(window.location.href);
+            url.searchParams.delete('page');
+            window.history.replaceState(null, '', url);
+            try { await refreshList(url); }
+            catch { feedback.textContent = 'Complaint created. Refresh the list to see the latest tickets.'; }
         });
         find('[data-ticket-search]').addEventListener('submit', async (event) => {
             event.preventDefault();

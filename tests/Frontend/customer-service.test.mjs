@@ -35,7 +35,7 @@ class FormDataMock {
     get(name) { return this.values.find(([key]) => key === name)?.[1] ?? null; }
 }
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
-function setup({ index = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [] } = {}) {
+function setup({ index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [] } = {}) {
     const nodes = new Map();
     const node = (selector) => {
         if (!nodes.has(selector)) nodes.set(selector, new Element());
@@ -55,7 +55,10 @@ function setup({ index = false, chat = false, role = 'tenant', canSend = true, c
     chatRoot.querySelector = node;
     const document = new Element();
     document.querySelector = () => index ? indexRoot : null;
-    document.querySelectorAll = () => chat ? [chatRoot] : [];
+    const dashboardRoot = new Element();
+    dashboardRoot.dataset = { redirectAfterCreate: 'true' };
+    dashboardRoot.querySelector = node;
+    document.querySelectorAll = (selector) => selector === '[data-complaint-create]' ? (dashboard ? [dashboardRoot] : []) : (chat ? [chatRoot] : []);
     document.createElement = (tag) => new Element(tag);
     const navigations = [];
     const window = new Element();
@@ -94,6 +97,25 @@ test('Create component submits subject and CSRF, closes modal, and refreshes the
     assert.deepEqual(requests[0].body.values.map(([name]) => name), ['_token', 'subject']);
     assert.equal(node('[data-complaint-modal]').open, false);
     assert.equal(node('[data-ticket-list]').innerHTML, '<table>New complaint</table>');
+});
+
+test('Dashboard creates through the shared modal and redirects without a ticket table', async () => {
+    const { node, requests, answers, navigations } = setup({ dashboard: true });
+    await node('[data-open-complaint]').fire('click');
+    assert.equal(node('[data-complaint-modal]').open, true);
+    await node('[data-cancel-complaint]').fire('click');
+    assert.equal(node('[data-complaint-modal]').open, false);
+    await node('[data-open-complaint]').fire('click');
+    node('[data-complaint-form]').fields = [['_token', 'token'], ['subject', 'Dashboard complaint']];
+    answers.push({ status: 422, data: { errors: { subject: ['Please enter a subject.'] } } });
+    await node('[data-complaint-form]').fire('submit');
+    assert.equal(node('[data-complaint-modal]').open, true);
+    assert.equal(node('[data-create-error]').textContent, 'Please enter a subject.');
+    answers.push({ data: { ticket: { show_url: '/tenant/ticket/new' } } });
+    await node('[data-complaint-form]').fire('submit');
+    assert.equal(requests.length, 2);
+    assert.deepEqual(navigations, ['/tenant/ticket/new']);
+    assert.deepEqual(requests[1].body.values.map(([name]) => name), ['_token', 'subject']);
 });
 
 test('Clicking a ticket row navigates to show without requesting a chat modal', async () => {

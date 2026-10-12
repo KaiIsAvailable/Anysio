@@ -99,7 +99,16 @@ class InvoiceController extends Controller
         }
 
         //Gate::authorize('owner-admin', $invoice->lease);
-        $this->invoiceService->recordPayment($invoice, $request->validated());
+        try {
+            $this->invoiceService->recordPayment($invoice, $request->validated());
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            if ($request->expectsJson() || !isset($e->errors()['penalty'])) {
+                throw $e;
+            }
+            // The payment modal closes after a form redirect; also show the error in the page alert.
+            return back()->withErrors($e->errors())->withInput()
+                ->with('error', implode(' ', $e->errors()['penalty']));
+        }
         //dd($request->all());
         return back()->with('success', 'Payment recorded successfully.');
     }

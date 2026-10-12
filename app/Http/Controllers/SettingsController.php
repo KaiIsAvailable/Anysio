@@ -110,26 +110,10 @@ class SettingsController extends Controller
         return redirect()->back()->with('status', 'settings-updated');
     }
 
-    public function calculatePenaltyPreview(Request $request, Invoice $invoice, SettingService $settingService)
+    public function calculatePenaltyPreview(Request $request, Invoice $invoice, \App\Services\InvoicePenaltyService $penalties)
     {
-        // Ensure you pass the correct user identifier linked to this setting or lease
-        $userId = get_effective_user()->id;
-
-        $penalty = $settingService->calculateLatePenalty(
-            $userId,
-            $request->input('due_date'),
-            $request->input('total_amount'),
-            $request->input('payment_date'),
-            $invoice->items()->with('feeType')->get()
-        );
-
-        Log::channel('testing')->info('', [
-            'userId' => $userId,
-            'penalty' => $penalty,
-            'request' => $request->all(),
-        ]);
-
-        return response()->json($penalty);
+        $data = $request->validate(['payment_date' => ['required', 'date', 'before_or_equal:today']]);
+        return response()->json($penalties->quote($invoice, $data['payment_date']));
     }
 
     public function userRolePermissions()

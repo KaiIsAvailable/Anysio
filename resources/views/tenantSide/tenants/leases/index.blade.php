@@ -128,7 +128,8 @@
 
 
                         {{-- Mobile Lease Card --}}
-                        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                        <div data-tenant-lease-url="{{ route('tenants.leases.show', $lease->id) }}" tabindex="0" role="link" aria-label="View lease: {{ $propertyName }}"
+                             class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden cursor-pointer hover:bg-indigo-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 transition-colors">
 
                             {{-- Header --}}
                             <div class="p-5 border-b border-gray-100">
@@ -202,29 +203,6 @@
                                     </p>
                                 </div>
 
-
-                                {{-- View Details --}}
-                                <a href="{{ route('tenants.leases.show', $lease->id) }}"
-                                   class="flex items-center justify-center w-full
-                                          bg-indigo-600 hover:bg-indigo-700
-                                          text-white font-bold text-sm
-                                          rounded-xl px-4 py-3
-                                          transition-colors">
-
-                                    View Lease Details
-
-                                    <svg class="w-4 h-4 ml-2"
-                                         fill="none"
-                                         stroke="currentColor"
-                                         viewBox="0 0 24 24">
-
-                                        <path stroke-linecap="round"
-                                              stroke-linejoin="round"
-                                              stroke-width="2"
-                                              d="M9 5l7 7-7 7" />
-                                    </svg>
-                                </a>
-
                             </div>
                         </div>
 
@@ -265,10 +243,6 @@
 
                                         <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">
                                             Status
-                                        </th>
-
-                                        <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                                            Action
                                         </th>
 
                                     </tr>
@@ -356,7 +330,8 @@
                                         @endphp
 
 
-                                        <tr class="hover:bg-indigo-50/60 transition-colors">
+                                        <tr data-tenant-lease-url="{{ route('tenants.leases.show', $lease->id) }}" tabindex="0" role="link" aria-label="View lease: {{ $propertyName }}"
+                                            class="cursor-pointer hover:bg-indigo-50/60 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600 transition-colors">
 
                                             {{-- Property --}}
                                             <td class="px-6 py-5">
@@ -407,40 +382,6 @@
                                                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border {{ $statusClass }}">
                                                     {{ $lease->status ?? 'N/A' }}
                                                 </span>
-                                            </td>
-
-
-                                            {{-- Action --}}
-                                            <td class="px-6 py-5 text-center">
-
-                                                <a href="{{ route('tenants.leases.show', $lease->id) }}"
-                                                   class="inline-flex items-center justify-center
-                                                          px-3 py-2
-                                                          text-xs font-bold
-                                                          text-indigo-700
-                                                          bg-indigo-50
-                                                          border border-indigo-200
-                                                          rounded-lg
-                                                          hover:bg-indigo-600
-                                                          hover:text-white
-                                                          transition-all">
-
-                                                    View Details
-
-                                                    <svg class="w-3.5 h-3.5 ml-1.5"
-                                                         fill="none"
-                                                         stroke="currentColor"
-                                                         viewBox="0 0 24 24">
-
-                                                        <path stroke-linecap="round"
-                                                              stroke-linejoin="round"
-                                                              stroke-width="2"
-                                                              d="M9 5l7 7-7 7" />
-
-                                                    </svg>
-
-                                                </a>
-
                                             </td>
 
                                         </tr>

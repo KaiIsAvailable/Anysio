@@ -26,6 +26,8 @@
             useWallet: false,
             walletBalance: 0,
             penaltyLoading: false,
+            penaltyError: '',
+            penaltySequence: 0,
 
             dynamicPenalty: null,
             form: {
@@ -35,7 +37,11 @@
             },
 
             async updatePenalty() {
+                const sequence = ++this.penaltySequence;
+                this.dynamicPenalty = null;
+                this.penaltyError = '';
                 if (!this.paymentData?.id || !this.form.payment_date) {
+                    this.penaltyError = 'Select an invoice and payment date to calculate the penalty.';
                     this.penaltyLoading = false;
                     return;
                 }
@@ -51,29 +57,23 @@
                             'Accept': 'application/json'
                         },
                         body: JSON.stringify({
-                            due_date: this.form.due_date,        
-                            total_amount: this.form.amount_balance, 
                             payment_date: this.form.payment_date  
                         })
                     });
                     
                     let data = await response.json();
+                    if (sequence !== this.penaltySequence) return;
+                    if (!response.ok) throw new Error(data.errors ? Object.values(data.errors).flat().join(' ') : data.message || 'Unable to calculate the penalty.');
                     this.dynamicPenalty = data; 
-
-                    console.log('[Debug] Penalty calculation response:', data);
                 } catch (error) {
-                    console.error('Failed to calculate penalty:', error);
+                    if (sequence === this.penaltySequence) this.penaltyError = error.message || 'Unable to calculate the penalty. Please try again.';
                 } finally {
-                    this.penaltyLoading = false; // <-- Always turn off loading when done (success or error)
+                    if (sequence === this.penaltySequence) this.penaltyLoading = false;
                 }
             },
             
             get penaltyDetails() {
-                // If dynamicPenalty is empty, null, or missing an amount, ignore it
-                if (!this.dynamicPenalty || Object.keys(this.dynamicPenalty).length === 0 || !this.dynamicPenalty.amount) {
-                    return this.paymentData?.initialPenalty || null;
-                }
-                return this.dynamicPenalty;
+                return this.dynamicPenalty?.amount > 0 ? this.dynamicPenalty : null;
             },
             
             get computedAmount() {
@@ -310,8 +310,7 @@
                                 <x-form.input-error :messages="$errors->get('remarks')" class="mt-1" />
                             </div>
 
-                            <input type="hidden" name="penalty_details[amount]" :value="penaltyDetails?.amount || ''">
-                            <input type="hidden" name="penalty_details[title]" :value="penaltyDetails?.title || ''">
+                            <p x-show="penaltyError" x-text="penaltyError" role="alert" class="text-sm text-red-700"></p>
                         </div>
 
                         {{-- Sticky Footer Actions --}}
@@ -322,7 +321,7 @@
                             </button>
                             <x-form.primary-button type="submit" 
                                 loading="loading"
-                                x-bind:disabled="penaltyLoading"
+                                x-bind:disabled="penaltyLoading || !!penaltyError"
                                 class="flex-1 px-4 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all">
                                 <span>Confirm Payment</span>
                             </x-form.primary-button>

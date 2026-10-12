@@ -348,9 +348,9 @@ class TenantsController extends Controller
         return redirect()->route('admin.tenants.index')->with('success', 'Tenant is inactive.');
     }
 
-    public function dashboard()
+    public function dashboard(\App\Services\TenantDashboardService $dashboard)
     {
-        return view('tenantSide.tenants.dashboard');
+        return view('tenantSide.tenants.dashboard', $dashboard->data(Auth::user()));
     }
 
     public function invoices()
@@ -370,7 +370,7 @@ class TenantsController extends Controller
     | Tenant 只能看到属于自己 Lease 的 Invoice
     */
 
-        $invoices = Invoice::with([
+        $invoices = app(\App\Services\TenantDashboardService::class)->invoices($user)->with([
             'documentTemplate',
             'lease.tenant.user',
             'lease.leasable',
@@ -378,9 +378,6 @@ class TenantsController extends Controller
             'transactions.documentTemplate',
             'transactions.approver',
         ])
-            ->whereHas('lease', function ($query) use ($tenant) {
-                $query->where('tenant_id', $tenant->id);
-            })
             ->latest()
             ->paginate(10);
 

@@ -2,9 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\{Invoice, Transaction, DocumentTemplate, UserManagement, FeeType};
+use App\Models\{Invoice, Transaction, DocumentTemplate, UserManagement};
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 
 class PaymentProcessor
@@ -12,9 +13,22 @@ class PaymentProcessor
     public function __construct(
         private readonly WalletService $walletService,
         private readonly DocumentSequenceService $documentSequenceService,
+        private readonly InvoicePenaltyService $invoicePenaltyService,
     ) {}
 
     public function process(Invoice $invoice, array $data, InvoiceService $invoiceService): Transaction
+    {
+        return DB::transaction(function () use ($invoice, $data, $invoiceService) {
+            // Serialize duplicate submissions and always use the latest approved balance.
+            $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            if ($locked->amount_balance <= 0 || $locked->isVoid()) {
+                throw ValidationException::withMessages(['invoice' => 'This invoice is already settled or void. No payment has been recorded.']);
+            }
+            return $this->processLocked($locked, $data, $invoiceService);
+        });
+    }
+
+    private function processLocked(Invoice $invoice, array $data, InvoiceService $invoiceService): Transaction
     {
         $this->assertNoEarlierOutstanding($invoice);
 
@@ -27,8 +41,8 @@ class PaymentProcessor
         $tenant = $invoice->lease?->tenant;
         $walletDeductionCents = 0;
 
-        // Calculate penalty amount early so wallet deduction can include it
-        $penaltyDetails = $data['penalty_details'] ?? null;
+        // Never trust a client-supplied amount or an earlier preview for collection.
+        $penaltyDetails = $this->invoicePenaltyService->quote($invoice, $data['payment_date'], lockFeeType: true);
         $penaltyAmount = isset($penaltyDetails['amount']) ? (float) $penaltyDetails['amount'] : 0;
         $penaltyAmountCents = (int) round($penaltyAmount * 100);
         
@@ -84,20 +98,18 @@ class PaymentProcessor
 
         // 1. PROCESS PENALTY FIRST IF APPLICABLE
         if ($penaltyAmount > 0) {
-            $penaltyFeeType = FeeType::where('name', 'Late Payment Penalty')
-                ->where('category', 'service')
-                ->firstOrFail();
-
             $penaltyInvoice = $invoiceService->createManualInvoice($invoice->lease, [
                 'parent_id' => $invoice->id,
                 'type'      => 'penalty',
                 'period'    => $invoice->period,
-                'due_date'  => now()->toDateString(),
-                'remarks'   => 'Generated via late penalty policy',
+                'due_date'  => app(LatePenaltyCalculator::class)->day()->toDateString(),
+                'remarks'   => sprintf('Late penalty v2; start=%s; through=%s; frequency=%d; charges=%d; base_cents=%d',
+                    $penaltyDetails['start_date'], $penaltyDetails['through_date'], $penaltyDetails['frequency'],
+                    $penaltyDetails['periods'], $invoice->amount_balance),
                 'items'     => [
                     [
-                        'fee_type_id' => $penaltyFeeType->id,
-                        'description' => $penaltyDetails['title'] ?? 'Late Payment Panalty',
+                        'fee_type_id' => $penaltyDetails['fee_type_id'],
+                        'description' => $penaltyDetails['title'] ?? 'Late Payment Penalty',
                         'amount'      => $penaltyAmount,
                     ]
                 ]

@@ -19,3 +19,4 @@ document.addEventListener('DOMContentLoaded', () => {
 window.createAgreementEditor = createAgreementEditor;
 window.updateBlocks = updateBlocks;
 import './customer-service';
+import './tenant-lease-navigation';

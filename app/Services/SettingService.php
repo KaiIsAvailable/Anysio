@@ -4,7 +4,6 @@ namespace App\Services;
 use App\Models\{Setting, User};
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Log;
-use Carbon\Carbon;
 
 class SettingService
 {
@@ -60,7 +59,14 @@ class SettingService
         ]);
 
         // Merge database settings over the top of config defaults
-        return array_replace_recursive($normalizedDefaults, $dbSettings);
+        $resolved = array_replace_recursive($normalizedDefaults, $dbSettings);
+        // Category selections are a complete list, including an intentionally empty list.
+        // Recursive array replacement otherwise silently restores default categories.
+        $penaltyValue = data_get($dbSettings, 'late_penalty_config.value', []);
+        if (is_array($penaltyValue) && array_key_exists('applicable_categories', $penaltyValue)) {
+            $resolved['late_penalty_config']['value']['applicable_categories'] = $penaltyValue['applicable_categories'];
+        }
+        return $resolved;
     }
 
     /**
@@ -239,108 +245,8 @@ class SettingService
 
     public function calculateLatePenalty(string $userId, $dueDate, $totalAmount, $paymentDate = null, $invoiceItems = [])
     {
-        $settings = $this->getEffectiveSettings($userId);
-
-        $penaltySetting = $settings['late_penalty_config'] ?? [];
-        $penaltySettingArray = is_array($penaltySetting) ? $penaltySetting : (array) $penaltySetting;
-
-        // Check if penalty configuration is active
-        $isActive = filter_var($penaltySettingArray['is_active'] ?? false, FILTER_VALIDATE_BOOLEAN);
-
-        if (!$isActive) {
-            // Return a zero penalty response so it doesn't calculate anything further
-            return [
-                'amount' => 0,
-                'title' => 'Late Payment Penalty',
-            ];
-        }
-
-        $config = $penaltySettingArray['value'] ?? [];
-        $config = is_array($config) ? $config : (array) $config;
-        $config['is_active'] = $isActive;
-
-        Log::channel('testing')->info('', [
-            'settings' => $settings,
-            'config' => $config,
-        ]);
-
-
-        // Check applicable categories restriction
-        $applicableCategories = $config['applicable_categories'] ?? [];
-
-        // If applicable_categories is empty, disallow/skip penalties altogether
-        if (empty($applicableCategories)) {
-            return null; 
-        }
-
-        $hasMatchingCategory = collect($invoiceItems)->contains(function ($item) use ($applicableCategories) {
-            $category = is_array($item) ? ($item['category'] ?? null) : ($item->feeType?->category ?? null);
-            
-            if ($category instanceof \BackedEnum) {
-                $category = $category->value;
-            } elseif (is_object($category)) {
-                $category = $category->value ?? (string) $category;
-            }
-
-            return in_array($category, $applicableCategories);
-        });
-
-        if (!$hasMatchingCategory) {
-            return null; 
-        }
-
-        $due = Carbon::parse($dueDate)->startOfDay();
-        $graceDays = (int) ($config['grace_period_days'] ?? 0);
-        $penaltyStartDate = $due->copy()->addDays($graceDays); // Due date + 0 days grace = Due date
-
-        $today = $paymentDate ? Carbon::parse($paymentDate)->startOfDay() : Carbon::today();
-
-        Log::channel('testing')->info('', [
-            'due' => $due,
-            'graceDays' => $graceDays,
-            'penaltyStartDate' => $penaltyStartDate,
-            'today' => $today,
-        ]);
-
-        if ($today->lte($penaltyStartDate)) {
-            return null; // <-- Exits here!
-        }
-
-        $overdueDays = $penaltyStartDate->diffInDays($today);
-        $frequency = max(1, (int) ($config['frequency'] ?? 1));
-        $periods = floor($overdueDays / $frequency);
-
-        if ($periods <= 0) {
-            return null;
-        }
-
-        $type = $config['calculation_type'] ?? ($config['type'] ?? 'fixed');
-        $maxAmountCents = (float) ($config['maximum_amount'] ?? 0);
-        $maxAmount = $maxAmountCents > 0 ? $maxAmountCents / 100 : INF;
-
-        $penaltyAmount = 0;
-        $calculationText = '';
-
-        if ($type === 'fixed') {
-            $unitAmount = (float) ($config['amount'] ?? 0) / 100;
-            $penaltyAmount = $unitAmount * $periods;
-            $calculationText = sprintf('RM %.2f per %s (%d interval(s))', $unitAmount, $frequency > 1 ? $frequency . ' days' : 'day', $periods);
-        } elseif ($type === 'percentage') {
-            $rate = (float) ($config['rate'] ?? 0);
-            $unitPenalty = $totalAmount * ($rate / 100);
-            $penaltyAmount = $unitPenalty * $periods;
-            $calculationText = sprintf('%.2f%% per %s (%d interval(s))', $rate, $frequency > 1 ? $frequency . ' days' : 'day', $periods);
-        }
-
-        if ($maxAmountCents > 0 && $penaltyAmount > $maxAmount) {
-            $penaltyAmount = $maxAmount;
-            $calculationText .= sprintf(' (Capped at RM %.2f)', $maxAmount);
-        }
-
-        return [
-            'amount' => round($penaltyAmount, 2),
-            'title' => 'Late Penalty',
-            'calculation' => $calculationText . ($graceDays > 0 ? " [{$graceDays}d grace]" : '')
-        ];
+        return app(LatePenaltyCalculator::class)->calculate(
+            $this->getEffectiveSettings($userId), $dueDate, $totalAmount, $paymentDate, $invoiceItems
+        );
     }
 }

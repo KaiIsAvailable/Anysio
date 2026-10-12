@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Traits\Auditable;
+use Illuminate\Http\Request;
 
 class Lease extends Model
 {
@@ -276,5 +277,234 @@ class Lease extends Model
     public function getTotalDepositAmountAttribute(): int
     {
         return $this->refundableCharges()->sum('amount');
+    }
+
+    //Search
+    public function scopeSearch($query, ?string $search)
+    {
+        if (!$search) {
+            return $query;
+        }
+
+        $searchLower = strtolower(trim($search));
+
+        $numericSearch = preg_replace('/[^\d.]/', '', $search);
+        $searchAmountCents = is_numeric($numericSearch) ? (float) $numericSearch * 100 : null;
+
+        return $query->where(function ($q) use ($search, $searchLower, $searchAmountCents) {
+            // 1. Status search
+            $q->where('leases.status', 'like', '%' . $search . '%')
+
+                ->orWhere(function ($pendingQuery) use ($searchLower) {
+                    if (str_contains($searchLower, 'pending') || str_contains($searchLower, 'renewal')) {
+                        $pendingQuery->where('leases.is_pending_renewal', true);
+                    }
+                })
+                
+                // 2. Leasable type keyword matches ('room', 'unit', 'property')
+                ->orWhere(function ($typeQuery) use ($searchLower) {
+                    if ($searchLower === 'room' || str_contains('room', $searchLower)) {
+                        $typeQuery->orWhere('leasable_type', Room::class);
+                    }
+                    if ($searchLower === 'unit' || str_contains('unit', $searchLower)) {
+                        $typeQuery->orWhere('leasable_type', Unit::class);
+                    }
+                    if ($searchLower === 'property' || str_contains('property', $searchLower)) {
+                        $typeQuery->orWhere('leasable_type', Property::class);
+                    }
+                })
+
+                // 3. Date Range Search (e.g., "01/11/2026 to 31/12/2026")
+                ->orWhere(function ($dateQuery) use ($search) {
+                    if (str_contains(strtolower($search), ' to ')) {
+                        [$rawStart, $rawEnd] = explode(' to ', strtolower($search));
+                        $startDate = $this->parseUserDate(trim($rawStart));
+                        $endDate = $this->parseUserDate(trim($rawEnd));
+
+                        if ($startDate && $endDate) {
+                            // Exactly matches leases whose start and end dates fall within this window
+                            $dateQuery->where('leases.start_date', '>=', $startDate)
+                                    ->where('leases.end_date', '<=', $endDate);
+                        }
+                    } else {
+                        // Single date search
+                        $formattedDate = $this->parseUserDate(trim($search));
+                        if ($formattedDate) {
+                            $dateQuery->whereDate('leases.start_date', $formattedDate)
+                                    ->orWhereDate('leases.end_date', $formattedDate);
+                        }
+                    }
+                })
+
+                // 4. Polymorphic assets & owner search
+                ->orWhereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($search) {
+                    $mq->where(function ($query) use ($search, $type) {
+                        if ($type === Room::class) {
+                            $query->where('room_no', 'like', '%' . $search . '%');
+                        } elseif ($type === Unit::class) {
+                            $query->where('unit_no', 'like', '%' . $search . '%');
+                        } elseif ($type === Property::class) {
+                            $query->where('name', 'like', '%' . $search . '%');
+                        }
+                    })
+                    ->orWhere(function ($query) use ($search, $type) {
+                        if ($type === Room::class) {
+                            $query->whereHas('unit.owner', function ($oq) use ($search) {
+                                $oq->where('name', 'like', '%' . $search . '%');
+                            });
+                        } else {
+                            $query->whereHas('owner', function ($oq) use ($search) {
+                                $oq->where('name', 'like', '%' . $search . '%');
+                            });
+                        }
+                    });
+                })
+
+                // 5. Tenant user name search
+                ->orWhereHas('tenant.user', function ($tq) use ($search) {
+                    $tq->where('name', 'like', '%' . $search . '%');
+                })
+
+                ->orWhereHas('charges', function ($cq) use ($search) {
+                    $cq->where('description', 'like', '%' . $search . '%');
+                })
+
+                ->orWhereHas('charges', function ($cq) use ($searchAmountCents) {
+                    if ($searchAmountCents !== null) {
+                        $cq->where('amount', 'like', '%' . $searchAmountCents . '%');
+                    }
+                })
+
+                ->when($searchAmountCents !== null, function ($totalQuery) use ($searchAmountCents) {
+                    $totalQuery->orWhereRaw(
+                        '(select COALESCE(sum(amount), 0) from lease_charges where lease_charges.lease_id = leases.id and lease_charges.deleted_at is null) = ?',
+                        [$searchAmountCents]
+                    );
+                });
+        });
+    }
+
+    /**
+     * Helper to convert user-inputted dates (DD/MM/YYYY or similar) to YYYY-MM-DD
+     */
+    private function parseUserDate(string $dateStr): ?string
+    {
+        // Try matching common DD/MM/YYYY or DD-MM-YYYY formats
+        if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $dateStr, $matches)) {
+            $day = str_pad($matches[1], 2, '0', STR_PAD_LEFT);
+            $month = str_pad($matches[2], 2, '0', STR_PAD_LEFT);
+            $year = $matches[3];
+            return "{$year}-{$month}-{$day}";
+        }
+
+        // Fallback attempt via standard strtotime if user types something standard
+        $timestamp = strtotime($dateStr);
+        return $timestamp ? date('YYYY-MM-DD', $timestamp) : null;
+    }
+
+    public function scopeApplyFilters($query, Request $request)
+    {
+        if ($request->filled('leaseable_name')) {
+            $typeSearch = $request->input('leaseable_name');
+            
+            if ($typeSearch === 'Room') {
+                $query->where('leasable_type', Room::class);
+            } elseif ($typeSearch === 'Unit') {
+                $query->where('leasable_type', Unit::class);
+            } elseif ($typeSearch === 'Property') {
+                $query->where('leasable_type', Property::class);
+            }
+        }
+
+        // 1. Property / Unit / Room Filter
+        if ($request->filled('leaseable')) {
+            $leaseableSearch = $request->input('leaseable');
+            $query->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($leaseableSearch) {
+                if ($type === Room::class) {
+                    $mq->where('room_no', 'like', '%' . $leaseableSearch . '%');
+                } elseif ($type === Unit::class) {
+                    $mq->where('unit_no', 'like', '%' . $leaseableSearch . '%');
+                } elseif ($type === Property::class) {
+                    $mq->where('name', 'like', '%' . $leaseableSearch . '%');
+                }
+            });
+        }
+
+        // 2. Owner Filter
+        if ($request->filled('owner')) {
+            $ownerSearch = $request->input('owner');
+            $query->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($ownerSearch) {
+                if ($type === Room::class) {
+                    $mq->whereHas('unit.owner', function ($oq) use ($ownerSearch) {
+                        $oq->where('name', 'like', '%' . $ownerSearch . '%');
+                    });
+                } else {
+                    $mq->whereHas('owner', function ($oq) use ($ownerSearch) {
+                        $oq->where('name', 'like', '%' . $ownerSearch . '%');
+                    });
+                }
+            });
+        }
+
+        // 3. Tenant Filter
+        if ($request->filled('tenant')) {
+            $tenantSearch = $request->input('tenant');
+            $query->whereHas('tenant.user', function ($tq) use ($tenantSearch) {
+                $tq->where('name', 'like', '%' . $tenantSearch . '%');
+            });
+        }
+
+        // 4. Start Date Filter
+        if ($request->filled('start_date')) {
+            $query->where('leases.start_date', '>=', $request->input('start_date'));
+        }
+
+        // 5. End Date Filter
+        if ($request->filled('end_date')) {
+            $query->where('leases.end_date', '<=', $request->input('end_date'));
+        }
+
+        // 6. Status Filter
+        if ($request->filled('status')) {
+            $query->where('leases.status', $request->input('status'));
+        }
+
+        // 7. Pending Renewal Toggle Filter
+        if ($request->filled('show_pending_renewal')) {
+            $query->where('leases.is_pending_renewal', true);
+        }
+
+        // 8. Charges Min Amount Filter (converted from RM to cents)
+        if ($request->filled('min_amount')) {
+            $minCents = (float) $request->input('min_amount') * 100;
+            $query->whereRaw(
+                '(select COALESCE(sum(amount), 0) from lease_charges where lease_charges.lease_id = leases.id and lease_charges.deleted_at is null) >= ?',
+                [$minCents]
+            );
+        }
+
+        // 9. Charges Max Amount Filter (converted from RM to cents)
+        if ($request->filled('max_amount')) {
+            $maxCents = (float) $request->input('max_amount') * 100;
+            $query->whereRaw(
+                '(select COALESCE(sum(amount), 0) from lease_charges where lease_charges.lease_id = leases.id and lease_charges.deleted_at is null) <= ?',
+                [$maxCents]
+            );
+        }
+
+        // 10. Stamping Status Filter
+        if ($request->filled('stampingStatus')) {
+            $stampingStatus = $request->input('stampingStatus');
+            if ($stampingStatus === 'Stamped') {
+                $query->where('leases.stamping_status', true);
+            } elseif ($stampingStatus === 'Pending Stamping') {
+                $query->where('leases.stamping_status', false)
+                    ->whereNotIn('leases.status', ['Check Out', 'End']);
+            } elseif ($stampingStatus === 'No Need Stamping') {
+                $query->whereIn('leases.status', ['Check Out', 'End']);
+            }
+        }
+
+        return $query;
     }
 }

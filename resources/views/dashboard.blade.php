@@ -159,21 +159,32 @@
                                                 @endcanany
                                                 >
                                                 <td class="py-3 px-4">
-                                                    <p class="font-bold text-slate-800">{{ $lease->tenant->user->name ?? 'N/A' }}</p>
+                                                    <p class="font-bold text-slate-800">
+                                                        <a href="{{ route('admin.tenants.show', $lease->tenant->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                            {{ $lease->tenant->user->name }}
+                                                        </a>
+                                                    </p>
                                                     <p class="text-sm text-slate-400">
                                                         @php
                                                             $leasable = $lease->leasable;
-                                                            $locationName = 'Property/Unit';
-                                                            
-                                                            if ($leasable instanceof \App\Models\Property) {
-                                                                $locationName = $leasable->name;
-                                                            } elseif ($leasable instanceof \App\Models\Unit) {
-                                                                $locationName = $leasable->name ?? $leasable->unit_no;
-                                                            } elseif ($leasable instanceof \App\Models\Room) {
-                                                                $locationName = 'Property: ' . ($leasable->unit->property->name ?? '') . ' - Room: ' . ($leasable->room_no ?? '');
-                                                            }
                                                         @endphp
-                                                        {{ $locationName }}
+
+                                                        @if($leasable instanceof \App\Models\Property)
+                                                            Property:
+                                                            <a href="{{ route('admin.properties.show', $leasable->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                                {{ $leasable->name }}
+                                                            </a>
+                                                        @elseif($leasable instanceof \App\Models\Unit)
+                                                            Unit:
+                                                            <a href="{{ route('admin.units.show', $leasable->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                                {{ $leasable->name ?? $leasable->unit_no }}
+                                                            </a>
+                                                        @elseif($leasable instanceof \App\Models\Room)
+                                                            Room: 
+                                                            <a href="{{ route('admin.rooms.show', $leasable->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                                {{ $leasable->room_no }}
+                                                            </a>
+                                                        @endif
                                                     </p>
                                                 </td>
                                                 <td class="py-3 px-4">
@@ -328,10 +339,12 @@
                                                     <!-- Tenant & Invoice Info -->
                                                     <td class="py-3 px-2">
                                                         <p class="font-bold text-slate-800 text-sm">
-                                                            {{ $invoice->recipient_name }}
+                                                            <a href="{{ route('admin.tenants.show', $invoice->tenant_id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                                {{ $invoice->recipient_name }}
+                                                            </a>
                                                         </p>
                                                         <p class="text-sm text-slate-400">
-                                                            Invoice #{{ $invoice->invoice_no ?? $invoice->id }}
+                                                            Invoice: {{ $invoice->invoice_no }}
                                                         </p>
                                                     </td>
 

@@ -238,7 +238,7 @@
 
                     <div class="overflow-x-auto">
                         @if($room->leases->count() > 0)
-                            <x-table.lease-table :leases="$room->leases" :showOwner="true" :showTenant="true" :showAction="true" />
+                            <x-table.lease-table :leases="$room->leases" :showLeaseable="false" :showOwner="true" :showTenant="true" :showAction="true" />
                         @else
                             <div class="p-8 text-center">
                                 <div class="text-sm font-medium text-slate-900">No leases</div>

@@ -34,7 +34,7 @@
         }
     }
 
-    $rawVal = old($name, $value);
+    $rawVal = request($name, old($name, $value));
 
     // Always normalize $selectedValues as an array for internal Alpine compatibility
     if (is_array($rawVal)) {
@@ -123,9 +123,8 @@
         });
     },
     get displayValue() {
-        if (this.open) return this.search;
         if (this.isMultiple) return '';
-        return this.selectedLabel || this.search;
+        return this.selectedLabel || '';
     },
     get filteredOptions() {
         if (this.search === '') return this.options;
@@ -253,7 +252,7 @@ class="relative w-full"
             {{ $attributes->whereStartsWith('x-bind') }}
             {{ $attributes->whereStartsWith(':disabled') }}
             :disabled="isDisabled"
-            :value="displayValue"
+            :value="open ? search : displayValue"
             @focus="if(isDisabled) return; open = true; search = ''; $nextTick(() => checkPosition())"
             @input="if(isDisabled) return; open = true; search = $event.target.value; $nextTick(() => checkPosition())"
             @blur="validateInput()"

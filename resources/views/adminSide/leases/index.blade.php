@@ -70,11 +70,13 @@
                                 class="w-full"
                             >
                                 <x-table.search
-                                    :isAdvanceSearch="false"
+                                    :isAdvanceSearch="true"
                                     :withDate="true"
                                     :showTenantField="true"
                                     :showOwnerField="true"
+                                    :showPendingRenewalField="true"
                                     :showleaseableField="true"
+                                    :showLeaseableNameField="true"
                                     :showStatusField="true"
                                     :showStampingStatusField="true"
                                     :showChargeField="true"

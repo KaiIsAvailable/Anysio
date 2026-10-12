@@ -675,6 +675,7 @@ class InvoiceService
             'recipient_name' => $invoice->isTenantInvoice()
                 ? ($invoice->lease?->tenant?->user?->name ?? 'N/A')
                 : ($invoice->user?->name ?? 'N/A'),
+            'tenant_id' => $invoice->lease?->tenant?->id,
             'context_label' => (function () use ($invoice) {
                 if ($invoice->isTenantInvoice()) {
                     $lease = $invoice->lease;

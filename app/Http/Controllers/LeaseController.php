@@ -25,6 +25,7 @@ class LeaseController extends Controller
         $this->leaseService = $leaseService;
         $this->settingService = $settingService;
     }
+
     public function index(Request $request, LeaseService $leaseService)
     {
         if (Gate::denies('owner-admin') && Gate::denies('leases.tab')) {
@@ -33,20 +34,17 @@ class LeaseController extends Controller
 
         $userId = get_effective_user();
         $effectiveUserId = $userId->id;
-        $search = $request->input('search');
         $status = $request->input('status');
 
-        // 1. 使用 leasable 预加载多态关联
-        // 同时保留 tenant 关联
+        // 1. 预加载多态关联与租客关联
         $query = Lease::with([
-            'leasable', // 这会自动加载 Room, Unit 或 
+            'leasable', 
             'tenant.user',
         ]);
 
-        // 2. 权限过滤：如果不是 super-admin，只能看自己拥有的资源
-        // 这里需要根据你的业务逻辑调整，如果不同模型的 owner 字段不一样，可能需要更复杂的判断
+        // 2. 权限过滤
         if (!Gate::allows('super-admin')) {
-            $actualUserId = Auth::id(); // The currently logged-in user (could be staff)
+            $actualUserId = Auth::id(); 
             $effectiveUser = get_effective_user();
             $effectiveUserId = $effectiveUser?->id;
 
@@ -77,60 +75,34 @@ class LeaseController extends Controller
             });
         }
 
-        // 3. 搜索逻辑更新 (保持你的原有优秀逻辑)
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('status', 'like', '%' . $search . '%')
-                    ->orWhereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($search) {
-                        $mq->where(function ($query) use ($search, $type) {
-                            if ($type === Room::class) {
-                                $query->where('room_no', 'like', '%' . $search . '%');
-                            } elseif ($type === Unit::class) {
-                                $query->where('unit_no', 'like', '%' . $search . '%');
-                            } elseif ($type === Property::class) {
-                                $query->where('name', 'like', '%' . $search . '%');
-                            }
-                        })
-                            ->orWhere(function ($query) use ($search, $type) {
-                                if ($type === Room::class) {
-                                    $query->whereHas('unit.owner', function ($oq) use ($search) {
-                                        $oq->where('name', 'like', '%' . $search . '%');
-                                    });
-                                } else {
-                                    $query->whereHas('owner', function ($oq) use ($search) {
-                                        $oq->where('name', 'like', '%' . $search . '%');
-                                    });
-                                }
-                            });
-                    })
-                    ->orWhereHas('tenant.user', function ($tq) use ($search) {
-                        $tq->where('name', 'like', '%' . $search . '%');
-                    });
-            });
-        }
+        // 💡 Calculate total base active count BEFORE applying search, filters, or sorting
+        $countQuery = clone $query;
+        $currentActiveCount = $countQuery->where('is_current', true)
+            ->whereIn('status', ['New', 'Renew', 'End'])
+            ->count();
 
-        if ($status) {
-            $query->where('status', $status);
-        }
+        // 3. 全局搜索逻辑
+        $query->search($request->input('search'));
 
-        // 4. 完美对齐前端表头的 Sort 逻辑
+        // 4. 高级筛选代码
+        $query->applyFilters($request);
+
+        // 5. 排序逻辑
         $sortParam = $request->query('sort');
         $field = Str::beforeLast($sortParam, '_');
         $direction = Str::afterLast($sortParam, '_');
 
         if ($field === 't' && in_array($direction, ['asc', 'desc'])) {
-            // 通过 Join 排序租客名称
-            $query->join('tenants', 'leases.tenant_id', '=', 'tenants.id')
-                ->join('users as tu', 'tenants.user_id', '=', 'tu.id')
+            $query->leftJoin('tenants', 'leases.tenant_id', '=', 'tenants.id')
+                ->leftJoin('users as tu', 'tenants.user_id', '=', 'tu.id')
                 ->orderBy('tu.name', $direction)
-                ->select('leases.*'); // 防止 ID 冲突
+                ->select('leases.*'); 
         } else {
-            // 直属字段的排序白名单
             $sortMapping = [
-                'd'  => 'start_date',
-                'r'  => 'rent_price',
-                'de' => 'security_deposit',
-                's'  => 'status',
+                'd'  => 'leases.start_date',
+                'r'  => 'leases.rent_price',
+                'de' => 'leases.security_deposit',
+                's'  => 'leases.status',
             ];
 
             if (array_key_exists($field, $sortMapping) && in_array($direction, ['asc', 'desc'])) {
@@ -141,12 +113,12 @@ class LeaseController extends Controller
         }
 
         $user = Auth::user();
-        $countQuery = clone $query;
-        $currentActiveCount = $countQuery->where('is_current', true)
-            ->whereIn('status', ['New', 'Renew', 'Check Out', 'End'])
-            ->count();
 
-        $leases = $query->where('is_current', true)
+        // Always enforce is_current = true on the main table query
+        $query->where('is_current', true);
+
+        $leases = $query->orderByRaw("CASE WHEN leases.status IN ('Check Out', 'cancelled') THEN 1 ELSE 0 END ASC")
+            ->orderBy('leases.created_at', 'desc')
             ->paginate(10)
             ->onEachSide(1)
             ->appends($request->query());
@@ -169,7 +141,7 @@ class LeaseController extends Controller
 
                 $packageLimitInfo = [
                     'packageName' => $management->package->name,
-                    'current' => $currentActiveCount, // Uses the filtered count above
+                    'current' => $currentActiveCount, 
                     'limit' => $totalLimit,
                     'isReached' => $currentActiveCount >= $totalLimit,
                 ];

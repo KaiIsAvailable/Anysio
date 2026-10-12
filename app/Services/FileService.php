@@ -9,6 +9,7 @@ class FileService
     protected $disk = 'local';
     protected const PATH_MAP = [
         'tenant_ic'      => 'tenants/ic_photo',
+        'tenant_ticket'  => 'tenants/tickets',
         'lease_stamping' => 'leases/stamping_certs',
         'user_receipt'   => 'users/receipts',
         'user_invoice'   => 'users/invoices',

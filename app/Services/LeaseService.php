@@ -132,7 +132,7 @@ class LeaseService
         $totalLeaseLimit = $baseLeaseLimit + $extraLeaseLimit;
 
         $currentLeaseCount = Lease::where('is_current', true)
-            ->whereIn('status', ['New', 'Renew', 'Check Out'])
+            ->whereIn('status', ['New', 'Renew', 'End'])
             ->whereHas('tenant', function ($query) use ($user) {
                 $query->where('created_by', $user->id);
             })

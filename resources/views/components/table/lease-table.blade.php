@@ -1,5 +1,6 @@
 @props([
     'leases',
+    'showLeaseable' => true,
     'showOwner' => true,
     'showTenant' => true,
     'showAction' => true,
@@ -44,8 +45,10 @@
                         @endcanany>
 
                         {{-- Property / Unit / Room --}}
+                        @if($showLeaseable)
                         <td class="px-6 py-4">
                             <div class="text-sm font-semibold text-slate-900">
+                                
                                 @if($type === 'Unit')
                                     <a href="{{ route('admin.units.show', $lease->leasable->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
                                         {{ $lease->leasable->unit_no }}
@@ -64,12 +67,21 @@
                             </div>
                             <div class="text-sm text-gray-400 italic">{{ $type }}</div>
                         </td>
+                        @endif
 
                         {{-- Owner (Conditional) --}}
                         @if($showOwner)
                             <td class="px-6 py-4">
                                 <div class="text-sm text-slate-900">
-                                    @if($type === 'Unit' || $type === 'Property')
+                                    @if($type === 'Property')
+                                        @if($lease->leasable?->owner?->id)
+                                            <a href="{{ route('admin.owners.show', $lease->leasable->owner->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                {{ $lease->leasable->owner->name }}
+                                            </a>
+                                        @else
+                                            <span class="text-gray-400 italic">No Owner Assigned</span>
+                                        @endif
+                                    @elseif($type === 'Unit')
                                         <a href="{{ route('admin.owners.show', $lease->leasable?->owner->owner->id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
                                             {{ $lease->leasable?->owner->name }}
                                         </a>

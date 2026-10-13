@@ -20,10 +20,15 @@
                     <div data-ticket-list class="flex-1 min-h-0 overflow-y-auto">@include('tenantSide.customerService.table', compact('tickets'))</div>
                 </aside>
                 <section data-conversation-pane class="{{ $selectedTicket ? 'flex' : 'hidden' }} md:flex flex-col min-w-0 min-h-0">
-                    <button type="button" data-back-to-list class="md:hidden self-start mb-2 rounded-lg px-3 py-2 text-sm font-semibold text-indigo-700">? Back to conversations</button>
-                    <p data-conversation-feedback role="status" class="p-4 text-sm text-gray-600" @if($selectedTicket) hidden @endif>Select a conversation</p>
+                    <p data-conversation-feedback role="status" class="px-4 py-2 text-sm text-red-700" hidden></p>
                     <button type="button" data-retry-conversation hidden class="self-start px-4 py-2 text-indigo-700 underline">Retry</button>
-                    <div data-conversation-host class="flex-1 min-h-0">{!! $chatHtml !!}</div>
+                    <div data-conversation-host class="flex-1 min-h-0">
+                        @if($selectedTicket)
+                            {!! $chatHtml !!}
+                        @else
+                            <x-customer-service.chat :current-role="auth()->user()->role" :embedded="true" />
+                        @endif
+                    </div>
                 </section>
             </div>
         </div>

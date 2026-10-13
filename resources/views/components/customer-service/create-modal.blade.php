@@ -5,8 +5,7 @@
     $accept = fn ($extensions) => implode(',', array_map(fn ($ext) => '.'.$ext, $extensions));
 @endphp
 <dialog id="{{ $id }}" data-complaint-modal data-limits="{{ json_encode(config('customer_service')) }}" aria-labelledby="{{ $id }}-title" class="w-full max-w-md max-h-[90vh] overflow-y-auto rounded-2xl p-0 shadow-xl backdrop:bg-slate-900/50">
-    <form data-complaint-form action="{{ $action }}" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
-        @csrf
+    <x-form.form data-complaint-form :action="$action" :async="true" :preserve-textarea-enter="true" :guard-composition="true" method="POST" enctype="multipart/form-data" class="p-6 space-y-4">
         <div class="flex items-center justify-between">
             <h2 id="{{ $id }}-title" class="text-xl font-bold text-slate-900">Complaint</h2>
             <button type="button" data-close-complaint aria-label="Close complaint" class="text-2xl px-2 text-gray-600">&times;</button>
@@ -36,7 +35,7 @@
         <p data-create-error role="alert" class="text-sm whitespace-pre-line text-red-700"></p>
         <div class="flex justify-end gap-2">
             <button type="button" data-cancel-complaint class="rounded-xl bg-gray-100 px-4 py-2 text-sm font-semibold text-gray-700">Cancel</button>
-            <button type="submit" data-create-submit class="rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Create</button>
+            <x-form.primary-button loading="loading" data-create-submit>Create</x-form.primary-button>
         </div>
-    </form>
+    </x-form.form>
 </dialog>

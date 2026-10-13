@@ -36,7 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
         const createError = find('[data-create-error]');
         const limits = JSON.parse(complaint.dataset.limits);
         const previews = find('[data-create-previews]');
-        const submit = find('[data-create-submit]');
+        const setLoading = (loading) => {
+            createForm.dispatchEvent(new CustomEvent('form-loading', { detail: loading }));
+            createForm.setAttribute('aria-busy', String(loading));
+        };
         const attachments = [];
         let creating = false;
         const clearAttachments = () => {
@@ -112,8 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!String(body.get('details') || '').trim() && !attachments.length) { createError.textContent = 'Enter details or choose at least one attachment.'; return; }
             attachments.forEach((item) => body.append('attachments[]', item.file));
             creating = true;
-            submit.textContent = 'Creating...';
-            createForm.setAttribute('aria-busy', 'true');
+            setLoading(true);
             toggleControls(createForm, true);
             try {
                 const data = await request(createForm.action, { method: 'POST', body });
@@ -123,7 +125,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (onCreated) await onCreated(data);
                 else window.location.assign(data.ticket.index_url);
             } catch (error) { createError.textContent = error.message; }
-            finally { creating = false; toggleControls(createForm, false); submit.textContent = 'Create'; createForm.setAttribute('aria-busy', 'false'); }
+            finally { creating = false; toggleControls(createForm, false); setLoading(false); }
         });
     }
 
@@ -136,8 +138,9 @@ document.addEventListener('DOMContentLoaded', () => {
         const retry = find('[data-retry-conversation]');
         const searchForm = find('[data-ticket-search]');
         let selected = root.dataset.selectedTicket || '';
-        let active = host.querySelector('[data-ticket-chat]');
-        let chat = active ? initChat(active, false) : null;
+        const active = host.querySelector('[data-ticket-chat]');
+        const chat = initChat(active, false, true);
+        let requested = selected;
         let listSequence = 0;
         let selectionSequence = 0;
         let listUrl = new URL(window.location.href);
@@ -159,34 +162,47 @@ document.addEventListener('DOMContentLoaded', () => {
             if (chat?.isSending()) { feedback.textContent = 'Please wait until the message finishes sending.'; return false; }
             return !chat?.isDirty() || window.confirm('Discard the unsent message and attachments?');
         };
-        const select = async (id, push = true, force = false) => {
-            if (id === selected && chat && !force) { showPane(true); return true; }
-            if (!canLeave()) return false;
+        const select = async (id, push = true, force = false, confirmed = false) => {
+            if (id === selected && !force) {
+                ++selectionSequence;
+                requested = selected;
+                chat.setSuspended(false);
+                status.hidden = true;
+                retry.hidden = true;
+                showPane(!!id);
+                writeUrl();
+                return true;
+            }
+            if (!confirmed && !canLeave()) return false;
             const sequence = ++selectionSequence;
-            chat?.destroy();
-            chat = null;
-            selected = id;
-            host.replaceChildren();
-            highlight();
-            showPane(!!id);
-            writeUrl(push);
+            requested = id;
             retry.hidden = true;
-            status.hidden = false;
-            status.textContent = id ? 'Loading conversation?' : 'Select a conversation';
-            if (!id) return true;
+            status.hidden = true;
+            showPane(!!id);
+            if (!id) {
+                chat.clear();
+                selected = '';
+                highlight();
+                writeUrl(push);
+                return true;
+            }
+            chat.setSuspended(true);
             try {
                 const url = new URL(root.dataset.ticketUrlTemplate.replace('__TICKET__', encodeURIComponent(id)), window.location.href);
-                url.searchParams.set('fragment', '1');
                 const data = await request(url);
                 if (sequence !== selectionSequence) return false;
-                host.innerHTML = data.html;
-                active = host.querySelector('[data-ticket-chat]');
-                chat = initChat(active, false);
-                status.hidden = true;
+                // Commit the title, history and send endpoint together, without replacing the shell.
+                chat.apply(data);
+                selected = id;
+                highlight();
+                writeUrl(push);
             } catch (error) {
                 if (sequence !== selectionSequence) return false;
-                status.textContent = 'Unable to load conversation. ' + error.message;
+                chat.setSuspended(false);
+                status.textContent = 'Unable to open conversation. Please retry.';
+                status.hidden = false;
                 retry.hidden = false;
+                writeUrl();
             }
             return true;
         };
@@ -213,13 +229,12 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         initComplaint(root, async (data) => {
             // Opening the modal already confirmed discarding the current draft.
-            chat?.destroy();
-            chat = null;
+
             const url = new URL(root.dataset.indexUrl);
             searchForm.reset();
             const searchInput = searchForm.querySelector('[name="search"]');
             if (searchInput) { searchInput.value = ''; searchInput.dispatchEvent(new Event('input', { bubbles: true })); }
-            const selection = select(data.ticket.id);
+            const selection = select(data.ticket.id, true, false, true);
             const refreshed = await refreshList(url);
             await selection;
             if (!refreshed) feedback.textContent = 'Complaint created. Refresh the list to see it.';
@@ -238,8 +253,10 @@ document.addEventListener('DOMContentLoaded', () => {
             if (link.dataset.ticketId) await select(link.dataset.ticketId);
             else await refreshList(new URL(link.href));
         });
-        retry.addEventListener('click', () => select(selected, false, true));
-        find('[data-back-to-list]').addEventListener('click', () => select(''));
+        retry.addEventListener('click', () => select(requested, false, true));
+        host.addEventListener('click', (event) => {
+            if (event.target.closest('[data-back-to-list]')) return select('');
+        });
         window.addEventListener('popstate', async () => {
             const url = new URL(window.location.href);
             const id = url.searchParams.get('ticket') || '';
@@ -252,17 +269,18 @@ document.addEventListener('DOMContentLoaded', () => {
         highlight();
     }
 
-    function initChat(root, load = true) {
+    function initChat(root, load = true, switchable = false) {
         if (chats.has(root)) return chats.get(root);
         const listeners = new AbortController();
         const on = (target, type, handler) => target.addEventListener(type, handler, { signal: listeners.signal });
         let destroyed = false;
-        const readUrl = root.dataset.readUrl;
-        const sendUrl = root.dataset.sendUrl;
+        let readUrl = root.dataset.readUrl;
+        let sendUrl = root.dataset.sendUrl;
         const find = (selector) => root.querySelector(selector);
         const limits = JSON.parse(root.dataset.limits);
         const currentRole = root.dataset.currentRole;
-        const permitted = root.dataset.canSend === 'true';
+        const permitted = switchable || root.dataset.canSend === 'true';
+        let empty = root.dataset.empty === 'true';
         const chatForm = find('[data-chat-form]');
         const chatError = find('[data-chat-error]');
         const history = find('[data-chat-messages]');
@@ -273,7 +291,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const pickers = ['document', 'media', 'camera'].map((kind) => find('[data-chat-files="' + kind + '"]'));
         const previews = find('[data-attachment-previews]');
         const attachments = [];
-        let canSend = permitted;
+        let canSend = root.dataset.canSend === 'true' && !empty;
+        let suspended = false;
         let sending = false;
         let readSequence = 0;
         let composing = false;
@@ -283,19 +302,20 @@ document.addEventListener('DOMContentLoaded', () => {
             if (restoreFocus) attachButton.focus();
         };
         const updateComposer = () => {
-            sendButton.disabled = sending || !canSend || (!draft.value.trim() && !attachments.length);
+            toggleControls(chatForm, sending || suspended || !canSend);
+            sendButton.disabled = sending || suspended || !canSend || (!draft.value.trim() && !attachments.length);
             sendButton.setAttribute('aria-label', sending ? 'Sending message' : 'Send message');
             chatForm.setAttribute('aria-busy', String(sending));
             find('[data-chat-send-icon]').hidden = sending;
             find('[data-chat-loading]').hidden = !sending;
-            if (!canSend) setMenu(false);
+            if (!canSend || suspended) setMenu(false);
         };
         const resizeDraft = () => {
             draft.style.height = 'auto';
             draft.style.height = Math.min(draft.scrollHeight, 160) + 'px';
         };
         on(attachButton, 'click', () => {
-            if (!sending && canSend) setMenu(menu.hidden);
+            if (!sending && !suspended && canSend) setMenu(menu.hidden);
         });
         on(document, 'pointerdown', (event) => {
             if (!menu.contains(event.target) && !attachButton.contains(event.target)) setMenu(false);
@@ -349,7 +369,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 remove.className = 'text-xs text-red-700 underline';
                 remove.disabled = sending;
                 on(remove, 'click', () => {
-                    if (sending) return;
+                    if (sending || suspended) return;
                     if (item.url) URL.revokeObjectURL(item.url);
                     attachments.splice(index, 1);
                     renderPreviews();
@@ -364,6 +384,7 @@ document.addEventListener('DOMContentLoaded', () => {
             canSend = permitted && !ticket.closed && ticket.can_send !== false;
             find('[data-chat-subject]').textContent = ticket.subject;
             find('[data-chat-status]').textContent = ticket.status;
+            find('[data-chat-status]').hidden = false;
             chatForm.hidden = !canSend;
             updateComposer();
             find('[data-chat-closed]').hidden = canSend;
@@ -419,12 +440,12 @@ document.addEventListener('DOMContentLoaded', () => {
         ['document', 'media', 'camera'].forEach((kind, index) => {
             const picker = pickers[index];
             on(find('[data-chat-pick="' + kind + '"]'), 'click', () => {
-                if (destroyed || sending || !canSend) return;
+                if (destroyed || sending || suspended || !canSend) return;
                 setMenu(false, true);
                 picker.click();
             });
             on(picker, 'change', () => {
-                if (destroyed || sending || !canSend) return;
+                if (destroyed || sending || suspended || !canSend) return;
                 const incoming = Array.from(picker.files);
                 const error = selectionError(attachments, incoming, limits);
                 chatError.textContent = error;
@@ -438,7 +459,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         on(chatForm, 'submit', async (event) => {
             event.preventDefault();
-            if (destroyed || sending || !canSend) return;
+            if (destroyed || sending || suspended || !canSend) return;
             chatError.textContent = '';
             const items = [];
             if (draft.value.trim()) items.push({ type: 'text', text: draft.value });
@@ -471,6 +492,49 @@ document.addEventListener('DOMContentLoaded', () => {
         resizeDraft();
         on(window, 'pagehide', clearAttachments);
         const api = {
+            setSuspended: (value) => { suspended = value; updateComposer(); },
+            apply: (data) => {
+                ++readSequence;
+                empty = false;
+                root.dataset.empty = 'false';
+                suspended = false;
+                readUrl = data.ticket.show_url;
+                sendUrl = data.ticket.reply_url;
+                root.dataset.readUrl = readUrl;
+                root.dataset.sendUrl = sendUrl;
+                chatForm.action = sendUrl;
+                draft.value = '';
+                clearAttachments();
+                chatError.textContent = '';
+                renderConversation(data);
+                resizeDraft();
+            },
+            clear: () => {
+                ++readSequence;
+                empty = true;
+                root.dataset.empty = 'true';
+                suspended = false;
+                canSend = false;
+                readUrl = '';
+                sendUrl = '';
+                root.dataset.readUrl = '';
+                root.dataset.sendUrl = '';
+                chatForm.action = '';
+                draft.value = '';
+                clearAttachments();
+                chatError.textContent = '';
+                find('[data-chat-subject]').textContent = 'Customer Service';
+                find('[data-chat-status]').textContent = '';
+                find('[data-chat-status]').hidden = true;
+                find('[data-chat-closed]').hidden = true;
+                chatForm.hidden = false;
+                const prompt = document.createElement('p');
+                prompt.className = 'h-full flex items-center justify-center text-sm text-gray-500';
+                prompt.textContent = 'Select a conversation';
+                history.replaceChildren(prompt);
+                resizeDraft();
+            },
+
             isDirty: () => !!draft.value.trim() || attachments.length > 0,
             isSending: () => sending,
             destroy: () => {

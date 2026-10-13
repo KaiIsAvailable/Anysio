@@ -218,7 +218,7 @@ class TenantCustomerServiceTest extends TestCase
 
     public function test_index_uses_create_component_and_show_links_and_searches_own_subjects(): void
     {
-        $this->get(route('tenants.customerService.index'))->assertOk()->assertSee('no valid lease')->assertSee('data-complaint-modal', false)->assertDontSee('data-chat-modal', false)->assertDontSee('name="lease_id"', false)->assertDontSee('name="category"', false)->assertDontSee('Add Text to Batch')->assertDontSee('data-ticket-chat', false);
+        $this->get(route('tenants.customerService.index'))->assertOk()->assertSee('no valid lease')->assertSee('data-complaint-modal', false)->assertDontSee('data-chat-modal', false)->assertDontSee('name="lease_id"', false)->assertDontSee('name="category"', false)->assertDontSee('Add Text to Batch')->assertSee('data-ticket-chat', false)->assertSee('data-empty="true"', false);
         $ticket = $this->ticket();
         DB::table('tickets')->where('id', $ticket->id)->update(['subject' => 'Leaking tap']);
         $other = $this->ticket();

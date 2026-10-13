@@ -27,6 +27,7 @@ class Element {
     focus() { this.focused = true; }
     click() { this.clicked = true; }
     requestSubmit() { return this.fire('submit'); }
+    dispatchEvent(event) { if (event.type === 'form-loading') this.loading = event.detail; }
     setAttribute(name, value) { this[name] = value; }
     addEventListener(event, callback, options = {}) {
         (this.listeners[event] ??= []).push(callback);
@@ -37,7 +38,10 @@ class Element {
     }
     append(...children) { this.children.push(...children); }
     replaceChildren(...children) { this.children = children; this.textContent = ''; }
-    closest(selector) { return selector === 'a' && this.tagName === 'A' ? this : null; }
+    closest(selector) {
+        if (selector === '[data-back-to-list]' && this.dataset.backToList !== undefined) return this;
+        return selector === 'a' && this.tagName === 'A' ? this : null;
+    }
     querySelectorAll() { return this.controls; }
     showModal() { this.open = true; }
     close() { this.open = false; this.fire('close'); }
@@ -93,6 +97,10 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
         const answer = answers.shift();
         assert.ok(answer, 'Every frontend request must have a test response');
         if (answer.gate) await answer.gate;
+        if (String(url).includes('/ticket/') && answer.data?.html && !answer.data.ticket) {
+            const id = answer.data.html;
+            answer.data = { ticket: { id, subject: id, status: 'pending', closed: false, reply_url: '/ticket/' + id + '/reply', show_url: '/ticket/' + id }, messages: [] };
+        }
         return { ok: answer.status === undefined || answer.status < 400, status: answer.status ?? 200, json: async () => answer.data };
     };
     const ticket = { id: 'one', subject: 'Leaking tap', status: closed ? 'done' : 'pending', closed, reply_url: '/ignored/reply', show_url: '/ignored/show' };
@@ -106,14 +114,17 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
         const nodes = new Map();
         const chatNode = (selector) => { if (!nodes.has(selector)) nodes.set(selector, new Element()); return nodes.get(selector); };
         const dynamic = new Element();
-        dynamic.dataset = { ...chatRoot.dataset, sendUrl: '/ticket/' + id + '/reply', readUrl: '/ticket/' + id };
+        dynamic.dataset = { ...chatRoot.dataset, empty: String(!id), canSend: String(!!id), sendUrl: '/ticket/' + id + '/reply', readUrl: '/ticket/' + id };
         dynamic.querySelector = chatNode;
+        chatNode('[data-chat-subject]').textContent = id || 'Customer Service';
+        chatNode('[data-chat-form]').controls = [chatNode('[data-chat-draft]'), chatNode('[data-chat-attach]'), chatNode('[data-chat-send]')];
         chatNode('[data-chat-form]').fields = [['_token', 'token']];
         node('[data-conversation-host]').replaceChildren(dynamic);
         dynamicChats.push({ id, node: chatNode, root: dynamic });
     };
-    if (initial) { node('[data-conversation-host]').innerHTML = initial; window.location.href += '?ticket=' + initial; }
-    vm.runInNewContext(source, { document, window, AbortController, URL: TestURL, FormData: FormDataMock, fetch, console });
+    if (index) node('[data-conversation-host]').innerHTML = initial;
+    if (initial) window.location.href += '?ticket=' + initial;
+    vm.runInNewContext(source, { document, window, AbortController, CustomEvent, URL: TestURL, FormData: FormDataMock, fetch, console });
     document.fire('DOMContentLoaded');
     return { node, ticket, requests, answers, revoked, navigations, chatRoot, document, window, dynamicChats };
 }
@@ -128,8 +139,9 @@ test('Index creates a complaint, refreshes list and selects its conversation wit
     assert.equal(requests.length, 3);
     assert.deepEqual(requests[0].body.values.map(([name]) => name), ['_token', 'subject', 'details']);
     assert.equal(node('[data-complaint-modal]').open, false);
+    assert.equal(node('[data-complaint-form]').loading, false);
     assert.deepEqual(navigations, []);
-    assert.equal(node('[data-conversation-host]').html, 'one');
+    assert.equal(node('[data-conversation-host]').children[0].querySelector('[data-chat-subject]').textContent, 'one');
 });
 
 test('Dashboard creates through the shared modal and redirects without a ticket table', async () => {
@@ -144,6 +156,7 @@ test('Dashboard creates through the shared modal and redirects without a ticket 
     await node('[data-complaint-form]').fire('submit');
     assert.equal(node('[data-complaint-modal]').open, true);
     assert.equal(node('[data-create-error]').textContent, 'Please enter a subject.');
+    assert.equal(node('[data-complaint-form]').loading, false);
     answers.push({ data: { ticket: { index_url: '/tenant/customer-service?ticket=new' } } });
     await node('[data-complaint-form]').fire('submit');
     assert.equal(requests.length, 2);
@@ -160,7 +173,7 @@ test('Selecting subjects renders shared chats; a stale response cannot replace a
     const pending = node('[data-ticket-list]').fire('click', { target: link('old') });
     await node('[data-ticket-list]').fire('click', { target: link('new') });
     release(); await pending;
-    assert.equal(node('[data-conversation-host]').html, 'new');
+    assert.equal(node('[data-conversation-host]').children[0].querySelector('[data-chat-subject]').textContent, 'new');
     assert.equal(dynamicChats.length, 1);
     assert.match(window.location.href, /ticket=new/);
     assert.equal(requests.length, 2);
@@ -233,7 +246,7 @@ test('Create previews and removes files, preserves them on failure, and locks cl
     const gate = new Promise((resolve) => { release = resolve; });
     answers.push({ gate, status: 422, data: { errors: { attachments: ['Manager conflict'] } } });
     const pending = node('[data-complaint-form]').fire('submit');
-    assert.equal(node('[data-create-submit]').textContent, 'Creating...');
+    assert.equal(node('[data-complaint-form]').loading, true);
     await node('[data-close-complaint]').fire('click');
     await node('[data-cancel-complaint]').fire('click');
     let prevented = false;
@@ -247,7 +260,7 @@ test('Create previews and removes files, preserves them on failure, and locks cl
     assert.equal(node('[data-complaint-modal]').open, true);
     assert.equal(node('[data-create-previews]').children.length, 2);
     assert.equal(node('[data-complaint-form]').fields[2][1], 'Text');
-    assert.equal(node('[data-create-submit]').textContent, 'Create');
+    assert.equal(node('[data-complaint-form]').loading, false);
     assert.deepEqual(requests[0].body.values.map(([name]) => name), ['_token', 'subject', 'details', 'attachments[]', 'attachments[]']);
     await node('[data-close-complaint]').fire('click');
     assert.equal(node('[data-complaint-modal]').open, false);
@@ -373,7 +386,7 @@ test('Chat file limits reject a new selection without losing queued files, and a
     assert.equal(node('[data-attachment-previews]').children.length, 1);
 });
 
-test('Switch confirmation protects drafts, disposes listeners, and sends only to the active ticket', async () => {
+test('Switch confirmation protects drafts, reuses one listener, and sends only to the active ticket', async () => {
     const { node, answers, requests, window, dynamicChats } = setup({ index: true });
     const link = (id) => { const link = new Element('a'); link.dataset.ticketId = id; return link; };
     answers.push({ data: { html: 'first' } });
@@ -387,7 +400,7 @@ test('Switch confirmation protects drafts, disposes listeners, and sends only to
     window.confirm = () => true;
     answers.push({ data: { html: 'second' } });
     await node('[data-ticket-list]').fire('click', { target: link('second') });
-    const second = dynamicChats[1].node;
+    const second = dynamicChats[0].node;
     assert.equal(second('[data-chat-draft]').value, '');
     await first('[data-chat-form]').fire('submit');
     assert.equal(requests.length, 2);
@@ -399,10 +412,12 @@ test('Switch confirmation protects drafts, disposes listeners, and sends only to
     await node('[data-ticket-list]').fire('click', { target: link('third') });
     assert.equal(requests.length, 3);
     assert.equal(requests[2].url, '/ticket/second/reply');
+    await node('[data-conversation-host]').fire('click', { target: Object.assign(new Element('button'), { dataset: { backToList: '' } }) });
+    assert.match(window.location.href, /ticket=second/);
     await second('[data-chat-form]').fire('submit');
     assert.equal(requests.length, 3);
     release(); await sending;
-    await node('[data-back-to-list]').fire('click');
+    await node('[data-conversation-host]').fire('click', { target: Object.assign(new Element('button'), { dataset: { backToList: '' } }) });
     assert.equal(new URL(window.location.href).searchParams.has('ticket'), false);
 });
 
@@ -424,7 +439,7 @@ test('Search and pagination keep the selected conversation; failed loads can ret
     answers.push({ data: { html: 'page 2' } });
     await node('[data-ticket-list]').fire('click', { target: page });
     assert.match(requests.at(-1).url, /page=2/);
-    assert.equal(node('[data-conversation-host]').html, 'one');
+    assert.equal(node('[data-conversation-host]').children[0].querySelector('[data-chat-subject]').textContent, 'one');
 });
 
 test('Hydrated deep link initializes once; browser history and mobile back protect attachment drafts', async () => {
@@ -436,7 +451,7 @@ test('Hydrated deep link initializes once; browser history and mobile back prote
     picker.files = [{ name: 'draft.txt', type: 'text/plain', size: 100 }];
     await picker.fire('change');
     window.confirm = () => false;
-    await node('[data-back-to-list]').fire('click');
+    await node('[data-conversation-host]').fire('click', { target: Object.assign(new Element('button'), { dataset: { backToList: '' } }) });
     assert.match(window.location.href, /ticket=first/);
     assert.equal(first('[data-attachment-previews]').children.length, 1);
     window.location.href = 'http://example.test/admin/tenant/customer-service?ticket=second';
@@ -446,6 +461,75 @@ test('Hydrated deep link initializes once; browser history and mobile back prote
     window.location.href = 'http://example.test/admin/tenant/customer-service?ticket=second';
     answers.push({ data: { html: 'second' } }, { data: { html: 'list' } });
     await window.fire('popstate');
-    assert.equal(node('[data-conversation-host]').html, 'second');
-    assert.equal(first('[data-chat-form]').listeners.submit.length, 0);
+    assert.equal(node('[data-conversation-host]').children[0].querySelector('[data-chat-subject]').textContent, 'second');
+    assert.equal(first('[data-chat-form]').listeners.submit.length, 1);
+});
+
+test('Persistent shell stays empty and disabled through the first load, then changes atomically', async () => {
+    const { node, answers, requests, dynamicChats } = setup({ index: true });
+    const shell = dynamicChats[0].root;
+    const chat = dynamicChats[0].node;
+    assert.equal(chat('[data-chat-subject]').textContent, 'Customer Service');
+    assert.equal(chat('[data-chat-draft]').disabled, true);
+    assert.equal(chat('[data-chat-attach]').disabled, true);
+    assert.equal(chat('[data-chat-send]').disabled, true);
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    answers.push({ gate, data: { html: 'first' } });
+    const link = new Element('a'); link.dataset.ticketId = 'first';
+    const pending = node('[data-ticket-list]').fire('click', { target: link });
+    assert.equal(node('[data-conversation-host]').children[0], shell);
+    assert.equal(chat('[data-chat-subject]').textContent, 'Customer Service');
+    assert.equal(node('[data-conversation-feedback]').hidden, true);
+    await chat('[data-chat-form]').fire('submit');
+    assert.equal(requests.length, 1);
+    release(); await pending;
+    assert.equal(node('[data-conversation-host]').children[0], shell);
+    assert.equal(chat('[data-chat-subject]').textContent, 'first');
+    assert.equal(chat('[data-chat-form]').action, '/ticket/first/reply');
+    assert.equal(chat('[data-chat-draft]').disabled, false);
+    assert.equal(chat('[data-chat-form]').listeners.submit.length, 1);
+});
+
+test('A failed switch preserves history, endpoints and drafts; retry commits the newest conversation', async () => {
+    const { node, answers, requests, dynamicChats, window } = setup({ index: true });
+    const chat = dynamicChats[0].node;
+    const shell = dynamicChats[0].root;
+    const link = id => Object.assign(new Element('a'), { dataset: { ticketId: id } });
+    answers.push({ data: { ticket: { id: 'first', subject: 'First', status: 'pending', closed: false, reply_url: '/first/send', show_url: '/first' }, messages: [{ sender_type: 'tenant', text: 'Original history' }] } });
+    await node('[data-ticket-list]').fire('click', { target: link('first') });
+    const history = chat('[data-chat-messages]').children[0];
+    chat('[data-chat-draft]').value = 'Unsent text';
+    const picker = chat('[data-chat-files="document"]');
+    picker.files = [{ name: 'draft.txt', type: 'text/plain', size: 100 }];
+    await picker.fire('change');
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    answers.push({ gate, status: 403, data: {} });
+    const pending = node('[data-ticket-list]').fire('click', { target: link('second') });
+    assert.equal(chat('[data-chat-draft]').disabled, true);
+    assert.equal(chat('[data-chat-subject]').textContent, 'First');
+    assert.equal(chat('[data-chat-messages]').children[0], history);
+    assert.equal(chat('[data-chat-form]').action, '/first/send');
+    await chat('[data-chat-form]').fire('submit');
+    assert.equal(requests.length, 2);
+    release(); await pending;
+    assert.equal(node('[data-conversation-host]').children[0], shell);
+    assert.equal(chat('[data-chat-messages]').children[0], history);
+    assert.equal(chat('[data-chat-draft]').value, 'Unsent text');
+    assert.equal(chat('[data-attachment-previews]').children.length, 1);
+    assert.equal(chat('[data-chat-draft]').disabled, false);
+    assert.match(window.location.href, /ticket=first/);
+    assert.equal(node('[data-retry-conversation]').hidden, false);
+    answers.push({ data: { ticket: { id: 'second', subject: 'Closed second', status: 'closed', closed: true, reply_url: '/second/send', show_url: '/second' }, messages: [] } });
+    await node('[data-retry-conversation]').fire('click'); await settle();
+    assert.equal(chat('[data-chat-subject]').textContent, 'Closed second');
+    assert.equal(chat('[data-chat-form]').action, '/second/send');
+    assert.equal(chat('[data-chat-draft]').value, '');
+    assert.equal(chat('[data-attachment-previews]').children.length, 0);
+    assert.equal(chat('[data-chat-send]').disabled, true);
+    answers.push({ data: { html: 'third' } });
+    await node('[data-ticket-list]').fire('click', { target: link('third') });
+    assert.equal(chat('[data-chat-draft]').disabled, false);
+    assert.equal(chat('[data-chat-form]').listeners.submit.length, 1);
 });

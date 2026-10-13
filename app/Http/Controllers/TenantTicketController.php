@@ -37,19 +37,28 @@ class TenantTicketController extends Controller
         if (trim($data['subject']) === '') {
             throw ValidationException::withMessages(['subject' => 'Please enter a subject.']);
         }
-        $ticket = DB::transaction(function () use ($request, $service, $data) {
-            $recipient = $service->recipient($service->validLeases($request->user())->lockForUpdate()->get());
-            if ($recipient['reason']) {
-                throw ValidationException::withMessages(['subject' => $recipient['reason']]);
-            }
-            return Ticket::create([
-                'sender_id' => $request->user()->id,
-                'receive_id' => $recipient['owner_id'],
-                'category' => 'complain',
-                'subject' => $data['subject'],
-                'status' => 'pending',
-            ]);
-        });
+        $items = $service->validateCreate($request);
+        $uploaded = [];
+        try {
+            $ticket = DB::transaction(function () use ($request, $service, $data, $items, &$uploaded) {
+                $recipient = $service->recipient($service->validLeases($request->user())->lockForUpdate()->get());
+                if ($recipient['reason']) {
+                    throw ValidationException::withMessages(['subject' => $recipient['reason']]);
+                }
+                $ticket = Ticket::create([
+                    'sender_id' => $request->user()->id,
+                    'receive_id' => $recipient['owner_id'],
+                    'category' => 'complain',
+                    'subject' => $data['subject'],
+                    'status' => 'pending',
+                ]);
+                $service->append($ticket, $items, $uploaded);
+                return $ticket;
+            });
+        } catch (\Throwable $e) {
+            Storage::disk('local')->delete($uploaded);
+            throw $e;
+        }
         return response()->json($this->conversation($ticket, $service), 201);
     }
 
@@ -106,7 +115,7 @@ class TenantTicketController extends Controller
                     'sender_type' => $message->sender_type,
                     'text' => $attachment ? null : $message->message,
                     'attachment_url' => $attachment ? route('tenants.customerService.attachment', [$ticket, $message]) : null,
-                    'extension' => $attachment ? pathinfo($attachment, PATHINFO_EXTENSION) : null,
+                    'extension' => $attachment ? strtolower(pathinfo($attachment, PATHINFO_EXTENSION)) : null,
                     'created_at' => $message->created_at?->format('d M Y H:i'),
                 ];
             })->values()->all(),

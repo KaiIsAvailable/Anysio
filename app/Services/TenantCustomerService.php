@@ -5,11 +5,28 @@ namespace App\Services;
 use App\Models\{Lease, Property, Room, Ticket, TicketMsg, Unit, User};
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
 class TenantCustomerService
 {
+    public function attachmentManagerId(User $tenant): string
+    {
+        // TenantsController records get_effective_user()->id in tenants.created_by.
+        // Cross-check current leases using the same resolver as dashboard/penalties.
+        $creatorId = $tenant->tenant?->created_by;
+        $ids = collect();
+        if ($creatorId) {
+            $ids->push(User::whereKey($creatorId)->whereIn('role', [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN])->value('id'));
+        }
+        foreach ($this->validLeases($tenant)->with('leasable')->get() as $lease) {
+            $ids->push(app(LeaseManagementResolver::class)->resolve($lease)?->id);
+        }
+        if ($ids->isEmpty() || $ids->contains(null) || $ids->unique()->count() !== 1) {
+            throw ValidationException::withMessages(['attachments' => 'The tenant management account is unavailable or ambiguous. Please contact your property manager.']);
+        }
+        return $ids->first();
+    }
+
     public function validLeases(User $user)
     {
         $today = Carbon::now(config('app.timezone'))->toDateString();
@@ -59,6 +76,9 @@ class TenantCustomerService
     public function attachmentPath(TicketMsg $message): ?string
     {
         $prefix = 'ticket-attachments/'.$message->ticket_id.'/';
+        if (preg_match('~^uploads/user_[A-Za-z0-9-]+/tenants/tickets/([a-f0-9-]{36}\.[a-zA-Z0-9]+)$~D', $message->message, $matches)) {
+            return array_key_exists(strtolower(pathinfo($matches[1], PATHINFO_EXTENSION)), config('customer_service.types')) ? $message->message : null;
+        }
         if (!str_starts_with($message->message, $prefix)) {
             return null;
         }
@@ -77,15 +97,34 @@ class TenantCustomerService
             'items.*.text' => ['nullable', 'string', 'max:'.config('customer_service.max_text_length')],
             'items.*.file' => ['nullable', 'file'],
         ]);
+        return $this->validateItems($data['items']);
+    }
+
+    public function validateCreate(Request $request): array
+    {
+        $data = $request->validate([
+            'details' => ['nullable', 'string', 'max:'.config('customer_service.max_text_length')],
+            'attachments' => ['nullable', 'array', 'max:'.config('customer_service.max_files')],
+            'attachments.*' => ['required', 'file'],
+        ]);
+        $items = [];
+        if (trim($data['details'] ?? '') !== '') $items[] = ['type' => 'text', 'text' => $data['details']];
+        foreach ($data['attachments'] ?? [] as $file) $items[] = ['type' => 'file', 'file' => $file];
+        if (!$items) throw ValidationException::withMessages(['details' => 'Enter details or choose at least one attachment.']);
+        return $this->validateItems($items);
+    }
+
+    private function validateItems(array $items): array
+    {
         $count = 0;
         $total = 0;
-        foreach ($data['items'] as $i => &$item) {
+        foreach ($items as $i => &$item) {
             if ($item['type'] === 'text') {
                 if (trim($item['text'] ?? '') === '' || isset($item['file'])) {
                     throw ValidationException::withMessages(["items.$i" => 'Please enter a non-empty text message.']);
                 }
                 // Reserve the server attachment namespace; ordinary legacy text remains readable.
-                if (str_starts_with($item['text'], 'ticket-attachments/')) {
+                if (str_starts_with($item['text'], 'ticket-attachments/') || str_starts_with($item['text'], 'uploads/')) {
                     throw ValidationException::withMessages(["items.$i" => 'This message starts with a reserved attachment path.']);
                 }
             } else {
@@ -110,7 +149,7 @@ class TenantCustomerService
         if ($count > config('customer_service.max_files') || $total > config('customer_service.max_total_kb') * 1024) {
             throw ValidationException::withMessages(['items' => 'The batch exceeds the file count or total size limit.']);
         }
-        return $data['items'];
+        return $items;
     }
 
     private function actualMime(string $path, string $extension): string
@@ -154,11 +193,12 @@ class TenantCustomerService
 
     public function append(Ticket $ticket, array $items, array &$uploaded): void
     {
+        $managerId = collect($items)->contains(fn ($item) => $item['type'] === 'file')
+            ? $this->attachmentManagerId(User::findOrFail($ticket->sender_id)) : null;
         foreach ($items as $item) {
             $message = $item['text'] ?? '';
             if ($item['type'] === 'file') {
-                $name = Str::uuid().'.'.$item['extension'];
-                $message = $item['file']->storeAs('ticket-attachments/'.$ticket->id, $name, 'local');
+                $message = app(FileService::class)->upload($item['file'], $managerId, 'tenant_ticket');
                 if (!$message) {
                     throw new \RuntimeException('Unable to store the attachment.');
                 }

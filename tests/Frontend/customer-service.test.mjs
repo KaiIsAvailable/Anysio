@@ -16,7 +16,14 @@ class Element {
         this.open = false;
         this.controls = [];
         this.fields = [];
+        this.style = {};
+        this.scrollHeight = 44;
     }
+    contains(target) { return this === target || this.children.includes(target); }
+    focus() { this.focused = true; }
+    click() { this.clicked = true; }
+    requestSubmit() { return this.fire('submit'); }
+    setAttribute(name, value) { this[name] = value; }
     addEventListener(event, callback) { (this.listeners[event] ??= []).push(callback); }
     async fire(event, extra = {}) {
         for (const callback of this.listeners[event] ?? []) await callback({ target: this, currentTarget: this, preventDefault() {}, ...extra });
@@ -35,7 +42,7 @@ class FormDataMock {
     get(name) { return this.values.find(([key]) => key === name)?.[1] ?? null; }
 }
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
-function setup({ index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [] } = {}) {
+function setup({ index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false } = {}) {
     const nodes = new Map();
     const node = (selector) => {
         if (!nodes.has(selector)) nodes.set(selector, new Element());
@@ -62,6 +69,7 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
     document.createElement = (tag) => new Element(tag);
     const navigations = [];
     const window = new Element();
+    window.matchMedia = () => ({ matches: !mobile });
     window.location = { href: indexRoot.dataset.indexUrl, assign(url) { navigations.push(url); this.href = url; } };
     window.history = { replaceState(_state, _title, url) { window.location.href = String(url); } };
     const requests = [];
@@ -75,28 +83,31 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
         requests.push({ url: String(url), ...options });
         const answer = answers.shift();
         assert.ok(answer, 'Every frontend request must have a test response');
+        if (answer.gate) await answer.gate;
         return { ok: answer.status === undefined || answer.status < 400, status: answer.status ?? 200, json: async () => answer.data };
     };
     const ticket = { id: 'one', subject: 'Leaking tap', status: closed ? 'done' : 'pending', closed, reply_url: '/ignored/reply', show_url: '/ignored/show' };
     if (chat) answers.push({ data: { ticket, messages } });
+    node('[data-chat-attachment-menu]').hidden = true;
     node('[data-chat-form]').fields = [['_token', 'csrf-token']];
+    node('[data-complaint-modal]').dataset.limits = chatRoot.dataset.limits;
     node('[data-complaint-form]').action = indexRoot.dataset.indexUrl;
     vm.runInNewContext(source, { document, window, URL: TestURL, FormData: FormDataMock, fetch, console });
     document.fire('DOMContentLoaded');
-    return { node, ticket, requests, answers, revoked, navigations, chatRoot };
+    return { node, ticket, requests, answers, revoked, navigations, chatRoot, document };
 }
 
-test('Create component submits subject and CSRF, closes modal, and refreshes the index', async () => {
-    const { node, requests, answers } = setup({ index: true });
+test('Index component submits details and CSRF, closes modal, and redirects to show', async () => {
+    const { node, requests, answers, navigations } = setup({ index: true });
     await node('[data-open-complaint]').fire('click');
     assert.equal(node('[data-complaint-modal]').open, true);
-    node('[data-complaint-form]').fields = [['_token', 'token'], ['subject', 'Leaking tap']];
-    answers.push({ data: { ticket: { id: 'one' }, messages: [] } }, { data: { html: '<table>New complaint</table>', creation_reason: null } });
+    node('[data-complaint-form]').fields = [['_token', 'token'], ['subject', 'Leaking tap'], ['details', 'Text']];
+    answers.push({ data: { ticket: { id: 'one', show_url: '/ticket/one' }, messages: [] } });
     await node('[data-complaint-form]').fire('submit');
-    assert.equal(requests.length, 2);
-    assert.deepEqual(requests[0].body.values.map(([name]) => name), ['_token', 'subject']);
+    assert.equal(requests.length, 1);
+    assert.deepEqual(requests[0].body.values.map(([name]) => name), ['_token', 'subject', 'details']);
     assert.equal(node('[data-complaint-modal]').open, false);
-    assert.equal(node('[data-ticket-list]').innerHTML, '<table>New complaint</table>');
+    assert.deepEqual(navigations, ['/ticket/one']);
 });
 
 test('Dashboard creates through the shared modal and redirects without a ticket table', async () => {
@@ -106,7 +117,7 @@ test('Dashboard creates through the shared modal and redirects without a ticket 
     await node('[data-cancel-complaint]').fire('click');
     assert.equal(node('[data-complaint-modal]').open, false);
     await node('[data-open-complaint]').fire('click');
-    node('[data-complaint-form]').fields = [['_token', 'token'], ['subject', 'Dashboard complaint']];
+    node('[data-complaint-form]').fields = [['_token', 'token'], ['subject', 'Dashboard complaint'], ['details', 'Text']];
     answers.push({ status: 422, data: { errors: { subject: ['Please enter a subject.'] } } });
     await node('[data-complaint-form]').fire('submit');
     assert.equal(node('[data-complaint-modal]').open, true);
@@ -115,7 +126,7 @@ test('Dashboard creates through the shared modal and redirects without a ticket 
     await node('[data-complaint-form]').fire('submit');
     assert.equal(requests.length, 2);
     assert.deepEqual(navigations, ['/tenant/ticket/new']);
-    assert.deepEqual(requests[1].body.values.map(([name]) => name), ['_token', 'subject']);
+    assert.deepEqual(requests[1].body.values.map(([name]) => name), ['_token', 'subject', 'details']);
 });
 
 test('Clicking a ticket row navigates to show without requesting a chat modal', async () => {
@@ -141,8 +152,8 @@ test('Chat reads and sends through component endpoints, previews/removes files, 
     assert.equal(node('[data-chat-form]').hidden, false);
     assert.equal(node('[data-chat-messages]').children[0].className, 'flex justify-start');
     assert.equal(node('[data-chat-messages]').children[1].className, 'flex justify-end');
-    node('[data-chat-files]').files = [{ name: 'image.png', type: 'image/png', size: 100 }, { name: 'note.txt', type: 'text/plain', size: 100 }];
-    await node('[data-chat-files]').fire('change');
+    node('[data-chat-files="document"]').files = [{ name: 'image.png', type: 'image/png', size: 100 }, { name: 'note.txt', type: 'text/plain', size: 100 }];
+    await node('[data-chat-files="document"]').fire('change');
     assert.equal(node('[data-attachment-previews]').children.length, 2);
     assert.equal(node('[data-attachment-previews]').children[0].children[1].tagName, 'IMG');
     await node('[data-attachment-previews]').children[0].children.at(-1).fire('click');
@@ -180,4 +191,158 @@ test('Closed tickets hide Send and a rejected send preserves the draft', async (
     await node('[data-chat-form]').fire('submit');
     assert.equal(node('[data-chat-draft]').value, 'Keep this draft');
     assert.equal(node('[data-chat-error]').textContent, 'Validation failed');
+});
+
+test('Create previews and removes files, preserves them on failure, and locks close and repeat submit while pending', async () => {
+    const { node, requests, answers } = setup({ dashboard: true });
+    await node('[data-open-complaint]').fire('click');
+    node('[data-complaint-form]').fields = [['_token', 'token'], ['subject', 'Complaint'], ['details', 'Text']];
+    const picker = node('[data-create-files="media"]');
+    picker.files = [{ name: 'image.png', type: 'image/png', size: 100 }, { name: 'other.png', type: 'image/png', size: 100 }, { name: 'third.png', type: 'image/png', size: 100 }];
+    await picker.fire('change');
+    assert.equal(node('[data-create-previews]').children.length, 3);
+    await node('[data-create-previews]').children[0].children.at(-1).fire('click');
+    assert.equal(node('[data-create-previews]').children.length, 2);
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    answers.push({ gate, status: 422, data: { errors: { attachments: ['Manager conflict'] } } });
+    const pending = node('[data-complaint-form]').fire('submit');
+    assert.equal(node('[data-create-submit]').textContent, 'Creating...');
+    await node('[data-close-complaint]').fire('click');
+    await node('[data-cancel-complaint]').fire('click');
+    let prevented = false;
+    await node('[data-complaint-modal]').fire('cancel', { preventDefault() { prevented = true; } });
+    await node('[data-complaint-form]').fire('submit');
+    assert.equal(requests.length, 1);
+    assert.equal(prevented, true);
+    assert.equal(node('[data-complaint-modal]').open, true);
+    release();
+    await pending;
+    assert.equal(node('[data-complaint-modal]').open, true);
+    assert.equal(node('[data-create-previews]').children.length, 2);
+    assert.equal(node('[data-complaint-form]').fields[2][1], 'Text');
+    assert.equal(node('[data-create-submit]').textContent, 'Create');
+    assert.deepEqual(requests[0].body.values.map(([name]) => name), ['_token', 'subject', 'details', 'attachments[]', 'attachments[]']);
+    await node('[data-close-complaint]').fire('click');
+    assert.equal(node('[data-complaint-modal]').open, false);
+});
+
+test('Create rejects empty content and oversized selections before requesting', async () => {
+    const { node, requests } = setup({ index: true });
+    node('[data-complaint-form]').fields = [['subject', 'Complaint']];
+    await node('[data-complaint-form]').fire('submit');
+    assert.equal(requests.length, 0);
+    assert.match(node('[data-create-error]').textContent, /details/);
+    const picker = node('[data-create-files="document"]');
+    picker.files = [{ name: 'large.txt', size: 10241 * 1024, type: 'text/plain' }];
+    await picker.fire('change');
+    assert.equal(node('[data-create-previews]').children.length, 0);
+    assert.match(node('[data-create-error]').textContent, /size limit/);
+});
+
+test('Chat menu closes on selection, outside click and Escape; file selections append across categories', async () => {
+    const { node, document } = setup({ chat: true });
+    await settle();
+    const menu = node('[data-chat-attachment-menu]');
+    const button = node('[data-chat-attach]');
+    await button.fire('click');
+    assert.equal(menu.hidden, false);
+    await node('[data-chat-pick="document"]').fire('click');
+    assert.equal(menu.hidden, true);
+    assert.equal(node('[data-chat-files="document"]').clicked, true);
+    for (const kind of ['document', 'media', 'camera']) {
+        const picker = node('[data-chat-files="' + kind + '"]');
+        picker.files = [{ name: kind + '.png', type: 'image/png', size: 100 }];
+        await picker.fire('change');
+    }
+    assert.equal(node('[data-attachment-previews]').children.length, 3);
+    assert.equal(node('[data-chat-send]').disabled, false);
+    await button.fire('click');
+    await document.fire('pointerdown', { target: new Element() });
+    assert.equal(menu.hidden, true);
+    await button.fire('click');
+    await document.fire('keydown', { key: 'Escape' });
+    assert.equal(menu.hidden, true);
+    assert.equal(button.focused, true);
+    while (node('[data-attachment-previews]').children.length) await node('[data-attachment-previews]').children[0].children.at(-1).fire('click');
+    assert.equal(node('[data-chat-send]').disabled, true);
+});
+
+test('Desktop Enter sends, Shift+Enter and IME do not send; mobile Enter stays a newline', async () => {
+    const { node, ticket, requests, answers } = setup({ chat: true });
+    await settle();
+    const draft = node('[data-chat-draft]');
+    draft.value = '????';
+    draft.scrollHeight = 250;
+    await draft.fire('input');
+    assert.equal(draft.style.height, '160px');
+    await draft.fire('compositionstart');
+    await draft.fire('keydown', { key: 'Enter' });
+    await draft.fire('compositionend');
+    await draft.fire('keydown', { key: 'Enter', isComposing: true });
+    await draft.fire('keydown', { key: 'Enter', keyCode: 229 });
+    await draft.fire('keydown', { key: 'Enter', shiftKey: true });
+    assert.equal(requests.length, 1);
+    answers.push({ data: { ticket, messages: [] } });
+    await draft.fire('keydown', { key: 'Enter' });
+    await settle();
+    assert.equal(requests.length, 2);
+    assert.equal(draft.value, '');
+    assert.equal(node('[data-chat-send]').disabled, true);
+    const mobile = setup({ chat: true, mobile: true });
+    await settle();
+    mobile.node('[data-chat-draft]').value = 'Mobile';
+    await mobile.node('[data-chat-draft]').fire('input');
+    let prevented = false;
+    await mobile.node('[data-chat-draft]').fire('keydown', { key: 'Enter', preventDefault() { prevented = true; } });
+    assert.equal(prevented, false);
+    assert.equal(mobile.requests.length, 1);
+});
+
+test('Chat loading prevents duplicate requests and preserves text and attachments after failure', async () => {
+    const { node, answers, requests } = setup({ chat: true });
+    await settle();
+    const draft = node('[data-chat-draft]');
+    draft.value = 'Keep text';
+    const picker = node('[data-chat-files="document"]');
+    picker.files = [{ name: 'note.txt', type: 'text/plain', size: 100 }];
+    await picker.fire('change');
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    answers.push({ gate, status: 422, data: { message: 'Upload failed' } });
+    const pending = node('[data-chat-form]').fire('submit');
+    assert.equal(node('[data-chat-send]').disabled, true);
+    assert.equal(node('[data-chat-loading]').hidden, false);
+    await node('[data-chat-form]').fire('submit');
+    assert.equal(requests.length, 2);
+    release();
+    await pending;
+    assert.equal(draft.value, 'Keep text');
+    assert.equal(node('[data-attachment-previews]').children.length, 1);
+    assert.equal(node('[data-chat-loading]').hidden, true);
+    assert.equal(node('[data-chat-send]').disabled, false);
+    assert.equal(node('[data-chat-error]').textContent, 'Upload failed');
+});
+
+test('Chat file limits reject a new selection without losing queued files, and a server close disables sending', async () => {
+    const { node, ticket, answers } = setup({ chat: true });
+    await settle();
+    const picker = node('[data-chat-files="document"]');
+    picker.files = [{ name: 'valid.txt', type: 'text/plain', size: 100 }];
+    await picker.fire('change');
+    for (const files of [
+        [{ name: 'large.txt', type: 'text/plain', size: 10241 * 1024 }],
+        [{ name: 'bad.exe', type: 'application/octet-stream', size: 1 }],
+        Array.from({ length: 10 }, () => ({ name: 'note.txt', type: 'text/plain', size: 1 })),
+    ]) {
+        picker.files = files;
+        await picker.fire('change');
+        assert.equal(node('[data-attachment-previews]').children.length, 1);
+        assert.notEqual(node('[data-chat-error]').textContent, '');
+    }
+    answers.push({ status: 403, data: { message: 'Closed' } }, { data: { ticket: { ...ticket, closed: true }, messages: [] } });
+    await node('[data-chat-form]').fire('submit');
+    assert.equal(node('[data-chat-form]').hidden, true);
+    assert.equal(node('[data-chat-send]').disabled, true);
+    assert.equal(node('[data-attachment-previews]').children.length, 1);
 });

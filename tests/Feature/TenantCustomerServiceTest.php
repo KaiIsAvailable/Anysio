@@ -16,21 +16,23 @@ class TenantCustomerServiceTest extends TestCase
     private User $tenantUser;
     private string $tenantId;
     private string $ownerId;
+    private string $managerId;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->assertSame('sqlite', DB::connection()->getDriverName());
         $this->assertSame(':memory:', config('database.connections.sqlite.database'));
-        foreach (['users', 'tenants', 'properties', 'units', 'rooms', 'leases', 'tickets', 'ticket_msgs', 'audit_logs'] as $table) {
+        foreach (['users', 'owners', 'tenants', 'properties', 'units', 'rooms', 'leases', 'tickets', 'ticket_msgs', 'audit_logs'] as $table) {
             Schema::create($table, function (Blueprint $t) use ($table) {
                 $t->string('id')->primary();
                 $t->timestamps();
                 $columns = match ($table) {
                     'users' => ['name', 'email', 'password', 'role', 'email_verified_at'],
-                    'tenants' => ['user_id'],
-                    'properties' => ['name', 'owner_id'],
-                    'units' => ['unit_no', 'owner_id', 'property_id'],
+                    'tenants' => ['user_id', 'created_by'],
+                    'owners' => ['user_id', 'agent_id'],
+                    'properties' => ['name', 'owner_id', 'created_by'],
+                    'units' => ['unit_no', 'owner_id', 'property_id', 'created_by'],
                     'rooms' => ['room_no', 'owner_id', 'unit_id'],
                     'leases' => ['tenant_id', 'leasable_type', 'leasable_id', 'status', 'start_date', 'end_date', 'checked_out_at', 'agreement_ended_at'],
                     'tickets' => ['sender_id', 'receive_id', 'category', 'subject', 'status'],
@@ -49,8 +51,9 @@ class TenantCustomerServiceTest extends TestCase
         Storage::fake('local');
         $this->tenantUser = $this->user('tenant');
         $this->ownerId = $this->user('owner')->id;
+        $this->managerId = $this->user('agentAdmin')->id;
         $this->tenantId = (string) Str::ulid();
-        DB::table('tenants')->insert(['id' => $this->tenantId, 'user_id' => $this->tenantUser->id]);
+        DB::table('tenants')->insert(['id' => $this->tenantId, 'user_id' => $this->tenantUser->id, 'created_by' => $this->managerId]);
         $this->actingAs($this->tenantUser);
     }
 
@@ -70,7 +73,7 @@ class TenantCustomerServiceTest extends TestCase
     private function lease(array $overrides = []): Lease
     {
         $property = (string) Str::ulid();
-        DB::table('properties')->insert(['id' => $property, 'name' => 'Test Property', 'owner_id' => $this->ownerId]);
+        DB::table('properties')->insert(['id' => $property, 'name' => 'Test Property', 'owner_id' => $this->ownerId, 'created_by' => $this->managerId]);
         $id = (string) Str::ulid();
         DB::table('leases')->insert(array_merge([
             'id' => $id, 'tenant_id' => $this->tenantId, 'leasable_type' => Property::class, 'leasable_id' => $property,
@@ -88,21 +91,21 @@ class TenantCustomerServiceTest extends TestCase
 
     private function batch(array $extra = []): array
     {
-        return array_merge(['category' => 'QNA', 'subject' => 'Question', 'items' => [['type' => 'text', 'text' => 'Hello']]], $extra);
+        return array_merge(['category' => 'QNA', 'subject' => 'Question', 'details' => 'Hello', 'items' => [['type' => 'text', 'text' => 'Hello']]], $extra);
     }
 
-    public function test_subject_only_creates_empty_chat_and_ignores_client_category_sender_and_receiver(): void
+    public function test_creation_requires_content_and_ignores_client_routing_fields(): void
     {
         $this->lease();
-        $response = $this->postJson(route('tenants.customerService.store'), ['subject' => 'A new complaint'])->assertCreated()->assertJsonCount(0, 'messages')->assertJsonPath('ticket.status', 'pending');
+        $url = route('tenants.customerService.store');
+        $this->postJson($url, ['subject' => 'Empty'])->assertUnprocessable()->assertJsonValidationErrors('details');
+        $this->postJson($url, ['subject' => '  ', 'details' => 'Text'])->assertUnprocessable()->assertJsonValidationErrors('subject');
+        $response = $this->postJson($url, ['subject' => 'Complaint', 'details' => 'First text', 'category' => 'QNA', 'sender_id' => $this->ownerId, 'receive_id' => $this->tenantUser->id])->assertCreated()->assertJsonCount(1, 'messages')->assertJsonPath('messages.0.text', 'First text');
         $ticket = Ticket::findOrFail($response->json('ticket.id'));
         $this->assertSame($this->tenantUser->id, $ticket->sender_id);
         $this->assertSame($this->ownerId, $ticket->receive_id);
         $this->assertSame('complain', $ticket->category);
-        $this->assertSame(0, TicketMsg::count());
-        $this->postJson(route('tenants.customerService.store'), ['subject' => 'Another', 'category' => 'QNA', 'sender_id' => $this->ownerId, 'receive_id' => $this->tenantUser->id, 'items' => [['type' => 'text', 'text' => 'Ignored']]])->assertCreated();
-        $this->assertSame(0, TicketMsg::count());
-        $this->assertSame(2, Ticket::where('category', 'complain')->where('receive_id', $this->ownerId)->where('sender_id', $this->tenantUser->id)->count());
+        $this->assertSame('pending', $ticket->status);
     }
 
     public function test_no_lease_blocks_creation_but_allows_reply_without_resetting_status(): void
@@ -118,9 +121,9 @@ class TenantCustomerServiceTest extends TestCase
     {
         $first = $this->lease();
         $second = $this->lease();
-        $this->postJson(route('tenants.customerService.store'), ['subject' => 'Same owner'])->assertCreated();
+        $this->postJson(route('tenants.customerService.store'), ['subject' => 'Same owner', 'details' => 'Text'])->assertCreated();
         DB::table('properties')->where('id', $second->leasable_id)->update(['owner_id' => $this->user('owner')->id]);
-        $this->postJson(route('tenants.customerService.store'), ['subject' => 'Conflict', 'lease_id' => $first->id, 'receive_id' => $this->ownerId])->assertUnprocessable()->assertJsonValidationErrors('subject');
+        $this->postJson(route('tenants.customerService.store'), ['subject' => 'Conflict', 'details' => 'Text', 'lease_id' => $first->id, 'receive_id' => $this->ownerId])->assertUnprocessable()->assertJsonValidationErrors('subject');
         $this->getJson(route('tenants.customerService.index'))->assertOk()->assertJsonPath('creation_reason', 'Your valid leases have different owners. The complaint recipient cannot be determined. Please contact your property manager.');
         DB::table('properties')->where('id', $second->leasable_id)->update(['owner_id' => null]);
         $this->postJson(route('tenants.customerService.store'), ['subject' => 'Missing owner'])->assertUnprocessable();
@@ -242,7 +245,7 @@ class TenantCustomerServiceTest extends TestCase
         ]])->assertOk()->assertJsonCount(3, 'messages')->assertJsonPath('messages.0.text', 'Hello')->assertJsonPath('messages.1.extension', 'txt')->assertJsonPath('ticket.status', 'in_progress');
         $this->assertCount(3, $ticket->messages);
         $this->assertCount(0, $other->messages);
-        $attachment = $ticket->messages->first(fn ($message) => str_starts_with($message->message, 'ticket-attachments/'));
+        $attachment = $ticket->messages->first(fn ($message) => str_starts_with($message->message, 'uploads/'));
         Storage::disk('local')->assertExists($attachment->message);
         $this->getJson(route('tenants.customerService.attachment', [$ticket, $attachment]))->assertOk()->assertHeader('X-Content-Type-Options', 'nosniff');
     }
@@ -251,7 +254,7 @@ class TenantCustomerServiceTest extends TestCase
     {
         $ticket = $this->ticket();
         TicketMsg::creating(function ($message) {
-            if (str_starts_with($message->message, 'ticket-attachments/')) throw new \RuntimeException('Simulated message failure');
+            if (str_starts_with($message->message, 'uploads/')) throw new \RuntimeException('Simulated message failure');
         });
         $this->postJson(route('tenants.customerService.reply', $ticket), $this->batch(['items' => [
             ['type' => 'text', 'text' => 'First'], ['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('note.txt', 'Real text')],
@@ -303,5 +306,99 @@ class TenantCustomerServiceTest extends TestCase
         $this->actingAs($this->user('owner'));
         $this->getJson(route('tenants.customerService.index'))->assertForbidden();
         $this->postJson(route('tenants.customerService.store'), $this->batch())->assertForbidden();
+    }
+
+    public function test_create_text_and_multiple_attachments_use_manager_path_and_are_immediately_readable(): void
+    {
+        $this->lease();
+        $response = $this->postJson(route('tenants.customerService.store'), [
+            'subject' => 'Leak', 'details' => 'Please repair', 'manager_id' => $this->tenantUser->id,
+            'attachments' => [UploadedFile::fake()->createWithContent('one.TXT', 'First'), UploadedFile::fake()->createWithContent('two.txt', 'Second')],
+        ])->assertCreated()->assertJsonCount(3, 'messages')->assertJsonPath('messages.0.text', 'Please repair')->assertJsonPath('messages.1.extension', 'txt');
+        $ticket = Ticket::findOrFail($response->json('ticket.id'));
+        $this->assertSame($this->ownerId, $ticket->receive_id);
+        foreach ($ticket->messages()->get()->slice(1) as $message) {
+            $this->assertStringStartsWith('uploads/user_'.$this->managerId.'/tenants/tickets/', $message->message);
+            Storage::disk('local')->assertExists($message->message);
+            $this->get(route('tenants.customerService.attachment', [$ticket, $message, 'download' => 1]))->assertOk();
+            $this->actingAs($this->user('tenant'))->get(route('tenants.customerService.attachment', [$ticket, $message]))->assertForbidden();
+            $this->actingAs($this->tenantUser);
+        }
+        $this->getJson($response->json('ticket.show_url'))->assertOk()->assertJsonCount(3, 'messages');
+        $this->postJson(route('tenants.customerService.store'), ['subject' => 'File only', 'attachments' => [UploadedFile::fake()->createWithContent('note.txt', 'Only file')]])->assertCreated()->assertJsonCount(1, 'messages');
+    }
+
+    public function test_create_invalid_file_and_failed_second_upload_leave_no_ticket_messages_or_files(): void
+    {
+        $this->lease();
+        $url = route('tenants.customerService.store');
+        $this->postJson($url, ['subject' => 'Bad file', 'details' => 'Text', 'attachments' => [UploadedFile::fake()->createWithContent('bad.jpg', 'Text')]])->assertUnprocessable();
+        $real = new \App\Services\FileService();
+        $mock = \Mockery::mock(\App\Services\FileService::class);
+        $calls = 0;
+        $mock->shouldReceive('upload')->twice()->andReturnUsing(function ($file, $id, $category) use (&$calls, $real) {
+            if (++$calls === 2) throw new \RuntimeException('Upload failed');
+            return $real->upload($file, $id, $category);
+        });
+        $this->app->instance(\App\Services\FileService::class, $mock);
+        $this->postJson($url, ['subject' => 'Rollback', 'details' => 'Text', 'attachments' => [UploadedFile::fake()->createWithContent('one.txt', 'First'), UploadedFile::fake()->createWithContent('two.txt', 'Second')]])->assertStatus(500);
+        $this->assertSame(0, Ticket::count());
+        $this->assertSame(0, TicketMsg::count());
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_management_resolution_supports_owner_admin_and_agent_relation_and_rejects_conflicts(): void
+    {
+        $lease = $this->lease();
+        $service = app(TenantCustomerService::class);
+        DB::table('properties')->where('id', $lease->leasable_id)->update(['created_by' => null]);
+        DB::table('owners')->insert(['id' => (string) Str::ulid(), 'user_id' => $this->ownerId, 'agent_id' => $this->managerId]);
+        $this->assertSame($this->managerId, $service->attachmentManagerId($this->tenantUser->fresh()));
+        $ownerAdmin = $this->user('ownerAdmin');
+        DB::table('properties')->where('id', $lease->leasable_id)->update(['created_by' => $ownerAdmin->id]);
+        $this->postJson(route('tenants.customerService.store'), ['subject' => 'Conflict', 'attachments' => [UploadedFile::fake()->createWithContent('one.txt', 'First')]])->assertUnprocessable()->assertJsonValidationErrors('attachments');
+        DB::table('properties')->where('id', $lease->leasable_id)->update(['owner_id' => $ownerAdmin->id]);
+        DB::table('tenants')->where('id', $this->tenantId)->update(['created_by' => $ownerAdmin->id]);
+        $this->assertSame($ownerAdmin->id, $service->attachmentManagerId($this->tenantUser->fresh()));
+        DB::table('tenants')->where('id', $this->tenantId)->update(['created_by' => $this->managerId]);
+        $this->postJson(route('tenants.customerService.reply', $this->ticket()), ['items' => [['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('one.txt', 'First')]]])->assertUnprocessable();
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_old_attachments_remain_readable_and_text_cannot_impersonate_new_paths(): void
+    {
+        $ticket = $this->ticket();
+        $message = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'ticket-attachments/'.$ticket->id.'/'.Str::uuid().'.txt']);
+        Storage::disk('local')->put($message->message, 'Old attachment');
+        $this->get(route('tenants.customerService.attachment', [$ticket, $message]))->assertOk();
+        $this->getJson(route('tenants.customerService.show', $ticket))->assertJsonPath('messages.0.extension', 'txt');
+        $this->postJson(route('tenants.customerService.reply', $ticket), ['items' => [['type' => 'text', 'text' => 'uploads/user_'.$this->managerId.'/tenants/tickets/'.Str::uuid().'.txt']]])->assertUnprocessable();
+    }
+
+    public function test_missing_manager_blocks_files_but_not_text_and_unique_lease_can_resolve_legacy_tenant(): void
+    {
+        DB::table('tenants')->where('id', $this->tenantId)->update(['created_by' => null]);
+        $ticket = $this->ticket();
+        $this->postJson(route('tenants.customerService.reply', $ticket), ['items' => [['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('one.txt', 'First')]]])->assertUnprocessable()->assertJsonValidationErrors('attachments');
+        $this->postJson(route('tenants.customerService.reply', $ticket), $this->batch())->assertOk();
+        $first = $this->lease();
+        $this->assertSame($this->managerId, app(TenantCustomerService::class)->attachmentManagerId($this->tenantUser->fresh()));
+        $second = $this->lease();
+        DB::table('properties')->where('id', $second->leasable_id)->update(['created_by' => $this->user('agentAdmin')->id]);
+        $this->postJson(route('tenants.customerService.store'), ['subject' => 'Conflicting leases', 'attachments' => [UploadedFile::fake()->createWithContent('one.txt', 'First')]])->assertUnprocessable()->assertJsonValidationErrors('attachments');
+        $this->assertSame(1, Ticket::count());
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_owner_admin_upload_uses_users_id_and_keeps_existing_receiver_rule(): void
+    {
+        $manager = $this->user('ownerAdmin');
+        $lease = $this->lease();
+        DB::table('tenants')->where('id', $this->tenantId)->update(['created_by' => $manager->id]);
+        DB::table('properties')->where('id', $lease->leasable_id)->update(['created_by' => $manager->id]);
+        $result = $this->postJson(route('tenants.customerService.store'), ['subject' => 'Owner admin', 'attachments' => [UploadedFile::fake()->createWithContent('one.txt', 'First')]])->assertCreated();
+        $ticket = Ticket::findOrFail($result->json('ticket.id'));
+        $this->assertSame($this->ownerId, $ticket->receive_id);
+        $this->assertStringStartsWith('uploads/user_'.$manager->id.'/tenants/tickets/', $ticket->messages()->first()->message);
     }
 }

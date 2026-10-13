@@ -14,7 +14,9 @@ class TenantTicketController extends Controller
     public function index(Request $request, TenantCustomerService $service)
     {
         abort_unless($request->user()->isTenant(), 403);
-        $data = $request->validate(['search' => ['nullable', 'string', 'max:255']]);
+        $data = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'ticket' => ['nullable', 'string', 'max:26']]);
+        $selectedTicket = isset($data['ticket']) ? Ticket::findOrFail($data['ticket']) : null;
+        if ($selectedTicket) $service->authorize($selectedTicket, $request->user());
         $search = trim($data['search'] ?? '');
         $tickets = Ticket::where('sender_id', $request->user()->id)->with('receiver')
             ->when($search !== '', fn ($q) => $q->where('subject', 'like', '%'.$search.'%'))
@@ -27,7 +29,8 @@ class TenantTicketController extends Controller
                 'creation_reason' => $creationReason,
             ]);
         }
-        return view('tenantSide.customerService.index', compact('tickets', 'creationReason', 'search'));
+        $chatHtml = $selectedTicket ? $this->chatHtml($selectedTicket, $request, $service) : '';
+        return view('tenantSide.customerService.index', compact('tickets', 'creationReason', 'search', 'selectedTicket', 'chatHtml'));
     }
 
     public function store(Request $request, TenantCustomerService $service)
@@ -67,12 +70,18 @@ class TenantTicketController extends Controller
         $service->authorize($ticket, $request->user());
         $conversation = $this->conversation($ticket, $service);
         if ($request->expectsJson()) {
+            if ($request->boolean('fragment')) $conversation['html'] = $this->chatHtml($ticket, $request, $service, $conversation);
             return response()->json($conversation);
         }
-        $messages = $conversation['messages'];
+        return redirect()->route('tenants.customerService.index', ['ticket' => $ticket->id]);
+    }
+
+    private function chatHtml(Ticket $ticket, Request $request, TenantCustomerService $service, ?array $conversation = null): string
+    {
+        $messages = ($conversation ?? $this->conversation($ticket, $service))['messages'];
         $currentRole = $request->user()->role;
         $canSend = !$service->isClosed($ticket);
-        return view('tenantSide.customerService.show', compact('ticket', 'messages', 'currentRole', 'canSend'));
+        return view('tenantSide.customerService.conversation', compact('ticket', 'messages', 'currentRole', 'canSend'))->render();
     }
 
     public function reply(Request $request, Ticket $ticket, TenantCustomerService $service)
@@ -106,6 +115,7 @@ class TenantTicketController extends Controller
                 'closed' => $service->isClosed($ticket),
                 'reply_url' => route('tenants.customerService.reply', $ticket),
                 'show_url' => route('tenants.customerService.show', $ticket),
+                'index_url' => route('tenants.customerService.index', ['ticket' => $ticket->id]),
             ],
             'messages' => $messages->map(function ($message) use ($ticket, $service) {
                 $attachment = $service->attachmentPath($message);

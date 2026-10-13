@@ -18,19 +18,26 @@ class Element {
         this.fields = [];
         this.style = {};
         this.scrollHeight = 44;
+        this.classList = { toggle() {} };
     }
+    set innerHTML(value) { this.html = value; if (this.onHTML) this.onHTML(value); }
+    get innerHTML() { return this.html; }
+    querySelector() { return this.children[0] || null; }
     contains(target) { return this === target || this.children.includes(target); }
     focus() { this.focused = true; }
     click() { this.clicked = true; }
     requestSubmit() { return this.fire('submit'); }
     setAttribute(name, value) { this[name] = value; }
-    addEventListener(event, callback) { (this.listeners[event] ??= []).push(callback); }
+    addEventListener(event, callback, options = {}) {
+        (this.listeners[event] ??= []).push(callback);
+        options.signal?.addEventListener('abort', () => { this.listeners[event] = this.listeners[event].filter((item) => item !== callback); });
+    }
     async fire(event, extra = {}) {
         for (const callback of this.listeners[event] ?? []) await callback({ target: this, currentTarget: this, preventDefault() {}, ...extra });
     }
     append(...children) { this.children.push(...children); }
     replaceChildren(...children) { this.children = children; this.textContent = ''; }
-    closest(selector) { return selector === '[data-ticket-url]' && this.dataset.ticketUrl ? this : null; }
+    closest(selector) { return selector === 'a' && this.tagName === 'A' ? this : null; }
     querySelectorAll() { return this.controls; }
     showModal() { this.open = true; }
     close() { this.open = false; this.fire('close'); }
@@ -42,14 +49,15 @@ class FormDataMock {
     get(name) { return this.values.find(([key]) => key === name)?.[1] ?? null; }
 }
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
-function setup({ index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false } = {}) {
+function setup({ index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '' } = {}) {
     const nodes = new Map();
     const node = (selector) => {
         if (!nodes.has(selector)) nodes.set(selector, new Element());
         return nodes.get(selector);
     };
     const indexRoot = new Element();
-    indexRoot.dataset = { indexUrl: 'http://example.test/admin/tenant/customer-service' };
+    indexRoot.dataset = { indexUrl: 'http://example.test/admin/tenant/customer-service', ticketUrlTemplate: 'http://example.test/ticket/__TICKET__'  };
+    indexRoot.dataset.selectedTicket = initial;
     indexRoot.querySelector = node;
     const chatRoot = new Element();
     chatRoot.dataset = {
@@ -65,13 +73,14 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
     const dashboardRoot = new Element();
     dashboardRoot.dataset = { redirectAfterCreate: 'true' };
     dashboardRoot.querySelector = node;
-    document.querySelectorAll = (selector) => selector === '[data-complaint-create]' ? (dashboard ? [dashboardRoot] : []) : (chat ? [chatRoot] : []);
+    document.querySelectorAll = (selector) => selector === '[data-complaint-create]' ? (dashboard ? [dashboardRoot] : []) : (chat ? [chatRoot] : index && initial ? [node('[data-conversation-host]').children[0]] : []);
     document.createElement = (tag) => new Element(tag);
     const navigations = [];
     const window = new Element();
     window.matchMedia = () => ({ matches: !mobile });
     window.location = { href: indexRoot.dataset.indexUrl, assign(url) { navigations.push(url); this.href = url; } };
-    window.history = { replaceState(_state, _title, url) { window.location.href = String(url); } };
+    window.confirm = () => true;
+    window.history = { pushState(_state, _title, url) { window.location.href = String(url); }, replaceState(_state, _title, url) { window.location.href = String(url); } };
     const requests = [];
     const answers = [];
     const revoked = [];
@@ -92,22 +101,35 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
     node('[data-chat-form]').fields = [['_token', 'csrf-token']];
     node('[data-complaint-modal]').dataset.limits = chatRoot.dataset.limits;
     node('[data-complaint-form]').action = indexRoot.dataset.indexUrl;
-    vm.runInNewContext(source, { document, window, URL: TestURL, FormData: FormDataMock, fetch, console });
+    const dynamicChats = [];
+    node('[data-conversation-host]').onHTML = (id) => {
+        const nodes = new Map();
+        const chatNode = (selector) => { if (!nodes.has(selector)) nodes.set(selector, new Element()); return nodes.get(selector); };
+        const dynamic = new Element();
+        dynamic.dataset = { ...chatRoot.dataset, sendUrl: '/ticket/' + id + '/reply', readUrl: '/ticket/' + id };
+        dynamic.querySelector = chatNode;
+        chatNode('[data-chat-form]').fields = [['_token', 'token']];
+        node('[data-conversation-host]').replaceChildren(dynamic);
+        dynamicChats.push({ id, node: chatNode, root: dynamic });
+    };
+    if (initial) { node('[data-conversation-host]').innerHTML = initial; window.location.href += '?ticket=' + initial; }
+    vm.runInNewContext(source, { document, window, AbortController, URL: TestURL, FormData: FormDataMock, fetch, console });
     document.fire('DOMContentLoaded');
-    return { node, ticket, requests, answers, revoked, navigations, chatRoot, document };
+    return { node, ticket, requests, answers, revoked, navigations, chatRoot, document, window, dynamicChats };
 }
 
-test('Index component submits details and CSRF, closes modal, and redirects to show', async () => {
+test('Index creates a complaint, refreshes list and selects its conversation without navigation', async () => {
     const { node, requests, answers, navigations } = setup({ index: true });
     await node('[data-open-complaint]').fire('click');
     assert.equal(node('[data-complaint-modal]').open, true);
     node('[data-complaint-form]').fields = [['_token', 'token'], ['subject', 'Leaking tap'], ['details', 'Text']];
-    answers.push({ data: { ticket: { id: 'one', show_url: '/ticket/one' }, messages: [] } });
+    answers.push({ data: { ticket: { id: 'one' }, messages: [] } }, { data: { html: 'one' } }, { data: { html: 'list', creation_reason: null } });
     await node('[data-complaint-form]').fire('submit');
-    assert.equal(requests.length, 1);
+    assert.equal(requests.length, 3);
     assert.deepEqual(requests[0].body.values.map(([name]) => name), ['_token', 'subject', 'details']);
     assert.equal(node('[data-complaint-modal]').open, false);
-    assert.deepEqual(navigations, ['/ticket/one']);
+    assert.deepEqual(navigations, []);
+    assert.equal(node('[data-conversation-host]').html, 'one');
 });
 
 test('Dashboard creates through the shared modal and redirects without a ticket table', async () => {
@@ -122,22 +144,26 @@ test('Dashboard creates through the shared modal and redirects without a ticket 
     await node('[data-complaint-form]').fire('submit');
     assert.equal(node('[data-complaint-modal]').open, true);
     assert.equal(node('[data-create-error]').textContent, 'Please enter a subject.');
-    answers.push({ data: { ticket: { show_url: '/tenant/ticket/new' } } });
+    answers.push({ data: { ticket: { index_url: '/tenant/customer-service?ticket=new' } } });
     await node('[data-complaint-form]').fire('submit');
     assert.equal(requests.length, 2);
-    assert.deepEqual(navigations, ['/tenant/ticket/new']);
+    assert.deepEqual(navigations, ['/tenant/customer-service?ticket=new']);
     assert.deepEqual(requests[1].body.values.map(([name]) => name), ['_token', 'subject', 'details']);
 });
 
-test('Clicking a ticket row navigates to show without requesting a chat modal', async () => {
-    const { node, requests, navigations } = setup({ index: true });
-    const row = new Element('tr');
-    row.dataset.ticketUrl = 'http://example.test/ticket/one';
-    await node('[data-ticket-list]').fire('click', { target: row });
-    assert.deepEqual(navigations, [row.dataset.ticketUrl]);
-    assert.equal(requests.length, 0);
-    await node('[data-ticket-list]').fire('keydown', { target: row, key: 'Enter' });
-    assert.equal(navigations.length, 2);
+test('Selecting subjects renders shared chats; a stale response cannot replace a newer selection', async () => {
+    const { node, requests, answers, window, dynamicChats } = setup({ index: true });
+    const link = (id) => { const link = new Element('a'); link.dataset.ticketId = id; return link; };
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    answers.push({ gate, data: { html: 'old' } }, { data: { html: 'new' } });
+    const pending = node('[data-ticket-list]').fire('click', { target: link('old') });
+    await node('[data-ticket-list]').fire('click', { target: link('new') });
+    release(); await pending;
+    assert.equal(node('[data-conversation-host]').html, 'new');
+    assert.equal(dynamicChats.length, 1);
+    assert.match(window.location.href, /ticket=new/);
+    assert.equal(requests.length, 2);
 });
 
 test('Chat reads and sends through component endpoints, previews/removes files, and clears successful sends', async () => {
@@ -345,4 +371,81 @@ test('Chat file limits reject a new selection without losing queued files, and a
     assert.equal(node('[data-chat-form]').hidden, true);
     assert.equal(node('[data-chat-send]').disabled, true);
     assert.equal(node('[data-attachment-previews]').children.length, 1);
+});
+
+test('Switch confirmation protects drafts, disposes listeners, and sends only to the active ticket', async () => {
+    const { node, answers, requests, window, dynamicChats } = setup({ index: true });
+    const link = (id) => { const link = new Element('a'); link.dataset.ticketId = id; return link; };
+    answers.push({ data: { html: 'first' } });
+    await node('[data-ticket-list]').fire('click', { target: link('first') });
+    const first = dynamicChats[0].node;
+    first('[data-chat-draft]').value = 'Draft';
+    window.confirm = () => false;
+    await node('[data-ticket-list]').fire('click', { target: link('second') });
+    assert.equal(requests.length, 1);
+    assert.equal(first('[data-chat-draft]').value, 'Draft');
+    window.confirm = () => true;
+    answers.push({ data: { html: 'second' } });
+    await node('[data-ticket-list]').fire('click', { target: link('second') });
+    const second = dynamicChats[1].node;
+    assert.equal(second('[data-chat-draft]').value, '');
+    await first('[data-chat-form]').fire('submit');
+    assert.equal(requests.length, 2);
+    second('[data-chat-draft]').value = 'New message';
+    let release;
+    const gate = new Promise(resolve => { release = resolve; });
+    answers.push({ gate, data: { ticket: { subject: 'second', status: 'pending', closed: false }, messages: [] } });
+    const sending = second('[data-chat-form]').fire('submit');
+    await node('[data-ticket-list]').fire('click', { target: link('third') });
+    assert.equal(requests.length, 3);
+    assert.equal(requests[2].url, '/ticket/second/reply');
+    await second('[data-chat-form]').fire('submit');
+    assert.equal(requests.length, 3);
+    release(); await sending;
+    await node('[data-back-to-list]').fire('click');
+    assert.equal(new URL(window.location.href).searchParams.has('ticket'), false);
+});
+
+test('Search and pagination keep the selected conversation; failed loads can retry', async () => {
+    const { node, answers, requests, window } = setup({ index: true });
+    const link = new Element('a'); link.dataset.ticketId = 'one';
+    answers.push({ status: 500, data: { message: 'Failure' } });
+    await node('[data-ticket-list]').fire('click', { target: link });
+    assert.equal(node('[data-retry-conversation]').hidden, false);
+    answers.push({ data: { html: 'one' } });
+    await node('[data-retry-conversation]').fire('click');
+    await settle();
+    node('[data-ticket-search]').fields = [['search', 'leak']];
+    answers.push({ data: { html: 'matches' } });
+    await node('[data-ticket-search]').fire('submit');
+    assert.match(window.location.href, /search=leak/);
+    assert.match(window.location.href, /ticket=one/);
+    const page = new Element('a'); page.href = 'http://example.test/admin/tenant/customer-service?search=leak&page=2';
+    answers.push({ data: { html: 'page 2' } });
+    await node('[data-ticket-list]').fire('click', { target: page });
+    assert.match(requests.at(-1).url, /page=2/);
+    assert.equal(node('[data-conversation-host]').html, 'one');
+});
+
+test('Hydrated deep link initializes once; browser history and mobile back protect attachment drafts', async () => {
+    const { node, dynamicChats, answers, requests, window } = setup({ index: true, initial: 'first' });
+    assert.equal(requests.length, 0);
+    const first = dynamicChats[0].node;
+    assert.equal(first('[data-chat-form]').listeners.submit.length, 1);
+    const picker = first('[data-chat-files="document"]');
+    picker.files = [{ name: 'draft.txt', type: 'text/plain', size: 100 }];
+    await picker.fire('change');
+    window.confirm = () => false;
+    await node('[data-back-to-list]').fire('click');
+    assert.match(window.location.href, /ticket=first/);
+    assert.equal(first('[data-attachment-previews]').children.length, 1);
+    window.location.href = 'http://example.test/admin/tenant/customer-service?ticket=second';
+    await window.fire('popstate');
+    assert.match(window.location.href, /ticket=first/);
+    window.confirm = () => true;
+    window.location.href = 'http://example.test/admin/tenant/customer-service?ticket=second';
+    answers.push({ data: { html: 'second' } }, { data: { html: 'list' } });
+    await window.fire('popstate');
+    assert.equal(node('[data-conversation-host]').html, 'second');
+    assert.equal(first('[data-chat-form]').listeners.submit.length, 0);
 });

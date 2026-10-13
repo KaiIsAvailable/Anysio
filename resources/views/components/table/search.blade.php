@@ -1,5 +1,7 @@
 @props([
     'isAdvanceSearch' => false,
+    'async' => false,
+    'compact' => false,
     'withDate' => false,
     'showTenantField' => false,
     'showLeaseableNameField' => false,
@@ -55,7 +57,7 @@
     <!-- Main Search Bar Row[cite: 2] -->
     <div class="flex items-center justify-between gap-3 w-full">
         <!-- Search Input & Submit Button Group[cite: 2] -->
-        <div class="flex items-center w-full sm:w-[460px]" x-data="{ loadings: false, search: '{{ request('search') }}' }">
+        <div class="flex items-center w-full {{ $compact ? 'min-w-0' : 'sm:w-[460px]' }}" x-data="{ loadings: false, search: '{{ request('search') }}' }">
             <!-- Search Input with Icon[cite: 2] -->
             <div class="relative flex-1">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 z-20">
@@ -70,7 +72,8 @@
                     placeholder="{{ $attributes->get('placeholder', 'Search...') }}"
                     @keydown.enter.prevent="
                         loadings = true; 
-                        $el.closest('form').submit();
+                        $el.closest('form').{{ $async ? 'requestSubmit' : 'submit' }}();
+                        @if($async) loadings = false; @endif
                     "
                     class="w-full h-10 pl-9 pr-8 text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-l-xl rounded-r-none shadow-sm focus:z-10 relative"
                 >
@@ -84,7 +87,8 @@
                         $el.previousElementSibling.value = '';
                         loadings = true; 
                         $nextTick(() => {
-                            $el.closest('form').submit();
+                            $el.closest('form').{{ $async ? 'requestSubmit' : 'submit' }}();
+                        @if($async) loadings = false; @endif
                         });
                     "
                     class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 z-20 cursor-pointer"
@@ -102,7 +106,8 @@
                 loading="loadings"
                 @click="
                     loadings = true; 
-                    $el.closest('form').submit();
+                    $el.closest('form').{{ $async ? 'requestSubmit' : 'submit' }}();
+                        @if($async) loadings = false; @endif
                 "
                 class="!rounded-l-none !rounded-r-xl shadow-sm focus:z-10 relative h-10 px-5 !py-0 flex items-center justify-center whitespace-nowrap"
             >

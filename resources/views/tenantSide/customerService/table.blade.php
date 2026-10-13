@@ -1,27 +1,13 @@
-<div class="overflow-x-auto">
-    <table class="w-full divide-y divide-gray-200 text-left">
-        <thead class="bg-gray-50">
-            <tr>
-                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Subject</th>
-                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Owner</th>
-                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase tracking-wider">Created</th>
-            </tr>
-        </thead>
-        <tbody class="divide-y divide-gray-100 bg-white">
-            @forelse($tickets as $ticket)
-                <tr data-ticket-url="{{ route('tenants.customerService.show', $ticket) }}" tabindex="0" role="link" aria-label="{{ 'Open conversation: '.$ticket->subject }}" class="cursor-pointer hover:bg-indigo-50/60 transition-colors focus:bg-indigo-50">
-                    <td class="px-6 py-5 text-sm font-semibold text-slate-900"><a href="{{ route('tenants.customerService.show', $ticket) }}" class="hover:text-indigo-700">{{ $ticket->subject }}</a></td>
-                    <td class="px-6 py-5 text-sm text-slate-900">{{ $ticket->receiver?->name ?? 'Unavailable' }}</td>
-                    <td class="px-6 py-5"><span class="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-700">{{ ucfirst($ticket->status) }}</span></td>
-                    <td class="px-6 py-5 text-sm text-gray-500 whitespace-nowrap">{{ $ticket->created_at?->format('d M Y H:i') }}</td>
-                </tr>
-            @empty
-                <tr><td colspan="4" class="px-6 py-10 text-center text-sm text-gray-500">No tickets found.</td></tr>
-            @endforelse
-        </tbody>
-    </table>
-</div>
+<nav aria-label="Ticket subjects" class="divide-y divide-gray-100">
+    @forelse($tickets as $ticket)
+        <a href="{{ route('tenants.customerService.index', ['ticket' => $ticket->id]) }}" data-ticket-id="{{ $ticket->id }}" class="block border-l-4 border-transparent p-4 hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-500 aria-[current=true]:border-indigo-600 aria-[current=true]:bg-indigo-50" aria-current="{{ request('ticket') === $ticket->id ? 'true' : 'false' }}">
+            <span class="block break-words text-sm font-semibold text-slate-900">{{ $ticket->subject }}</span>
+            <span class="mt-1 flex justify-between gap-2 text-xs text-gray-500"><span>{{ ucfirst($ticket->status) }}</span><span>{{ $ticket->created_at?->format('d M Y') }}</span></span>
+        </a>
+    @empty
+        <p class="p-6 text-center text-sm text-gray-500">No tickets found.</p>
+    @endforelse
+</nav>
 @if($tickets->hasPages())
-    <div class="px-6 py-4 border-t border-gray-100">{{ $tickets->links() }}</div>
+    <div class="px-3 py-4 border-t border-gray-100">{{ $tickets->onEachSide(1)->links('pagination::simple-tailwind') }}</div>
 @endif

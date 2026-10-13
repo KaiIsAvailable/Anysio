@@ -211,7 +211,8 @@ class TenantCustomerServiceTest extends TestCase
         $earlier = new TicketMsg(['ticket_id' => $ticket->id, 'sender_type' => 'owner', 'message' => '<script>Legacy plain text</script>']);
         $earlier->created_at = now()->subMinute();
         $earlier->saveQuietly();
-        $this->get(route('tenants.customerService.show', $ticket))->assertOk()->assertSee('Back to Customer Service')->assertSee('data-ticket-chat', false)->assertSee('data-can-send="false"', false)->assertSee('<script>Legacy plain text</script>')->assertDontSee('data-chat-modal', false);
+        $this->get(route('tenants.customerService.show', $ticket))->assertRedirect(route('tenants.customerService.index', ['ticket' => $ticket->id]));
+        $this->get(route('tenants.customerService.index', ['ticket' => $ticket->id]))->assertOk()->assertSee('Back to conversations')->assertSee('data-ticket-chat', false)->assertSee('data-can-send="false"', false)->assertSee('<script>Legacy plain text</script>')->assertDontSee('data-chat-modal', false);
         $this->getJson(route('tenants.customerService.show', $ticket))->assertOk()->assertJsonPath('ticket.closed', true)->assertJsonPath('messages.0.text', '<script>Legacy plain text</script>')->assertJsonPath('messages.0.own', false)->assertJsonPath('messages.1.own', true);
     }
 
@@ -226,8 +227,8 @@ class TenantCustomerServiceTest extends TestCase
         DB::table('tickets')->where('id', $foreign->id)->update(['subject' => 'Leaking private ticket']);
         $response = $this->getJson(route('tenants.customerService.index', ['search' => 'Leaking']))->assertOk();
         $this->assertStringContainsString('Leaking tap', $response->json('html'));
-        $this->assertStringContainsString('data-ticket-url=', $response->json('html'));
-        $this->assertStringContainsString('href="'.route('tenants.customerService.show', $ticket).'"', $response->json('html'));
+        $this->assertStringContainsString('data-ticket-id=', $response->json('html'));
+        $this->assertStringContainsString('href="'.route('tenants.customerService.index', ['ticket' => $ticket->id]).'"', $response->json('html'));
         $this->assertStringNotContainsString('Noise complaint', $response->json('html'));
         $this->assertStringNotContainsString('Leaking private ticket', $response->json('html'));
         $this->lease();
@@ -400,5 +401,35 @@ class TenantCustomerServiceTest extends TestCase
         $ticket = Ticket::findOrFail($result->json('ticket.id'));
         $this->assertSame($this->ownerId, $ticket->receive_id);
         $this->assertStringStartsWith('uploads/user_'.$manager->id.'/tenants/tickets/', $ticket->messages()->first()->message);
+    }
+
+    public function test_split_view_fragment_and_direct_links_enforce_ownership_and_use_shared_chat(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'First details']);
+        $this->get(route('tenants.customerService.index'))->assertOk()->assertSee('Select a conversation')->assertSee('aria-label="New Complaint"', false)->assertDontSee('<table', false);
+        $this->get(route('tenants.customerService.index', ['ticket' => $ticket->id]))->assertOk()->assertSee('First details')->assertSee('data-selected-ticket="'.$ticket->id.'"', false)->assertSee('data-ticket-chat', false);
+        $response = $this->getJson(route('tenants.customerService.show', [$ticket, 'fragment' => 1]))->assertOk()->assertJsonPath('ticket.id', $ticket->id)->assertJsonPath('messages.0.text', 'First details');
+        $this->assertStringContainsString('data-ticket-chat', $response->json('html'));
+        $this->assertStringContainsString(route('tenants.customerService.reply', $ticket), $response->json('html'));
+        $foreign = $this->ticket('pending', $this->user('tenant')->id);
+        $this->get(route('tenants.customerService.index', ['ticket' => $foreign->id]))->assertForbidden();
+        $this->getJson(route('tenants.customerService.show', [$foreign, 'fragment' => 1]))->assertForbidden();
+        $this->get(route('tenants.customerService.show', $foreign))->assertForbidden();
+    }
+
+    public function test_subject_list_search_and_second_page_keep_all_own_tickets_accessible(): void
+    {
+        for ($i = 0; $i < 17; $i++) {
+            $ticket = $this->ticket();
+            DB::table('tickets')->where('id', $ticket->id)->update(['subject' => 'Searchable '.$i]);
+        }
+        $first = $this->getJson(route('tenants.customerService.index', ['search' => 'Searchable']))->assertOk()->json('html');
+        $second = $this->getJson(route('tenants.customerService.index', ['search' => 'Searchable', 'page' => 2]))->assertOk()->json('html');
+        $this->assertSame(15, substr_count($first, 'data-ticket-id='));
+        $this->assertSame(2, substr_count($second, 'data-ticket-id='));
+        $this->assertStringContainsString('page=2', $first);
+        $this->assertStringContainsString('search=Searchable', $first);
+        $this->assertStringNotContainsString('<table', $first);
     }
 }

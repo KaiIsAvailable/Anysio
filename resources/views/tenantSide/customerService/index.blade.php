@@ -1,25 +1,32 @@
 <x-app-layout>
-    <div class="py-12 bg-gray-50 min-h-screen font-sans" data-customer-service data-index-url="{{ route('tenants.customerService.index') }}">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
-                <div>
-                    <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Customer Service</h1>
-                    <p class="mt-2 text-sm text-gray-500">View your tickets and contact your property owner.</p>
-                </div>
-                <button type="button" data-open-complaint @disabled($creationReason) class="inline-flex items-center rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 disabled:opacity-50">Complaint</button>
-            </div>
-            <p data-creation-reason class="mb-4 text-sm text-amber-800" @if(!$creationReason) hidden @endif>{{ $creationReason }}</p>
-            <p data-page-feedback role="status" class="mb-4 text-sm text-indigo-700"></p>
-            <div class="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
-                <div class="p-5 border-b border-gray-100 flex justify-center">
-                    <form method="GET" action="{{ route('tenants.customerService.index') }}" data-ticket-search class="flex w-full max-w-xl gap-2">
-                        <x-table.search :isAdvanceSearch="false" placeholder="Search by subject..." />
+    <div class="py-4 sm:py-6 bg-gray-50 font-sans" data-customer-service data-index-url="{{ route('tenants.customerService.index') }}" data-ticket-url-template="{{ route('tenants.customerService.show', ['ticket' => '__TICKET__']) }}" data-selected-ticket="{{ $selectedTicket?->id }}">
+        <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
+            <h1 class="mb-4 text-2xl font-bold text-slate-900">Customer Service</h1>
+            <p data-page-feedback role="status" class="text-sm text-indigo-700"></p>
+            <div class="grid md:grid-cols-[minmax(260px,340px)_minmax(0,1fr)] gap-3 h-[calc(100dvh-11rem)] min-h-[400px]">
+                <aside data-ticket-sidebar class="{{ $selectedTicket ? 'hidden' : 'flex' }} md:flex flex-col min-h-0 min-w-0 rounded-2xl border border-gray-100 bg-white shadow-sm">
+                    <div class="flex items-center justify-between p-4 border-b">
+                        <h2 class="font-semibold text-slate-900">Conversations</h2>
+                        <button type="button" data-open-complaint title="New Complaint" aria-label="New Complaint" @disabled($creationReason) class="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50">
+                            <svg aria-hidden="true" focusable="false" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                            </svg>
+                        </button>
+                    </div>
+                    <p data-creation-reason class="px-4 text-xs text-amber-800" @if(!$creationReason) hidden @endif>{{ $creationReason }}</p>
+                    <form method="GET" action="{{ route('tenants.customerService.index') }}" data-ticket-search class="p-3">
+                        <x-table.search :isAdvanceSearch="false" :async="true" :compact="true" placeholder="Search by subject..." />
                     </form>
-                </div>
-                <div data-ticket-list>@include('tenantSide.customerService.table', compact('tickets'))</div>
+                    <div data-ticket-list class="flex-1 min-h-0 overflow-y-auto">@include('tenantSide.customerService.table', compact('tickets'))</div>
+                </aside>
+                <section data-conversation-pane class="{{ $selectedTicket ? 'flex' : 'hidden' }} md:flex flex-col min-w-0 min-h-0">
+                    <button type="button" data-back-to-list class="md:hidden self-start mb-2 rounded-lg px-3 py-2 text-sm font-semibold text-indigo-700">? Back to conversations</button>
+                    <p data-conversation-feedback role="status" class="p-4 text-sm text-gray-600" @if($selectedTicket) hidden @endif>Select a conversation</p>
+                    <button type="button" data-retry-conversation hidden class="self-start px-4 py-2 text-indigo-700 underline">Retry</button>
+                    <div data-conversation-host class="flex-1 min-h-0">{!! $chatHtml !!}</div>
+                </section>
             </div>
         </div>
-
         <x-customer-service.create-modal :action="route('tenants.customerService.store')" />
     </div>
 </x-app-layout>

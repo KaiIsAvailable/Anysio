@@ -30,7 +30,7 @@
         <input type="file" data-create-files="document" accept="{{ $accept(array_values(array_diff(array_keys($types), $media))) }}" multiple hidden>
         <input type="file" data-create-files="media" accept="{{ $accept($media) }}" multiple hidden>
         <input type="file" data-create-files="camera" accept="image/*" capture="environment" hidden>
-        <p class="text-xs text-gray-500">Up to {{ config('customer_service.max_files') }} files, {{ config('customer_service.max_total_kb') / 1024 }} MB total. Images/documents: 10 MB each; videos: 50 MB each.</p>
+        <p class="text-xs text-gray-500">Up to {{ config('customer_service.max_files') }} files, {{ config('customer_service.max_total_kb') / 1024 }} MB total. Images: {{ $types['jpg']['max_kb'] / 1024 }} MB; videos: {{ $types['mp4']['max_kb'] / 1024 }} MB; documents: {{ $types['pdf']['max_kb'] / 1024 }} MB each.</p>
         <div data-create-previews class="flex gap-2 overflow-x-auto" aria-live="polite"></div>
         <p data-create-error role="alert" class="text-sm whitespace-pre-line text-red-700"></p>
         <div class="flex justify-end gap-2">

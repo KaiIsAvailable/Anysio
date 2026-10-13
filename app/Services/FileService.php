@@ -26,7 +26,15 @@ class FileService
         $directory = $this->getPath($category, $userId);
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
 
-        $fullPath = $file->storeAs($directory, $filename, $this->disk);
+        try {
+            $fullPath = $file->storeAs($directory, $filename, $this->disk);
+            if (!$fullPath && $category === 'tenant_ticket') {
+                Storage::disk($this->disk)->delete($directory.'/'.$filename);
+            }
+        } catch (\Throwable $error) {
+            if ($category === 'tenant_ticket') Storage::disk($this->disk)->delete($directory.'/'.$filename);
+            throw $error;
+        }
         
         return $fullPath; 
     }

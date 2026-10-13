@@ -432,4 +432,129 @@ class TenantCustomerServiceTest extends TestCase
         $this->assertStringContainsString('search=Searchable', $first);
         $this->assertStringNotContainsString('<table', $first);
     }
+
+    public function test_attachment_limits_accept_boundaries_and_report_the_offending_filename(): void
+    {
+        $service = app(TenantCustomerService::class);
+        $mp4 = pack('N', 24).'ftypisom'.pack('N', 0).'isommp42';
+        foreach ([['note.txt', 'plain text', 3072], ['clip.mp4', $mp4, 20480]] as [$name, $prefix, $kb]) {
+            foreach ([0, 1] as $over) {
+                $file = UploadedFile::fake()->createWithContent($name, $prefix.str_repeat(' ', $kb * 1024 - strlen($prefix) + $over));
+                $request = new \Illuminate\Http\Request(['items' => [['type' => 'file']]]);
+                $request->files->set('items', [['file' => $file]]);
+                if (!$over) $this->assertCount(1, $service->validateBatch($request));
+                else {
+                    try { $service->validateBatch($request); $this->fail('Oversize file accepted'); }
+                    catch (\Illuminate\Validation\ValidationException $e) {
+                        $this->assertStringContainsString($name.': maximum '.($kb / 1024).' MB', json_encode($e->errors()));
+                    }
+                }
+            }
+        }
+    }
+
+    public function test_images_are_resized_with_transparency_and_original_size_limit_is_enforced(): void
+    {
+        $this->lease();
+        $image = imagecreatetruecolor(2400, 1200);
+        imagealphablending($image, false);
+        imagesavealpha($image, true);
+        imagefill($image, 0, 0, imagecolorallocatealpha($image, 0, 0, 0, 127));
+        ob_start(); imagepng($image); $bytes = ob_get_clean(); imagedestroy($image);
+        $bytes = str_pad($bytes, 2048 * 1024, ' ');
+        $result = $this->postJson(route('tenants.customerService.store'), ['subject' => 'Image', 'details' => 'Text', 'attachments' => [UploadedFile::fake()->createWithContent('transparent.png', $bytes)]])->assertCreated();
+        $message = Ticket::findOrFail($result->json('ticket.id'))->messages()->where('message', 'like', 'uploads/%')->firstOrFail();
+        $path = Storage::disk('local')->path($message->message);
+        $this->assertSame([1920, 960], array_slice(getimagesize($path), 0, 2));
+        $decoded = imagecreatefrompng($path);
+        $this->assertSame(127, (imagecolorat($decoded, 0, 0) >> 24) & 127);
+        imagedestroy($decoded);
+        $this->assertLessThanOrEqual(2048 * 1024, filesize($path));
+        $this->postJson(route('tenants.customerService.store'), ['subject' => 'Too big', 'attachments' => [UploadedFile::fake()->createWithContent('too-big.png', $bytes.' ')]] )->assertUnprocessable()->assertSee('too-big.png');
+        $this->assertSame(1, Ticket::count());
+    }
+
+    public function test_image_orientation_small_images_and_temporary_cleanup_on_storage_failure(): void
+    {
+        $image = imagecreatetruecolor(40, 20);
+        ob_start(); imagejpeg($image); $jpeg = ob_get_clean(); imagedestroy($image);
+        // TIFF orientation tag 6 (90 degrees clockwise) in a JPEG APP1 segment.
+        $exif = "Exif\0\0".'II'.pack('vV', 42, 8).pack('v', 1).pack('vvVv', 0x112, 3, 1, 6)."\0\0".pack('V', 0);
+        $jpeg = substr($jpeg, 0, 2)."\xFF\xE1".pack('n', strlen($exif) + 2).$exif.substr($jpeg, 2);
+        $processor = app(\App\Services\TicketImageProcessor::class);
+        $file = UploadedFile::fake()->createWithContent('phone.jpeg', $jpeg);
+        $path = $processor->upload($file, $this->managerId);
+        $this->assertSame([20, 40], array_slice(getimagesize(Storage::disk('local')->path($path)), 0, 2));
+        $temporary = null;
+        $mock = \Mockery::mock(\App\Services\FileService::class);
+        $mock->shouldReceive('upload')->once()->andReturnUsing(function ($file) use (&$temporary) {
+            $temporary = $file->getRealPath();
+            $this->assertFileExists($temporary);
+            throw new \RuntimeException('Storage failed');
+        });
+        $this->app->instance(\App\Services\FileService::class, $mock);
+        try { $processor->upload($file, $this->managerId); $this->fail('Expected storage failure'); }
+        catch (\RuntimeException $e) { $this->assertSame('Storage failed', $e->getMessage()); }
+        $this->assertFileDoesNotExist($temporary);
+    }
+
+    public function test_image_processing_failure_rolls_back_prior_files_and_rejects_unsafe_dimensions(): void
+    {
+        $this->lease();
+        $image = imagecreatetruecolor(2, 2);
+        ob_start(); imagepng($image); $png = ob_get_clean(); imagedestroy($image);
+        $oversized = substr_replace($png, pack('NN', 10000, 10000), 16, 8);
+        $this->postJson(route('tenants.customerService.store'), ['subject' => 'Rollback', 'details' => 'Text', 'attachments' => [
+            UploadedFile::fake()->createWithContent('first.txt', 'Text'), UploadedFile::fake()->createWithContent('huge.png', $oversized),
+        ]])->assertUnprocessable()->assertSee('huge.png');
+        $this->assertSame(0, Ticket::count());
+        $this->assertSame(0, TicketMsg::count());
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_message_dates_use_malaysia_midnight_without_changing_stored_time(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-13T00:01:00+08:00'));
+        $ticket = $this->ticket();
+        foreach (['2026-10-11 23:59:00', '2026-10-12 23:59:00', '2026-10-13 00:00:00', '2026-10-13 00:01:00'] as $time) {
+            $message = new TicketMsg(['ticket_id' => $ticket->id, 'sender_type' => 'tenant', 'message' => 'Text']);
+            $message->created_at = Carbon::parse($time, 'Asia/Kuala_Lumpur')->setTimezone(config('app.timezone'));
+            $message->saveQuietly();
+        }
+        $response = $this->getJson(route('tenants.customerService.show', $ticket))->assertOk()
+            ->assertJsonPath('messages.0.date_label', '11 Oct 2026')->assertJsonPath('messages.1.date_label', 'Yesterday')
+            ->assertJsonPath('messages.2.date_label', 'Today')->assertJsonPath('messages.2.created_at', '00:00');
+        $html = $this->getJson(route('tenants.customerService.show', [$ticket, 'fragment' => 1]))->json('html');
+        $this->assertSame(3, substr_count($html, 'data-message-date='));
+        Carbon::setTestNow(Carbon::parse('2026-10-14T00:00:00+08:00'));
+        $this->getJson(route('tenants.customerService.show', $ticket))->assertJsonPath('messages.2.date_label', 'Yesterday');
+    }
+
+    public function test_pdf_preview_and_download_remain_private_and_cross_tenant_access_is_denied(): void
+    {
+        $ticket = $this->ticket();
+        $path = 'ticket-attachments/'.$ticket->id.'/'.Str::uuid().'.pdf';
+        $message = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => $path]);
+        Storage::disk('local')->put($path, "%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF");
+        $url = route('tenants.customerService.attachment', [$ticket, $message]);
+        $preview = $this->get($url)->assertOk()->assertHeader('Content-Type', 'application/pdf')->assertHeader('Cache-Control', 'no-store, private');
+        $this->assertStringStartsWith('inline;', $preview->headers->get('Content-Disposition'));
+        $this->assertStringStartsWith('attachment;', $this->get($url.'?download=1')->assertOk()->headers->get('Content-Disposition'));
+        $html = $this->getJson(route('tenants.customerService.show', [$ticket, 'fragment' => 1]))->assertOk()->json('html');
+        $this->assertStringContainsString('data-pdf-url=', $html);
+        $this->assertStringContainsString(basename($path), $html);
+        $this->actingAs($this->user('tenant'))->get($url)->assertForbidden();
+    }
+
+    public function test_file_service_removes_partial_ticket_file_if_storage_returns_false(): void
+    {
+        $file = \Mockery::mock(UploadedFile::class);
+        $file->shouldReceive('getClientOriginalExtension')->andReturn('txt');
+        $file->shouldReceive('storeAs')->once()->andReturnUsing(function ($directory, $filename, $disk) {
+            Storage::disk($disk)->put($directory.'/'.$filename, 'Partial write');
+            return false;
+        });
+        $this->assertFalse(app(\App\Services\FileService::class)->upload($file, $this->managerId, 'tenant_ticket'));
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
 }

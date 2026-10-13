@@ -16,7 +16,7 @@ class TicketMsgController extends Controller
         $path = $service->attachmentPath($message);
         abort_unless($path && Storage::disk('local')->exists($path), 404);
         $mime = Storage::disk('local')->mimeType($path);
-        $inline = str_starts_with($mime ?: '', 'image/') || str_starts_with($mime ?: '', 'video/');
+        $inline = $mime === 'application/pdf' || str_starts_with($mime ?: '', 'image/') || str_starts_with($mime ?: '', 'video/');
         $headers = [
             'Content-Type' => $mime ?: 'application/octet-stream',
             'X-Content-Type-Options' => 'nosniff',

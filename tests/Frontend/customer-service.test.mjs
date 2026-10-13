@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const source = readFileSync(new URL('../../resources/js/customer-service.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../../resources/js/customer-service.js', import.meta.url), 'utf8')
+    .replace("import { createPdfThumbnails } from './ticket-pdf-thumbnails';", 'const createPdfThumbnails = () => ({ scan() {}, reset() {}, destroy() {} });');
 class Element {
     constructor(tag = 'div') {
         this.tagName = tag.toUpperCase();
@@ -42,7 +43,10 @@ class Element {
         if (selector === '[data-back-to-list]' && this.dataset.backToList !== undefined) return this;
         return selector === 'a' && this.tagName === 'A' ? this : null;
     }
-    querySelectorAll() { return this.controls; }
+    querySelectorAll(selector) {
+        if (selector === '[data-message-date]') return this.children.flatMap(child => [...(child.dataset.messageDate ? [child] : []), ...child.querySelectorAll(selector)]);
+        return this.controls;
+    }
     showModal() { this.open = true; }
     close() { this.open = false; this.fire('close'); }
     reset() { this.fields = this.fields.filter(([name]) => name === '_token'); }
@@ -53,7 +57,7 @@ class FormDataMock {
     get(name) { return this.values.find(([key]) => key === name)?.[1] ?? null; }
 }
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
-function setup({ index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '' } = {}) {
+function setup({ index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '', now = null } = {}) {
     const nodes = new Map();
     const node = (selector) => {
         if (!nodes.has(selector)) nodes.set(selector, new Element());
@@ -69,7 +73,7 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
         canSend: String(canSend),
         sendUrl: 'http://example.test/shared/send',
         readUrl: 'http://example.test/shared/read',
-        limits: JSON.stringify({ max_files: 10, max_total_kb: 102400, types: { txt: { max_kb: 10240 }, png: { max_kb: 10240 } } }),
+        limits: JSON.stringify({ max_files: 10, max_total_kb: 102400, types: { txt: { max_kb: 3072 }, png: { max_kb: 2048 }, mp4: { max_kb: 20480 }, pdf: { max_kb: 3072 } } }),
     };
     chatRoot.querySelector = node;
     const document = new Element();
@@ -124,9 +128,13 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
     };
     if (index) node('[data-conversation-host]').innerHTML = initial;
     if (initial) window.location.href += '?ticket=' + initial;
-    vm.runInNewContext(source, { document, window, AbortController, CustomEvent, URL: TestURL, FormData: FormDataMock, fetch, console });
+    let currentTime = now ? new Date(now).getTime() : Date.now();
+    class TestDate extends Date { constructor(...args) { super(...(args.length ? args : [currentTime])); } }
+    let timer;
+    const clock = { advanceTo(value) { currentTime = new Date(value).getTime(); timer?.(); } };
+    vm.runInNewContext(source, { document, window, AbortController, CustomEvent, Date: TestDate, setTimeout: (callback) => { timer = callback; return 1; }, clearTimeout: () => {}, URL: TestURL, FormData: FormDataMock, fetch, console });
     document.fire('DOMContentLoaded');
-    return { node, ticket, requests, answers, revoked, navigations, chatRoot, document, window, dynamicChats };
+    return { node, ticket, requests, answers, revoked, navigations, chatRoot, document, window, dynamicChats, clock };
 }
 
 test('Index creates a complaint, refreshes list and selects its conversation without navigation', async () => {
@@ -276,7 +284,7 @@ test('Create rejects empty content and oversized selections before requesting', 
     picker.files = [{ name: 'large.txt', size: 10241 * 1024, type: 'text/plain' }];
     await picker.fire('change');
     assert.equal(node('[data-create-previews]').children.length, 0);
-    assert.match(node('[data-create-error]').textContent, /size limit/);
+    assert.match(node('[data-create-error]').textContent, /maximum/);
 });
 
 test('Chat menu closes on selection, outside click and Escape; file selections append across categories', async () => {
@@ -532,4 +540,47 @@ test('A failed switch preserves history, endpoints and drafts; retry commits the
     await node('[data-ticket-list]').fire('click', { target: link('third') });
     assert.equal(chat('[data-chat-draft]').disabled, false);
     assert.equal(chat('[data-chat-form]').listeners.submit.length, 1);
+});
+
+test('Message day groups use Malaysia dates, update at midnight and do not duplicate on refresh', async () => {
+    const messages = [
+        { id: '1', sender_type: 'tenant', text: 'Yesterday', sent_at: '2026-10-12T15:59:00Z' },
+        { id: '2', sender_type: 'tenant', text: 'Today', sent_at: '2026-10-12T16:00:00Z' },
+        { id: '3', sender_type: 'tenant', extension: 'pdf', filename: 'file.pdf', attachment_url: '/private/pdf', sent_at: '2026-10-12T16:01:00Z' },
+    ];
+    const { node, clock, answers, ticket } = setup({ chat: true, messages, now: '2026-10-13T23:59:59+08:00' });
+    await settle();
+    const labels = () => node('[data-chat-messages]').querySelectorAll('[data-message-date]').map(el => el.textContent);
+    assert.deepEqual(labels(), ['Yesterday', 'Today']);
+    clock.advanceTo('2026-10-14T00:00:00+08:00');
+    assert.deepEqual(labels(), ['12 Oct 2026', 'Yesterday']);
+    answers.push({ data: { ticket, messages } });
+    node('[data-chat-draft]').value = 'Update';
+    await node('[data-chat-form]').fire('submit');
+    assert.deepEqual(labels(), ['12 Oct 2026', 'Yesterday']);
+    const pdfBubble = node('[data-chat-messages]').children.at(-1).children[0];
+    assert.equal(pdfBubble.children[0].textContent.endsWith('00:01'), true);
+    assert.equal(pdfBubble.children[1].children[1].textContent, 'file.pdf');
+    assert.equal(pdfBubble.children[1].children[0].href, '/private/pdf');
+    assert.equal(pdfBubble.children.at(-1).href, '/private/pdf?download=1');
+});
+
+test('Create and reply enforce the same per-file boundaries with filename feedback', async () => {
+    for (const create of [true, false]) {
+        const { node } = setup(create ? { dashboard: true } : { chat: true });
+        await settle();
+        const picker = node(create ? '[data-create-files="document"]' : '[data-chat-files="document"]');
+        const previews = node(create ? '[data-create-previews]' : '[data-attachment-previews]');
+        const error = node(create ? '[data-create-error]' : '[data-chat-error]');
+        for (const [extension, mb] of [['png', 2], ['mp4', 20], ['pdf', 3]]) {
+            const count = previews.children.length;
+            picker.files = [{ name: 'limit.' + extension, type: 'application/octet-stream', size: mb * 1024 * 1024 }];
+            await picker.fire('change');
+            assert.equal(previews.children.length, count + 1);
+            picker.files = [{ name: 'over.' + extension, type: 'application/octet-stream', size: mb * 1024 * 1024 + 1 }];
+            await picker.fire('change');
+            assert.equal(previews.children.length, count + 1);
+            assert.equal(error.textContent, 'over.' + extension + ': maximum ' + mb + ' MB per file.');
+        }
+    }
 });

@@ -119,6 +119,9 @@ class TenantTicketController extends Controller
             ],
             'messages' => $messages->map(function ($message) use ($ticket, $service) {
                 $attachment = $service->attachmentPath($message);
+                $local = $message->created_at?->copy()->setTimezone('Asia/Kuala_Lumpur');
+                $today = now('Asia/Kuala_Lumpur')->startOfDay();
+                $dateLabel = !$local ? null : ($local->isSameDay($today) ? 'Today' : ($local->isSameDay($today->copy()->subDay()) ? 'Yesterday' : $local->format('d M Y')));
                 return [
                     'id' => $message->id,
                     'own' => $message->sender_type === 'tenant',
@@ -126,7 +129,11 @@ class TenantTicketController extends Controller
                     'text' => $attachment ? null : $message->message,
                     'attachment_url' => $attachment ? route('tenants.customerService.attachment', [$ticket, $message]) : null,
                     'extension' => $attachment ? strtolower(pathinfo($attachment, PATHINFO_EXTENSION)) : null,
-                    'created_at' => $message->created_at?->format('d M Y H:i'),
+                    'filename' => $attachment ? basename($attachment) : null,
+                    'sent_at' => $local?->toIso8601String(),
+                    'date_key' => $local?->format('Y-m-d'),
+                    'date_label' => $dateLabel,
+                    'created_at' => $local?->format('H:i'),
                 ];
             })->values()->all(),
         ];

@@ -135,10 +135,10 @@ class TenantCustomerService
                 $extension = strtolower($file->getClientOriginalExtension());
                 $type = config('customer_service.types')[$extension] ?? null;
                 if (!$type || !in_array($this->actualMime($file->getRealPath(), $extension), $type['mimes'], true)) {
-                    throw ValidationException::withMessages(["items.$i" => 'The actual file type does not match an allowed format.']);
+                    throw ValidationException::withMessages(["items.$i" => $file->getClientOriginalName().': the actual file type does not match an allowed format.']);
                 }
                 if ($file->getSize() > $type['max_kb'] * 1024) {
-                    throw ValidationException::withMessages(["items.$i" => 'This file exceeds its size limit.']);
+                    throw ValidationException::withMessages(["items.$i" => $file->getClientOriginalName().': maximum '.($type['max_kb'] / 1024).' MB per file.']);
                 }
                 $item['extension'] = $extension;
                 $count++;
@@ -198,7 +198,9 @@ class TenantCustomerService
         foreach ($items as $item) {
             $message = $item['text'] ?? '';
             if ($item['type'] === 'file') {
-                $message = app(FileService::class)->upload($item['file'], $managerId, 'tenant_ticket');
+                $message = in_array($item['extension'], ['jpg', 'jpeg', 'png', 'gif', 'webp'], true)
+                    ? app(TicketImageProcessor::class)->upload($item['file'], $managerId)
+                    : app(FileService::class)->upload($item['file'], $managerId, 'tenant_ticket');
                 if (!$message) {
                     throw new \RuntimeException('Unable to store the attachment.');
                 }

@@ -32,6 +32,6 @@
                 </section>
             </div>
         </div>
-        <x-customer-service.create-modal :action="route('tenants.customerService.store')" />
+        <x-customer-service.create-modal :leases="$complaintLeases" :action="route('tenants.customerService.store')" />
     </div>
 </x-app-layout>

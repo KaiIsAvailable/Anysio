@@ -1,4 +1,4 @@
-@props(['action', 'id' => 'complaint-create'])
+@props(['action', 'id' => 'complaint-create', 'leases' => []])
 @php
     $types = config('customer_service.types');
     $media = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'mov'];
@@ -10,6 +10,15 @@
             <h2 id="{{ $id }}-title" class="text-xl font-bold text-slate-900">Complaint</h2>
             <button type="button" data-close-complaint aria-label="Close complaint" class="text-2xl px-2 text-gray-600">&times;</button>
         </div>
+        @if(count($leases) > 1)
+            @php
+                $leaseOptions = collect($leases)->map(fn ($lease) => ['value' => $lease->id, 'label' => $lease->leasable_name.' · '.$lease->leasable_type_label.' · '.$lease->start_date->format('d M Y').' – '.$lease->end_date->format('d M Y')])->all();
+            @endphp
+            <div data-lease-selection x-bind:inert="loading" x-data="{ complaintLease: [] }" @complaint-reset.window="complaintLease = []">
+                <p class="block text-sm font-semibold text-gray-700 mb-2">Lease *</p>
+                <x-form.input-select name="lease_id" :options="$leaseOptions" placeholder="Select a lease" x-model="complaintLease" x-bind:disabled="loading" required />
+            </div>
+        @endif
         <div>
             <label for="{{ $id }}-subject" class="block text-sm font-semibold text-gray-700 mb-2">Subject *</label>
             <input id="{{ $id }}-subject" name="subject" required maxlength="255" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" autofocus>

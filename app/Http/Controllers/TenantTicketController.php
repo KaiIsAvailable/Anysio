@@ -21,7 +21,8 @@ class TenantTicketController extends Controller
         $tickets = Ticket::where('sender_id', $request->user()->id)->with('receiver')
             ->when($search !== '', fn ($q) => $q->where('subject', 'like', '%'.$search.'%'))
             ->latest()->orderByDesc('id')->paginate(15)->withQueryString();
-        $recipient = $service->recipient($service->validLeases($request->user())->with('leasable')->get());
+        $complaintLeases = $service->validLeases($request->user())->with('leasable')->orderBy('end_date')->orderBy('id')->get();
+        $recipient = $service->recipient($complaintLeases);
         $creationReason = $recipient['reason'];
         if ($request->expectsJson()) {
             return response()->json([
@@ -30,13 +31,13 @@ class TenantTicketController extends Controller
             ]);
         }
         $chatHtml = $selectedTicket ? $this->chatHtml($selectedTicket, $request, $service) : '';
-        return view('tenantSide.customerService.index', compact('tickets', 'creationReason', 'search', 'selectedTicket', 'chatHtml'));
+        return view('tenantSide.customerService.index', compact('tickets', 'creationReason', 'search', 'selectedTicket', 'chatHtml', 'complaintLeases'));
     }
 
     public function store(Request $request, TenantCustomerService $service)
     {
         abort_unless($request->user()->isTenant(), 403);
-        $data = $request->validate(['subject' => ['required', 'string', 'max:255']]);
+        $data = $request->validate(['subject' => ['required', 'string', 'max:255'], 'lease_id' => ['nullable', 'string', 'max:26']]);
         if (trim($data['subject']) === '') {
             throw ValidationException::withMessages(['subject' => 'Please enter a subject.']);
         }
@@ -44,13 +45,15 @@ class TenantTicketController extends Controller
         $uploaded = [];
         try {
             $ticket = DB::transaction(function () use ($request, $service, $data, $items, &$uploaded) {
-                $recipient = $service->recipient($service->validLeases($request->user())->lockForUpdate()->get());
+                $lease = $service->selectLease($request->user(), $data['lease_id'] ?? null);
+                $recipient = $service->recipient(collect([$lease]));
                 if ($recipient['reason']) {
                     throw ValidationException::withMessages(['subject' => $recipient['reason']]);
                 }
                 $ticket = Ticket::create([
                     'sender_id' => $request->user()->id,
                     'receive_id' => $recipient['owner_id'],
+                    'lease_id' => $lease->id,
                     'category' => 'complain',
                     'subject' => $data['subject'],
                     'status' => 'pending',

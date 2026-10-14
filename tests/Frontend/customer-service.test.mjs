@@ -57,9 +57,10 @@ class FormDataMock {
     get(name) { return this.values.find(([key]) => key === name)?.[1] ?? null; }
 }
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
-function setup({ index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '', now = null } = {}) {
+function setup({ multipleLeases = false, index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '', now = null } = {}) {
     const nodes = new Map();
     const node = (selector) => {
+        if (selector === '[data-lease-selection]' && !multipleLeases) return null;
         if (!nodes.has(selector)) nodes.set(selector, new Element());
         return nodes.get(selector);
     };
@@ -582,5 +583,34 @@ test('Create and reply enforce the same per-file boundaries with filename feedba
             assert.equal(previews.children.length, count + 1);
             assert.equal(error.textContent, 'over.' + extension + ': maximum ' + mb + ' MB per file.');
         }
+    }
+});
+
+test('Lease selection is required, submitted and preserved with all inputs after validation failure', async () => {
+    for (const surface of [{ dashboard: true }, { index: true }]) {
+        const { node, requests, answers } = setup({ ...surface, multipleLeases: true });
+        await node('[data-open-complaint]').fire('click');
+        const form = node('[data-complaint-form]');
+        form.fields = [['_token', 'token'], ['subject', 'Draft'], ['details', 'Keep details'], ['lease_id', '']];
+        await form.fire('submit');
+        assert.equal(requests.length, 0);
+        assert.equal(node('[data-create-error]').textContent, 'Please select a lease.');
+        form.fields.at(-1)[1] = 'chosen-lease';
+        const picker = node('[data-create-files="document"]');
+        picker.files = [{ name: 'note.txt', type: 'text/plain', size: 12 }];
+        await picker.fire('change');
+        let release;
+        const gate = new Promise(resolve => { release = resolve; });
+        answers.push({ gate, status: 422, data: { errors: { lease_id: ['Lease unavailable'] } } });
+        const pending = form.fire('submit');
+        await form.fire('submit');
+        assert.equal(requests.length, 1);
+        assert.equal(requests[0].body.get('lease_id'), 'chosen-lease');
+        release();
+        await pending;
+        assert.deepEqual(form.fields, [['_token', 'token'], ['subject', 'Draft'], ['details', 'Keep details'], ['lease_id', 'chosen-lease']]);
+        assert.equal(node('[data-create-previews]').children.length, 1);
+        assert.equal(node('[data-complaint-modal]').open, true);
+        assert.equal(form.loading, false);
     }
 });

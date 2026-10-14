@@ -21,7 +21,7 @@
             @if($creationReason)
                 <p class="mb-4 text-sm text-amber-800">{{ $creationReason }}</p>
             @endif
-            <x-customer-service.create-modal :action="route('tenants.customerService.store')" />
+            <x-customer-service.create-modal :leases="$activeLeases" :action="route('tenants.customerService.store')" />
 
             {{-- Welcome Section --}}
             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 sm:p-6 mb-6">

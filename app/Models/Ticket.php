@@ -15,10 +15,16 @@ class Ticket extends Model
     protected $fillable = [
         'sender_id',
         'receive_id',
+        'lease_id',
         'category',
         'subject',
         'status',
     ];
+
+    public function lease(): BelongsTo
+    {
+        return $this->belongsTo(Lease::class);
+    }
 
     public function messages(): HasMany
     {

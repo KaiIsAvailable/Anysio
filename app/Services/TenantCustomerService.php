@@ -9,17 +9,29 @@ use Illuminate\Validation\ValidationException;
 
 class TenantCustomerService
 {
-    public function attachmentManagerId(User $tenant): string
+    public function attachmentManagerId(User $tenant, ?Lease $lease = null, ?Ticket $ticket = null): string
     {
         // TenantsController records get_effective_user()->id in tenants.created_by.
-        // Cross-check current leases using the same resolver as dashboard/penalties.
+        // Cross-check only the saved lease; replies must never choose a new lease.
         $creatorId = $tenant->tenant?->created_by;
         $ids = collect();
         if ($creatorId) {
             $ids->push(User::whereKey($creatorId)->whereIn('role', [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN])->value('id'));
         }
-        foreach ($this->validLeases($tenant)->with('leasable')->get() as $lease) {
+        if ($lease) {
+            if ($lease->tenant?->user_id !== $tenant->id) {
+                throw ValidationException::withMessages(['attachments' => 'The ticket lease does not belong to this tenant.']);
+            }
             $ids->push(app(LeaseManagementResolver::class)->resolve($lease)?->id);
+        }
+        if ($ids->isEmpty()) $ids->push(null);
+        if ($ticket) {
+            if ($ticket->lease_id && !$lease) $ids->push(null);
+            foreach ($ticket->messages()->get() as $message) {
+                if ($this->attachmentPath($message) && preg_match('~^uploads/user_([A-Za-z0-9-]+)/~', $message->message, $match)) {
+                    $ids->push($match[1]);
+                }
+            }
         }
         if ($ids->isEmpty() || $ids->contains(null) || $ids->unique()->count() !== 1) {
             throw ValidationException::withMessages(['attachments' => 'The tenant management account is unavailable or ambiguous. Please contact your property manager.']);
@@ -52,15 +64,21 @@ class TenantCustomerService
         if ($leases->isEmpty()) {
             return ['owner_id' => null, 'reason' => 'You cannot create a complaint because you have no valid lease. You can still reply to your open tickets.'];
         }
-        $owners = $leases->map(fn ($lease) => $this->ownerId($lease));
-        if ($owners->contains(null)) {
-            return ['owner_id' => null, 'reason' => 'An owner is unavailable for one or more valid leases. Please contact your property manager.'];
+        if ($leases->count() > 1) return ['owner_id' => null, 'reason' => null];
+        $owner = $this->ownerId($leases->sole());
+        return ['owner_id' => $owner, 'reason' => $owner ? null : 'An owner is unavailable for one or more valid leases. Please contact your property manager.'];
+    }
+    public function selectLease(User $tenant, ?string $id): Lease
+    {
+        $leases = $this->validLeases($tenant)->lockForUpdate()->get();
+        if ($leases->isEmpty()) {
+            throw ValidationException::withMessages(['subject' => $this->recipient($leases)['reason']]);
         }
-        $owners = $owners->unique()->values();
-        if ($owners->count() !== 1) {
-            return ['owner_id' => null, 'reason' => 'Your valid leases have different owners. The complaint recipient cannot be determined. Please contact your property manager.'];
+        $lease = $id ? $leases->firstWhere('id', $id) : ($leases->count() === 1 ? $leases->sole() : null);
+        if (!$lease) {
+            throw ValidationException::withMessages(['lease_id' => $id ? 'The selected lease is no longer available. Please select a valid lease.' : 'Please select a lease.']);
         }
-        return ['owner_id' => $owners->sole(), 'reason' => null];
+        return $lease;
     }
 
     public function isClosed(Ticket $ticket): bool
@@ -194,7 +212,7 @@ class TenantCustomerService
     public function append(Ticket $ticket, array $items, array &$uploaded): void
     {
         $managerId = collect($items)->contains(fn ($item) => $item['type'] === 'file')
-            ? $this->attachmentManagerId(User::findOrFail($ticket->sender_id)) : null;
+            ? $this->attachmentManagerId(User::findOrFail($ticket->sender_id), $ticket->lease, $ticket) : null;
         foreach ($items as $item) {
             $message = $item['text'] ?? '';
             if ($item['type'] === 'file') {

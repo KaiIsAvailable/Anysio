@@ -114,6 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
             createError.textContent = '';
             if (creating || !beforeOpen()) return;
             createForm.reset();
+            window.dispatchEvent(new CustomEvent('complaint-reset'));
             clearAttachments();
             complaint.showModal();
         });
@@ -125,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (creating) return;
             createError.textContent = '';
             const body = new FormData(createForm);
+            if (find('[data-lease-selection]') && !body.get('lease_id')) { createError.textContent = 'Please select a lease.'; return; }
             if (!String(body.get('subject') || '').trim()) { createError.textContent = 'Please enter a subject.'; return; }
             if (!String(body.get('details') || '').trim() && !attachments.length) { createError.textContent = 'Enter details or choose at least one attachment.'; return; }
             attachments.forEach((item) => body.append('attachments[]', item.file));
@@ -135,6 +137,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await request(createForm.action, { method: 'POST', body });
                 complaint.close();
                 createForm.reset();
+                window.dispatchEvent(new CustomEvent('complaint-reset'));
                 clearAttachments();
                 if (onCreated) await onCreated(data);
                 else window.location.assign(data.ticket.index_url);

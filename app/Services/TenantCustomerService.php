@@ -86,11 +86,42 @@ class TenantCustomerService
         return in_array(strtolower(trim($ticket->status)), config('customer_service.closed_statuses'), true);
     }
 
-    public function authorize(Ticket $ticket, User $user): void
+    public function isManager(User $user): bool
     {
-        abort_unless($user->isTenant() && $ticket->sender_id === $user->id, 403);
+        return in_array($user->role, [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN, User::ROLE_OWNER], true);
     }
 
+    public function canAccess(Ticket $ticket, User $user): bool
+    {
+        if ($user->isTenant()) return $ticket->sender_id === $user->id;
+        if (!$this->isManager($user) || !$ticket->sender?->isTenant() || !$ticket->receive_id) return false;
+        if ($ticket->lease_id) {
+            $lease = $ticket->lease;
+            if (!$lease || $lease->tenant?->user_id !== $ticket->sender_id || $this->ownerId($lease) !== $ticket->receive_id) return false;
+            if ($ticket->receive_id === $user->id) return true;
+            return app(LeaseManagementResolver::class)->resolve($lease)?->id === $user->id;
+        }
+        // Legacy tickets: verify the recorded owner directly, never choose a current lease.
+        if ($ticket->receive_id === $user->id) return true;
+        return in_array($user->role, [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN], true)
+            && \App\Models\Owners::where('user_id', $ticket->receive_id)->where('agent_id', $user->id)->exists();
+    }
+
+    public function visibleTickets(User $user)
+    {
+        if ($user->isTenant()) return Ticket::where('sender_id', $user->id);
+        abort_unless($this->isManager($user), 403);
+        // Apply precisely the same relationship checks as show/reply/download before pagination.
+        $ids = Ticket::whereHas('sender', fn ($q) => $q->where('role', User::ROLE_TENANT))
+            ->with(['sender', 'lease.tenant', 'lease.leasable'])->get()
+            ->filter(fn ($ticket) => $this->canAccess($ticket, $user))->modelKeys();
+        return Ticket::whereIn('id', $ids);
+    }
+
+    public function authorize(Ticket $ticket, User $user): void
+    {
+        abort_unless($this->canAccess($ticket, $user), 403);
+    }
     public function attachmentPath(TicketMsg $message): ?string
     {
         $prefix = 'ticket-attachments/'.$message->ticket_id.'/';
@@ -209,7 +240,7 @@ class TenantCustomerService
         }
     }
 
-    public function append(Ticket $ticket, array $items, array &$uploaded): void
+    public function append(Ticket $ticket, array $items, array &$uploaded, User $sender): void
     {
         $managerId = collect($items)->contains(fn ($item) => $item['type'] === 'file')
             ? $this->attachmentManagerId(User::findOrFail($ticket->sender_id), $ticket->lease, $ticket) : null;
@@ -224,7 +255,7 @@ class TenantCustomerService
                 }
                 $uploaded[] = $message;
             }
-            $ticket->messages()->create(['sender_type' => 'tenant', 'message' => $message]);
+            $ticket->messages()->create(['sender_type' => $sender->role, 'message' => $message]);
         }
     }
 }

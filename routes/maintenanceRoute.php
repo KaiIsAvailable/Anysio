@@ -1,14 +1,11 @@
 <?php
-use App\Http\Controllers\MaintenanceController;
+use App\Http\Controllers\{TenantTicketController, TicketMsgController};
 use Illuminate\Support\Facades\Route;
 
-// AJAX endpoint to get assets by lease ID
-Route::get('maintenance/assets-by-lease', [MaintenanceController::class, 'assetsByLease'])
-    ->name('maintenance.assets-by-lease');
-
-// Photo serving route
-Route::get('maintenance/photo/{filename}', [MaintenanceController::class, 'showPhoto'])
-    ->name('maintenance.photo');
-
-// Standard resource routes (exclude destroy since deletion is not allowed)
-Route::resource('maintenance', MaintenanceController::class)->except(['destroy']);
+// Maintenance shares the tenant conversation flow, with explicit manager-only entry points.
+Route::prefix('maintenance')->name('maintenance.')->middleware('can:maintenance-tickets')->group(function () {
+    Route::get('/', [TenantTicketController::class, 'index'])->name('index');
+    Route::get('/{ticket}', [TenantTicketController::class, 'show'])->name('show');
+    Route::post('/{ticket}/messages', [TenantTicketController::class, 'reply'])->name('reply');
+    Route::get('/{ticket}/attachments/{message}', [TicketMsgController::class, 'attachment'])->name('attachment');
+});

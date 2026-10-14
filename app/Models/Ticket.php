@@ -21,6 +21,15 @@ class Ticket extends Model
         'status',
     ];
 
+    public function sourceLabel(): string
+    {
+        $name = $this->sender?->name ?? 'Unknown tenant';
+        $lease = $this->lease;
+        return $lease
+            ? $name.' · '.$lease->leasable_name.' · '.$lease->leasable_type_label.' · '.$lease->start_date?->format('d M Y').' – '.$lease->end_date?->format('d M Y')
+            : $name.' · Lease not recorded';
+    }
+
     public function lease(): BelongsTo
     {
         return $this->belongsTo(Lease::class);

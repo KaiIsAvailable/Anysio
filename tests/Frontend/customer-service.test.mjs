@@ -57,9 +57,10 @@ class FormDataMock {
     get(name) { return this.values.find(([key]) => key === name)?.[1] ?? null; }
 }
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
-function setup({ multipleLeases = false, index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '', now = null } = {}) {
+function setup({ manager = false, multipleLeases = false, index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '', now = null } = {}) {
     const nodes = new Map();
     const node = (selector) => {
+        if (manager && ['[data-complaint-modal]', '[data-open-complaint]', '[data-creation-reason]'].includes(selector)) return null;
         if (selector === '[data-lease-selection]' && !multipleLeases) return null;
         if (!nodes.has(selector)) nodes.set(selector, new Element());
         return nodes.get(selector);
@@ -71,6 +72,7 @@ function setup({ multipleLeases = false, index = false, dashboard = false, chat 
     const chatRoot = new Element();
     chatRoot.dataset = {
         currentRole: role,
+        canAttach: 'true',
         canSend: String(canSend),
         sendUrl: 'http://example.test/shared/send',
         readUrl: 'http://example.test/shared/read',
@@ -112,7 +114,7 @@ function setup({ multipleLeases = false, index = false, dashboard = false, chat 
     if (chat) answers.push({ data: { ticket, messages } });
     node('[data-chat-attachment-menu]').hidden = true;
     node('[data-chat-form]').fields = [['_token', 'csrf-token']];
-    node('[data-complaint-modal]').dataset.limits = chatRoot.dataset.limits;
+    if (!manager) node('[data-complaint-modal]').dataset.limits = chatRoot.dataset.limits;
     node('[data-complaint-form]').action = indexRoot.dataset.indexUrl;
     const dynamicChats = [];
     node('[data-conversation-host]').onHTML = (id) => {
@@ -191,7 +193,7 @@ test('Selecting subjects renders shared chats; a stale response cannot replace a
 test('Chat reads and sends through component endpoints, previews/removes files, and clears successful sends', async () => {
     const history = [
         { id: 'old', sender_type: 'owner', text: 'Earlier response', created_at: '09 Oct 2026 09:00' },
-        { id: 'new', sender_type: 'agentAdmin', text: 'Agent message', created_at: '09 Oct 2026 09:01' },
+        { id: 'new', own: true, sender_type: 'agentAdmin', text: 'Agent message', created_at: '09 Oct 2026 09:01' },
     ];
     const { node, ticket, requests, answers, revoked, chatRoot } = setup({ chat: true, role: 'agentAdmin', messages: history });
     await settle();
@@ -612,5 +614,68 @@ test('Lease selection is required, submitted and preserved with all inputs after
         assert.equal(node('[data-create-previews]').children.length, 1);
         assert.equal(node('[data-complaint-modal]').open, true);
         assert.equal(form.loading, false);
+    }
+});
+test('Maintenance reuses the persistent desktop/mobile shell without a create modal and preserves drafts', async () => {
+    for (const mobile of [false, true]) {
+        const { node, requests, answers, window } = setup({ index: true, manager: true, mobile });
+        const link = new Element('a'); link.dataset.ticketId = 'managed';
+        answers.push({ data: { ticket: { id: 'managed', subject: 'Leak', context: 'Tenant · Room A', closed: false, reply_url: '/maintenance/managed/messages', show_url: '/maintenance/managed' },
+            messages: [{ id: 'a', sender_type: 'agentAdmin', own: false, text: 'Another agent' }, { id: 'b', sender_type: 'agentAdmin', own: true, text: 'My reply' }] } });
+        await node('[data-ticket-list]').fire('click', { target: link });
+        const chat = node('[data-conversation-host]').children[0];
+        const field = selector => chat.querySelector(selector);
+        assert.equal(field('[data-chat-context]').textContent, 'Tenant · Room A');
+        assert.equal(field('[data-chat-attach]').hidden, false);
+        assert.equal(field('[data-chat-messages]').children[0].className, 'flex justify-start');
+        assert.equal(field('[data-chat-messages]').children[1].className, 'flex justify-end');
+        field('[data-chat-draft]').value = 'Keep my draft';
+        await field('[data-chat-draft]').fire('input');
+        window.confirm = () => false;
+        const back = new Element('button'); back.dataset.backToList = '';
+        await node('[data-conversation-host]').fire('click', { target: back });
+        assert.equal(field('[data-chat-draft]').value, 'Keep my draft');
+        assert.equal(node('[data-conversation-host]').children[0], chat);
+        answers.push({ status: 422, data: { errors: { items: ['Try again'] } } });
+        await field('[data-chat-form]').fire('submit');
+        assert.equal(requests.at(-1).url, '/maintenance/managed/messages');
+        assert.equal(field('[data-chat-draft]').value, 'Keep my draft');
+        answers.push({ data: { html: 'filtered list' } });
+        await node('[data-ticket-search]').fire('submit');
+        assert.equal(node('[data-page-feedback]').textContent, '');
+    }
+});
+test('Maintenance roles reuse attachment previews, removal, batch submission and failure recovery', async () => {
+    for (const role of ['agentAdmin', 'ownerAdmin', 'owner']) {
+        const { node, ticket, answers, requests } = setup({ chat: true, manager: true, role });
+        await settle();
+        assert.equal(node('[data-chat-attach]').hidden, false);
+        const picker = node('[data-chat-files="document"]');
+        picker.files = [{ name: 'proof.txt', type: 'text/plain', size: 100 }, { name: 'remove.txt', type: 'text/plain', size: 100 }];
+        await picker.fire('change');
+        const previews = node('[data-attachment-previews]');
+        assert.equal(previews.children.length, 2);
+        await previews.children[1].children.at(-1).fire('click');
+        assert.equal(previews.children.length, 1);
+        const draft = node('[data-chat-draft]');
+        draft.value = 'Manager with attachment';
+        let release;
+        answers.push({ gate: new Promise(resolve => { release = resolve; }), status: 500, data: { message: 'Storage failed' } });
+        const pending = node('[data-chat-form]').fire('submit');
+        assert.equal(node('[data-chat-loading]').hidden, false);
+        await node('[data-chat-form]').fire('submit');
+        assert.equal(requests.length, 2);
+        assert.equal(requests[1].body.get('items[0][text]'), 'Manager with attachment');
+        assert.equal(requests[1].body.get('items[1][file]').name, 'proof.txt');
+        release(); await pending;
+        assert.equal(draft.value, 'Manager with attachment');
+        assert.equal(previews.children.length, 1);
+        assert.equal(node('[data-chat-loading]').hidden, true);
+        draft.value = '';
+        answers.push({ data: { ticket, messages: [{ own: true, sender_type: role, attachment_url: '/private/proof', extension: 'txt' }] } });
+        await node('[data-chat-form]').fire('submit');
+        assert.equal(requests[2].body.get('items[0][type]'), 'file');
+        assert.equal(requests[2].body.get('items[0][file]').name, 'proof.txt');
+        assert.equal(previews.children.length, 0);
     }
 });

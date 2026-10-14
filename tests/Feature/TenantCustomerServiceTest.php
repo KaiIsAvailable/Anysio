@@ -43,6 +43,7 @@ class TenantCustomerServiceTest extends TestCase
                 if ($table === 'leases') $t->boolean('is_current')->default(true);
             });
         }
+        Schema::create('staff', function (Blueprint $t) { $t->string('id'); $t->string('user_id'); $t->string('user_mgnt_id')->nullable(); });
         Schema::create('permissions', function (Blueprint $t) { $t->id(); $t->string('name'); $t->string('guard_name'); });
         Schema::create('roles', function (Blueprint $t) { $t->id(); $t->string('name'); $t->string('guard_name'); $t->string('team_id')->nullable(); });
         Schema::create('role_has_permissions', function (Blueprint $t) { $t->unsignedBigInteger('permission_id'); $t->unsignedBigInteger('role_id'); });
@@ -335,7 +336,7 @@ class TenantCustomerServiceTest extends TestCase
         $ticket = $this->ticket();
         $html = \Illuminate\Support\Facades\Blade::render('<x-customer-service.chat :ticket="$ticket" current-role="agentAdmin" send-url="/agent/ticket/reply" read-url="/agent/ticket/messages" :can-send="false" :messages="$messages" />', [
             'ticket' => $ticket,
-            'messages' => [['sender_type' => 'agentAdmin', 'text' => 'Agent message', 'created_at' => '09 Oct 2026 09:00', 'attachment_url' => null, 'extension' => null]],
+            'messages' => [['own' => true, 'sender_type' => 'agentAdmin', 'text' => 'Agent message', 'created_at' => '09 Oct 2026 09:00', 'attachment_url' => null, 'extension' => null]],
         ]);
         $this->assertStringContainsString('data-current-role="agentAdmin"', $html);
         $this->assertStringContainsString('data-send-url="/agent/ticket/reply"', $html);
@@ -602,5 +603,203 @@ class TenantCustomerServiceTest extends TestCase
         });
         $this->assertFalse(app(\App\Services\FileService::class)->upload($file, $this->managerId, 'tenant_ticket'));
         $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+    public function test_maintenance_reuses_page_and_manager_reply_is_visible_to_tenant(): void
+    {
+        $lease = $this->lease();
+        $created = $this->postJson(route('tenants.customerService.store'), [
+            'subject' => 'Source ticket', 'details' => 'Tenant details',
+            'attachments' => [UploadedFile::fake()->createWithContent('proof.txt', 'Proof')],
+        ])->assertCreated();
+        $ticket = Ticket::findOrFail($created->json('ticket.id'));
+        $manager = User::findOrFail($this->managerId);
+        $this->actingAs($manager);
+        $this->get(route('admin.maintenance.index'))->assertOk()
+            ->assertViewIs('tenantSide.customerService.index')->assertSee('Source ticket')
+            ->assertSee('Test Property')->assertDontSee('data-open-complaint', false)->assertDontSee('data-complaint-modal', false);
+        $this->get(route('admin.maintenance.index', ['ticket' => $ticket->id]))->assertOk()
+            ->assertSee('data-can-attach="true"', false)->assertSee('Tenant details');
+        $read = $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()
+            ->assertJsonPath('messages.0.own', false);
+        $this->get($read->json('messages.1.attachment_url'))->assertOk();
+        $this->get($read->json('messages.1.attachment_url').'?download=1')->assertOk();
+        $reply = $this->postJson(route('admin.maintenance.reply', $ticket), [
+            'sender_type' => 'tenant', 'sender_id' => $this->tenantUser->id,
+            'items' => [['type' => 'text', 'text' => 'Manager reply']],
+        ])->assertOk()->assertJsonPath('messages.2.sender_type', 'agentAdmin')->assertJsonPath('messages.2.own', true);
+        $message = $ticket->messages()->latest('id')->first();
+        $this->assertSame($manager->id, $message->authorId());
+        $this->assertSame($this->ownerId, $ticket->fresh()->receive_id);
+        $this->assertSame($lease->id, $ticket->fresh()->lease_id);
+        $this->actingAs($this->tenantUser)->getJson(route('tenants.customerService.show', $ticket))
+            ->assertOk()->assertJsonPath('messages.0.own', true)->assertJsonPath('messages.2.own', false)
+            ->assertJsonPath('messages.2.text', 'Manager reply');
+        $this->actingAs(User::findOrFail($this->ownerId))->getJson(route('admin.maintenance.show', $ticket))
+            ->assertOk()->assertJsonPath('messages.2.own', false);
+        $this->postJson(route('admin.maintenance.reply', $ticket), [
+            'items' => [['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('owner.txt', 'Owner attachment')]],
+        ])->assertOk();
+        $ticket->update(['status' => 'closed']);
+        $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()->assertJsonPath('ticket.closed', true);
+        $this->postJson(route('admin.maintenance.reply', $ticket), $this->batch())->assertForbidden();
+        $this->assertSame(4, $ticket->messages()->count());
+    }
+
+    public function test_maintenance_isolates_owners_managers_staff_and_legacy_endpoints(): void
+    {
+        $first = $this->lease();
+        $second = $this->lease();
+        $otherOwner = $this->user('owner');
+        $otherManager = $this->user('ownerAdmin');
+        DB::table('properties')->where('id', $second->leasable_id)->update(['owner_id' => $otherOwner->id, 'created_by' => $otherManager->id]);
+        $one = $this->postJson(route('tenants.customerService.store'), $this->batch(['lease_id' => $first->id, 'subject' => 'First private']))->assertCreated();
+        $two = $this->postJson(route('tenants.customerService.store'), $this->batch(['lease_id' => $second->id, 'subject' => 'Second private']))->assertCreated();
+        $ticket = Ticket::findOrFail($two->json('ticket.id'));
+        $path = 'ticket-attachments/'.$ticket->id.'/'.Str::uuid().'.pdf';
+        $message = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => $path]);
+        Storage::disk('local')->put($path, '%PDF-1.4 proof');
+        foreach ([User::findOrFail($this->ownerId), User::findOrFail($this->managerId), $this->user('agentAdmin'), $this->user('ownerAdmin'), $this->user('owner'), $this->user('staff'), $this->user('admin')] as $unrelated) {
+            $this->actingAs($unrelated);
+            $list = $this->getJson(route('admin.maintenance.index'));
+            if (in_array($unrelated->role, ['staff', 'admin'])) $list->assertForbidden();
+            else { $list->assertOk(); $this->assertStringNotContainsString('Second private', $list->json('html')); }
+            $this->getJson(route('admin.maintenance.show', $ticket))->assertForbidden();
+            $this->postJson(route('admin.maintenance.reply', $ticket), $this->batch())->assertForbidden();
+            foreach ([false, true] as $download) $this->get(route('admin.maintenance.attachment', [$ticket, $message, 'download' => $download]))->assertForbidden();
+            $this->getJson(route('admin.customerService.show', $ticket))->assertForbidden();
+            $this->patchJson(route('admin.customerService.update', $ticket), ['message' => 'Bypass'])->assertForbidden();
+        }
+        $this->actingAs($otherManager)->getJson(route('admin.maintenance.show', $ticket))->assertOk();
+        $this->get(route('admin.maintenance.index'))->assertOk()->assertSee('Second private')->assertDontSee('First private');
+        $this->postJson(route('admin.maintenance.reply', $ticket), $this->batch())->assertOk();
+        $this->actingAs($otherOwner)->getJson(route('admin.maintenance.show', $ticket))->assertOk();
+        $foreignMessage = Ticket::findOrFail($one->json('ticket.id'))->messages()->first();
+        $this->get(route('admin.maintenance.attachment', [$ticket, $foreignMessage]))->assertNotFound();
+        $this->actingAs($this->tenantUser)->getJson(route('admin.maintenance.index'))->assertForbidden();
+    }
+
+    public function test_legacy_ticket_requires_recorded_owner_relationship_and_authors_are_not_inferred_from_roles(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['receive_id' => $this->ownerId]);
+        $manager = User::findOrFail($this->managerId);
+        $this->lease(); // A current lease alone must not authorize a legacy ticket.
+        $this->actingAs($manager)->getJson(route('admin.maintenance.show', $ticket))->assertForbidden();
+        DB::table('owners')->insert(['id' => (string) Str::ulid(), 'user_id' => $this->ownerId, 'agent_id' => $manager->id]);
+        $this->getJson(route('admin.maintenance.show', $ticket))->assertOk();
+        $this->postJson(route('admin.maintenance.reply', $ticket), $this->batch())->assertOk()->assertJsonPath('messages.0.own', true);
+        $replacement = $this->user('agentAdmin');
+        DB::table('owners')->where('user_id', $this->ownerId)->update(['agent_id' => $replacement->id]);
+        $this->actingAs($replacement)->getJson(route('admin.maintenance.show', $ticket))->assertOk()->assertJsonPath('messages.0.own', false);
+        DB::table('audit_logs')->where('auditable_id', $ticket->messages()->first()->id)->delete();
+        $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()
+            ->assertJsonPath('messages.0.own', false)->assertJsonPath('messages.0.sender_label', 'Unverified sender');
+        $this->assertNull($ticket->fresh()->lease_id);
+        $this->actingAs($manager)->getJson(route('admin.maintenance.show', $ticket))->assertForbidden();
+    }
+    public function test_all_maintenance_roles_upload_to_ticket_manager_and_tenant_can_download(): void
+    {
+        foreach (['agentAdmin', 'ownerAdmin', 'owner'] as $role) {
+            $manager = $role === 'ownerAdmin' ? $this->user('ownerAdmin') : User::findOrFail($this->managerId);
+            $lease = $this->lease();
+            DB::table('properties')->where('id', $lease->leasable_id)->update(['created_by' => $manager->id]);
+            DB::table('tenants')->where('id', $this->tenantId)->update(['created_by' => $manager->id]);
+            $this->actingAs($this->tenantUser);
+            $created = $this->postJson(route('tenants.customerService.store'), [
+                'subject' => 'Attachments '.$role, 'lease_id' => $lease->id,
+                'attachments' => [UploadedFile::fake()->createWithContent('tenant.txt', 'Tenant proof')],
+            ])->assertCreated();
+            $ticket = Ticket::findOrFail($created->json('ticket.id'));
+            $actor = $role === 'owner' ? User::findOrFail($this->ownerId) : $manager;
+            $this->actingAs($actor);
+            $this->get(route('admin.maintenance.attachment', [$ticket, $ticket->messages()->first()]))->assertOk();
+            $image = imagecreatetruecolor(2000, 1000);
+            ob_start(); imagepng($image); $png = ob_get_clean(); imagedestroy($image);
+            $this->postJson(route('admin.maintenance.reply', $ticket), [
+                'sender_type' => 'tenant', 'manager_id' => $actor->id, 'user_id' => $actor->id,
+                'items' => [['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('photo.png', $png)]],
+            ])->assertOk()->assertJsonPath('messages.1.sender_type', $role)->assertJsonPath('messages.1.own', true);
+            $this->postJson(route('admin.maintenance.reply', $ticket), [
+                'items' => [['type' => 'text', 'text' => 'With documents'],
+                    ['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('report.pdf', "%PDF-1.4\n%%EOF")],
+                    ['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('note.txt', 'Notes')]],
+            ])->assertOk()->assertJsonCount(5, 'messages');
+            $messages = $ticket->messages()->orderBy('id')->get();
+            $this->assertSame($actor->id, $messages[1]->authorId());
+            $this->assertSame([1920, 960], array_slice(getimagesize(Storage::disk('local')->path($messages[1]->message)), 0, 2));
+            $this->actingAs($this->tenantUser)->getJson(route('tenants.customerService.show', $ticket))
+                ->assertOk()->assertJsonPath('messages.1.own', false)->assertJsonPath('messages.3.extension', 'pdf');
+            foreach ($messages as $message) {
+                if (!app(TenantCustomerService::class)->attachmentPath($message)) continue;
+                $this->assertStringStartsWith('uploads/user_'.$manager->id.'/tenants/tickets/', $message->message);
+                $this->get(route('tenants.customerService.attachment', [$ticket, $message]))->assertOk();
+                $this->get(route('tenants.customerService.attachment', [$ticket, $message, 'download' => 1]))->assertOk();
+            }
+            $this->assertSame($lease->id, $ticket->fresh()->lease_id);
+            $this->assertSame($this->ownerId, $ticket->fresh()->receive_id);
+        }
+    }
+
+    public function test_maintenance_attachment_limits_authorization_and_closed_tickets_leave_no_files(): void
+    {
+        $lease = $this->lease();
+        $created = $this->postJson(route('tenants.customerService.store'), $this->batch())->assertCreated();
+        $ticket = Ticket::findOrFail($created->json('ticket.id'));
+        $url = route('admin.maintenance.reply', $ticket);
+        $fileItem = fn ($file) => ['type' => 'file', 'file' => $file];
+        $mp4 = pack('N', 24).'ftypisom'.pack('N', 0).'isommp42';
+        $image = imagecreatetruecolor(1, 1);
+        ob_start(); imagepng($image); $png = ob_get_clean(); imagedestroy($image);
+        $this->actingAs(User::findOrFail($this->managerId));
+        foreach ([
+            [$fileItem(UploadedFile::fake()->createWithContent('large.png', $png)->size(2049))],
+            [$fileItem(UploadedFile::fake()->createWithContent('large.mp4', $mp4)->size(20481))],
+            [$fileItem(UploadedFile::fake()->createWithContent('large.txt', 'Text')->size(3073))],
+            [$fileItem(UploadedFile::fake()->createWithContent('fake.png', 'Not an image'))],
+            array_map(fn ($i) => $fileItem(UploadedFile::fake()->createWithContent($i.'.txt', 'Text')), range(1, 11)),
+            array_map(fn ($i) => $fileItem(UploadedFile::fake()->createWithContent($i.'.mp4', $mp4)->size(20480)), range(1, 6)),
+        ] as $items) $this->postJson($url, ['items' => $items])->assertUnprocessable();
+        $payload = fn () => ['items' => [$fileItem(UploadedFile::fake()->createWithContent('proof.txt', 'Text'))]];
+        $this->actingAs($this->user('agentAdmin'))->postJson($url, $payload())->assertForbidden();
+        $this->actingAs($this->user('staff'))->postJson($url, $payload())->assertForbidden();
+        $this->actingAs(User::findOrFail($this->managerId));
+        foreach (config('customer_service.closed_statuses') as $status) {
+            $ticket->update(['status' => $status]);
+            $this->postJson($url, $payload())->assertForbidden();
+        }
+        $this->assertSame(1, $ticket->messages()->count());
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_maintenance_upload_and_message_failures_roll_back_entire_batch(): void
+    {
+        $this->lease();
+        $created = $this->postJson(route('tenants.customerService.store'), $this->batch())->assertCreated();
+        $ticket = Ticket::findOrFail($created->json('ticket.id'));
+        $this->actingAs(User::findOrFail($this->managerId));
+        $real = new \App\Services\FileService();
+        $mock = \Mockery::mock(\App\Services\FileService::class);
+        $calls = 0;
+        $mock->shouldReceive('upload')->twice()->andReturnUsing(function ($file, $id, $category) use (&$calls, $real) {
+            if (++$calls === 2) throw new \RuntimeException('Upload failed');
+            return $real->upload($file, $id, $category);
+        });
+        $this->app->instance(\App\Services\FileService::class, $mock);
+        $payload = fn () => ['items' => [
+            ['type' => 'text', 'text' => 'Rolled back text'],
+            ['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('first.txt', 'First')],
+            ['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('second.txt', 'Second')],
+        ]];
+        $this->postJson(route('admin.maintenance.reply', $ticket), $payload())->assertStatus(500);
+        $this->assertSame(1, $ticket->messages()->count());
+        $this->assertSame([], Storage::disk('local')->allFiles());
+        $this->app->instance(\App\Services\FileService::class, $real);
+        TicketMsg::creating(function ($message) {
+            if (str_starts_with($message->message, 'uploads/')) throw new \RuntimeException('Message save failed');
+        });
+        $this->postJson(route('admin.maintenance.reply', $ticket), $payload())->assertStatus(500);
+        $this->assertSame(1, $ticket->messages()->count());
+        $this->assertSame([], Storage::disk('local')->allFiles());
+        $this->assertSame('pending', $ticket->fresh()->status);
     }
 }

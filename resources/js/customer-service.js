@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initComplaint(root, onCreated = null, beforeOpen = () => true) {
         const find = (selector) => root.querySelector(selector);
         const complaint = find('[data-complaint-modal]');
+        if (!complaint) return;
         const createForm = find('[data-complaint-form]');
         const createError = find('[data-create-error]');
         const limits = JSON.parse(complaint.dataset.limits);
@@ -232,9 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.innerHTML = data.html;
                 listUrl = new URL(url);
                 const reason = find('[data-creation-reason]');
-                reason.textContent = data.creation_reason || '';
-                reason.hidden = !data.creation_reason;
-                find('[data-open-complaint]').disabled = !!data.creation_reason;
+                if (reason) reason.textContent = data.creation_reason || '';
+                if (reason) reason.hidden = !data.creation_reason;
+                if (find('[data-open-complaint]')) find('[data-open-complaint]').disabled = !!data.creation_reason;
                 highlight();
                 writeUrl();
                 feedback.textContent = '';
@@ -295,7 +296,7 @@ document.addEventListener('DOMContentLoaded', () => {
         let sendUrl = root.dataset.sendUrl;
         const find = (selector) => root.querySelector(selector);
         const limits = JSON.parse(root.dataset.limits);
-        const currentRole = root.dataset.currentRole;
+        const canAttach = root.dataset.canAttach !== 'false';
         const permitted = switchable || root.dataset.canSend === 'true';
         let empty = root.dataset.empty === 'true';
         const chatForm = find('[data-chat-form]');
@@ -338,6 +339,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         const updateComposer = () => {
             toggleControls(chatForm, sending || suspended || !canSend);
+            attachButton.hidden = !canAttach;
+            attachButton.disabled = !canAttach || sending || suspended || !canSend;
             sendButton.disabled = sending || suspended || !canSend || (!draft.value.trim() && !attachments.length);
             sendButton.setAttribute('aria-label', sending ? 'Sending message' : 'Send message');
             chatForm.setAttribute('aria-busy', String(sending));
@@ -418,6 +421,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const ticket = data.ticket;
             canSend = permitted && !ticket.closed && ticket.can_send !== false;
             find('[data-chat-subject]').textContent = ticket.subject;
+            find('[data-chat-context]').textContent = ticket.context || '';
+            find('[data-chat-context]').hidden = !ticket.context;
             find('[data-chat-status]').textContent = ticket.status;
             find('[data-chat-status]').hidden = false;
             chatForm.hidden = !canSend;
@@ -449,14 +454,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     history.append(divider);
                     previousDate = day;
                 }
-                const own = message.sender_type === currentRole;
+                const own = message.own === true;
                 const row = document.createElement('div');
                 row.className = own ? 'flex justify-end' : 'flex justify-start';
                 const bubble = document.createElement('article');
                 bubble.className = own ? 'max-w-[85%] rounded-2xl bg-indigo-100 px-4 py-3 text-slate-900' : 'max-w-[85%] rounded-2xl bg-white border px-4 py-3 text-slate-900';
                 const label = document.createElement('p');
                 label.className = 'mb-1 text-xs text-gray-500';
-                label.textContent = (own ? 'You' : message.sender_type) + ' · ' + (sent ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(sent) : message.created_at || '');
+                label.textContent = (own ? 'You' : (message.sender_label || message.sender_type)) + ' · ' + (sent ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(sent) : message.created_at || '');
                 bubble.append(label);
                 if (message.attachment_url) {
                     const extension = message.extension;
@@ -533,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             on(picker, 'change', () => {
                 if (destroyed || sending || suspended || !canSend) return;
+                if (!canAttach) return;
                 const incoming = Array.from(picker.files);
                 const error = selectionError(attachments, incoming, limits);
                 chatError.textContent = error;
@@ -611,6 +617,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearAttachments();
                 chatError.textContent = '';
                 find('[data-chat-subject]').textContent = 'Customer Service';
+                find('[data-chat-context]').textContent = '';
+                find('[data-chat-context]').hidden = true;
                 find('[data-chat-status]').textContent = '';
                 find('[data-chat-status]').hidden = true;
                 find('[data-chat-closed]').hidden = true;

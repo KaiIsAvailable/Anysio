@@ -43,7 +43,7 @@ class AppServiceProvider extends ServiceProvider
         }
 
         Gate::before(function ($user, $ability) {
-            $structuralGates = ['super-admin', 'owner-admin', 'agent-admin', 'is-staff', 'is-owner', 'is-tenant'];
+            $structuralGates = ['super-admin', 'owner-admin', 'agent-admin', 'is-staff', 'is-owner', 'is-tenant', 'maintenance-tickets'];
             if (in_array($ability, $structuralGates)) {
                 return null; 
             }
@@ -96,6 +96,10 @@ class AppServiceProvider extends ServiceProvider
                 return false;
             }
         });
+
+        Gate::define('maintenance-tickets', fn (User $user) => in_array($user->role, [
+            User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN, User::ROLE_OWNER,
+        ], true));
 
         Gate::define('super-admin', function (User $user) {
             return $user->getRoleLevel() >= 5;

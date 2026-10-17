@@ -28,11 +28,29 @@ class LeaseService
     {
         try {
             return DB::transaction(function () use ($user, $data) {
-
                 $status = $data['status'];
+
+                Log::channel('testing')->info('Lease status submission debug:', [
+                    'status' => $data['status'] ?? null,
+                    'all_data' => $data,
+                ]);
 
                 // Get the previous lease when required
                 $oldLease = $this->getOldLease($data);
+
+                // 💡 NEW CHECK: If status is 'Renew', verify that all associated invoices are paid
+                if ($status === 'Renew' && $oldLease) {
+                    // Assuming your Lease model has an 'invoices' relation and a status field like 'paid'
+                    $hasUnpaidInvoices = $oldLease->invoices()
+                        ->where('status', '!=', 'paid')
+                        ->exists();
+
+                    if ($hasUnpaidInvoices) {
+                        throw ValidationException::withMessages([
+                            'error' => 'This lease cannot be renewed because there are still unpaid invoices associated with it.',
+                        ]);
+                    }
+                }
 
                 // Only a NEW lease consumes the subscription limit
                 if ($status === 'New') {

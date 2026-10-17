@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\{Invoice, Lease, FeeType, User, DocumentTemplate, Tenants, Wallet, LeaseCharge, Property, Unit, Room};
 use Carbon\Carbon;
 use Illuminate\Support\Facades\{DB, Log, Auth};
+use Illuminate\Support\HtmlString;
 
 class InvoiceService
 {
@@ -676,19 +677,53 @@ class InvoiceService
                 ? ($invoice->lease?->tenant?->user?->name ?? 'N/A')
                 : ($invoice->user?->name ?? 'N/A'),
             'tenant_id' => $invoice->lease?->tenant?->id,
+            'payments' => $invoice->payments?->map(function ($payment) {
+                return [
+                    'id' => $payment->id,
+                    'status' => $payment->status,
+                    'receipt_path' => $payment->receipt_path,
+                    'receipt_url' => $payment->receipt_path ? route('admin.payments.view-receipt', $payment->id) : null,
+                ];
+            }),
             'context_label' => (function () use ($invoice) {
-                if ($invoice->isTenantInvoice()) {
-                    $lease = $invoice->lease;
-                    if (!$lease || !$lease->leasable) return 'Tenant Lease';
-                    $model = $lease->leasable;
-                    return match (get_class($model)) {
-                        Property::class => "Property: {$model->name}",
-                        Unit::class     => "Unit: {$model->unit_no} ({$model->property->name})",
-                        Room::class     => "Room: {$model->room_no}",
-                        default         => 'Tenant Lease',
-                    };
+                if (!$invoice->isTenantInvoice()) {
+                    return new HtmlString('<span class="text-gray-500">Subscription</span>');
                 }
-                return 'Subscription';
+
+                $lease = $invoice->lease;
+                if (!$lease || !$lease->leasable) {
+                    return new HtmlString('<span class="text-gray-500">Tenant Lease</span>');
+                }
+
+                $model = $lease->leasable;
+                $linkClass = 'font-semibold text-indigo-600 hover:text-indigo-900 hover:underline';
+
+                if ($model instanceof Property) {
+                    $url = route('admin.properties.show', $model->id);
+                    return new HtmlString("Property: <a href=\"{$url}\" class=\"{$linkClass}\">{$model->name}</a>");
+                }
+
+                if ($model instanceof Unit) {
+                    $url = route('admin.units.show', $model->id);
+                    $unitName = e($model->name ?? $model->unit_no);
+                    
+                    $propertyText = '';
+                    if ($model->property) {
+                        $propertyUrl = route('admin.properties.show', $model->property->id);
+                        $propertyName = e($model->property->name);
+                        $propertyText = " <span class=\"text-gray-400\">(<a href=\"{$propertyUrl}\" class=\"{$linkClass}\">{$propertyName}</a>)</span>";
+                    }
+
+                    return new HtmlString("Unit: <a href=\"{$url}\" class=\"{$linkClass}\">{$unitName}</a>{$propertyText}");
+                }
+
+                if ($model instanceof Room) {
+                    $url = route('admin.rooms.show', $model->id);
+                    $roomNo = e($model->room_no);
+                    return new HtmlString("Room: <a href=\"{$url}\" class=\"{$linkClass}\">{$roomNo}</a>");
+                }
+
+                return new HtmlString('<span class="text-gray-500">Tenant Lease</span>');
             })(),
         ];
     }

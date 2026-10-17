@@ -75,9 +75,8 @@
     get isDisabled() {
         if (@js($disabled)) return true;
         if (typeof editing !== 'undefined' && !editing) return true;
-
-        // Check if editingPendingRenewal exists in the parent scope and use its inverse
         if (typeof editingPendingRenewal !== 'undefined' && !editingPendingRenewal) return true;
+        if (typeof isCheckoutOrRenew !== 'undefined' && isCheckoutOrRenew) return true;
 
         // Check native HTML attributes as a fallback
         if (this.$el.hasAttribute('disabled') || this.$el.getAttribute('aria-disabled') === 'true') return true;
@@ -86,10 +85,14 @@
     },
 
     init() {
+        // Ensure initial selectedValues is always an array
+        if (!Array.isArray(this.selectedValues)) {
+            this.selectedValues = this.selectedValues !== null && this.selectedValues !== undefined && this.selectedValues !== '' ? [String(this.selectedValues)] : [];
+        }
+
         // Helper function to sync labels and values safely
         const syncSelection = (val) => {
-            // Ensure valuesArray is always an array, whether val is scalar or array
-            let valuesArray = Array.isArray(val) ? val : (val !== null && val !== undefined && val !== '' ? [val] : []);
+            let valuesArray = Array.isArray(val) ? val : (val !== null && val !== undefined && val !== '' ? [String(val)] : []);
             
             let labels = {};
             valuesArray.forEach(v => {
@@ -117,11 +120,25 @@
         // 1. Run immediately when the component mounts to catch pre-filled values
         syncSelection(this.selectedValues);
 
-        // 2. Watch for any subsequent changes coming from the parent modal
+        // 2. Watch for any subsequent changes coming from the parent modal or x-model
         this.$watch('selectedValues', (newValues) => {
-            syncSelection(newValues);
+            let valuesArray = Array.isArray(newValues) ? newValues : (newValues !== null && newValues !== undefined && newValues !== '' ? [String(newValues)] : []);
+            if (!Array.isArray(newValues)) {
+                this.selectedValues = valuesArray;
+            }
+            syncSelection(valuesArray);
+            
+            // Dispatch change event so parent DOM listeners catch it automatically
+            this.$nextTick(() => {
+                this.triggerChangeEvents();
+                // Direct call to toggle fields if this is the lease-status select
+                if (this.$el.id === 'lease-status' && typeof toggleLeaseSelect === 'function') {
+                    toggleLeaseSelect(valuesArray[0] || 'New');
+                }
+            });
         });
     },
+
     get displayValue() {
         if (this.isMultiple) return '';
         return this.selectedLabel || '';
@@ -227,8 +244,9 @@ class="relative w-full"
         <input type="hidden" name="{{ $name }}[]" value="" x-ref="hiddenInput" {{ $attributes->only('id') }}>
     </template>
 
+    <!-- Hidden native input for single select -->
     <template x-if="!isMultiple">
-        <input type="hidden" name="{{ $name }}" :value="selectedValues[0] || ''" x-ref="hiddenInput" {{ $attributes->only('id') }}>
+        <input type="hidden" name="{{ $name }}" :value="Array.isArray(selectedValues) ? (selectedValues[0] || '') : (selectedValues || '')" x-ref="hiddenInput" {{ $attributes->only('id') }}>
     </template>
 
     <!-- Input Container -->

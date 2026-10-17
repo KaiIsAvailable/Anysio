@@ -54,6 +54,7 @@
 
             <!-- TAB 1: LEASE SETTINGS -->
             <div x-show="activeTab === 'payment'" x-cloak>
+                @canany(['owner-admin', 'settings.late payment setting'])
                 <x-form.form method="POST" 
                             action="{{ route('admin.settings.update') }}" 
                             class="space-y-6" 
@@ -80,7 +81,7 @@
                                         </p>
                                     </div>
                                     <!-- Lock/Edit Toggle Button -->
-                                    @canany(['owner-admin', 'settings.payment edit'])
+                                    @canany(['owner-admin', 'settings.edit late payment'])
                                     <x-form.section-edit-button state="editing" />
                                     @endcanany
                                 </header>
@@ -198,12 +199,83 @@
                             <!-- Save Button (Only shown or enabled when editing) -->
                             @canany(['owner-admin', 'settings.payment edit'])
                             <div class="mt-6 flex items-center gap-4" x-show="editing" x-cloak>
-                                <x-form.primary-button x-bind:disabled="!editing" loading="loading">{{ __('Save Lease Settings') }}</x-form.primary-button>
+                                <x-form.primary-button x-bind:disabled="!editing" loading="loading">{{ __('Save Late Penalty Settings') }}</x-form.primary-button>
                             </div>
                             @endcanany
                         </div>
                     </div>
                 </x-form.form>
+                @endcanany
+
+                <!-- SEPARATE TAB SECTION: Payment Collection Rules -->
+                @canany(['owner-admin', 'settings.payment collection setting'])
+                <x-form.form method="POST" 
+                    action="{{ route('admin.settings.update') }}" 
+                    class="space-y-6" 
+                    x-data="{ 
+                        editingPayment: false, 
+                        loadingPayment: false, 
+                        allowSeparate: {{ data_get($settings, 'payment_config.value.allow_unpaid_penalty', config('settings.payment_config.allow_unpaid_penalty', false)) ? 'true' : 'false' }}
+                    }"
+                    @submit="loadingPayment = true">
+                    @csrf
+                    @method('PATCH')
+
+                    <input type="hidden" name="tab" value="payment">
+                    
+                    <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+                        <section>
+                            <header class="flex items-center justify-between">
+                                <div>
+                                    <h2 class="text-lg font-medium text-gray-900">
+                                        {{ __('Payment Collection & Penalty Policy') }}
+                                    </h2>
+                                    <p class="mt-1 text-sm text-gray-600">
+                                        {{ __('Configure whether tenants can clear their main invoice balance separately while leaving late penalties unpaid.') }}
+                                    </p>
+                                </div>
+                                @canany(['owner-admin', 'settings.edit payment collection'])
+                                <x-form.section-edit-button state="editingPayment" />
+                                @endcanany
+                            </header>
+
+                            <div class="mt-6 space-y-6">
+                                <div class="flex items-center justify-between">
+                                    <x-form.input-label for="allow_unpaid_penalty" :value="__('Allow Unpaid Penalty Separation')" info="{{ __('When enabled, tenants are allowed to pay just the main invoice balance. The late penalty will be generated as a separate unpaid invoice. When disabled, full payment including penalties is strictly required.') }}" />
+                                    
+                                    <!-- Hidden input to handle unchecked state -->
+                                    <input type="hidden" name="payment_config[allow_unpaid_penalty]" value="0">
+                                    
+                                    <button type="button" 
+                                            role="switch" 
+                                            :disabled="!editingPayment"
+                                            :aria-checked="allowSeparate" 
+                                            @click="if(editingPayment) allowSeparate = !allowSeparate"
+                                            :class="[
+                                                allowSeparate ? 'bg-indigo-600' : 'bg-gray-200',
+                                                !editingPayment ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                            ]"
+                                            class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                                        <span :class="allowSeparate ? 'translate-x-5' : 'translate-x-0'"
+                                            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+                                    </button>
+
+                                    <!-- Checkbox bound directly to payment_config[allow_unpaid_penalty] -->
+                                    <input type="checkbox" id="allow_unpaid_penalty" name="payment_config[allow_unpaid_penalty]" value="1" 
+                                        x-model="allowSeparate" 
+                                        class="hidden">
+                                </div>
+                            </div>
+                        </section>
+
+                        @canany(['owner-admin', 'settings.payment collection setting'])
+                        <div class="mt-6 flex items-center gap-4" x-show="editingPayment" x-cloak>
+                            <x-form.primary-button x-bind:disabled="!editingPayment" loading="loadingPayment">{{ __('Save Payment Settings') }}</x-form.primary-button>
+                        </div>
+                        @endcanany
+                    </div>
+                </x-form.form>
+                @endcanany
             </div>
 
             <!-- TAB 2: LEASE SETTINGS -->

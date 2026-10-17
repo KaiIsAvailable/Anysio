@@ -17,6 +17,8 @@
 
 <div x-data="{ 
         advancedOpen: false,
+        loading: false,
+        search: '{{ request('search') }}',
         leaseable_name: '{{ request('leaseable_name') }}',
         leaseable: '{{ request('leaseable') }}',
         owner: '{{ request('owner') }}',
@@ -57,7 +59,7 @@
     <!-- Main Search Bar Row[cite: 2] -->
     <div class="flex items-center justify-between gap-3 w-full">
         <!-- Search Input & Submit Button Group[cite: 2] -->
-        <div class="flex items-center w-full {{ $compact ? 'min-w-0' : 'sm:w-[460px]' }}" x-data="{ loadings: false, search: '{{ request('search') }}' }">
+        <div class="flex items-center w-full {{ $compact ? 'min-w-0' : 'sm:w-[460px]' }}">
             <!-- Search Input with Icon[cite: 2] -->
             <div class="relative flex-1">
                 <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 z-20">
@@ -71,9 +73,9 @@
                     x-model="search" 
                     placeholder="{{ $attributes->get('placeholder', 'Search...') }}"
                     @keydown.enter.prevent="
-                        loadings = true; 
-                        $el.closest('form').{{ $async ? 'requestSubmit' : 'submit' }}();
-                        @if($async) loadings = false; @endif
+                        loading = true; 
+                        const form = $el.closest('form');
+                        {{ $async ? 'form.requestSubmit(); loading = false;' : 'form.submit();' }}
                     "
                     class="w-full h-10 pl-9 pr-8 text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-l-xl rounded-r-none shadow-sm focus:z-10 relative"
                 >
@@ -85,10 +87,10 @@
                     @click="
                         search = ''; 
                         $el.previousElementSibling.value = '';
-                        loadings = true; 
+                        loading = true; 
                         $nextTick(() => {
-                            $el.closest('form').{{ $async ? 'requestSubmit' : 'submit' }}();
-                        @if($async) loadings = false; @endif
+                            const form = $el.closest('form');
+                            {{ $async ? 'form.requestSubmit(); loading = false;' : 'form.submit();' }}
                         });
                     "
                     class="absolute inset-y-0 right-0 pr-2.5 flex items-center text-gray-400 hover:text-gray-600 z-20 cursor-pointer"
@@ -103,11 +105,11 @@
             <!-- Search Button[cite: 2] -->
             <x-form.primary-button 
                 type="button"
-                loading="loadings"
+                loading="loading"
                 @click="
-                    loadings = true; 
-                    $el.closest('form').{{ $async ? 'requestSubmit' : 'submit' }}();
-                        @if($async) loadings = false; @endif
+                    loading = true; 
+                    const form = $el.closest('form');
+                    {{ $async ? 'form.requestSubmit(); loading = false;' : 'form.submit();' }}
                 "
                 class="!rounded-l-none !rounded-r-xl shadow-sm focus:z-10 relative h-10 px-5 !py-0 flex items-center justify-center whitespace-nowrap"
             >
@@ -143,6 +145,7 @@
     <!-- Advanced Filter Floating Dropdown Panel with Animation -->
     @if($isAdvanceSearch)
         <div 
+            x-data="{ loading: false }"
             x-show="advancedOpen" 
             x-cloak 
             @click.away="if (! $event.target.closest('.flatpickr-calendar')) { advancedOpen = false; }"
@@ -352,10 +355,7 @@
                 <x-form.primary-button 
                     type="submit" 
                     loading="loading"
-                    @click="
-                        // Blur any active inputs so they stop editing/searching
-                        if (document.activeElement) document.activeElement.blur();
-                    "
+                    @click="document.activeElement?.blur()"
                     class="h-9 px-4 text-sm !py-0 flex items-center justify-center"
                 >
                     Apply Filters

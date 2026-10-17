@@ -37,12 +37,11 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <x-table.th name="Invoice No" sortField="inv" />
-                                @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt'])
+                                @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt', 'invoice.view payment proof'])
                                 <x-table.th name="Documents" />
                                 @endcanany
                                 <x-table.th name="Tenant Details" sortField="t" />
-                                <x-table.th name="Period" />
-                                <x-table.th name="Due Date" />
+                                <x-table.th name="Period / Due Date" />
                                 <x-table.th name="Amount Details" />
                                 <x-table.th name="Status" sortField="s" />
                                 @canany(['owner-admin', 'invoice.record payment', 'invoice.void'])
@@ -63,9 +62,52 @@
                                 </td>
 
                                 <!-- Document -->
-                                @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt'])
+                                @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt', 'invoice.view payment proof'])
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="flex flex-col items-start gap-1.5">
+                                    <div class="flex flex-col items-start gap-1.5" 
+                                                                        x-data="{ 
+                                        openReceipt: false, 
+                                        receiptImage: '', 
+                                        receiptUser: '', 
+                                        receiptDate: '',
+                                        openReceiptModal(url, user = '', date = '') {
+                                            this.receiptImage = url;
+                                            this.receiptUser = user;
+                                            this.receiptDate = date;
+                                            this.openReceipt = true;
+                                        }
+                                    }">
+                                        <!-- Loop through payments to display receipt proof buttons -->
+                                        @canany(['owner-admin', 'invoice.view payment proof'])
+                                        @foreach($invoice->payments as $payment)
+                                            {{-- Handle whether $payment is an array or an Eloquent object --}}
+                                            @php
+                                                $receiptUrl = is_array($payment) ? ($payment['receipt_url'] ?? null) : ($payment->receipt_url ?? null);
+                                                $paymentCreatedAt = is_array($payment) ? ($payment['created_at'] ?? '') : ($payment->created_at ?? '');
+                                                $payDate = $paymentCreatedAt ? \Carbon\Carbon::parse($paymentCreatedAt)->format('Y-m-d') : '—';
+                                            @endphp
+
+                                            @if(!empty($receiptUrl))
+                                                <div class="mt-1">
+                                                    <button 
+                                                        type="button" 
+                                                        @click="openReceiptModal('{{ $receiptUrl }}', '{{ $invoice->recipient_name }}', '{{ $payDate }}')"
+                                                        class="inline-flex items-center px-2.5 py-1.5 border border-amber-300 shadow-sm text-xs font-medium rounded-md text-amber-800 bg-amber-50 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 cursor-pointer transition-all"
+                                                    >
+                                                        <!-- Optional Icon for visual cue -->
+                                                        <svg class="w-3.5 h-3.5 mr-1.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                        </svg>
+                                                        View Payment Proof
+                                                    </button>
+                                                </div>
+                                            @endif
+                                        @endforeach
+
+                                        <x-modals.receipt-preview-modal />
+                                        @endcanany
+
                                         @php
                                         $template = data_get($invoice, 'documentTemplate');
                                         $templateTitle = is_object($template) ? ($template->title ?? null) : (is_array($template) ? ($template['title'] ?? null) : null);
@@ -161,7 +203,13 @@
                                 <!-- Tenant Details -->
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="text-sm font-medium text-slate-900">
-                                        {{ $invoice->recipient_name }}
+                                        @if($invoice->tenant_id)
+                                        <a href="{{ route('admin.tenants.show', $invoice->tenant_id) }}" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                            {{ $invoice->recipient_name }}
+                                        </a>
+                                        @else
+                                            {{ $invoice->recipient_name }}
+                                        @endif
                                     </div>
                                     <div class="text-xs text-gray-500">
                                         {{ $invoice->context_label }}
@@ -170,12 +218,8 @@
 
                                 <!-- Period -->
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->period }}</div>
-                                </td>
-
-                                <!-- Due Date -->
-                                <td class="px-6 py-4 whitespace-nowrap">
-                                    <div class="text-sm font-medium text-slate-900">{{ $invoice->due_date_formatted }}</div>
+                                    <div class="text-sm font-medium text-slate-900">Period: {{ $invoice->period }}</div>
+                                    <div class="text-sm font-medium text-slate-900">Due Date: {{ $invoice->due_date_formatted }}</div>
                                 </td>
 
                                 <!-- Amount -->
@@ -187,7 +231,7 @@
 
                                 <!-- Status Badge -->
                                 <td class="px-6 py-4 whitespace-nowrap">
-                                    <span class="px-2.5 py-0.5 rounded-full text-[10px] font-bold border uppercase
+                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase
                                                 @if($invoice->status === 'paid') bg-green-100 text-green-700 border-green-200
                                                 @elseif($invoice->status === 'unpaid') bg-yellow-100 text-yellow-700 border-yellow-200
                                                 @elseif($invoice->status === 'partial') bg-blue-100 text-blue-700 border-blue-200

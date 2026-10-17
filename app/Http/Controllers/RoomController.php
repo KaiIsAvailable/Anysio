@@ -2,19 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Room;
-use App\Models\RoomAsset;
-use App\Models\Owners;
-use App\Models\Asset;
-use App\Models\Tenants;
+use App\Models\{Room, RoomAsset, Owners, Asset, Tenants, Unit};
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\{Auth, Gate, DB};
 use Illuminate\Support\Str;
-use App\Models\Unit;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
+use App\Services\{LeaseService};
 
 class RoomController extends Controller
 {
@@ -190,7 +184,7 @@ class RoomController extends Controller
                         ->with('success', 'Room and assets created successfully.');
     }
 
-    public function show(Room $room)
+    public function show(Room $room, LeaseService $leaseService, Request $request)
     {
         if (Gate::denies('owner-admin') && Gate::denies('room.show')) {
             return view('errors.403');
@@ -205,8 +199,18 @@ class RoomController extends Controller
                                     ->filter()
                                     ->keyBy('id')
                                     ->all();
+                            
+        $userId = get_effective_user();
+        $leaseModalData = $leaseService->getLeaseFormPayload($userId, $request);
 
-        return view('adminSide.rooms.show', compact('room', 'tenantsById', 'fullAddress'));
+        return view('adminSide.rooms.show', array_merge(
+            $leaseModalData,
+            [
+                'room' => $room,
+                'tenantsById' => $tenantsById,
+                'fullAddress' => $fullAddress,
+            ]
+        ));
     }
 
     public function edit(Room $room)

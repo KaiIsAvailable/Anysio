@@ -35,19 +35,19 @@ class UpdateLeaseStatuses extends Command
                     ->where('end_date', '<=', $now->copy()->addDays($days));
 
                 // Grab the actual records to log them
-                $pendingLeases = $pendingLeasesQuery->get();
+                //$pendingLeases = $pendingLeasesQuery->get();
 
-                Log::channel('testing')->info('Leases matching Pending Renewal criteria', [
-                    'user_management_id' => $userMgmt->id,
-                    'user_id' => $userMgmt->user_id,
-                    'threshold_days' => $days,
-                    'matched_lease_count' => $pendingLeases->count(),
-                    'leases' => $pendingLeases->map(fn($l) => [
-                        'id' => $l->id,
-                        'end_date' => $l->end_date,
-                        'status' => $l->status,
-                    ])->toArray(),
-                ]);
+                //Log::channel('testing')->info('Leases matching Pending Renewal criteria', [
+                //    'user_management_id' => $userMgmt->id,
+                //    'user_id' => $userMgmt->user_id,
+                //    'threshold_days' => $days,
+                //    'matched_lease_count' => $pendingLeases->count(),
+                //    'leases' => $pendingLeases->map(fn($l) => [
+                //        'id' => $l->id,
+                //        'end_date' => $l->end_date,
+                //        'status' => $l->status,
+                //    ])->toArray(),
+                //]);
 
                 // Now actually perform the update
                 $pendingLeasesQuery->update(['is_pending_renewal' => true]);
@@ -63,25 +63,28 @@ class UpdateLeaseStatuses extends Command
                     ->where('end_date', '<', $now);
 
                 // Grab the actual records to log them
-                $endedLeases = $endedLeasesQuery->get();
+                //$endedLeases = $endedLeasesQuery->get();
 
-                Log::channel('testing')->info('Leases matching Expired (End) criteria', [
-                    'user_management_id' => $userMgmt->id,
-                    'user_id' => $userMgmt->user_id,
-                    'matched_lease_count' => $endedLeases->count(),
-                    'leases' => $endedLeases->map(fn($l) => [
-                        'id' => $l->id,
-                        'end_date' => $l->end_date,
-                        'status' => $l->status,
-                    ])->toArray(),
-                ]);
+                //Log::channel('testing')->info('Leases matching Expired (End) criteria', [
+                //    'user_management_id' => $userMgmt->id,
+                //    'user_id' => $userMgmt->user_id,
+                //    'matched_lease_count' => $endedLeases->count(),
+                //    'leases' => $endedLeases->map(fn($l) => [
+                //        'id' => $l->id,
+                //        'end_date' => $l->end_date,
+                //        'status' => $l->status,
+                //    ])->toArray(),
+                //]);
 
                 // Now actually perform the update
-                $endedLeasesQuery->update(['status' => 'End']);
+                $endedLeasesQuery->update([
+                    'status' => 'End',
+                    'is_pending_renewal' => false
+                ]);
             }
         });
 
-        Log::channel('testing')->info('Ran UpdateLeaseStatuses cron successfully for all accounts.');
+        //Log::channel('testing')->info('Ran UpdateLeaseStatuses cron successfully for all accounts.');
         $this->info("Lease statuses checked, logged, and updated successfully.");
     }
 }

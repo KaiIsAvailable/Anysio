@@ -91,6 +91,20 @@
                 <div class="bg-white rounded-xl shadow-lg border border-gray-100">
                     <x-table.lease-table :leases="$leases" :showOwner="true" :showTenant="true" :showAction="true" />
                 </div>
+                
+                <x-modals.lease-create-modal 
+                    :tenants="$tenants" 
+                    :leases="$modalLeases"
+                    :properties="$properties" 
+                    :units="$units" 
+                    :rooms="$rooms" 
+                    :templates="$templates" 
+                    :rentFeeTypes="$rentFeeTypes" 
+                    :serviceFeeTypes="$serviceFeeTypes" 
+                    :depositFeeTypes="$depositFeeTypes" 
+                    :managementFeeTypes="$managementFeeTypes" 
+                    :leasePreviewData="$leasePreviewData" 
+                />
 
                 {{-- Cancel Confirmation Modal --}}
                 <x-modals.confirmation-modal id="lease-confirm-modal" title="Cancel Lease">
@@ -125,20 +139,6 @@
                 </x-modals.confirmation-modal>
 
                 <x-preview-agreement-modal />
-
-                <x-modals.lease-create-modal 
-                    :tenants="$tenants" 
-                    :leases="$modalLeases" {{-- Use unfiltered modal leases here --}}
-                    :properties="$properties" 
-                    :units="$units" 
-                    :rooms="$rooms" 
-                    :templates="$templates" 
-                    :rentFeeTypes="$rentFeeTypes" 
-                    :serviceFeeTypes="$serviceFeeTypes" 
-                    :depositFeeTypes="$depositFeeTypes" 
-                    :managementFeeTypes="$managementFeeTypes" 
-                    :leasePreviewData="$leasePreviewData" 
-                />
 
                 {{-- Pagination --}}
                 @if($leases && method_exists($leases, 'hasPages') && $leases->hasPages())

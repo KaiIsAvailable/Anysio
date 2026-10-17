@@ -11,7 +11,9 @@
         <table class="w-full min-w-[1100px] divide-y divide-gray-200 text-left">
             <thead class="bg-gray-50">
                 <tr>
+                    @if($showLeaseable)
                     <x-table.th name="Property / Unit / Room" />
+                    @endif
                     
                     @if($showOwner)
                         <x-table.th name="Owner" />
@@ -141,8 +143,12 @@
                         {{-- Status --}}
                         <td class="px-6 py-4">
                             <span class="whitespace-nowrap px-2.5 py-0.5 rounded-full text-sm font-medium {{ $badge }}">
-                                {{ strtoupper($lease->status ?? 'N/A') }} 
-                                @if($lease->is_pending_renewal) (PENDING RENEWAL) @endif
+                                {{ 
+                                    in_array(strtolower($lease->status ?? ''), ['new', 'renew']) 
+                                        ? 'CURRENT' 
+                                        : strtoupper($lease->status ?? 'N/A') 
+                                }} 
+                                @if($lease->is_pending_renewal) (PENDING ACTION) @endif
                             </span>
                         </td>
 
@@ -151,8 +157,8 @@
                             {{-- Action Column --}}
                             @canany(['owner-admin', 'leases.upload stamping', 'leases.view agreement', 'leases.cancel lease', 'leases.renew lease', 'leases.check out lease'])
                             <td class="px-6 py-4" x-data="{ 
-                                openUpload: {{ $errors->any() && !$errors->has('error') ? 'true' : 'false' }}, 
-                                shake: {{ $errors->any() ? 'true' : 'false' }},
+                                openUpload: {{ $errors->any() && old('lease_id') == $lease->id ? 'true' : 'false' }}, 
+                                shake: {{ $errors->any() && old('lease_id') == $lease->id ? 'true' : 'false' }},
                                 errorMessage: '{{ $errors->first('error') }}',
                                 activeLease: JSON.parse(sessionStorage.getItem('lastActiveLease') || '{}')
                             }" @click.stop>
@@ -230,7 +236,7 @@
 
                                             {{-- 1. Upload Stamping --}}
                                             @canany(['owner-admin', 'leases.upload stamping'])
-                                                @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out']))
+                                                @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['cancelled']))
                                                     <button type="button" 
                                                         @click="openUpload = true; openDropdown = false;"
                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 transition-colors flex items-center whitespace-nowrap">
@@ -273,7 +279,7 @@
 
                                             {{-- 3. Renew Lease --}}
                                             @canany(['owner-admin', 'leases.renew lease'])
-                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out']))
+                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end']) || !$lease->is_current)
                                                     <button type="button" 
                                                         @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center">
@@ -284,7 +290,7 @@
 
                                             {{-- 4. Check Out --}}
                                             @canany(['owner-admin', 'leases.check out lease'])
-                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out']))
+                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end']) || !$lease->is_current)
                                                     <button type="button" 
                                                         @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50 transition-colors flex items-center">

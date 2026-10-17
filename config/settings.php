@@ -9,6 +9,9 @@ return [
         'frequency' => 1,
         'applicable_categories' => ['rent'],
     ],
+    'payment_config' => [
+        'allow_unpaid_penalty' => false, // false = default is pay all or nothing
+    ],
     'fee_types_config' => [
         'rent_daily_rental'                    => ['is_active' => true],
         'rent_weekly_rental'                   => ['is_active' => true],

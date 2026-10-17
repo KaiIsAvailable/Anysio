@@ -228,7 +228,7 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+                <div class="bg-white rounded-xl shadow-lg border border-gray-100">
                     <div class="p-6 border-b border-gray-100 flex items-center justify-between">
                         <h2 class="text-lg font-semibold text-slate-900">Leases</h2>
                         <span class="text-sm text-gray-500">
@@ -236,7 +236,7 @@
                         </span>
                     </div>
 
-                    <div class="overflow-x-auto">
+                    <div>
                         @if($room->leases->count() > 0)
                             <x-table.lease-table :leases="$room->leases" :showLeaseable="false" :showOwner="true" :showTenant="true" :showAction="true" />
                         @else
@@ -248,6 +248,20 @@
                     </div>
                 </div>
             </div>
+
+            <x-modals.lease-create-modal 
+                :tenants="$tenants" 
+                :leases="$modalLeases"
+                :properties="$properties" 
+                :units="$units" 
+                :rooms="$rooms" 
+                :templates="$templates" 
+                :rentFeeTypes="$rentFeeTypes" 
+                :serviceFeeTypes="$serviceFeeTypes" 
+                :depositFeeTypes="$depositFeeTypes" 
+                :managementFeeTypes="$managementFeeTypes" 
+                :leasePreviewData="$leasePreviewData" 
+            />
 
         </div>
     </div>

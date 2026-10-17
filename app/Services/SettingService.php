@@ -53,10 +53,10 @@ class SettingService
             return [$setting->key => $val];
         })->toArray();
 
-        Log::channel('testing')->info('Formatted Invoices Payload:', [
-            'normalizedDefaults' => $normalizedDefaults,
-            'dbSettings' => $dbSettings,
-        ]);
+        //Log::channel('testing')->info('Formatted Invoices Payload:', [
+        //    'normalizedDefaults' => $normalizedDefaults,
+        //    'dbSettings' => $dbSettings,
+        //]);
 
         // Merge database settings over the top of config defaults
         $resolved = array_replace_recursive($normalizedDefaults, $dbSettings);
@@ -239,6 +239,29 @@ class SettingService
             Setting::updateOrCreate(
                 ['user_id' => $userId, 'key' => 'pending_renewal_config'],
                 ['value' => $pendingRenewalConfig, 'is_active' => $isActive]
+            );
+        }
+
+        // 5. Process payment config
+        if (isset($requestData['payment_config'])) {
+            $isActive = filter_var($activeStates['payment_config'] ?? true, FILTER_VALIDATE_BOOLEAN);
+            
+            $paymentConfig = $requestData['payment_config'];
+            
+            // Normalize and cast types safely
+            if (isset($paymentConfig['allow_unpaid_penalty'])) {
+                $paymentConfig['allow_unpaid_penalty'] = filter_var($paymentConfig['allow_unpaid_penalty'], FILTER_VALIDATE_BOOLEAN);
+            }
+
+            Log::channel('testing')->info('Saving Payment Config', [
+                'user_id' => $userId,
+                'value' => $paymentConfig,
+                'is_active' => $isActive,
+            ]);
+
+            Setting::updateOrCreate(
+                ['user_id' => $userId, 'key' => 'payment_config'],
+                ['value' => $paymentConfig, 'is_active' => $isActive]
             );
         }
     }

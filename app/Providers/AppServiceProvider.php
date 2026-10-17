@@ -76,14 +76,14 @@ class AppServiceProvider extends ServiceProvider
                     ->toArray();
 
                 // 📝 Log full role and permission evaluation details to the testing channel
-                Log::channel('testing')->info('Gate::before Permission Evaluation', [
-                    'user_id' => $user->id,
-                    'user_email' => $user->email ?? null,
-                    'ability_checked' => $ability,
-                    'effective_boss_id' => $effectiveBossId,
-                    'user_roles_in_team' => $userRoles,
-                    'has_permission_result' => $hasPermission,
-                ]);
+                //Log::channel('testing')->info('Gate::before Permission Evaluation', [
+                //    'user_id' => $user->id,
+                //    'user_email' => $user->email ?? null,
+                //    'ability_checked' => $ability,
+                //    'effective_boss_id' => $effectiveBossId,
+                //    'user_roles_in_team' => $userRoles,
+                //    'has_permission_result' => $hasPermission,
+                //]);
 
                 return $hasPermission;
 

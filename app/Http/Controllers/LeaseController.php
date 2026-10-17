@@ -201,10 +201,10 @@ class LeaseController extends Controller
         $latePenaltyConfig = $settings['late_penalty_config'] ?? null;
         $dueDateDays = (int) data_get($settings, 'due_date_config.value.days', 7);
 
-        Log::channel('testing')->info('Formatted Invoices Payload:', [
-            'settings' => $settings,
-            'latePenaltyConfig' => $latePenaltyConfig,
-        ]);
+        //Log::channel('testing')->info('Formatted Invoices Payload:', [
+        //    'settings' => $settings,
+        //    'latePenaltyConfig' => $latePenaltyConfig,
+        //]);
 
         // If it's an AJAX request, we want to support fetching invoices 
         // for ANY lease in the history chain (passed via query parameter, fallback to current route lease)
@@ -307,9 +307,9 @@ class LeaseController extends Controller
                 ];
             });
 
-            Log::channel('testing')->info('Formatted Invoices Payload:', [
-                'formattedInvoices' => $formattedInvoices
-            ]);
+            //Log::channel('testing')->info('Formatted Invoices Payload:', [
+            //    'formattedInvoices' => $formattedInvoices
+            //]);
 
 
             return response()->json([
@@ -361,6 +361,7 @@ class LeaseController extends Controller
 
             return [
                 'status' => $item->status,
+                'is_current' => (bool) $item->is_current,
                 'checked_out_at' => $item->checked_out_at ? $item->checked_out_at_formatted : null,
                 'agreement_ended_at' => $item->agreement_ended_at ? $item->agreement_ended_at_formatted : null,
                 'start_date' => $item->start_date_formatted ?? null,

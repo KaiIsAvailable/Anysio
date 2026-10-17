@@ -75,8 +75,19 @@
                 })
                 .then(data => {
                     console.log('[Debug] refreshTable success data:', data);
+                    
+                    // 💡 Read is_current from the local source dictionary instead of data
+                    const currentLeaseRecord = this.source[this.activeId] || {};
+                    console.log('[Debug] Current Lease ID:', this.activeId, '| is_current status:', currentLeaseRecord.is_current);
+
                     if (this.activeLease) {
                         this.activeLease.can_generate = data.can_generate;
+                        
+                        // Ensure activeLease retains its correct is_current flag from source
+                        if (typeof currentLeaseRecord.is_current !== 'undefined') {
+                            this.activeLease.is_current = currentLeaseRecord.is_current;
+                        }
+
                         if (data.invoices) {
                             this.activeLease.invoices = data.invoices;
                         }
@@ -134,29 +145,29 @@
                         <div class="flex items-center gap-2">
                             {{-- 1. Renew Lease Button --}}
                             @canany(['owner-admin', 'leases.renew lease'])
-                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
-                                    <button type="button" 
-                                        @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: activeId } }))"
-                                        class="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-black rounded-lg border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
-                                        RENEW LEASE
-                                    </button>
-                                @endif
+                                <button type="button" 
+                                    x-show="activeLease && activeLease.is_current && !['cancelled', 'check out', 'end'].includes((activeLease.status || '').toLowerCase())"
+                                    x-cloak
+                                    @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: activeId } }))"
+                                    class="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-black rounded-lg border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
+                                    RENEW LEASE
+                                </button>
                             @endcanany
 
                             {{-- 2. Check Out Lease Button --}}
                             @canany(['owner-admin', 'leases.check out lease'])
-                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
-                                    <button type="button" 
-                                        @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: activeId } }))"
-                                        class="px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-black rounded-lg border border-amber-100 hover:bg-amber-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
-                                        CHECK OUT
-                                    </button>
-                                @endif
+                                <button type="button" 
+                                    x-show="activeLease && activeLease.is_current && !['cancelled', 'check out', 'end'].includes((activeLease.status || '').toLowerCase())"
+                                    x-cloak
+                                    @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: activeId } }))"
+                                    class="px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-black rounded-lg border border-amber-100 hover:bg-amber-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
+                                    CHECK OUT
+                                </button>
                             @endcanany
 
                             {{-- 3. Cancel Lease Button --}}
                             @canany(['owner-admin', 'leases.cancel lease'])
-                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end']))
                                     <button type="button" 
                                         @click="$dispatch('open-lease-confirm-modal', { 
                                             actionUrl: '{{ route('admin.leases.cancel', ':id') }}'.replace(':id', activeId) 
@@ -187,20 +198,21 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full z-[101]">
                             @foreach($leaseHistory as $history)
                             @php
-                            $hStatus = strtolower((string)$history->status);
-                            $statusColor = match($hStatus) {
-                                'new' => 'indigo', 'renew' => 'emerald', 'check out' => 'amber', 'end' => 'gray', default => 'slate'
-                            };
+                                $hStatus = strtolower((string)$history->status);
+                                $statusColor = match($hStatus) {
+                                    'new' => 'indigo', 'renew' => 'emerald', 'check out' => 'amber', 'end' => 'gray', default => 'slate'
+                                };
                             @endphp
                             <div @click="activeId = '{{ $history->id }}'"
                                 class="relative p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer group"
-                                :class="activeId == '{{ $history->id }}' ? 'border-{{ $statusColor }}-500 bg-{{ $statusColor }}-50 ring-4 ring-{{ $statusColor }}-100 z-10' : 'border-gray-100 bg-white hover:border-indigo-300 hover:shadow-md hover:-translate-y-1'">
+                                :class="activeId == '{{ $history->id }}' ? 'border-{{ $statusColor }}-500 bg-{{ $statusColor }}-50 ring-4 ring-{{ $statusColor }}-100 z-10' : 'border-gray-100 bg-white hover:border-indigo-300 hover:shadow-md hover-translate-y-1'">
                                 <div class="flex justify-between items-start mb-3">
                                     <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
                                         :class="activeId == '{{ $history->id }}' ? 'bg-{{ $statusColor }}-200 text-{{ $statusColor }}-800' : 'bg-gray-100 text-gray-500'">
-                                        {{ $history->status }} 
-                                        {{ $history->is_current ? '(Current)' : '' }}
-                                        @if($history->is_pending_renewal) (Pending Renewal) @endif
+                                        @if($history->is_current)
+                                            {{ in_array($hStatus, ['new', 'renew']) ? 'CURRENT' : strtoupper($history->status) }}
+                                        @endif
+                                        @if($history->is_pending_renewal) (PENDING ACTION) @endif
                                     </span>
                                 </div>
                                 <div class="flex items-center gap-1.5">

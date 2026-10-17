@@ -35,9 +35,7 @@ class InvoiceController extends Controller
             'items.feeType',
             'transactions.documentTemplate',
             'transactions.approver',
-            'payments' => function ($query) {
-                $query->where('status', 'pending');
-            },
+            'payments',
         ]);
 
         if (!Gate::allows('super-admin')) {

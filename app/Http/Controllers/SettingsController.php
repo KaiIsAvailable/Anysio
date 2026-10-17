@@ -87,6 +87,7 @@ class SettingsController extends Controller
             'fee_types_config' => ['nullable', 'array'],
             'due_date_config' => ['nullable', 'array'],
             'pending_renewal_config' => ['nullable', 'array'],
+            'payment_config' => ['nullable', 'array'],
             'is_active' => ['nullable', 'array'],
         ]);
 
@@ -96,7 +97,7 @@ class SettingsController extends Controller
         // Delegate persistence and configuration rule logic to the service
         $settingService->saveSettings(
             $userId, 
-            $request->only(['settings', 'fee_types_config', 'due_date_config', 'pending_renewal_config']), 
+            $request->only(['settings', 'fee_types_config', 'due_date_config', 'pending_renewal_config', 'payment_config']), 
             $activeStates
         );
 

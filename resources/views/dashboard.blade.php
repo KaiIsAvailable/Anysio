@@ -195,11 +195,11 @@
                                                 </td>
                                                 <td class="py-3 px-4">
                                                     @if($lease->status === 'End')
-                                                        <span class="px-2.5 py-1 text-[10px] font-bold uppercase bg-rose-50 text-rose-600 rounded-full">Ended</span>
+                                                        <span class="px-2.5 py-1 text-xs font-bold uppercase bg-rose-50 text-rose-600 rounded-full">Ended</span>
                                                     @elseif($lease->is_pending_renewal)
-                                                        <span class="px-2.5 py-1 text-[10px] font-bold uppercase bg-amber-50 text-amber-600 rounded-full">{{ $lease->status }} (Pending Renewal)</span>
+                                                        <span class="px-2.5 py-1 text-xs font-bold uppercase bg-amber-50 text-amber-600 rounded-full">{{ $lease->status }} (Pending Renewal)</span>
                                                     @else
-                                                        <span class="px-2.5 py-1 text-[10px] font-bold uppercase bg-slate-100 text-slate-600 rounded-full">{{ $lease->status }}</span>
+                                                        <span class="px-2.5 py-1 text-xs font-bold uppercase bg-slate-100 text-slate-600 rounded-full">{{ $lease->status }}</span>
                                                     @endif
                                                 </td>
                                                 @canany(['owner-admin', 'leases.renew lease', 'leases.check out lease'])
@@ -358,7 +358,7 @@
                                                         <span class="text-sm text-rose-600 font-medium block">
                                                             Due: {{ \Carbon\Carbon::parse($invoice->due_date)->format('d/m/Y') }}
                                                         </span>
-                                                        <span class="px-2 py-0.5 text-[10px] font-bold uppercase bg-rose-50 text-rose-600 rounded-full inline-block mt-0.5">
+                                                        <span class="px-2 py-0.5 text-xs font-bold uppercase bg-rose-50 text-rose-600 rounded-full inline-block mt-0.5">
                                                             Unpaid
                                                         </span>
                                                     </td>

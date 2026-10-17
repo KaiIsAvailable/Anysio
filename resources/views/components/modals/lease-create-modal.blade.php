@@ -1,11 +1,12 @@
 @props(['tenants', 'leases', 'properties', 'units', 'rooms', 'templates', 'rentFeeTypes', 'serviceFeeTypes', 'depositFeeTypes', 'managementFeeTypes', 'leasePreviewData'])
 
 <div x-data="{ 
-        open: false, 
-        action: 'create', 
-        formStatus: ['New'], 
-        formLeaseId: [],
+        open: @js($errors->any()), 
+        action: '{{ old('status') === 'Renew' ? 'renew' : (old('status') === 'Check Out' ? 'checkout' : 'create') }}', 
+        formStatus: @js(old('status', 'New')), 
+        formLeaseId: @js(old('lease_id', '')),
         isEditMode: false,
+        loading: false,
 
         get isCheckoutOrRenew() {
             return this.action === 'renew' || this.action === 'checkout';
@@ -14,31 +15,34 @@
         openModal(detail = {}) {
             console.log('🚀 [Debug] openModal received detail:', detail);
 
-            this.formStatus = detail.status ? [String(detail.status)] : ['New'];
-            this.formLeaseId = detail.leaseId ? [String(detail.leaseId)] : [];
+            let rawStatus = detail.status ? String(detail.status) : 'New';
+            if (rawStatus === 'R' || rawStatus === 'Renew') rawStatus = 'Renew';
+            else if (rawStatus === 'C' || rawStatus === 'Check Out') rawStatus = 'Check Out';
+            else rawStatus = 'New';
+
+            this.formStatus = rawStatus;
+            this.formLeaseId = (detail.leaseId && detail.leaseId !== '0') ? String(detail.leaseId) : '';
             this.open = true;
 
-            const currentStatus = this.formStatus[0] || 'New';
-
-            if (currentStatus === 'Renew') {
+            if (this.formStatus === 'Renew') {
                 this.action = 'renew';
-            } else if (currentStatus === 'Check Out') {
+            } else if (this.formStatus === 'Check Out') {
                 this.action = 'checkout';
             } else {
                 this.action = 'create';
             }
 
+            // Force visibility toggle immediately on next ticks
             this.$nextTick(() => {
-                if (typeof toggleLeaseSelect === 'function') {
-                    toggleLeaseSelect();
-                }
-
-                if (this.formLeaseId.length > 0 && typeof handleLeaseChange === 'function') {
-                    handleLeaseChange(this.formLeaseId[0]);
-                }
+                setTimeout(() => {
+                    toggleLeaseSelect(this.formStatus);
+                    if (this.formLeaseId && typeof handleLeaseChange === 'function') {
+                        handleLeaseChange(this.formLeaseId);
+                    }
+                }, 50);
             });
         }
-     }" 
+     }"
      @open-lease-modal.window="openModal($event.detail)"
      @keydown.escape.window="open = false"
      x-show="open" 
@@ -73,7 +77,7 @@
 
             {{-- Modal Body --}}
             <div class="max-h-[80vh] overflow-y-auto">
-                <x-form.form method="POST" action="{{ route('admin.leases.store') }}">
+                <x-form.form method="POST" action="{{ route('admin.leases.store') }}" @submit="loading = true">
                     @csrf
                     
                     <input type="hidden" name="redirect_to" value="{{ request()->routeIs('admin.dashboard') ? 'dashboard' : 'index' }}">
@@ -294,8 +298,10 @@
                         <button type="button" @click="open = false" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50">
                             Cancel
                         </button>
-                        <x-form.primary-button type="submit" class="px-5 py-2.5" 
-                            x-text="action === 'renew' ? 'Process Renewal' : (action === 'checkout' ? 'Confirm Check Out' : 'Create Lease')">
+                        
+                        {{-- Use an inner span for x-text so the component's loading SVG is preserved --}}
+                        <x-form.primary-button type="submit" loading="loading" class="px-5 py-2.5">
+                            <span x-text="action === 'renew' ? 'Process Renewal' : (action === 'checkout' ? 'Confirm Check Out' : 'Create Lease')"></span>
                         </x-form.primary-button>
                     </div>
                 </x-form.form>
@@ -452,11 +458,30 @@
             filterTemplates();
         }
 
-        function toggleLeaseSelect() {
-            const statusSelect = document.getElementById('lease-status');
-            if (!statusSelect) return;
+        function toggleLeaseSelect(statusParam = null) {
+            let resolvedStatus = statusParam;
 
-            const newStatus = statusSelect.value || 'New';
+            // Unwrap Proxies, Arrays, or Objects cleanly
+            if (resolvedStatus && (typeof resolvedStatus === 'object' || Array.isArray(resolvedStatus))) {
+                if (Array.isArray(resolvedStatus) || resolvedStatus instanceof Array) {
+                    resolvedStatus = resolvedStatus[0] || null;
+                } else {
+                    resolvedStatus = resolvedStatus.detail?.value || resolvedStatus.target?.value || resolvedStatus[0] || null;
+                }
+            }
+
+            // Fallback to Alpine scope if still empty
+            if (!resolvedStatus || typeof resolvedStatus === 'object') {
+                const modalEl = document.querySelector('[x-data*="openModal"]');
+                if (modalEl && window.Alpine) {
+                    const alpineData = window.Alpine.$data(modalEl);
+                    if (alpineData && alpineData.formStatus) {
+                        resolvedStatus = Array.isArray(alpineData.formStatus) ? alpineData.formStatus[0] : alpineData.formStatus;
+                    }
+                }
+            }
+
+            const newStatus = resolvedStatus || 'New';
 
             const sections = {
                 'lease_select_container': ['Renew', 'Check Out', 'End Agreement'].includes(newStatus),
@@ -469,18 +494,21 @@
                 'agreement_template_section': ['New', 'Renew'].includes(newStatus)
             };
 
-            Object.keys(sections).forEach(id => {
-                const el = document.getElementById(id);
-                if (!el) return;
-                const isVisible = sections[id];
-                el.classList.toggle('hidden', !isVisible);
-                el.querySelectorAll('input, select, textarea').forEach(input => {
-                    // Respect locked states when in Renew or Check Out mode
-                    if (input.hasAttribute('data-locked')) {
-                        input.disabled = true;
-                        return;
-                    }
-                    input.disabled = !isVisible;
+            // Use requestAnimationFrame to ensure DOM elements exist before toggling classes
+            requestAnimationFrame(() => {
+                Object.keys(sections).forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return; // Safely skip if element isn't rendered yet
+                    
+                    const isVisible = sections[id];
+                    el.classList.toggle('hidden', !isVisible);
+
+                    el.querySelectorAll('input, select, textarea').forEach(input => {
+                        if (input.hasAttribute('data-locked')) {
+                            return;
+                        }
+                        input.disabled = !isVisible;
+                    });
                 });
             });
         }

@@ -1,3 +1,5 @@
+import { createPdfThumbnails } from './ticket-pdf-thumbnails';
+
 document.addEventListener('DOMContentLoaded', () => {
     const request = async (url, options = {}) => {
         const response = await fetch(url, { ...options, headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest', ...options.headers } });
@@ -18,9 +20,21 @@ document.addEventListener('DOMContentLoaded', () => {
         if (all.length > limits.max_files || all.reduce((sum, file) => sum + file.size, 0) > limits.max_total_kb * 1024) error = 'The selection exceeds the file count or total size limit.';
         for (const file of incoming) {
             const type = limits.types[file.name.split('.').pop().toLowerCase()];
-            if (!type || file.size > type.max_kb * 1024) error = 'A selected file has an unsupported format or exceeds its size limit.';
+            if (!type) error = file.name + ': unsupported file format.';
+            else if (file.size > type.max_kb * 1024) error = file.name + ': maximum ' + (type.max_kb / 1024) + ' MB per file.';
         }
         return error;
+    };
+
+    const messageDay = (date) => {
+        const parts = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuala_Lumpur', year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(date);
+        const part = (type) => parts.find((p) => p.type === type).value;
+        return part('year') + '-' + part('month') + '-' + part('day');
+    };
+    const dateLabel = (key, now = new Date()) => {
+        if (key === messageDay(now)) return 'Today';
+        if (key === messageDay(new Date(now.getTime() - 86400000))) return 'Yesterday';
+        return new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuala_Lumpur', day: '2-digit', month: 'short', year: 'numeric' }).format(new Date(key + 'T00:00:00+08:00'));
     };
 
     const chats = new WeakMap();
@@ -32,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function initComplaint(root, onCreated = null, beforeOpen = () => true) {
         const find = (selector) => root.querySelector(selector);
         const complaint = find('[data-complaint-modal]');
+        if (!complaint) return;
         const createForm = find('[data-complaint-form]');
         const createError = find('[data-create-error]');
         const limits = JSON.parse(complaint.dataset.limits);
@@ -100,6 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
             createError.textContent = '';
             if (creating || !beforeOpen()) return;
             createForm.reset();
+            window.dispatchEvent(new CustomEvent('complaint-reset'));
             clearAttachments();
             complaint.showModal();
         });
@@ -111,6 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (creating) return;
             createError.textContent = '';
             const body = new FormData(createForm);
+            if (find('[data-lease-selection]') && !body.get('lease_id')) { createError.textContent = 'Please select a lease.'; return; }
             if (!String(body.get('subject') || '').trim()) { createError.textContent = 'Please enter a subject.'; return; }
             if (!String(body.get('details') || '').trim() && !attachments.length) { createError.textContent = 'Enter details or choose at least one attachment.'; return; }
             attachments.forEach((item) => body.append('attachments[]', item.file));
@@ -121,6 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await request(createForm.action, { method: 'POST', body });
                 complaint.close();
                 createForm.reset();
+                window.dispatchEvent(new CustomEvent('complaint-reset'));
                 clearAttachments();
                 if (onCreated) await onCreated(data);
                 else window.location.assign(data.ticket.index_url);
@@ -215,9 +233,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 list.innerHTML = data.html;
                 listUrl = new URL(url);
                 const reason = find('[data-creation-reason]');
-                reason.textContent = data.creation_reason || '';
-                reason.hidden = !data.creation_reason;
-                find('[data-open-complaint]').disabled = !!data.creation_reason;
+                if (reason) reason.textContent = data.creation_reason || '';
+                if (reason) reason.hidden = !data.creation_reason;
+                if (find('[data-open-complaint]')) find('[data-open-complaint]').disabled = !!data.creation_reason;
                 highlight();
                 writeUrl();
                 feedback.textContent = '';
@@ -278,12 +296,30 @@ document.addEventListener('DOMContentLoaded', () => {
         let sendUrl = root.dataset.sendUrl;
         const find = (selector) => root.querySelector(selector);
         const limits = JSON.parse(root.dataset.limits);
-        const currentRole = root.dataset.currentRole;
+        const canAttach = root.dataset.canAttach !== 'false';
         const permitted = switchable || root.dataset.canSend === 'true';
         let empty = root.dataset.empty === 'true';
         const chatForm = find('[data-chat-form]');
         const chatError = find('[data-chat-error]');
         const history = find('[data-chat-messages]');
+        const pdfThumbnails = createPdfThumbnails(history);
+        on(window, 'pagehide', () => pdfThumbnails.reset());
+        on(window, 'pageshow', () => pdfThumbnails.scan());
+        let dateTimer;
+        const refreshDates = () => {
+            history.querySelectorAll('[data-message-date]').forEach((label) => {
+                label.textContent = dateLabel(label.dataset.messageDate);
+                label.parentElement?.setAttribute('aria-label', label.textContent);
+            });
+            clearTimeout(dateTimer);
+            const now = new Date();
+            const midnight = new Date(messageDay(now) + 'T00:00:00+08:00').getTime() + 86400000;
+            dateTimer = setTimeout(refreshDates, midnight - now.getTime() + 20);
+        };
+        on(document, 'visibilitychange', refreshDates);
+        on(window, 'pageshow', refreshDates);
+        on(window, 'pagehide', () => clearTimeout(dateTimer));
+        refreshDates();
         const draft = find('[data-chat-draft]');
         const attachButton = find('[data-chat-attach]');
         const menu = find('[data-chat-attachment-menu]');
@@ -303,6 +339,8 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         const updateComposer = () => {
             toggleControls(chatForm, sending || suspended || !canSend);
+            attachButton.hidden = !canAttach;
+            attachButton.disabled = !canAttach || sending || suspended || !canSend;
             sendButton.disabled = sending || suspended || !canSend || (!draft.value.trim() && !attachments.length);
             sendButton.setAttribute('aria-label', sending ? 'Sending message' : 'Send message');
             chatForm.setAttribute('aria-busy', String(sending));
@@ -383,11 +421,14 @@ document.addEventListener('DOMContentLoaded', () => {
             const ticket = data.ticket;
             canSend = permitted && !ticket.closed && ticket.can_send !== false;
             find('[data-chat-subject]').textContent = ticket.subject;
+            find('[data-chat-context]').textContent = ticket.context || '';
+            find('[data-chat-context]').hidden = !ticket.context;
             find('[data-chat-status]').textContent = ticket.status;
             find('[data-chat-status]').hidden = false;
             chatForm.hidden = !canSend;
             updateComposer();
             find('[data-chat-closed]').hidden = canSend;
+            pdfThumbnails.reset();
             history.replaceChildren();
             if (!data.messages.length) {
                 const empty = document.createElement('p');
@@ -395,18 +436,68 @@ document.addEventListener('DOMContentLoaded', () => {
                 empty.className = 'text-center text-sm text-gray-500';
                 history.append(empty);
             }
+            let previousDate = null;
             data.messages.forEach((message) => {
-                const own = message.sender_type === currentRole;
+                const sent = message.sent_at ? new Date(message.sent_at) : null;
+                const day = sent ? messageDay(sent) : message.date_key;
+                if (day && day !== previousDate) {
+                    const divider = document.createElement('div');
+                    divider.className = 'flex items-center gap-3 py-2';
+                    divider.setAttribute('role', 'separator');
+                    divider.setAttribute('aria-label', dateLabel(day));
+                    const label = document.createElement('span');
+                    label.dataset.messageDate = day;
+                    label.className = 'text-xs font-medium text-indigo-700';
+                    label.textContent = dateLabel(day);
+                    const line = () => { const el = document.createElement('span'); el.className = 'h-px flex-1 bg-indigo-100'; return el; };
+                    divider.append(line(), label, line());
+                    history.append(divider);
+                    previousDate = day;
+                }
+                const own = message.own === true;
                 const row = document.createElement('div');
                 row.className = own ? 'flex justify-end' : 'flex justify-start';
                 const bubble = document.createElement('article');
                 bubble.className = own ? 'max-w-[85%] rounded-2xl bg-indigo-100 px-4 py-3 text-slate-900' : 'max-w-[85%] rounded-2xl bg-white border px-4 py-3 text-slate-900';
                 const label = document.createElement('p');
                 label.className = 'mb-1 text-xs text-gray-500';
-                label.textContent = (own ? 'You' : message.sender_type) + ' · ' + (message.created_at || '');
+                label.textContent = (own ? 'You' : (message.sender_label || message.sender_type)) + ' · ' + (sent ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(sent) : message.created_at || '');
                 bubble.append(label);
                 if (message.attachment_url) {
                     const extension = message.extension;
+                    if (extension === 'pdf') {
+                        const card = document.createElement('div');
+                        card.dataset.pdfUrl = message.attachment_url;
+                        card.className = 'w-40 max-w-full';
+                        const open = document.createElement('a');
+                        open.href = message.attachment_url;
+                        open.target = '_blank';
+                        open.rel = 'noopener';
+                        open.setAttribute('aria-label', 'Open PDF preview');
+                        open.className = 'block rounded-lg border border-indigo-200 bg-white p-2';
+                        const canvas = document.createElement('canvas');
+                        canvas.dataset.pdfCanvas = '';
+                        canvas.hidden = true;
+                        canvas.className = 'mx-auto max-w-full';
+                        canvas.style.maxHeight = '160px';
+                        canvas.setAttribute('aria-label', 'PDF first page');
+                        const fallback = document.createElement('span');
+                        fallback.dataset.pdfFallback = '';
+                        fallback.className = 'flex h-28 items-center justify-center gap-2 text-indigo-700';
+                        fallback.innerHTML = '<svg aria-hidden="true" class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z M14 2v6h6 M8 13h8 M8 17h5"/></svg>PDF';
+                        open.append(canvas, fallback);
+                        const filename = document.createElement('p');
+                        filename.className = 'mt-1 break-words text-xs';
+                        filename.textContent = message.filename || 'Attachment.pdf';
+                        const preview = document.createElement('a');
+                        preview.href = message.attachment_url;
+                        preview.target = '_blank';
+                        preview.rel = 'noopener';
+                        preview.className = 'text-sm text-indigo-700 underline';
+                        preview.textContent = 'Open preview';
+                        card.append(open, filename, preview);
+                        bubble.append(card);
+                    }
                     if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'mov'].includes(extension)) {
                         const image = ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension);
                         const media = document.createElement(image ? 'img' : 'video');
@@ -431,6 +522,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 history.append(row);
             });
             history.scrollTop = history.scrollHeight;
+            pdfThumbnails.scan();
         };
         const loadConversation = async () => {
             const sequence = ++readSequence;
@@ -446,6 +538,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             on(picker, 'change', () => {
                 if (destroyed || sending || suspended || !canSend) return;
+                if (!canAttach) return;
                 const incoming = Array.from(picker.files);
                 const error = selectionError(attachments, incoming, limits);
                 chatError.textContent = error;
@@ -524,6 +617,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 clearAttachments();
                 chatError.textContent = '';
                 find('[data-chat-subject]').textContent = 'Customer Service';
+                find('[data-chat-context]').textContent = '';
+                find('[data-chat-context]').hidden = true;
                 find('[data-chat-status]').textContent = '';
                 find('[data-chat-status]').hidden = true;
                 find('[data-chat-closed]').hidden = true;
@@ -531,6 +626,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const prompt = document.createElement('p');
                 prompt.className = 'h-full flex items-center justify-center text-sm text-gray-500';
                 prompt.textContent = 'Select a conversation';
+                pdfThumbnails.reset();
                 history.replaceChildren(prompt);
                 resizeDraft();
             },
@@ -541,11 +637,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 destroyed = true;
                 ++readSequence;
                 listeners.abort();
+                clearTimeout(dateTimer);
+                pdfThumbnails.destroy();
                 clearAttachments();
                 chats.delete(root);
             },
         };
         chats.set(root, api);
+        pdfThumbnails.scan();
         if (!load) history.scrollTop = history.scrollHeight;
         if (load) loadConversation().catch((error) => { if (!destroyed) chatError.textContent = error.message; });
         return api;

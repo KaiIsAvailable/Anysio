@@ -20,6 +20,22 @@ class TicketMsg extends Model
         'message',
     ];
 
+    public function creationAudits(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(AuditLog::class, 'auditable_id')
+            ->where('auditable_type', self::class)->where('event', 'created');
+    }
+
+    public function authorId(): ?string
+    {
+        // Legacy tenant messages have a unique recorded participant on their ticket.
+        if ($this->creationAudits->isEmpty() && $this->sender_type === User::ROLE_TENANT && $this->ticket?->sender?->isTenant()) {
+            return $this->ticket->sender_id;
+        }
+        $ids = $this->creationAudits->pluck('user_id')->unique();
+        return $ids->count() === 1 && $ids->first() ? $ids->first() : null;
+    }
+
     public function ticket(): BelongsTo
     {
         return $this->belongsTo(Ticket::class);

@@ -22,7 +22,7 @@ class TicketController extends Controller
 
         if (Gate::allows('super-admin')) {
         // Admin 等级 5：看所有人的 Ticket
-        $tickets = Ticket::with(['sender', 'receiver'])
+        $tickets = Ticket::whereHas('sender', fn ($q) => $q->where('role', '!=', 'tenant'))->with(['sender', 'receiver'])
                          ->latest()
                          ->get();
         } else {
@@ -78,6 +78,7 @@ class TicketController extends Controller
         abort_if(Auth::user()->isTenant(), 403, 'Please use the tenant Customer Service page.');
         // Find ticket or fail
         $ticket = Ticket::with(['messages', 'sender', 'receiver'])->findOrFail($id);
+        abort_if($ticket->sender?->isTenant(), 403);
 
         // Security: Ensure only owner or assigned admin can view
         $userRole = Auth::user()->role;
@@ -101,6 +102,7 @@ class TicketController extends Controller
         ]);
 
         $ticket = Ticket::findOrFail($id);
+        abort_if($ticket->sender?->isTenant(), 403);
 
         // Create the reply message
         TicketMsg::create([
@@ -127,6 +129,7 @@ class TicketController extends Controller
         }
 
         $ticket = Ticket::findOrFail($customerService);
+        abort_if($ticket->sender?->isTenant(), 403);
 
         // Assign the ticket to the current admin
         $ticket->update([
@@ -149,6 +152,7 @@ class TicketController extends Controller
         }
 
         $ticket = Ticket::findOrFail($customerService);
+        abort_if($ticket->sender?->isTenant(), 403);
 
         // Update ticket status to closed
         $ticket->update([
@@ -165,6 +169,7 @@ class TicketController extends Controller
     public function getNewMessages(Request $request, $ticket) {
         abort_if(Auth::user()->isTenant(), 403, 'Please use the tenant Customer Service page.');
         $ticketModel = Ticket::findOrFail($ticket);
+        abort_if($ticketModel->sender?->isTenant(), 403);
 
         // Security check
         $userRole = Auth::user()->role;

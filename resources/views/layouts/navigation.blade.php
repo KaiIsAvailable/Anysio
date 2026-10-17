@@ -82,9 +82,11 @@
                         </x-nav-link>
                     @endcanany
 
-                    <!--<x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
+                    @can('maintenance-tickets')
+                    <x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
                         {{ __('Maintenance') }}
-                    </x-nav-link>-->
+                    </x-nav-link>
+                    @endcan
 
                     <!--@can('owner-admin')
                         <x-nav-link :href="route('admin.document-templates.index')" :active="request()->routeIs('admin.document-templates.*')">
@@ -257,6 +259,11 @@
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
+            @can('maintenance-tickets')
+                <x-responsive-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
+                    {{ __('Maintenance') }}
+                </x-responsive-nav-link>
+            @endcan
             @can('owner-admin')
                 <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                     {{ __('Dashboard') }}

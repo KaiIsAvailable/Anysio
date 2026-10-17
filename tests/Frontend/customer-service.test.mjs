@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
-const source = readFileSync(new URL('../../resources/js/customer-service.js', import.meta.url), 'utf8');
+const source = readFileSync(new URL('../../resources/js/customer-service.js', import.meta.url), 'utf8')
+    .replace("import { createPdfThumbnails } from './ticket-pdf-thumbnails';", 'const createPdfThumbnails = () => ({ scan() {}, reset() {}, destroy() {} });');
 class Element {
     constructor(tag = 'div') {
         this.tagName = tag.toUpperCase();
@@ -42,7 +43,10 @@ class Element {
         if (selector === '[data-back-to-list]' && this.dataset.backToList !== undefined) return this;
         return selector === 'a' && this.tagName === 'A' ? this : null;
     }
-    querySelectorAll() { return this.controls; }
+    querySelectorAll(selector) {
+        if (selector === '[data-message-date]') return this.children.flatMap(child => [...(child.dataset.messageDate ? [child] : []), ...child.querySelectorAll(selector)]);
+        return this.controls;
+    }
     showModal() { this.open = true; }
     close() { this.open = false; this.fire('close'); }
     reset() { this.fields = this.fields.filter(([name]) => name === '_token'); }
@@ -53,9 +57,11 @@ class FormDataMock {
     get(name) { return this.values.find(([key]) => key === name)?.[1] ?? null; }
 }
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
-function setup({ index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '' } = {}) {
+function setup({ manager = false, multipleLeases = false, index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '', now = null } = {}) {
     const nodes = new Map();
     const node = (selector) => {
+        if (manager && ['[data-complaint-modal]', '[data-open-complaint]', '[data-creation-reason]'].includes(selector)) return null;
+        if (selector === '[data-lease-selection]' && !multipleLeases) return null;
         if (!nodes.has(selector)) nodes.set(selector, new Element());
         return nodes.get(selector);
     };
@@ -66,10 +72,11 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
     const chatRoot = new Element();
     chatRoot.dataset = {
         currentRole: role,
+        canAttach: 'true',
         canSend: String(canSend),
         sendUrl: 'http://example.test/shared/send',
         readUrl: 'http://example.test/shared/read',
-        limits: JSON.stringify({ max_files: 10, max_total_kb: 102400, types: { txt: { max_kb: 10240 }, png: { max_kb: 10240 } } }),
+        limits: JSON.stringify({ max_files: 10, max_total_kb: 102400, types: { txt: { max_kb: 3072 }, png: { max_kb: 2048 }, mp4: { max_kb: 20480 }, pdf: { max_kb: 3072 } } }),
     };
     chatRoot.querySelector = node;
     const document = new Element();
@@ -107,7 +114,7 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
     if (chat) answers.push({ data: { ticket, messages } });
     node('[data-chat-attachment-menu]').hidden = true;
     node('[data-chat-form]').fields = [['_token', 'csrf-token']];
-    node('[data-complaint-modal]').dataset.limits = chatRoot.dataset.limits;
+    if (!manager) node('[data-complaint-modal]').dataset.limits = chatRoot.dataset.limits;
     node('[data-complaint-form]').action = indexRoot.dataset.indexUrl;
     const dynamicChats = [];
     node('[data-conversation-host]').onHTML = (id) => {
@@ -124,9 +131,13 @@ function setup({ index = false, dashboard = false, chat = false, role = 'tenant'
     };
     if (index) node('[data-conversation-host]').innerHTML = initial;
     if (initial) window.location.href += '?ticket=' + initial;
-    vm.runInNewContext(source, { document, window, AbortController, CustomEvent, URL: TestURL, FormData: FormDataMock, fetch, console });
+    let currentTime = now ? new Date(now).getTime() : Date.now();
+    class TestDate extends Date { constructor(...args) { super(...(args.length ? args : [currentTime])); } }
+    let timer;
+    const clock = { advanceTo(value) { currentTime = new Date(value).getTime(); timer?.(); } };
+    vm.runInNewContext(source, { document, window, AbortController, CustomEvent, Date: TestDate, setTimeout: (callback) => { timer = callback; return 1; }, clearTimeout: () => {}, URL: TestURL, FormData: FormDataMock, fetch, console });
     document.fire('DOMContentLoaded');
-    return { node, ticket, requests, answers, revoked, navigations, chatRoot, document, window, dynamicChats };
+    return { node, ticket, requests, answers, revoked, navigations, chatRoot, document, window, dynamicChats, clock };
 }
 
 test('Index creates a complaint, refreshes list and selects its conversation without navigation', async () => {
@@ -182,7 +193,7 @@ test('Selecting subjects renders shared chats; a stale response cannot replace a
 test('Chat reads and sends through component endpoints, previews/removes files, and clears successful sends', async () => {
     const history = [
         { id: 'old', sender_type: 'owner', text: 'Earlier response', created_at: '09 Oct 2026 09:00' },
-        { id: 'new', sender_type: 'agentAdmin', text: 'Agent message', created_at: '09 Oct 2026 09:01' },
+        { id: 'new', own: true, sender_type: 'agentAdmin', text: 'Agent message', created_at: '09 Oct 2026 09:01' },
     ];
     const { node, ticket, requests, answers, revoked, chatRoot } = setup({ chat: true, role: 'agentAdmin', messages: history });
     await settle();
@@ -276,7 +287,7 @@ test('Create rejects empty content and oversized selections before requesting', 
     picker.files = [{ name: 'large.txt', size: 10241 * 1024, type: 'text/plain' }];
     await picker.fire('change');
     assert.equal(node('[data-create-previews]').children.length, 0);
-    assert.match(node('[data-create-error]').textContent, /size limit/);
+    assert.match(node('[data-create-error]').textContent, /maximum/);
 });
 
 test('Chat menu closes on selection, outside click and Escape; file selections append across categories', async () => {
@@ -532,4 +543,139 @@ test('A failed switch preserves history, endpoints and drafts; retry commits the
     await node('[data-ticket-list]').fire('click', { target: link('third') });
     assert.equal(chat('[data-chat-draft]').disabled, false);
     assert.equal(chat('[data-chat-form]').listeners.submit.length, 1);
+});
+
+test('Message day groups use Malaysia dates, update at midnight and do not duplicate on refresh', async () => {
+    const messages = [
+        { id: '1', sender_type: 'tenant', text: 'Yesterday', sent_at: '2026-10-12T15:59:00Z' },
+        { id: '2', sender_type: 'tenant', text: 'Today', sent_at: '2026-10-12T16:00:00Z' },
+        { id: '3', sender_type: 'tenant', extension: 'pdf', filename: 'file.pdf', attachment_url: '/private/pdf', sent_at: '2026-10-12T16:01:00Z' },
+    ];
+    const { node, clock, answers, ticket } = setup({ chat: true, messages, now: '2026-10-13T23:59:59+08:00' });
+    await settle();
+    const labels = () => node('[data-chat-messages]').querySelectorAll('[data-message-date]').map(el => el.textContent);
+    assert.deepEqual(labels(), ['Yesterday', 'Today']);
+    clock.advanceTo('2026-10-14T00:00:00+08:00');
+    assert.deepEqual(labels(), ['12 Oct 2026', 'Yesterday']);
+    answers.push({ data: { ticket, messages } });
+    node('[data-chat-draft]').value = 'Update';
+    await node('[data-chat-form]').fire('submit');
+    assert.deepEqual(labels(), ['12 Oct 2026', 'Yesterday']);
+    const pdfBubble = node('[data-chat-messages]').children.at(-1).children[0];
+    assert.equal(pdfBubble.children[0].textContent.endsWith('00:01'), true);
+    assert.equal(pdfBubble.children[1].children[1].textContent, 'file.pdf');
+    assert.equal(pdfBubble.children[1].children[0].href, '/private/pdf');
+    assert.equal(pdfBubble.children.at(-1).href, '/private/pdf?download=1');
+});
+
+test('Create and reply enforce the same per-file boundaries with filename feedback', async () => {
+    for (const create of [true, false]) {
+        const { node } = setup(create ? { dashboard: true } : { chat: true });
+        await settle();
+        const picker = node(create ? '[data-create-files="document"]' : '[data-chat-files="document"]');
+        const previews = node(create ? '[data-create-previews]' : '[data-attachment-previews]');
+        const error = node(create ? '[data-create-error]' : '[data-chat-error]');
+        for (const [extension, mb] of [['png', 2], ['mp4', 20], ['pdf', 3]]) {
+            const count = previews.children.length;
+            picker.files = [{ name: 'limit.' + extension, type: 'application/octet-stream', size: mb * 1024 * 1024 }];
+            await picker.fire('change');
+            assert.equal(previews.children.length, count + 1);
+            picker.files = [{ name: 'over.' + extension, type: 'application/octet-stream', size: mb * 1024 * 1024 + 1 }];
+            await picker.fire('change');
+            assert.equal(previews.children.length, count + 1);
+            assert.equal(error.textContent, 'over.' + extension + ': maximum ' + mb + ' MB per file.');
+        }
+    }
+});
+
+test('Lease selection is required, submitted and preserved with all inputs after validation failure', async () => {
+    for (const surface of [{ dashboard: true }, { index: true }]) {
+        const { node, requests, answers } = setup({ ...surface, multipleLeases: true });
+        await node('[data-open-complaint]').fire('click');
+        const form = node('[data-complaint-form]');
+        form.fields = [['_token', 'token'], ['subject', 'Draft'], ['details', 'Keep details'], ['lease_id', '']];
+        await form.fire('submit');
+        assert.equal(requests.length, 0);
+        assert.equal(node('[data-create-error]').textContent, 'Please select a lease.');
+        form.fields.at(-1)[1] = 'chosen-lease';
+        const picker = node('[data-create-files="document"]');
+        picker.files = [{ name: 'note.txt', type: 'text/plain', size: 12 }];
+        await picker.fire('change');
+        let release;
+        const gate = new Promise(resolve => { release = resolve; });
+        answers.push({ gate, status: 422, data: { errors: { lease_id: ['Lease unavailable'] } } });
+        const pending = form.fire('submit');
+        await form.fire('submit');
+        assert.equal(requests.length, 1);
+        assert.equal(requests[0].body.get('lease_id'), 'chosen-lease');
+        release();
+        await pending;
+        assert.deepEqual(form.fields, [['_token', 'token'], ['subject', 'Draft'], ['details', 'Keep details'], ['lease_id', 'chosen-lease']]);
+        assert.equal(node('[data-create-previews]').children.length, 1);
+        assert.equal(node('[data-complaint-modal]').open, true);
+        assert.equal(form.loading, false);
+    }
+});
+test('Maintenance reuses the persistent desktop/mobile shell without a create modal and preserves drafts', async () => {
+    for (const mobile of [false, true]) {
+        const { node, requests, answers, window } = setup({ index: true, manager: true, mobile });
+        const link = new Element('a'); link.dataset.ticketId = 'managed';
+        answers.push({ data: { ticket: { id: 'managed', subject: 'Leak', context: 'Tenant · Room A', closed: false, reply_url: '/maintenance/managed/messages', show_url: '/maintenance/managed' },
+            messages: [{ id: 'a', sender_type: 'agentAdmin', own: false, text: 'Another agent' }, { id: 'b', sender_type: 'agentAdmin', own: true, text: 'My reply' }] } });
+        await node('[data-ticket-list]').fire('click', { target: link });
+        const chat = node('[data-conversation-host]').children[0];
+        const field = selector => chat.querySelector(selector);
+        assert.equal(field('[data-chat-context]').textContent, 'Tenant · Room A');
+        assert.equal(field('[data-chat-attach]').hidden, false);
+        assert.equal(field('[data-chat-messages]').children[0].className, 'flex justify-start');
+        assert.equal(field('[data-chat-messages]').children[1].className, 'flex justify-end');
+        field('[data-chat-draft]').value = 'Keep my draft';
+        await field('[data-chat-draft]').fire('input');
+        window.confirm = () => false;
+        const back = new Element('button'); back.dataset.backToList = '';
+        await node('[data-conversation-host]').fire('click', { target: back });
+        assert.equal(field('[data-chat-draft]').value, 'Keep my draft');
+        assert.equal(node('[data-conversation-host]').children[0], chat);
+        answers.push({ status: 422, data: { errors: { items: ['Try again'] } } });
+        await field('[data-chat-form]').fire('submit');
+        assert.equal(requests.at(-1).url, '/maintenance/managed/messages');
+        assert.equal(field('[data-chat-draft]').value, 'Keep my draft');
+        answers.push({ data: { html: 'filtered list' } });
+        await node('[data-ticket-search]').fire('submit');
+        assert.equal(node('[data-page-feedback]').textContent, '');
+    }
+});
+test('Maintenance roles reuse attachment previews, removal, batch submission and failure recovery', async () => {
+    for (const role of ['agentAdmin', 'ownerAdmin', 'owner']) {
+        const { node, ticket, answers, requests } = setup({ chat: true, manager: true, role });
+        await settle();
+        assert.equal(node('[data-chat-attach]').hidden, false);
+        const picker = node('[data-chat-files="document"]');
+        picker.files = [{ name: 'proof.txt', type: 'text/plain', size: 100 }, { name: 'remove.txt', type: 'text/plain', size: 100 }];
+        await picker.fire('change');
+        const previews = node('[data-attachment-previews]');
+        assert.equal(previews.children.length, 2);
+        await previews.children[1].children.at(-1).fire('click');
+        assert.equal(previews.children.length, 1);
+        const draft = node('[data-chat-draft]');
+        draft.value = 'Manager with attachment';
+        let release;
+        answers.push({ gate: new Promise(resolve => { release = resolve; }), status: 500, data: { message: 'Storage failed' } });
+        const pending = node('[data-chat-form]').fire('submit');
+        assert.equal(node('[data-chat-loading]').hidden, false);
+        await node('[data-chat-form]').fire('submit');
+        assert.equal(requests.length, 2);
+        assert.equal(requests[1].body.get('items[0][text]'), 'Manager with attachment');
+        assert.equal(requests[1].body.get('items[1][file]').name, 'proof.txt');
+        release(); await pending;
+        assert.equal(draft.value, 'Manager with attachment');
+        assert.equal(previews.children.length, 1);
+        assert.equal(node('[data-chat-loading]').hidden, true);
+        draft.value = '';
+        answers.push({ data: { ticket, messages: [{ own: true, sender_type: role, attachment_url: '/private/proof', extension: 'txt' }] } });
+        await node('[data-chat-form]').fire('submit');
+        assert.equal(requests[2].body.get('items[0][type]'), 'file');
+        assert.equal(requests[2].body.get('items[0][file]').name, 'proof.txt');
+        assert.equal(previews.children.length, 0);
+    }
 });

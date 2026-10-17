@@ -1,4 +1,4 @@
-@props(['action', 'id' => 'complaint-create'])
+@props(['action', 'id' => 'complaint-create', 'leases' => []])
 @php
     $types = config('customer_service.types');
     $media = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'mp4', 'webm', 'mov'];
@@ -10,6 +10,15 @@
             <h2 id="{{ $id }}-title" class="text-xl font-bold text-slate-900">Complaint</h2>
             <button type="button" data-close-complaint aria-label="Close complaint" class="text-2xl px-2 text-gray-600">&times;</button>
         </div>
+        @if(count($leases) > 1)
+            @php
+                $leaseOptions = collect($leases)->map(fn ($lease) => ['value' => $lease->id, 'label' => $lease->leasable_name.' · '.$lease->leasable_type_label.' · '.$lease->start_date->format('d M Y').' – '.$lease->end_date->format('d M Y')])->all();
+            @endphp
+            <div data-lease-selection x-bind:inert="loading" x-data="{ complaintLease: [] }" @complaint-reset.window="complaintLease = []">
+                <p class="block text-sm font-semibold text-gray-700 mb-2">Lease *</p>
+                <x-form.input-select name="lease_id" :options="$leaseOptions" placeholder="Select a lease" x-model="complaintLease" x-bind:disabled="loading" required />
+            </div>
+        @endif
         <div>
             <label for="{{ $id }}-subject" class="block text-sm font-semibold text-gray-700 mb-2">Subject *</label>
             <input id="{{ $id }}-subject" name="subject" required maxlength="255" class="w-full rounded-xl border-gray-300 focus:border-indigo-500 focus:ring-indigo-500" autofocus>
@@ -30,7 +39,7 @@
         <input type="file" data-create-files="document" accept="{{ $accept(array_values(array_diff(array_keys($types), $media))) }}" multiple hidden>
         <input type="file" data-create-files="media" accept="{{ $accept($media) }}" multiple hidden>
         <input type="file" data-create-files="camera" accept="image/*" capture="environment" hidden>
-        <p class="text-xs text-gray-500">Up to {{ config('customer_service.max_files') }} files, {{ config('customer_service.max_total_kb') / 1024 }} MB total. Images/documents: 10 MB each; videos: 50 MB each.</p>
+        <p class="text-xs text-gray-500">Up to {{ config('customer_service.max_files') }} files, {{ config('customer_service.max_total_kb') / 1024 }} MB total. Images: {{ $types['jpg']['max_kb'] / 1024 }} MB; videos: {{ $types['mp4']['max_kb'] / 1024 }} MB; documents: {{ $types['pdf']['max_kb'] / 1024 }} MB each.</p>
         <div data-create-previews class="flex gap-2 overflow-x-auto" aria-live="polite"></div>
         <p data-create-error role="alert" class="text-sm whitespace-pre-line text-red-700"></p>
         <div class="flex justify-end gap-2">

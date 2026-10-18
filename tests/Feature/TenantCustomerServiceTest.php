@@ -36,7 +36,7 @@ class TenantCustomerServiceTest extends TestCase
                     'rooms' => ['room_no', 'owner_id', 'unit_id'],
                     'leases' => ['tenant_id', 'leasable_type', 'leasable_id', 'status', 'start_date', 'end_date', 'checked_out_at', 'agreement_ended_at'],
                     'tickets' => ['sender_id', 'receive_id', 'lease_id', 'category', 'subject', 'status'],
-                    'ticket_msgs' => ['ticket_id', 'sender_type', 'message'],
+                    'ticket_msgs' => ['ticket_id', 'sender_type', 'message', 'status', 'read_at', 'read_by'],
                     'audit_logs' => ['user_id', 'event', 'auditable_type', 'auditable_id', 'old_values', 'new_values', 'ip_address', 'user_agent'],
                 };
                 foreach ($columns as $column) $t->text($column)->nullable();
@@ -47,6 +47,8 @@ class TenantCustomerServiceTest extends TestCase
         Schema::create('permissions', function (Blueprint $t) { $t->id(); $t->string('name'); $t->string('guard_name'); });
         Schema::create('roles', function (Blueprint $t) { $t->id(); $t->string('name'); $t->string('guard_name'); $t->string('team_id')->nullable(); });
         Schema::create('role_has_permissions', function (Blueprint $t) { $t->unsignedBigInteger('permission_id'); $t->unsignedBigInteger('role_id'); });
+        Schema::create('model_has_roles', function (Blueprint $t) { $t->unsignedBigInteger('role_id'); $t->string('model_type'); $t->string('model_id'); $t->string('team_id'); });
+        Schema::create('model_has_permissions', function (Blueprint $t) { $t->unsignedBigInteger('permission_id'); $t->string('model_type'); $t->string('model_id'); $t->string('team_id'); });
         Schema::create('user_management', function (Blueprint $t) { $t->string('id'); $t->string('user_id'); $t->softDeletes(); });
         Schema::create('invoices', function (Blueprint $t) { $t->string('id'); $t->string('user_id'); $t->string('context'); $t->string('status'); $t->timestamps(); $t->softDeletes(); });
         Storage::fake('local');
@@ -93,6 +95,207 @@ class TenantCustomerServiceTest extends TestCase
     private function batch(array $extra = []): array
     {
         return array_merge(['category' => 'QNA', 'subject' => 'Question', 'details' => 'Hello', 'items' => [['type' => 'text', 'text' => 'Hello']]], $extra);
+    }
+
+    private function staffFor(string $boss, bool $permission = true, ?string $permissionTeam = null): User
+    {
+        $staff = $this->user('staff');
+        $management = (string) Str::ulid();
+        DB::table('user_management')->insert(['id' => $management, 'user_id' => $boss]);
+        DB::table('staff')->insert(['id' => (string) Str::ulid(), 'user_id' => $staff->id, 'user_mgnt_id' => $management]);
+        if ($permission) {
+            $permissionId = DB::table('permissions')->where('name', 'maintenance.tab')->value('id')
+                ?? DB::table('permissions')->insertGetId(['name' => 'maintenance.tab', 'guard_name' => 'web']);
+            $team = $permissionTeam ?? $boss;
+            $roleId = DB::table('roles')->insertGetId(['name' => 'Maintenance '.$staff->id, 'guard_name' => 'web', 'team_id' => $team]);
+            DB::table('role_has_permissions')->insert(['permission_id' => $permissionId, 'role_id' => $roleId]);
+            DB::table('model_has_roles')->insert(['role_id' => $roleId, 'model_type' => User::class, 'model_id' => $staff->id, 'team_id' => $team]);
+        }
+        return $staff;
+    }
+
+    public function test_staff_uses_own_permission_and_effective_scope_but_cannot_send(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId, 'subject' => 'Scoped ticket']);
+        $path = 'ticket-attachments/'.$ticket->id.'/'.Str::uuid().'.txt';
+        Storage::disk('local')->put($path, 'Private attachment');
+        $message = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => $path]);
+        foreach ([$this->managerId, $this->ownerId] as $boss) {
+            $staff = $this->staffFor($boss);
+            $this->actingAs($staff);
+            $this->get(route('admin.maintenance.index'))->assertOk()->assertSee('Scoped ticket')->assertSee('Maintenance');
+            $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()->assertJsonPath('ticket.can_send', false);
+            foreach ([false, true] as $download) $this->get(route('admin.maintenance.attachment', [$ticket, $message, 'download' => $download]))->assertOk();
+            DB::table('ticket_msgs')->where('id', $message->id)->update(['status' => 'unread', 'read_at' => null, 'read_by' => null]);
+            $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => [$message->id]])->assertOk()->assertJsonPath('unread_count', 0);
+            $this->assertSame($staff->id, $message->fresh()->read_by);
+            $this->assertDatabaseHas('audit_logs', ['auditable_id' => $message->id, 'event' => 'updated', 'user_id' => $staff->id]);
+            $this->postJson(route('admin.maintenance.reply', $ticket), $this->batch())->assertForbidden()->assertJsonStructure(['message']);
+            $this->post(route('admin.maintenance.reply', $ticket), ['items' => [['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('test.txt', 'No upload')]]], ['Accept' => 'application/json'])->assertForbidden();
+            $this->assertSame(1, $ticket->messages()->count());
+            $this->assertCount(1, Storage::disk('local')->allFiles());
+            $this->getJson(route('admin.customerService.show', $ticket))->assertForbidden();
+            $this->patchJson(route('admin.customerService.update', $ticket), ['message' => 'Bypass'])->assertForbidden();
+        }
+    }
+
+    public function test_staff_cannot_inherit_boss_permission_or_cross_ticket_scope(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId, 'subject' => 'Private scoped ticket']);
+        $message = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Private']);
+        $otherBoss = $this->user('agentAdmin');
+        $noPermission = $this->staffFor($this->managerId, false);
+        $wrongTeam = $this->staffFor($this->managerId, true, $otherBoss->id);
+        $otherStaff = $this->staffFor($otherBoss->id);
+        foreach ([$noPermission, $wrongTeam, $otherStaff] as $staff) {
+            $this->actingAs($staff);
+            $list = $this->getJson(route('admin.maintenance.index'));
+            if ($staff->id === $otherStaff->id) $list->assertOk()->assertDontSee('Private scoped ticket');
+            else $list->assertForbidden();
+            $this->get(route('admin.maintenance.index', ['ticket' => $ticket->id]))->assertForbidden();
+            $this->get(route('admin.maintenance.show', $ticket))->assertForbidden();
+            $this->get(route('admin.maintenance.attachment', [$ticket, $message]))->assertForbidden();
+            $this->postJson(route('admin.maintenance.reply', $ticket), $this->batch())->assertForbidden();
+            $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => [$message->id]])->assertForbidden();
+        }
+        $this->assertNull($message->fresh()->read_by);
+        $mapped = $this->staffFor($this->managerId);
+        DB::table('staff')->where('user_id', $mapped->id)->update(['user_mgnt_id' => null]);
+        $this->actingAs($mapped)->get(route('admin.maintenance.index'))->assertForbidden();
+    }
+
+    public function test_forbidden_pages_have_403_and_form_operations_redirect_while_ajax_stays_json(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId]);
+        foreach ([$this->staffFor($this->managerId, false), $this->staffFor($this->managerId), $this->user('agentAdmin')] as $user) {
+            $this->actingAs($user);
+            $url = route('admin.maintenance.reply', $ticket);
+            $this->from('/previous')->post($url, $this->batch())->assertRedirect('/previous')->assertSessionHas('error');
+            $this->postJson($url, $this->batch())->assertForbidden()->assertJsonStructure(['message']);
+            $this->from('/previous')->post(route('tenants.customerService.store'), $this->batch())->assertRedirect('/previous')->assertSessionHas('error');
+        }
+        $this->actingAs($this->tenantUser)->get(route('admin.maintenance.index'))->assertForbidden();
+        $this->assertSame(0, $ticket->messages()->count());
+    }
+
+    public function test_read_receipts_follow_participant_direction_and_preserve_first_reader(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId]);
+        $tenantMessage = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Tenant']);
+        $this->assertSame('unread', $tenantMessage->status);
+        $this->postJson(route('tenants.customerService.markRead', $ticket), ['message_ids' => [$tenantMessage->id]])->assertOk()->assertJsonCount(0, 'messages');
+        $this->assertSame('unread', $tenantMessage->fresh()->status);
+        $this->actingAs(User::findOrFail($this->managerId));
+        $managerMessage = $ticket->messages()->create(['sender_type' => 'agentAdmin', 'message' => 'Manager']);
+        $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()->assertJsonPath('messages.0.incoming', true);
+        $this->assertNull($tenantMessage->fresh()->read_at); // GET never reads.
+        $this->actingAs(User::findOrFail($this->ownerId));
+        $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => [$managerMessage->id]])->assertOk()->assertJsonCount(0, 'messages');
+        Carbon::setTestNow('2026-10-18 10:00:00');
+        $this->postJson(route('admin.maintenance.markRead', $ticket), [
+            'message_ids' => [$tenantMessage->id], 'read_by' => 'spoofed', 'read_at' => '2000-01-01',
+        ])->assertOk()->assertJsonCount(1, 'messages');
+        $first = $tenantMessage->fresh();
+        $this->assertSame($this->ownerId, $first->read_by);
+        $this->assertSame(now()->toDateTimeString(), $first->read_at->toDateTimeString());
+        $this->actingAs(User::findOrFail($this->managerId));
+        Carbon::setTestNow('2026-10-18 11:00:00');
+        $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => [$tenantMessage->id]])->assertOk();
+        $this->assertSame($first->read_by, $tenantMessage->fresh()->read_by);
+        $this->assertTrue($first->read_at->equalTo($tenantMessage->fresh()->read_at));
+        $this->assertSame(1, DB::table('audit_logs')->where('auditable_id', $tenantMessage->id)->where('event', 'updated')->count());
+        $ticket->update(['status' => 'closed']);
+        $this->actingAs($this->tenantUser)->postJson(route('tenants.customerService.markRead', $ticket), ['message_ids' => [$managerMessage->id]])->assertOk();
+        $this->assertSame('read', $managerMessage->fresh()->status);
+        $this->assertSame($this->tenantUser->id, $managerMessage->fresh()->read_by);
+    }
+
+    public function test_read_scope_excludes_unloaded_foreign_unknown_and_unverified_messages(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId]);
+        $loaded = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Loaded']);
+        $late = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Arrived later']);
+        $foreign = $this->ticket()->messages()->create(['sender_type' => 'tenant', 'message' => 'Another ticket']);
+        $legacy = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Legacy']);
+        DB::table('ticket_msgs')->where('id', $legacy->id)->update(['status' => null]);
+        $this->actingAs(User::findOrFail($this->managerId));
+        $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => [$loaded->id, $foreign->id, $legacy->id]])->assertOk()->assertJsonCount(1, 'messages');
+        $this->assertSame('unread', $late->fresh()->status);
+        $this->assertSame('unread', $foreign->fresh()->status);
+        $this->assertNull($legacy->fresh()->status);
+        $this->assertNull($legacy->fresh()->read_at);
+        $unverified = $ticket->messages()->create(['sender_type' => 'agentAdmin', 'message' => 'Unverified']);
+        DB::table('audit_logs')->where('auditable_id', $unverified->id)->delete();
+        $this->actingAs($this->tenantUser)->postJson(route('tenants.customerService.markRead', $ticket), ['message_ids' => [$unverified->id]])->assertOk()->assertJsonCount(0, 'messages');
+        $this->assertSame('unread', $unverified->fresh()->status);
+    }
+
+    public function test_read_endpoint_and_counts_use_existing_ticket_authorization(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId]);
+        $message = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Tenant']);
+        foreach (['tenant', 'agentAdmin', 'owner', 'staff'] as $role) {
+            $actor = $this->user($role);
+            $prefix = $role === 'tenant' ? 'tenants.customerService' : 'admin.maintenance';
+            $this->actingAs($actor)->postJson(route($prefix.'.markRead', $ticket), ['message_ids' => [$message->id]])->assertForbidden();
+        }
+        $this->actingAs(User::findOrFail($this->managerId));
+        $this->getJson(route('admin.maintenance.index'))->assertOk()->assertSee('1 unread messages');
+        $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => ['invalid']])->assertUnprocessable();
+        $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => []])->assertUnprocessable();
+        $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => [$message->id]])->assertOk();
+        $this->getJson(route('admin.maintenance.index'))->assertOk()->assertDontSee('1 unread messages');
+        $this->actingAs($this->tenantUser)->getJson(route('tenants.customerService.show', $ticket))->assertOk()->assertJsonPath('messages.0.status', 'read')->assertJsonPath('messages.0.read_by', $this->managerId);
+    }
+
+    public function test_new_text_and_attachment_messages_start_unread_without_touching_ticket_status(): void
+    {
+        $ticket = $this->ticket('in_progress');
+        $response = $this->post(route('tenants.customerService.reply', $ticket), ['items' => [
+            ['type' => 'text', 'text' => 'Hello'],
+            ['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('test.txt', 'Plain text attachment')],
+        ]], ['Accept' => 'application/json'])->assertOk();
+        $response->assertJsonPath('messages.0.status', 'unread')->assertJsonPath('messages.1.status', 'unread');
+        foreach ($ticket->messages as $message) {
+            $this->assertNull($message->read_at);
+            $this->assertNull($message->read_by);
+        }
+        $this->assertSame('in_progress', $ticket->fresh()->status);
+    }
+
+    public function test_lists_use_latest_message_creation_time_with_stable_fallback_and_shared_status(): void
+    {
+        $lease = $this->lease();
+        $older = $this->ticket();
+        $empty = $this->ticket();
+        $tie = $this->ticket();
+        foreach ([[$older, 'Old ticket new reply', '2026-01-01'], [$empty, 'Empty ticket', '2026-02-01'], [$tie, 'Tied ticket', '2026-01-02']] as [$ticket, $subject, $created]) {
+            $ticket->update(['subject' => $subject, 'receive_id' => $this->ownerId, 'lease_id' => $lease->id]);
+            DB::table('tickets')->where('id', $ticket->id)->update(['created_at' => $created.' 00:00:00']);
+        }
+        foreach ([$older, $tie] as $ticket) {
+            $message = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'New reply']);
+            DB::table('ticket_msgs')->where('id', $message->id)->update(['created_at' => '2026-03-02 12:00:00']);
+        }
+        $expected = collect([$older, $tie])->sortByDesc('id')->pluck('subject')->push('Empty ticket')->all();
+        foreach ([$this->tenantUser, User::findOrFail($this->ownerId)] as $user) {
+            $prefix = $user->isTenant() ? 'tenants.customerService' : 'admin.maintenance';
+            $this->actingAs($user)->get(route($prefix.'.index'))->assertOk()
+                ->assertSeeInOrder($expected)->assertSee('02 Mar 2026')->assertSee('01 Feb 2026')->assertSee('PENDING');
+            // Updating a message must never promote a conversation by updated_at.
+            DB::table('ticket_msgs')->where('ticket_id', $older->id)->update(['updated_at' => '2030-01-01 00:00:00']);
+            $html = $this->getJson(route($prefix.'.index'))->assertOk()->json('html');
+            $this->assertLessThan(strpos($html, $expected[1]), strpos($html, $expected[0]));
+            $filtered = $this->getJson(route($prefix.'.index', ['search' => 'Empty']))->assertOk()->json('html');
+            $this->assertStringContainsString('Empty ticket', $filtered);
+            $this->assertStringNotContainsString('Old ticket new reply', $filtered);
+        }
     }
 
     public function test_creation_requires_content_and_ignores_client_routing_fields(): void
@@ -661,7 +864,7 @@ class TenantCustomerServiceTest extends TestCase
         foreach ([User::findOrFail($this->ownerId), User::findOrFail($this->managerId), $this->user('agentAdmin'), $this->user('ownerAdmin'), $this->user('owner'), $this->user('staff'), $this->user('admin')] as $unrelated) {
             $this->actingAs($unrelated);
             $list = $this->getJson(route('admin.maintenance.index'));
-            if (in_array($unrelated->role, ['staff', 'admin'])) $list->assertForbidden();
+            if ($unrelated->role === 'staff') $list->assertForbidden();
             else { $list->assertOk(); $this->assertStringNotContainsString('Second private', $list->json('html')); }
             $this->getJson(route('admin.maintenance.show', $ticket))->assertForbidden();
             $this->postJson(route('admin.maintenance.reply', $ticket), $this->batch())->assertForbidden();

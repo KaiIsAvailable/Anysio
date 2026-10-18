@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const source = readFileSync(new URL('../../resources/js/customer-service.js', import.meta.url), 'utf8')
+    .replace('chats.set(root, api);', 'chats.set(root, api); root.testApi = api;')
     .replace("import { createPdfThumbnails } from './ticket-pdf-thumbnails';", 'const createPdfThumbnails = () => ({ scan() {}, reset() {}, destroy() {} });');
 class Element {
     constructor(tag = 'div') {
@@ -44,6 +45,8 @@ class Element {
         return selector === 'a' && this.tagName === 'A' ? this : null;
     }
     querySelectorAll(selector) {
+        const key = { '[data-message-id]': 'messageId', '[data-unread-divider]': 'unreadDivider' }[selector];
+        if (key) return this.children.flatMap(child => [...(child.dataset[key] !== undefined ? [child] : []), ...child.querySelectorAll(selector)]);
         if (selector === '[data-message-date]') return this.children.flatMap(child => [...(child.dataset.messageDate ? [child] : []), ...child.querySelectorAll(selector)]);
         return this.controls;
     }
@@ -52,7 +55,7 @@ class Element {
     reset() { this.fields = this.fields.filter(([name]) => name === '_token'); }
 }
 class FormDataMock {
-    constructor(form) { this.values = [...form.fields]; }
+    constructor(form) { this.values = [...(form?.fields || [])]; }
     append(name, value) { this.values.push([name, value]); }
     get(name) { return this.values.find(([key]) => key === name)?.[1] ?? null; }
 }
@@ -102,6 +105,26 @@ test('Subject selection stays committed across switching, failures and replaced 
     }
 });
 
+test('List replacement preserves the latest scroll position while keeping the selected subject', async () => {
+    const { node, answers } = setup({ index: true, initial: 'first', manager: true });
+    const list = node('[data-ticket-list]');
+    list.scrollTop = 90;
+    list.onHTML = () => {
+        list.scrollTop = 0;
+        const link = new Element('a');
+        link.dataset.ticketId = 'first';
+        list.controls = [link];
+    };
+    let release;
+    answers.push({ gate: new Promise(resolve => { release = resolve; }), data: { html: 'updated' } });
+    const pending = node('[data-ticket-search]').fire('submit');
+    list.scrollTop = 170;
+    release();
+    await pending;
+    assert.equal(list.scrollTop, 170);
+    assert.equal(list.controls[0]['aria-current'], 'true');
+});
+
 function setup({ manager = false, multipleLeases = false, index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '', now = null } = {}) {
     const nodes = new Map();
     const node = (selector) => {
@@ -125,6 +148,8 @@ function setup({ manager = false, multipleLeases = false, index = false, dashboa
     };
     chatRoot.querySelector = node;
     const document = new Element();
+    document.visibilityState = 'visible';
+    document.hasFocus = () => true;
     document.querySelector = () => index ? indexRoot : null;
     const dashboardRoot = new Element();
     dashboardRoot.dataset = { redirectAfterCreate: 'true' };
@@ -133,6 +158,7 @@ function setup({ manager = false, multipleLeases = false, index = false, dashboa
     document.createElement = (tag) => new Element(tag);
     const navigations = [];
     const window = new Element();
+    window.requestAnimationFrame = (callback) => callback();
     window.matchMedia = () => ({ matches: !mobile });
     window.location = { href: indexRoot.dataset.indexUrl, assign(url) { navigations.push(url); this.href = url; } };
     window.confirm = () => true;
@@ -177,13 +203,372 @@ function setup({ manager = false, multipleLeases = false, index = false, dashboa
     if (index) node('[data-conversation-host]').innerHTML = initial;
     if (initial) window.location.href += '?ticket=' + initial;
     let currentTime = now ? new Date(now).getTime() : Date.now();
-    class TestDate extends Date { constructor(...args) { super(...(args.length ? args : [currentTime])); } }
+    class TestDate extends Date {
+        constructor(...args) { super(...(args.length ? args : [currentTime])); }
+        static now() { return currentTime; }
+    }
     let timer;
     const clock = { advanceTo(value) { currentTime = new Date(value).getTime(); timer?.(); } };
-    vm.runInNewContext(source, { document, window, AbortController, CustomEvent, Date: TestDate, setTimeout: (callback) => { timer = callback; return 1; }, clearTimeout: () => {}, URL: TestURL, FormData: FormDataMock, fetch, console });
+    const resizeObservers = [];
+    class ResizeObserverMock {
+        constructor(callback) { this.callback = callback; this.targets = []; resizeObservers.push(this); }
+        observe(target) { this.targets.push(target); }
+        disconnect() { this.targets = []; }
+    }
+    vm.runInNewContext(source, { document, window, AbortController, CustomEvent, ResizeObserver: ResizeObserverMock, Date: TestDate, setTimeout: (callback) => { timer = callback; return 1; }, clearTimeout: () => {}, URL: TestURL, FormData: FormDataMock, fetch, console });
     document.fire('DOMContentLoaded');
-    return { node, ticket, requests, answers, revoked, navigations, chatRoot, document, window, dynamicChats, clock };
+    return { node, ticket, requests, answers, revoked, navigations, chatRoot, document, window, dynamicChats, clock, resizeObservers };
 }
+
+test('Read interactions require visibility and focus, deduplicate, and preserve the visit divider', async () => {
+    for (const interaction of ['mouseenter', 'mousemove', 'pointerdown', 'touchstart']) {
+        const { node, answers, requests, chatRoot, ticket, document } = setup({ chat: true });
+        await settle();
+        const incoming = { id: 'incoming', incoming: true, status: 'unread', text: 'Hello' };
+        const own = { id: 'own', own: true, incoming: false, status: 'unread', text: 'Mine' };
+        chatRoot.testApi.apply({ ticket: { ...ticket, mark_read_url: '/read-receipts' }, messages: [incoming, own] });
+        const history = node('[data-chat-messages]');
+        const rows = history.children;
+        assert.equal(history.querySelectorAll('[data-unread-divider]').length, 1);
+        assert.equal(requests.length, 1, 'loading alone never marks read');
+        await history.fire('mouseenter', { movementX: 0, movementY: 0 });
+        assert.equal(requests.length, 1, 'layout changes under a stationary pointer do not count');
+        document.visibilityState = 'hidden';
+        await history.fire(interaction);
+        assert.equal(requests.length, 1);
+        document.visibilityState = 'visible';
+        document.hasFocus = () => false;
+        await history.fire(interaction);
+        assert.equal(requests.length, 1);
+        document.hasFocus = () => true;
+        let release;
+        answers.push({ gate: new Promise(resolve => { release = resolve; }), data: { messages: [{ id: 'incoming', status: 'read' }] } });
+        const pending = history.fire(interaction);
+        await history.fire(interaction);
+        assert.equal(requests.length, 2);
+        assert.deepEqual(requests[1].body.values, [['_token', 'csrf-token'], ['message_ids[]', 'incoming']]);
+        release();
+        await pending;
+        await settle();
+        assert.equal(history.children, rows, 'receipt updates do not rerender messages or PDFs');
+        assert.equal(history.querySelectorAll('[data-unread-divider]').length, 1);
+        await history.fire(interaction);
+        assert.equal(requests.length, 2, 'already read IDs are not submitted again');
+    }
+});
+
+test('Reading updates only the subject badge without fetching lists or replacing chat, drafts or previews', async () => {
+    for (const manager of [false, true]) {
+        const { node, dynamicChats, answers, requests } = setup({ index: true, initial: 'one', manager });
+        const chat = dynamicChats[0];
+        chat.root.testApi.apply({ ticket: { id: 'one', status: 'pending', show_url: '/one', reply_url: '/send', mark_read_url: '/receipt' }, messages: [{ id: 'incoming', incoming: true, status: 'unread' }] });
+        const list = node('[data-ticket-list]');
+        const link = new Element('a');
+        link.dataset.ticketId = 'one';
+        link.setAttribute('aria-current', 'true');
+        const badge = new Element();
+        badge.textContent = '1';
+        link.append(badge);
+        list.controls = [link];
+        list.scrollTop = 123;
+        list.onHTML = () => assert.fail('Reading must not replace the subject list');
+        chat.node('[data-chat-draft]').value = 'Keep draft';
+        const picker = chat.node('[data-chat-files="document"]');
+        picker.files = [{ name: 'keep.pdf', type: 'application/pdf', size: 20 }];
+        await picker.fire('change');
+        const previews = chat.node('[data-attachment-previews]').children;
+        const history = chat.node('[data-chat-messages]');
+        const rows = history.children;
+        history.scrollTop = 29;
+        answers.push({ data: { ticket_id: 'one', unread_count: 0, messages: [{ id: 'incoming', status: 'read' }] } });
+        await history.fire('mousemove', { movementX: 1, movementY: 0 });
+        assert.equal(requests.length, 1);
+        assert.equal(requests[0].url, '/receipt');
+        assert.equal(badge.hidden, true);
+        assert.equal(badge.textContent, 0);
+        assert.equal(list.scrollTop, 123);
+        assert.equal(link['aria-current'], 'true');
+        assert.equal(history.children, rows);
+        assert.equal(history.scrollTop, 29);
+        assert.equal(chat.node('[data-chat-draft]').value, 'Keep draft');
+        assert.equal(chat.node('[data-attachment-previews]').children, previews);
+        assert.equal(node('[data-page-feedback]').textContent, '');
+    }
+});
+
+test('Subject requests have no loading notice but retain failure feedback and switch protection', async () => {
+    const { node, answers } = setup({ index: true, initial: 'one', manager: true });
+    const link = new Element('a');
+    link.dataset.ticketId = 'two';
+    let release;
+    answers.push({ gate: new Promise(resolve => { release = resolve; }), status: 500, data: {} });
+    const pending = node('[data-ticket-list]').fire('click', { target: link });
+    assert.equal(node('[data-page-feedback]').textContent, '');
+    assert.equal(node('[data-conversation-feedback]').hidden, true);
+    release();
+    await pending;
+    assert.equal(node('[data-conversation-feedback]').hidden, false);
+    assert.match(node('[data-conversation-feedback]').textContent, /Unable to open/);
+});
+
+test('Subject click marks only successfully displayed conversations, including repeated clicks', async () => {
+    const { node, answers, requests, dynamicChats } = setup({ index: true, initial: 'one', manager: true });
+    const link = new Element('a');
+    link.dataset.ticketId = 'one';
+    const ticket = { id: 'one', subject: 'One', status: 'pending', show_url: '/one', reply_url: '/one/send', mark_read_url: '/one/read' };
+    for (const id of ['first', 'second']) {
+        answers.push({ data: { ticket, messages: [{ id, incoming: true, status: 'unread', text: id }] } });
+        answers.push({ data: { messages: [{ id, status: 'read' }] } });
+        await node('[data-ticket-list]').fire('click', { target: link });
+        await settle();
+        const posted = requests.filter(request => request.method === 'POST').at(-1);
+        assert.deepEqual(posted.body.values.filter(([key]) => key === 'message_ids[]'), [['message_ids[]', id]]);
+        assert.equal(dynamicChats[0].node('[data-chat-messages]').querySelectorAll('[data-unread-divider]').length, 1);
+    }
+    const before = requests.filter(request => request.method === 'POST').length;
+    answers.push({ status: 500, data: {} });
+    await node('[data-ticket-list]').fire('click', { target: link });
+    await settle();
+    assert.equal(requests.filter(request => request.method === 'POST').length, before);
+});
+
+test('Later arrivals need a new interaction; successful sends do not imply reading', async () => {
+    const { node, answers, requests, chatRoot, ticket, clock } = setup({ chat: true });
+    await settle();
+    const active = { ...ticket, mark_read_url: '/read-receipts' };
+    const first = { id: 'first', incoming: true, status: 'unread', text: 'First' };
+    chatRoot.testApi.apply({ ticket: active, messages: [first] });
+    answers.push({ data: { messages: [{ id: 'first', status: 'read' }] } });
+    await chatRoot.testApi.confirmRead();
+    const later = { id: 'later', incoming: true, status: 'unread', text: 'Arrived during sending' };
+    answers.push({ data: { ticket: active, messages: [{ ...first, status: 'read' }, later] } });
+    node('[data-chat-draft]').value = 'Reply';
+    await node('[data-chat-form]').fire('submit');
+    await settle();
+    assert.equal(requests.filter(request => request.url === '/read-receipts').length, 1);
+    const history = node('[data-chat-messages]');
+    assert.equal(history.querySelectorAll('[data-unread-divider]')[0].children[1].textContent, '1 unread messages');
+    clock.advanceTo(new Date(Date.now() + 2000));
+    answers.push({ data: { messages: [{ id: 'later', status: 'read' }] } });
+    await history.fire('mousemove');
+    await settle();
+    assert.deepEqual(requests.at(-1).body.values.filter(([key]) => key === 'message_ids[]'), [['message_ids[]', 'later']]);
+});
+
+test('Read failure retries only after a new interaction and stale receipts cannot change a new ticket', async () => {
+    const { node, answers, requests, chatRoot, ticket, clock } = setup({ chat: true });
+    await settle();
+    const active = { ...ticket, mark_read_url: '/read-receipts' };
+    chatRoot.testApi.apply({ ticket: active, messages: [{ id: 'old', incoming: true, status: 'unread' }] });
+    answers.push({ status: 500, data: {} });
+    await chatRoot.testApi.confirmRead();
+    await node('[data-chat-messages]').fire('mousemove');
+    assert.equal(requests.length, 2, 'failed requests are throttled');
+    clock.advanceTo(new Date(Date.now() + 2000));
+    let release;
+    answers.push({ gate: new Promise(resolve => { release = resolve; }), data: { messages: [{ id: 'old', status: 'read' }] } });
+    const pending = chatRoot.testApi.confirmRead();
+    chatRoot.testApi.apply({ ticket: { ...active, id: 'new' }, messages: [{ id: 'new', incoming: true, status: 'unread' }] });
+    const rows = node('[data-chat-messages]').children;
+    release();
+    await pending;
+    assert.equal(node('[data-chat-messages]').children, rows);
+    assert.equal(node('[data-chat-messages]').querySelectorAll('[data-message-id]')[0].dataset.messageStatus, 'unread');
+});
+
+test('Unread and date boundaries share one separator and recalculate only on reentry', async () => {
+    const { node, chatRoot, ticket } = setup({ chat: true });
+    await settle();
+    const message = { id: 'first', incoming: true, status: 'unread', date_key: '2026-10-18', text: 'Hi' };
+    chatRoot.testApi.apply({ ticket, messages: [message] });
+    const history = node('[data-chat-messages]');
+    assert.equal(history.children.length, 2, 'one shared separator and one message');
+    assert.equal(history.querySelectorAll('[data-unread-divider]').length, 1);
+    assert.equal(history.querySelectorAll('[data-message-date]').length, 1);
+    chatRoot.testApi.apply({ ticket, messages: [{ ...message, status: 'read' }] });
+    assert.equal(history.querySelectorAll('[data-unread-divider]').length, 0);
+    assert.equal(history.querySelectorAll('[data-message-date]').length, 1);
+});
+
+test('Large read snapshots are bounded and do not absorb messages from a later response', async () => {
+    const { node, answers, requests, chatRoot, ticket } = setup({ chat: true });
+    await settle();
+    const messages = Array.from({ length: 501 }, (_, i) => ({ id: String(i), incoming: true, status: 'unread', text: 'Hi' }));
+    chatRoot.testApi.apply({ ticket: { ...ticket, mark_read_url: '/receipt' }, messages });
+    answers.push({ data: { messages: messages.slice(0, 500).map(m => ({ id: m.id, status: 'read' })) } });
+    answers.push({ data: { messages: [{ id: '500', status: 'read' }] } });
+    await chatRoot.testApi.confirmRead();
+    assert.equal(requests.length, 3);
+    assert.equal(requests[1].body.values.filter(([key]) => key === 'message_ids[]').length, 500);
+    assert.deepEqual(requests[2].body.values.filter(([key]) => key === 'message_ids[]'), [['message_ids[]', '500']]);
+    assert.equal(node('[data-chat-messages]').querySelectorAll('[data-message-id]').filter(row => row.dataset.messageStatus === 'read').length, 501);
+});
+
+test('A delayed Subject confirmation keeps its original IDs even if more messages are now displayed', async () => {
+    const { chatRoot, ticket, answers, requests } = setup({ chat: true });
+    await settle();
+    chatRoot.testApi.apply({ ticket: { ...ticket, mark_read_url: '/receipt' }, messages: [
+        { id: 'loaded-at-click', incoming: true, status: 'unread' },
+        { id: 'arrived-after-click', incoming: true, status: 'unread' },
+    ] });
+    answers.push({ data: { messages: [{ id: 'loaded-at-click', status: 'read' }] } });
+    await chatRoot.testApi.confirmRead(['loaded-at-click']);
+    assert.deepEqual(requests.at(-1).body.values.filter(([key]) => key === 'message_ids[]'), [['message_ids[]', 'loaded-at-click']]);
+});
+
+test('Subject clicks in a background page do not mark read or schedule a later automatic read', async () => {
+    const { node, document, answers, requests } = setup({ index: true, initial: 'one', manager: true });
+    document.visibilityState = 'hidden';
+    const link = new Element('a');
+    link.dataset.ticketId = 'one';
+    answers.push({ data: { ticket: { id: 'one', status: 'pending', show_url: '/one', reply_url: '/send', mark_read_url: '/receipt' }, messages: [{ id: 'incoming', incoming: true, status: 'unread' }] } });
+    await node('[data-ticket-list]').fire('click', { target: link });
+    await settle();
+    document.visibilityState = 'visible';
+    await document.fire('visibilitychange');
+    assert.equal(requests.filter(request => request.method === 'POST').length, 0);
+});
+
+test('Own text, attachment and mixed sends restart bottom following on desktop and mobile for both sides', async () => {
+    for (const role of ['tenant', 'agentAdmin']) for (const mobile of [false, true]) {
+        for (const kind of ['text', 'attachment', 'mixed']) {
+            const { node, answers, ticket, resizeObservers } = setup({ chat: true, role, mobile });
+            await settle();
+            const history = node('[data-chat-messages]');
+            await history.fire(mobile ? 'touchmove' : 'wheel', { deltaY: -100 });
+            history.scrollTop = 10;
+            if (kind !== 'attachment') node('[data-chat-draft]').value = 'New message';
+            if (kind !== 'text') {
+                const picker = node('[data-chat-files="media"]');
+                picker.files = [{ name: 'image.png', type: 'image/png', size: 100 }];
+                await picker.fire('change');
+            }
+            history.scrollHeight = 500;
+            answers.push({ data: { ticket, messages: [{ id: 'sent', own: true, text: 'Sent' }] } });
+            await node('[data-chat-form]').fire('submit');
+            assert.equal(history.scrollTop, 500, `${role}/${mobile}/${kind}`);
+            history.scrollHeight = 700;
+            await history.fire('load');
+            assert.equal(history.scrollTop, 700);
+            history.scrollHeight = 800;
+            await history.fire('loadedmetadata');
+            assert.equal(history.scrollTop, 800);
+            history.scrollHeight = 900;
+            resizeObservers[0].callback();
+            assert.equal(history.scrollTop, 900);
+            await history.fire(mobile ? 'touchmove' : 'wheel', { deltaY: -100 });
+            history.scrollTop = 200;
+            history.scrollHeight = 1100;
+            await history.fire('load');
+            resizeObservers[0].callback();
+            assert.equal(history.scrollTop, 200);
+        }
+    }
+});
+
+test('Failed sends preserve the scroll position, draft, attachments and existing message nodes', async () => {
+    for (const status of [403, 422, 500]) {
+        const { node, answers, ticket } = setup({ chat: true });
+        await settle();
+        const history = node('[data-chat-messages]');
+        const children = history.children;
+        history.scrollTop = 12;
+        node('[data-chat-draft]').value = 'Keep';
+        const picker = node('[data-chat-files="document"]');
+        picker.files = [{ name: 'keep.pdf', type: 'application/pdf', size: 100 }];
+        await picker.fire('change');
+        answers.push({ status, data: { message: 'Rejected' } });
+        if (status === 403) answers.push({ data: { ticket: { ...ticket, closed: true }, messages: [] } });
+        await node('[data-chat-form]').fire('submit');
+        assert.equal(history.scrollTop, 12);
+        assert.equal(history.children, children);
+        assert.equal(node('[data-chat-draft]').value, 'Keep');
+        assert.equal(node('[data-attachment-previews]').children.length, 1);
+    }
+});
+
+test('A send response from a previous conversation cannot scroll, replace or clear the new conversation', async () => {
+    for (const status of [200, 500]) {
+        const { node, answers, ticket, chatRoot } = setup({ chat: true });
+        await settle();
+        node('[data-chat-draft]').value = 'Old request';
+        let release;
+        answers.push({ gate: new Promise(resolve => { release = resolve; }), status, data: { ticket, messages: [] } });
+        const pending = node('[data-chat-form]').fire('submit');
+        chatRoot.testApi.apply({ ticket: { ...ticket, id: 'new', subject: 'New conversation' }, messages: [] });
+        node('[data-chat-draft]').value = 'New draft';
+        const history = node('[data-chat-messages]');
+        history.scrollTop = 17;
+        const children = history.children;
+        release();
+        await pending;
+        assert.equal(history.scrollTop, 17);
+        assert.equal(history.children, children);
+        assert.equal(node('[data-chat-subject]').textContent, 'New conversation');
+        assert.equal(node('[data-chat-draft]').value, 'New draft');
+    }
+});
+
+test('Delayed media and PDF height follow the bottom only until the user scrolls up', async () => {
+    const { node, resizeObservers } = setup({ chat: true });
+    await settle();
+    const history = node('[data-chat-messages]');
+    history.scrollHeight = 500;
+    await history.fire('load');
+    assert.equal(history.scrollTop, 500);
+    history.scrollHeight = 700;
+    resizeObservers[0].callback();
+    assert.equal(history.scrollTop, 700);
+    await history.fire('wheel', { deltaY: -100 });
+    history.scrollTop = 200;
+    history.scrollHeight = 900;
+    await history.fire('loadedmetadata');
+    resizeObservers[0].callback();
+    assert.equal(history.scrollTop, 200);
+    assert.equal(node('[data-chat-status]').textContent, 'PENDING');
+});
+
+test('Clicking the current subject reloads messages while retaining the draft and attachments', async () => {
+    for (const mobile of [false, true]) {
+        const { node, answers, requests, dynamicChats } = setup({ index: true, initial: 'first', mobile });
+        const chat = dynamicChats[0].node;
+        chat('[data-chat-draft]').value = 'Keep this draft';
+        const picker = chat('[data-chat-files="document"]');
+        picker.files = [{ name: 'note.txt', size: 10, type: 'text/plain' }];
+        await picker.fire('change');
+        const link = new Element('a'); link.dataset.ticketId = 'first';
+        answers.push({ data: { ticket: { id: 'first', subject: 'Refreshed', status: 'pending', closed: false, reply_url: '/reply', show_url: '/show' }, messages: [] } });
+        await node('[data-ticket-list]').fire('click', { target: link });
+        assert.equal(requests.length, 1);
+        assert.equal(chat('[data-chat-subject]').textContent, 'Refreshed');
+        assert.equal(chat('[data-chat-draft]').value, 'Keep this draft');
+        assert.equal(chat('[data-attachment-previews]').children.length, 1);
+        const history = chat('[data-chat-messages]');
+        await history.fire('touchmove');
+        history.scrollTop = 5;
+        history.scrollHeight = 100;
+        await history.fire('load');
+        assert.equal(history.scrollTop, 5);
+    }
+});
+
+test('A successful send refreshes the subject list without losing search, page or selection', async () => {
+    const { node, answers, requests, window, dynamicChats } = setup({ index: true, initial: 'first' });
+    const page = new Element('a'); page.href = 'http://example.test/admin/tenant/customer-service?search=leak&page=2';
+    answers.push({ data: { html: 'page' } });
+    await node('[data-ticket-list]').fire('click', { target: page });
+    const chat = dynamicChats[0].node;
+    chat('[data-chat-draft]').value = 'Reply';
+    await chat('[data-chat-draft]').fire('input');
+    answers.push({ data: { ticket: { id: 'first', subject: 'First', status: 'pending', closed: false }, messages: [] } }, { data: { html: 'reordered page' } });
+    await chat('[data-chat-form]').fire('submit');
+    assert.equal(requests.length, 3);
+    assert.equal(requests[1].method, 'POST');
+    assert.match(requests[2].url, /search=leak/);
+    assert.match(requests[2].url, /page=2/);
+    assert.match(window.location.href, /ticket=first/);
+    assert.equal(node('[data-ticket-list]').innerHTML, 'reordered page');
+});
 
 test('Index creates a complaint, refreshes list and selects its conversation without navigation', async () => {
     const { node, requests, answers, navigations } = setup({ index: true });

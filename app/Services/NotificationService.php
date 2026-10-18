@@ -22,13 +22,10 @@ class NotificationService
     {
         if (!$senderId) $senderId = User::where('role', 'admin')->value('id');
 
-        $sender = User::find($senderId);
-
-        $query = User::query()->whereIn('id', $recipientIds);
- 
-        if ($sender && $sender->role !== 'super-admin') $query = $this->applyOwnershipFilter($query, $sender, 'id');
-
-        $validRecipientIds = $query
+        // ✅ Simply fetch all existing users whose IDs were passed in, 
+        // without applying the restrictive ownership filter to the recipient list.
+        $validRecipientIds = User::query()
+            ->whereIn('id', $recipientIds)
             ->pluck('id')
             ->toArray();
 

@@ -9,11 +9,11 @@
                         // 根据角色确定跳转的路由
                         $dashboardRoute = route('dashboard'); // 默认路由
 
-                        if (auth()->user()->can('is-owner')) {
+                        if (\Illuminate\Support\Facades\Gate::allows('is-owner')) {
                             $dashboardRoute = route('admin.owners.dashboard');
-                        } elseif (auth()->user()->can('is-tenant')) {
+                        } elseif (\Illuminate\Support\Facades\Gate::allows('is-tenant')) {
                             $dashboardRoute = route('tenants.dashboard');
-                        } elseif (auth()->user()->can('owner-admin')) {
+                        } elseif (\Illuminate\Support\Facades\Gate::allows('owner-admin')) {
                             $dashboardRoute = route('dashboard');
                         }
                     @endphp
@@ -82,11 +82,11 @@
                         </x-nav-link>
                     @endcanany
 
-                    <!--@canany(['owner-admin', 'maintenance.tab'])
+                    @can('maintenance-tickets')
                         <x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
-                            {{ __('Service Request') }}
+                            {{ __('Maintenance') }}
                         </x-nav-link>
-                    @endcanany-->
+                    @endcan
 
                     <!--@can('owner-admin')
                         <x-nav-link :href="route('admin.document-templates.index')" :active="request()->routeIs('admin.document-templates.*')">

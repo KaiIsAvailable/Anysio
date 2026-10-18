@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\{Lease, Property, Room, Ticket, TicketMsg, Unit, User};
 use Carbon\Carbon;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\{Auth, Gate};
 use Illuminate\Validation\ValidationException;
 
 class TenantCustomerService
@@ -86,31 +87,52 @@ class TenantCustomerService
         return in_array(strtolower(trim($ticket->status)), config('customer_service.closed_statuses'), true);
     }
 
-    public function isManager(User $user): bool
+    public function canUseMaintenance(User $user): bool
     {
-        return in_array($user->role, [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN, User::ROLE_OWNER], true);
+        return Gate::forUser($user)->allows('maintenance-tickets');
+    }
+
+    public function canReply(Ticket $ticket, User $actor): bool
+    {
+        // maintenance.tab grants staff viewing only; reply/upload permission is pending.
+        return $this->canAccess($ticket, $actor) && !$this->isClosed($ticket)
+            && Gate::forUser($actor)->any(['is-tenant', 'owner-admin', 'is-owner']);
+    }
+
+    private function managementUser(User $actor): ?User
+    {
+        // The helper maps the current login, never an arbitrary supplied user.
+        if (Auth::id() !== $actor->id) return null;
+        $effective = get_effective_user();
+        if (!$effective instanceof User) return null;
+        // The helper falls back to the staff account if its mapping is missing.
+        if (Gate::forUser($actor)->allows('is-staff') && $effective->id === $actor->id) return null;
+        return $effective;
     }
 
     public function canAccess(Ticket $ticket, User $user): bool
     {
-        if ($user->isTenant()) return $ticket->sender_id === $user->id;
-        if (!$this->isManager($user) || !$ticket->sender?->isTenant() || !$ticket->receive_id) return false;
+        if (Gate::forUser($user)->allows('is-tenant')) return $ticket->sender_id === $user->id;
+        $sender = $ticket->sender;
+        if (!$this->canUseMaintenance($user) || !$sender instanceof User
+            || Gate::forUser($sender)->denies('is-tenant') || !$ticket->receive_id) return false;
+        $manager = $this->managementUser($user);
+        if (!$manager) return false;
         if ($ticket->lease_id) {
             $lease = $ticket->lease;
             if (!$lease || $lease->tenant?->user_id !== $ticket->sender_id || $this->ownerId($lease) !== $ticket->receive_id) return false;
-            if ($ticket->receive_id === $user->id) return true;
-            return app(LeaseManagementResolver::class)->resolve($lease)?->id === $user->id;
+            if ($ticket->receive_id === $manager->id) return true;
+            return app(LeaseManagementResolver::class)->resolve($lease)?->id === $manager->id;
         }
         // Legacy tickets: verify the recorded owner directly, never choose a current lease.
-        if ($ticket->receive_id === $user->id) return true;
-        return in_array($user->role, [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN], true)
-            && \App\Models\Owners::where('user_id', $ticket->receive_id)->where('agent_id', $user->id)->exists();
+        if ($ticket->receive_id === $manager->id) return true;
+        return \App\Models\Owners::where('user_id', $ticket->receive_id)->where('agent_id', $manager->id)->exists();
     }
 
     public function visibleTickets(User $user)
     {
-        if ($user->isTenant()) return Ticket::where('sender_id', $user->id);
-        abort_unless($this->isManager($user), 403);
+        if (Gate::forUser($user)->allows('is-tenant')) return Ticket::where('sender_id', $user->id);
+        abort_unless($this->canUseMaintenance($user) && $this->managementUser($user), 403);
         // Apply precisely the same relationship checks as show/reply/download before pagination.
         $ids = Ticket::whereHas('sender', fn ($q) => $q->where('role', User::ROLE_TENANT))
             ->with(['sender', 'lease.tenant', 'lease.leasable'])->get()
@@ -122,6 +144,22 @@ class TenantCustomerService
     {
         abort_unless($this->canAccess($ticket, $user), 403);
     }
+    public function isIncoming(TicketMsg $message, Ticket $ticket, User $viewer): bool
+    {
+        $author = $message->authorId();
+        if (!$author) return false;
+        // A colleague reading a management message cannot stand in for the tenant.
+        return Gate::forUser($viewer)->allows('is-tenant')
+            ? $author !== $ticket->sender_id && $message->sender_type !== User::ROLE_TENANT
+            : $author === $ticket->sender_id && $message->sender_type === User::ROLE_TENANT;
+    }
+
+    public function unreadCount(Ticket $ticket, User $viewer): int
+    {
+        return $ticket->messages()->where('status', 'unread')->with('creationAudits')->get()
+            ->filter(fn ($message) => $this->isIncoming($message, $ticket, $viewer))->count();
+    }
+
     public function attachmentPath(TicketMsg $message): ?string
     {
         $prefix = 'ticket-attachments/'.$message->ticket_id.'/';

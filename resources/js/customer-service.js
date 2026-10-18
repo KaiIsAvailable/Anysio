@@ -157,7 +157,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const searchForm = find('[data-ticket-search]');
         let selected = root.dataset.selectedTicket || '';
         const active = host.querySelector('[data-ticket-chat]');
-        const chat = initChat(active, false, true);
+        const chat = initChat(active, false, true, () => refreshList(selectedUrl()), (ticketId, count) => {
+            const scrollTop = list.scrollTop;
+            list.querySelectorAll('[data-ticket-id]').forEach(link => {
+                if (link.dataset.ticketId !== String(ticketId)) return;
+                const badge = link.querySelector('[data-ticket-unread]');
+                if (!badge) return;
+                badge.textContent = count;
+                badge.hidden = count === 0;
+                badge.setAttribute('aria-label', count + ' unread messages');
+            });
+            list.scrollTop = scrollTop;
+        });
         let requested = selected;
         let listSequence = 0;
         let selectionSequence = 0;
@@ -180,8 +191,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (chat?.isSending()) { feedback.textContent = 'Please wait until the message finishes sending.'; return false; }
             return !chat?.isDirty() || window.confirm('Discard the unsent message and attachments?');
         };
-        const select = async (id, push = true, force = false, confirmed = false) => {
-            if (id === selected && !force) {
+        const select = async (id, push = true, force = false, confirmed = false, readAfterDisplay = false) => {
+            const sameConversation = !!id && id === selected;
+            if (sameConversation && chat?.isSending()) {
+                feedback.textContent = 'Please wait until the message finishes sending.';
+                return false;
+            }
+            if (!id && id === selected && !force) {
                 ++selectionSequence;
                 requested = selected;
                 chat.setSuspended(false);
@@ -191,7 +207,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 writeUrl();
                 return true;
             }
-            if (!confirmed && !canLeave()) return false;
+            if (!confirmed && !sameConversation && !canLeave()) return false;
             const sequence = ++selectionSequence;
             requested = id;
             retry.hidden = true;
@@ -210,10 +226,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const data = await request(url);
                 if (sequence !== selectionSequence) return false;
                 // Commit the title, history and send endpoint together, without replacing the shell.
-                chat.apply(data);
+                chat.apply(data, { preserveDraft: sameConversation });
                 selected = id;
                 highlight();
-                writeUrl(push);
+                writeUrl(push && !sameConversation);
+                if (readAfterDisplay && document.visibilityState === 'visible' && document.hasFocus()) {
+                    const loadedIds = data.messages.filter(message => message.incoming && message.status === 'unread').map(message => message.id);
+                    // Allow a paint of the new conversation before confirming the click's snapshot.
+                    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
+                        if (sequence === selectionSequence) chat.confirmRead(loadedIds);
+                    }));
+                }
             } catch (error) {
                 if (sequence !== selectionSequence) return false;
                 chat.setSuspended(false);
@@ -226,11 +249,14 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         const refreshList = async (url) => {
             const sequence = ++listSequence;
-            feedback.textContent = 'Loading conversations?';
+            feedback.textContent = '';
             try {
                 const data = await request(url);
                 if (sequence !== listSequence) return false;
+                // Capture at replacement time so scrolling during the request is preserved.
+                const scrollTop = list.scrollTop;
                 list.innerHTML = data.html;
+                list.scrollTop = scrollTop;
                 listUrl = new URL(url);
                 const reason = find('[data-creation-reason]');
                 if (reason) reason.textContent = data.creation_reason || '';
@@ -268,7 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const link = event.target.closest('a');
             if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
             event.preventDefault();
-            if (link.dataset.ticketId) await select(link.dataset.ticketId);
+            if (link.dataset.ticketId) await select(link.dataset.ticketId, true, false, false, true);
             else await refreshList(new URL(link.href));
         });
         retry.addEventListener('click', () => select(requested, false, true));
@@ -287,11 +313,12 @@ document.addEventListener('DOMContentLoaded', () => {
         highlight();
     }
 
-    function initChat(root, load = true, switchable = false) {
+    function initChat(root, load = true, switchable = false, onSent = async () => {}, onRead = () => {}) {
         if (chats.has(root)) return chats.get(root);
         const listeners = new AbortController();
-        const on = (target, type, handler) => target.addEventListener(type, handler, { signal: listeners.signal });
+        const on = (target, type, handler, options = {}) => target.addEventListener(type, handler, { ...options, signal: listeners.signal });
         let destroyed = false;
+        let conversationVersion = 0;
         let readUrl = root.dataset.readUrl;
         let sendUrl = root.dataset.sendUrl;
         const find = (selector) => root.querySelector(selector);
@@ -302,6 +329,77 @@ document.addEventListener('DOMContentLoaded', () => {
         const chatForm = find('[data-chat-form]');
         const chatError = find('[data-chat-error]');
         const history = find('[data-chat-messages]');
+        let markReadUrl = root.dataset.markReadUrl || '';
+        let displayedMessages = Array.from(history.querySelectorAll('[data-message-id]')).map(row => ({
+            id: row.dataset.messageId, incoming: row.dataset.incoming === 'true', status: row.dataset.messageStatus,
+        }));
+        const unreadSnapshot = (messages) => messages.filter(message => message.incoming && message.status === 'unread');
+        let visitUnread = unreadSnapshot(displayedMessages);
+        let readPending = false;
+        let lastReadAttempt = 0;
+        const canConfirmRead = () => !destroyed && !suspended && !empty && markReadUrl
+            && document.visibilityState === 'visible' && document.hasFocus()
+            && (!root.getClientRects || root.getClientRects().length > 0);
+        const confirmRead = async (explicit = false, loadedIds = null) => {
+            if (!canConfirmRead() || readPending || (!explicit && Date.now() - lastReadAttempt < 1000)) return;
+            // Freeze this interaction's displayed IDs; later arrivals require a new interaction.
+            const allowedIds = loadedIds === null ? null : new Set(loadedIds);
+            const ids = unreadSnapshot(displayedMessages).map(message => message.id).filter(id => !allowedIds || allowedIds.has(id));
+            if (!ids.length) return;
+            const version = conversationVersion;
+            const endpoint = markReadUrl;
+            readPending = true;
+            lastReadAttempt = Date.now();
+            try {
+                for (let offset = 0; offset < ids.length; offset += 500) {
+                    if (version !== conversationVersion || !canConfirmRead()) break;
+                    const body = new FormData();
+                    body.append('_token', new FormData(chatForm).get('_token'));
+                    ids.slice(offset, offset + 500).forEach(id => body.append('message_ids[]', id));
+                    const data = await request(endpoint, { method: 'POST', body });
+                    if (version !== conversationVersion || destroyed) return;
+                    const readIds = new Set(data.messages.filter(message => message.status === 'read').map(message => message.id));
+                    displayedMessages.forEach(message => { if (readIds.has(message.id)) message.status = 'read'; });
+                    history.querySelectorAll('[data-message-id]').forEach(row => {
+                        if (readIds.has(row.dataset.messageId)) row.dataset.messageStatus = 'read';
+                    });
+                    if (Number.isInteger(data.unread_count) && data.unread_count >= 0) onRead(data.ticket_id, data.unread_count);
+                }
+            } catch { /* Keep unread state; retry only on a later explicit interaction. */ }
+            finally { if (version === conversationVersion) readPending = false; }
+        };
+        ['mouseenter', 'mousemove', 'pointerdown', 'touchstart'].forEach(type => on(history, type, (event) => {
+            // Layout changes can generate an enter event under a stationary pointer.
+            if ((type === 'mouseenter' || type === 'mousemove') && event.movementX === 0 && event.movementY === 0) return;
+            return confirmRead();
+        }, { passive: true }));
+        let followBottom = true;
+        let previousScrollTop = history.scrollTop || 0;
+        const scrollToBottom = () => {
+            if (!followBottom || destroyed) return;
+            history.scrollTop = history.scrollHeight;
+            previousScrollTop = history.scrollTop;
+        };
+        const stopFollowing = () => { followBottom = false; };
+        on(history, 'wheel', (event) => { if (event.deltaY < 0) stopFollowing(); }, { passive: true });
+        on(history, 'touchmove', stopFollowing, { passive: true });
+        on(history, 'keydown', (event) => {
+            if (['ArrowUp', 'PageUp', 'Home'].includes(event.key)) stopFollowing();
+        });
+        on(history, 'scroll', () => {
+            if (history.scrollTop < previousScrollTop) stopFollowing();
+            previousScrollTop = history.scrollTop;
+        }, { passive: true });
+        on(history, 'load', scrollToBottom, { capture: true });
+        on(history, 'loadedmetadata', scrollToBottom, { capture: true });
+        on(window, 'resize', scrollToBottom);
+        const contentResize = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(scrollToBottom);
+        const watchContentHeight = () => {
+            contentResize?.disconnect();
+            contentResize?.observe(history);
+            Array.from(history.children).forEach((child) => contentResize?.observe(child));
+            scrollToBottom();
+        };
         const pdfThumbnails = createPdfThumbnails(history);
         on(window, 'pagehide', () => pdfThumbnails.reset());
         on(window, 'pageshow', () => pdfThumbnails.scan());
@@ -417,17 +515,24 @@ document.addEventListener('DOMContentLoaded', () => {
                 previews.append(card);
             });
         };
-        const renderConversation = (data) => {
-            const ticket = data.ticket;
+        const updateTicket = (ticket) => {
             canSend = permitted && !ticket.closed && ticket.can_send !== false;
             find('[data-chat-subject]').textContent = ticket.subject;
             find('[data-chat-context]').textContent = ticket.context || '';
             find('[data-chat-context]').hidden = !ticket.context;
-            find('[data-chat-status]').textContent = ticket.status;
+            find('[data-chat-status]').textContent = String(ticket.status || '').toUpperCase();
             find('[data-chat-status]').hidden = false;
             chatForm.hidden = !canSend;
             updateComposer();
             find('[data-chat-closed]').hidden = canSend;
+        };
+        const renderConversation = (data, newVisit = false) => {
+            updateTicket(data.ticket);
+            displayedMessages = data.messages.map(message => ({ ...message }));
+            markReadUrl = data.ticket.mark_read_url || markReadUrl;
+            if (newVisit) visitUnread = unreadSnapshot(displayedMessages);
+            const savedScrollTop = history.scrollTop;
+            contentResize?.disconnect();
             pdfThumbnails.reset();
             history.replaceChildren();
             if (!data.messages.length) {
@@ -440,7 +545,9 @@ document.addEventListener('DOMContentLoaded', () => {
             data.messages.forEach((message) => {
                 const sent = message.sent_at ? new Date(message.sent_at) : null;
                 const day = sent ? messageDay(sent) : message.date_key;
-                if (day && day !== previousDate) {
+                const startsDay = day && day !== previousDate;
+                const startsUnread = message.id && message.id === visitUnread[0]?.id;
+                if (startsDay) {
                     const divider = document.createElement('div');
                     divider.className = 'flex items-center gap-3 py-2';
                     divider.setAttribute('role', 'separator');
@@ -450,12 +557,36 @@ document.addEventListener('DOMContentLoaded', () => {
                     label.className = 'text-xs font-medium text-indigo-700';
                     label.textContent = dateLabel(day);
                     const line = () => { const el = document.createElement('span'); el.className = 'h-px flex-1 bg-indigo-100'; return el; };
-                    divider.append(line(), label, line());
+                    divider.append(line(), label);
+                    if (startsUnread) {
+                        divider.dataset.unreadDivider = '';
+                        const unread = document.createElement('span');
+                        unread.className = 'text-xs font-medium text-indigo-700';
+                        unread.textContent = visitUnread.length + ' unread messages';
+                        // A single separator carries both date and unread boundary.
+                        divider.append(unread);
+                    }
+                    divider.append(line());
                     history.append(divider);
                     previousDate = day;
                 }
                 const own = message.own === true;
+                if (startsUnread && !startsDay) {
+                    const divider = document.createElement('div');
+                    divider.dataset.unreadDivider = '';
+                    divider.className = 'flex items-center gap-3 py-2';
+                    divider.setAttribute('role', 'separator');
+                    const label = document.createElement('span');
+                    label.className = 'text-xs font-medium text-indigo-700';
+                    label.textContent = visitUnread.length + ' unread messages';
+                    const line = () => { const el = document.createElement('span'); el.className = 'h-px flex-1 bg-indigo-100'; return el; };
+                    divider.append(line(), label, line());
+                    history.append(divider);
+                }
                 const row = document.createElement('div');
+                row.dataset.messageId = message.id;
+                row.dataset.incoming = String(message.incoming === true);
+                row.dataset.messageStatus = message.status || '';
                 row.className = own ? 'flex justify-end' : 'flex justify-start';
                 const bubble = document.createElement('article');
                 bubble.className = own ? 'max-w-[85%] rounded-2xl bg-indigo-100 px-4 py-3 text-slate-900' : 'max-w-[85%] rounded-2xl bg-white border px-4 py-3 text-slate-900';
@@ -518,16 +649,23 @@ document.addEventListener('DOMContentLoaded', () => {
                     text.textContent = message.text;
                     bubble.append(text);
                 }
+                if (own) {
+                    const receipt = document.createElement('p');
+                    receipt.className = 'mt-1 text-right text-xs text-gray-500';
+                    receipt.textContent = message.status === 'read' ? 'Read' : message.status === 'unread' ? 'Unread' : 'Read status unknown';
+                    bubble.append(receipt);
+                }
                 row.append(bubble);
                 history.append(row);
             });
-            history.scrollTop = history.scrollHeight;
+            if (!followBottom) history.scrollTop = savedScrollTop;
+            watchContentHeight();
             pdfThumbnails.scan();
         };
         const loadConversation = async () => {
             const sequence = ++readSequence;
             const data = await request(readUrl);
-            if (!destroyed && sequence === readSequence) renderConversation(data);
+            if (!destroyed && sequence === readSequence) renderConversation(data, true);
         };
         ['document', 'media', 'camera'].forEach((kind, index) => {
             const picker = pickers[index];
@@ -564,45 +702,74 @@ document.addEventListener('DOMContentLoaded', () => {
                 body.append('items[' + index + '][' + (item.type === 'text' ? 'text' : 'file') + ']', item.type === 'text' ? item.text : item.file);
             });
             sending = true;
+            const sendVersion = conversationVersion;
+            const isCurrentSend = () => !destroyed && sendVersion === conversationVersion;
             setMenu(false);
             ++readSequence;
             toggleControls(chatForm, true);
             updateComposer();
             try {
                 const data = await request(sendUrl, { method: 'POST', body });
+                if (!isCurrentSend()) return;
+                // A successful own send starts a new bottom-follow session, even after reading older messages.
+                followBottom = true;
                 renderConversation(data);
                 draft.value = '';
                 resizeDraft();
                 clearAttachments();
+                scrollToBottom();
+                await onSent();
             } catch (error) {
+                if (!isCurrentSend()) return;
                 chatError.textContent = error.status ? error.message : 'The connection failed. Refresh this conversation before retrying to avoid duplicate messages.';
                 if (error.status === 403) {
-                    try { await loadConversation(); } catch { /* Keep the error and draft. */ }
+                    try {
+                        const data = await request(readUrl);
+                        // Refresh closed/permission UI without replacing messages, PDFs or the scroll position.
+                        if (isCurrentSend()) updateTicket(data.ticket);
+                    } catch { /* Keep the error and draft. */ }
                 }
-            } finally { sending = false; toggleControls(chatForm, !canSend); updateComposer(); }
+            } finally {
+                if (isCurrentSend()) { sending = false; toggleControls(chatForm, !canSend); updateComposer(); }
+            }
         });
         updateComposer();
         resizeDraft();
         on(window, 'pagehide', clearAttachments);
         const api = {
+            confirmRead: (loadedIds = null) => confirmRead(true, loadedIds),
             setSuspended: (value) => { suspended = value; updateComposer(); },
-            apply: (data) => {
+            apply: (data, { preserveDraft = false } = {}) => {
+                ++conversationVersion;
+                readPending = false;
+                lastReadAttempt = 0;
+                sending = false;
                 ++readSequence;
+                followBottom = true;
                 empty = false;
                 root.dataset.empty = 'false';
                 suspended = false;
                 readUrl = data.ticket.show_url;
+                markReadUrl = data.ticket.mark_read_url || '';
                 sendUrl = data.ticket.reply_url;
                 root.dataset.readUrl = readUrl;
                 root.dataset.sendUrl = sendUrl;
                 chatForm.action = sendUrl;
-                draft.value = '';
-                clearAttachments();
+                if (!preserveDraft) {
+                    draft.value = '';
+                    clearAttachments();
+                }
                 chatError.textContent = '';
-                renderConversation(data);
+                renderConversation(data, true);
                 resizeDraft();
             },
             clear: () => {
+                ++conversationVersion;
+                readPending = false;
+                markReadUrl = '';
+                displayedMessages = [];
+                visitUnread = [];
+                sending = false;
                 ++readSequence;
                 empty = true;
                 root.dataset.empty = 'true';
@@ -634,18 +801,20 @@ document.addEventListener('DOMContentLoaded', () => {
             isDirty: () => !!draft.value.trim() || attachments.length > 0,
             isSending: () => sending,
             destroy: () => {
+                ++conversationVersion;
                 destroyed = true;
                 ++readSequence;
                 listeners.abort();
                 clearTimeout(dateTimer);
                 pdfThumbnails.destroy();
+                contentResize?.disconnect();
                 clearAttachments();
                 chats.delete(root);
             },
         };
         chats.set(root, api);
         pdfThumbnails.scan();
-        if (!load) history.scrollTop = history.scrollHeight;
+        if (!load) watchContentHeight();
         if (load) loadConversation().catch((error) => { if (!destroyed) chatError.textContent = error.message; });
         return api;
     }

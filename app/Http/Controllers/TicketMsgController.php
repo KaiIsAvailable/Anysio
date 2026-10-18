@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\{Ticket, TicketMsg};
+use App\Models\{Ticket, TicketMsg, User};
 use App\Services\TenantCustomerService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\{Auth, Storage};
 
 class TicketMsgController extends Controller
 {
     public function attachment(Request $request, Ticket $ticket, TicketMsg $message, TenantCustomerService $service)
     {
-        $service->authorize($ticket, $request->user());
+        $actor = Auth::user();
+        if (!$actor instanceof User) abort(403);
+        $service->authorize($ticket, $actor);
         abort_unless($message->ticket_id === $ticket->id, 404);
         $path = $service->attachmentPath($message);
         abort_unless($path && Storage::disk('local')->exists($path), 404);

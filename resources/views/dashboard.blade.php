@@ -207,7 +207,7 @@
                                                     <div class="flex flex-col gap-1.5 w-full">
                                                         {{-- Renew Button (Emerald Theme) --}}
                                                         @canany(['owner-admin', 'leases.renew lease'])
-                                                        @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                                                        @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end']))
                                                             <button type="button" 
                                                                 @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: '{{ $lease->id }}' } }))"
                                                                 class="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-sm font-black rounded-lg border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
@@ -218,7 +218,7 @@
 
                                                         {{-- Check Out Button (Amber Theme) --}}
                                                         @canany(['owner-admin', 'leases.check out lease'])
-                                                        @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end agreement']))
+                                                        @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end']))
                                                             <button type="button" 
                                                                 @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } }))"
                                                                 class="px-3 py-1.5 bg-amber-50 text-amber-600 text-sm font-black rounded-lg border border-amber-100 hover:bg-amber-600 hover:text-white transition-all shadow-sm flex items-center justify-center whitespace-nowrap">

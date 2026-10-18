@@ -14,6 +14,11 @@ class TicketMsg extends Model
     // 指定表名（因为你给的名称是 ticket_msgs，模型名是 TicketMsg，Laravel 默认会找 ticket_msgs，这里手动指定更安全）
     protected $table = 'ticket_msgs';
 
+    // Application default only; legacy NULL values remain unknown.
+    protected $attributes = ['status' => 'unread'];
+
+    protected $casts = ['read_at' => 'datetime'];
+
     protected $fillable = [
         'ticket_id',
         'sender_type',

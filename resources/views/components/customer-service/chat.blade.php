@@ -3,6 +3,7 @@
     'currentRole',
     'sendUrl' => '',
     'readUrl' => '',
+    'markReadUrl' => '',
     'canSend' => false,
     'canAttach' => true,
     'context' => '',
@@ -17,7 +18,7 @@
             $accept = fn ($extensions) => implode(',', array_map(fn ($ext) => '.'.$ext, $extensions));
         @endphp
 
-<section data-ticket-chat data-can-attach="{{ $canAttach ? 'true' : 'false' }}" data-empty="{{ $ticket ? 'false' : 'true' }}" data-current-role="{{ $currentRole }}" data-send-url="{{ $sendUrl }}" data-read-url="{{ $readUrl }}" data-can-send="{{ $canSend ? 'true' : 'false' }}" data-limits="{{ json_encode($limits) }}" class="bg-white rounded-2xl shadow-lg border border-gray-100 {{ $embedded ? 'h-full min-h-0 flex flex-col' : '' }}">
+<section data-ticket-chat data-mark-read-url="{{ $markReadUrl }}" data-can-attach="{{ $canAttach ? 'true' : 'false' }}" data-empty="{{ $ticket ? 'false' : 'true' }}" data-current-role="{{ $currentRole }}" data-send-url="{{ $sendUrl }}" data-read-url="{{ $readUrl }}" data-can-send="{{ $canSend ? 'true' : 'false' }}" data-limits="{{ json_encode($limits) }}" class="bg-white rounded-2xl shadow-lg border border-gray-100 {{ $embedded ? 'h-full min-h-0 flex flex-col' : '' }}">
     <header class="flex shrink-0 items-start gap-2 border-b p-3 sm:gap-3 sm:p-5">
         @if($embedded)
             <button type="button" data-back-to-list aria-label="Back to conversations" title="Back to conversations" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-indigo-700 hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-500 md:hidden">
@@ -27,22 +28,35 @@
             </button>
         @endif
         <h2 data-chat-subject class="min-w-0 flex-1 py-2 text-xl font-bold text-slate-900 break-words">{{ $ticket?->subject ?? 'Customer Service' }}</h2>
-        <span data-chat-status @if(!$ticket) hidden @endif class="mt-2 shrink-0 rounded-full bg-indigo-50 px-3 py-1 text-xs font-semibold text-indigo-700">{{ $ticket?->status ?? '' }}</span>
+        <x-customer-service.ticket-status data-chat-status :status="$ticket?->status ?? ''" :hidden="!$ticket" class="mt-2" />
     </header>
     <p data-chat-context class="shrink-0 px-5 py-2 text-sm text-gray-600" @if(!$context) hidden @endif>{{ $context }}</p>
     <div data-chat-messages aria-live="polite" class="overflow-y-auto space-y-3 bg-gray-50 p-4 sm:p-6 {{ $embedded ? 'flex-1 min-h-0' : 'h-[55vh] min-h-64' }}">
         @php($previousDate = null)
+        @php($unreadMessages = collect($messages)->filter(fn ($message) => ($message['incoming'] ?? false) && ($message['status'] ?? null) === 'unread'))
         @forelse($messages as $message)
-            @if(($message['date_key'] ?? null) && $previousDate !== $message['date_key'])
-                <div class="flex items-center gap-3 py-2" role="separator" aria-label="{{ $message['date_label'] }}">
+            @php($startsDay = ($message['date_key'] ?? null) && $previousDate !== $message['date_key'])
+            @php($startsUnread = $unreadMessages->isNotEmpty() && ($unreadMessages->first()['id'] ?? null) === ($message['id'] ?? null))
+            @if($startsDay)
+                <div @if($startsUnread) data-unread-divider @endif class="flex items-center gap-3 py-2" role="separator" aria-label="{{ $message['date_label'] }}">
                     <span class="h-px flex-1 bg-indigo-100"></span>
                     <span data-message-date="{{ $message['date_key'] }}" class="text-xs font-medium text-indigo-700">{{ $message['date_label'] }}</span>
+                    @if($startsUnread)
+                        <span class="text-xs font-medium text-indigo-700">{{ $unreadMessages->count() }} unread messages</span>
+                    @endif
                     <span class="h-px flex-1 bg-indigo-100"></span>
                 </div>
                 @php($previousDate = $message['date_key'])
             @endif
             @php($own = ($message['own'] ?? false))
-            <div class="flex {{ $own ? 'justify-end' : 'justify-start' }}">
+            @if($startsUnread && !$startsDay)
+                <div data-unread-divider class="flex items-center gap-3 py-2" role="separator">
+                    <span class="h-px flex-1 bg-indigo-100"></span>
+                    <span class="text-xs font-medium text-indigo-700">{{ $unreadMessages->count() }} unread messages</span>
+                    <span class="h-px flex-1 bg-indigo-100"></span>
+                </div>
+            @endif
+            <div data-message-id="{{ $message['id'] ?? '' }}" data-incoming="{{ ($message['incoming'] ?? false) ? 'true' : 'false' }}" data-message-status="{{ $message['status'] ?? '' }}" class="flex {{ $own ? 'justify-end' : 'justify-start' }}">
                 <article class="max-w-[85%] rounded-2xl px-4 py-3 text-slate-900 {{ $own ? 'bg-indigo-100' : 'bg-white border' }}">
                     <p class="mb-1 text-xs text-gray-500">{{ $own ? 'You' : ($message['sender_label'] ?? $message['sender_type']) }} · {{ $message['created_at'] }}</p>
                     @if($message['attachment_url'])
@@ -56,6 +70,9 @@
                         <a href="{{ $message['attachment_url'] }}?download=1" class="inline-block mt-2 text-sm text-indigo-700 underline">Download {{ strtoupper($message['extension']) }} attachment</a>
                     @else
                         <p class="text-sm whitespace-pre-wrap break-words">{{ $message['text'] }}</p>
+                    @endif
+                    @if($own)
+                        <p class="mt-1 text-right text-xs text-gray-500">{{ ($message['status'] ?? null) === 'read' ? 'Read' : (($message['status'] ?? null) === 'unread' ? 'Unread' : 'Read status unknown') }}</p>
                     @endif
                 </article>
             </div>

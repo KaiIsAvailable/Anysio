@@ -97,9 +97,11 @@ class AppServiceProvider extends ServiceProvider
             }
         });
 
-        Gate::define('maintenance-tickets', fn (User $user) => in_array($user->role, [
-            User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN, User::ROLE_OWNER,
-        ], true));
+        Gate::define('maintenance-tickets', function (User $user) {
+            $gate = Gate::forUser($user);
+            return $gate->denies('is-tenant')
+                && $gate->any(['owner-admin', 'is-owner', 'maintenance.tab']);
+        });
 
         Gate::define('super-admin', function (User $user) {
             return $user->getRoleLevel() >= 5;

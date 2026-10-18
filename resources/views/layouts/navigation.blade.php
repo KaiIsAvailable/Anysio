@@ -43,7 +43,7 @@
                             {{ __('Dashboard') }}
                         </x-nav-link>
                         <x-nav-link :href="route('tenants.customerService.index')" :active="request()->routeIs('tenants.customerService.*')">
-                            {{ __('Customer Service') }}
+                            {{ __('Help & Support') }}
                         </x-nav-link>
                     @endcan
 
@@ -82,11 +82,11 @@
                         </x-nav-link>
                     @endcanany
 
-                    @can('maintenance-tickets')
-                    <x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
-                        {{ __('Maintenance') }}
-                    </x-nav-link>
-                    @endcan
+                    @canany(['owner-admin', 'maintenance.tab'])
+                        <x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
+                            {{ __('Service Request') }}
+                        </x-nav-link>
+                    @endcanany
 
                     <!--@can('owner-admin')
                         <x-nav-link :href="route('admin.document-templates.index')" :active="request()->routeIs('admin.document-templates.*')">

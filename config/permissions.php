@@ -12,6 +12,7 @@ return [
         'leases'            => ['tab', 'agreement template', 'lease controller', 'upload stamping', 'view agreement', 'renew lease', 'check out lease', 'cancel lease', 'show', 'auto generate invoice', 'add manual invoice', 'record payment', 'void', 'view invoice', 'view receipt'],
         'document template' => ['create', 'preview', 'print', 'edit', 'set active document'],
         'invoice'           => ['tab', 'record payment', 'void', 'view invoice', 'view receipt', 'view payment proof'],
+        'maintenance'       => ['tab'],
         'staff'             => ['tab', 'create', 'edit', 'delete', 'show'],
         'settings'          => ['payment tab', 'late payment setting', 'edit late payment', 'payment collection setting', 'edit payment collection', 'lease tab', 'recurring invoice setting', 'edit recurring invoice', 'pending renewal setting', 'edit pending renewal', 'lease configuration setting', 'edit lease configuration', 'user role tab', 'create new role', 'edit user role', 'delete user role']
     ],

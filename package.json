@@ -22,6 +22,6 @@
     "dependencies": {
         "grapesjs": "^0.23.4",
         "grapesjs-preset-webpage": "^1.0.3",
-        "pdfjs-dist": "6.4.299"
+        "pdfjs-dist": "^6.4.299"
     }
 }

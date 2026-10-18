@@ -82,11 +82,11 @@
                         </x-nav-link>
                     @endcanany
 
-                    @canany(['owner-admin', 'maintenance.tab'])
+                    <!--@canany(['owner-admin', 'maintenance.tab'])
                         <x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
                             {{ __('Service Request') }}
                         </x-nav-link>
-                    @endcanany
+                    @endcanany-->
 
                     <!--@can('owner-admin')
                         <x-nav-link :href="route('admin.document-templates.index')" :active="request()->routeIs('admin.document-templates.*')">

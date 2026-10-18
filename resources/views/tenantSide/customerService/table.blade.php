@@ -1,6 +1,6 @@
-<nav aria-label="Ticket subjects" class="divide-y divide-gray-100">
+<nav aria-label="Ticket subjects" class="divide-y">
     @forelse($tickets as $ticket)
-        <a href="{{ route(($routePrefix ?? 'tenants.customerService').'.index', ['ticket' => $ticket->id]) }}" data-ticket-id="{{ $ticket->id }}" class="block border-l-4 border-transparent p-4 hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-500 aria-[current=true]:border-indigo-600 aria-[current=true]:bg-indigo-50" aria-current="{{ request('ticket') === $ticket->id ? 'true' : 'false' }}">
+        <a href="{{ route(($routePrefix ?? 'tenants.customerService').'.index', ['ticket' => $ticket->id]) }}" data-ticket-id="{{ $ticket->id }}" class="block border-l-4 border-l-transparent border-t-gray-100 border-b-gray-100 p-4 hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-500 aria-[current=true]:border-l-indigo-600 aria-[current=true]:bg-indigo-50" aria-current="{{ request('ticket') === $ticket->id ? 'true' : 'false' }}">
             <span class="block break-words text-sm font-semibold text-slate-900">{{ $ticket->subject }}</span>
             @if(!($canCreate ?? true))
                 <span class="mt-1 block break-words text-xs text-slate-600">{{ $ticket->sourceLabel() }}</span>

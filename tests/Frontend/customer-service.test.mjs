@@ -57,6 +57,51 @@ class FormDataMock {
     get(name) { return this.values.find(([key]) => key === name)?.[1] ?? null; }
 }
 const settle = async () => { for (let i = 0; i < 4; i++) await new Promise(setImmediate); };
+
+test('Subject selection stays committed across switching, failures and replaced search/page lists', async () => {
+    for (const manager of [false, true]) {
+        for (const mobile of [false, true]) {
+            const { node, answers } = setup({ index: true, initial: 'first', manager, mobile });
+            const list = node('[data-ticket-list]');
+            const replaceList = () => {
+                list.controls = ['first', 'middle', 'last'].map((id) => {
+                    const link = new Element('a');
+                    link.dataset.ticketId = id;
+                    return link;
+                });
+            };
+            const assertSelected = (id) => {
+                for (const link of list.controls) {
+                    assert.equal(link['aria-current'], String(link.dataset.ticketId === id));
+                }
+            };
+            list.onHTML = replaceList;
+            replaceList();
+            for (const id of ['last', 'first', 'middle']) {
+                answers.push({ data: { html: id } });
+                await list.fire('click', { target: list.controls.find((link) => link.dataset.ticketId === id) });
+                assertSelected(id);
+            }
+            let release;
+            answers.push({ gate: new Promise((resolve) => { release = resolve; }), status: 500, data: {} });
+            const failedSwitch = list.fire('click', { target: list.controls[2] });
+            assertSelected('middle');
+            release();
+            await failedSwitch;
+            assertSelected('middle');
+            node('[data-ticket-search]').fields = [['search', 'leak']];
+            answers.push({ data: { html: 'search results' } });
+            await node('[data-ticket-search]').fire('submit');
+            assertSelected('middle');
+            const page = new Element('a');
+            page.href = 'http://example.test/admin/tenant/customer-service?search=leak&page=2';
+            answers.push({ data: { html: 'page results' } });
+            await list.fire('click', { target: page });
+            assertSelected('middle');
+        }
+    }
+});
+
 function setup({ manager = false, multipleLeases = false, index = false, dashboard = false, chat = false, role = 'tenant', canSend = true, closed = false, messages = [], mobile = false, initial = '', now = null } = {}) {
     const nodes = new Map();
     const node = (selector) => {

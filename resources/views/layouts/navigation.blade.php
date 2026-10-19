@@ -82,21 +82,17 @@
                         </x-nav-link>
                     @endcanany
 
-                    @can('maintenance-tickets')
+                    <!--@can('maintenance-tickets')
                         <x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
-                            {{ __('Maintenance') }}
+                            {{ __('Service Request') }}
                         </x-nav-link>
-                    @endcan
+                    @endcan-->
 
                     <!--@can('owner-admin')
                         <x-nav-link :href="route('admin.document-templates.index')" :active="request()->routeIs('admin.document-templates.*')">
                             {{ __('Document Templates') }}
                         </x-nav-link>
                     @endcan-->
-
-                    <!--<x-nav-link :href="route('admin.customerService.index')" :active="request()->routeIs('admin.customerService.*')">
-                        {{ __('Contact Us') }}
-                    </x-nav-link>-->
 
                     @can('super-admin')
                         <x-nav-link :href="route('admin.packages.index')" :active="request()->routeIs('admin.packages.*')">

@@ -3,7 +3,7 @@
 namespace App\Observers;
 
 use App\Models\Lease;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\{Auth, Log};
 use App\Services\NotificationService;
 use App\Services\InvoiceService;
 use Carbon\Carbon;
@@ -17,22 +17,32 @@ class LeaseObserver
         $status = ucfirst($lease->status);
         $title = "{$status} Lease Created: {$lease->leasableName}";
 
+        // 🔍 Log the recipients to your storage/logs/laravel.log for testing
+        Log::info('LeaseObserver Created - Recipients Debug:', [
+            'lease_id' => $lease->id,
+            'tenant_user_id' => $lease->tenant?->user_id ?? 'NOT FOUND',
+            'owner_user_id' => $lease->ownerUserId ?? 'NOT FOUND',
+            'auth_user_id' => Auth::id(),
+        ]);
+
+        $recipients = array_filter([
+            optional($lease->tenant)->user_id, 
+            $lease->ownerUserId,
+            Auth::id()
+        ]); // array_filter removes nulls just in case
+
         $this->notificationService->send(
             Auth::id(),
             'lease_created',
             $title,
             [
-                'id'      => $lease->id, // 补上这个 ID
+                'id'      => $lease->id,
                 'name'    => $lease->leasableName,
                 'details' => 'A new lease has been generated and requires your review.',
-                'status'  => ucfirst($lease->status), // 顺便加上状态，方便前端显示 Badge
+                'status'  => ucfirst($lease->status),
                 'url'     => route('admin.leases.show', ['lease' => $lease->id]),
             ],
-            [
-                $lease->tenant->user_id, 
-                $lease->ownerUserId,
-                Auth::id()
-            ] 
+            $recipients 
         );
     }
 

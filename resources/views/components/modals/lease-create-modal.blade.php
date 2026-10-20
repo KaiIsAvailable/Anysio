@@ -478,6 +478,7 @@
                                 </div>
                             </div>
                         </div>
+                        @endcan
 
                         <x-modals.add-fee-type-modal />
 
@@ -536,7 +537,6 @@
                                 <span class="block mt-1 text-xs text-blue-600 italic">These amounts are brought forward from your previous lease.</span>
                             </p>
                         </div>
-                        @endcan
                     </div>
 
                     {{-- Footer Buttons --}}

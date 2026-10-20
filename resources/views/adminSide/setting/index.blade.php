@@ -571,7 +571,8 @@
                         isLoading: false,
                         errorMessage: '',
                         isShaking: false
-                    }">              
+                    }">            
+                
                     <div class="bg-white border border-gray-200 rounded-lg p-4 sm:p-6 shadow-sm space-y-6">
                         
                         <!-- Header with Section Edit Button AND Create Role Button -->
@@ -626,7 +627,7 @@
                                                 @click="roleTab = '{{ $role->name }}'"
                                                 :class="roleTab === '{{ $role->name }}' ? 'border-indigo-600 text-indigo-600 bg-white shadow-sm' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                                                 class="whitespace-nowrap py-2.5 px-3 border-b-2 font-semibold text-xs rounded-t-lg transition-all capitalize flex items-center gap-2">
-                                            
+                                    
                                             <!-- Role Name -->
                                             <span>{{ $role->name }}</span>
 
@@ -654,12 +655,31 @@
                                                 <div class="p-4 rounded-lg border border-gray-100 bg-gray-50 space-y-3"
                                                     x-data="{
                                                         permissionsState: {
-                                                            @foreach($actions as $action)
-                                                                @php
-                                                                    $permissionName = "{$moduleName}.{$action}";
-                                                                    $isChecked = $role->permissions->contains(fn($p) => $p->name === $permissionName && $p->guard_name === 'web');
-                                                                @endphp
-                                                                '{{ $action }}': {{ $isChecked ? 'true' : 'false' }},
+                                                            @foreach($actions as $actionKey => $actionVal)
+                                                                @if(is_array($actionVal))
+                                                                    {{-- Parent action (e.g., record payment) --}}
+                                                                    @php
+                                                                        $parentPermissionName = "{$moduleName}.{$actionKey}";
+                                                                        $isParentCheck = $role->permissions->contains(fn($p) => $p->name === $parentPermissionName && $p->guard_name === 'web');
+                                                                    @endphp
+                                                                    '{{ $actionKey }}': {{ $isParentCheck ? 'true' : 'false' }},
+                                                                    
+                                                                    {{-- Nested sub-actions (e.g., edit penalty, remove penalty) --}}
+                                                                    @foreach($actionVal as $subAction)
+                                                                        @php
+                                                                            $subPermissionName = "{$moduleName}.{$subAction}";
+                                                                            $isSubCheck = $role->permissions->contains(fn($p) => $p->name === $subPermissionName && $p->guard_name === 'web');
+                                                                        @endphp
+                                                                        '{{ $subAction }}': {{ $isSubCheck ? 'true' : 'false' }},
+                                                                    @endforeach
+                                                                @else
+                                                                    {{-- Regular flat action (e.g., tab, void) --}}
+                                                                    @php
+                                                                        $permissionName = "{$moduleName}.{$actionVal}";
+                                                                        $isCheck = $role->permissions->contains(fn($p) => $p->name === $permissionName && $p->guard_name === 'web');
+                                                                    @endphp
+                                                                    '{{ $actionVal }}': {{ $isCheck ? 'true' : 'false' }},
+                                                                @endif
                                                             @endforeach
                                                         },
                                                         get isAllChecked() {
@@ -685,8 +705,7 @@
                                                         <div class="flex items-center gap-2">
                                                             <span class="text-[10px] font-semibold text-gray-500 uppercase">Select All</span>
                                                             <label class="relative inline-flex items-center shrink-0 transition-opacity"
-                                                                :class="!editingPermissions ? 'opacity-65 cursor-not-allowed' : 'cursor-pointer'">
-                                                                <!-- Changed to x-model so the switch visually turns on/off reactively -->
+                                                                :class="!editingPermissions ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'">
                                                                 <input type="checkbox" 
                                                                     x-model="isAllChecked"
                                                                     class="sr-only peer"
@@ -698,30 +717,78 @@
 
                                                     <!-- Grid of Toggles for Actions -->
                                                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                                                        @foreach($actions as $action)
-                                                            @php
-                                                                $permissionName = "{$moduleName}.{$action}";
-                                                            @endphp
-                                                            <div class="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100 shadow-sm">
+                                                        @foreach($actions as $actionKey => $actionVal)
+                                                            @if(is_array($actionVal))
+                                                                {{-- Parent Action Box spans across or stays distinct --}}
+                                                                @php $parentPermissionName = "{$moduleName}.{$actionKey}"; @endphp
                                                                 
-                                                                <!-- Added title="{{ $action }}" for native hover tooltip -->
-                                                                <span class="text-xs font-medium text-gray-800 truncate capitalize mr-2" 
-                                                                    title="{{ $action }}">
-                                                                    {{ $action }}
-                                                                </span>
-                                                                
-                                                                <!-- Toggle Button -->
-                                                                <label class="relative inline-flex items-center shrink-0 transition-opacity"
-                                                                    :class="!editingPermissions ? 'opacity-65 cursor-not-allowed' : 'cursor-pointer'">
-                                                                    <input type="checkbox" 
-                                                                        name="permissions[{{ $role->id }}][{{ $permissionName }}]" 
-                                                                        value="1" 
-                                                                        class="sr-only peer" 
-                                                                        x-model="permissionsState['{{ $action }}']"
-                                                                        x-bind:disabled="!editingPermissions">
-                                                                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                                                                </label>
-                                                            </div>
+                                                                <div class="col-span-full bg-slate-50/80 border border-slate-200/80 rounded-xl p-4 space-y-3 shadow-sm">
+                                                                    <!-- Parent Header / Toggle -->
+                                                                    <div class="flex items-center justify-between pb-3 border-b border-slate-200/60">
+                                                                        <div class="flex items-center gap-2">
+                                                                            <span class="w-2 h-2 rounded-full bg-indigo-600"></span>
+                                                                            <span class="text-xs font-bold text-slate-900 capitalize tracking-wide">{{ $actionKey }}</span>
+                                                                        </div>
+                                                                        
+                                                                        <label class="relative inline-flex items-center shrink-0 transition-opacity"
+                                                                            :class="!editingPermissions ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'">
+                                                                            <input type="checkbox" 
+                                                                                name="permissions[{{ $role->id }}][{{ $parentPermissionName }}]" 
+                                                                                value="1" 
+                                                                                class="sr-only peer" 
+                                                                                x-model="permissionsState['{{ $actionKey }}']"
+                                                                                @change="
+                                                                                    let state = permissionsState['{{ $actionKey }}'];
+                                                                                    @foreach($actionVal as $subAction)
+                                                                                        permissionsState['{{ $subAction }}'] = state;
+                                                                                    @endforeach
+                                                                                "
+                                                                                x-bind:disabled="!editingPermissions">
+                                                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                                        </label>
+                                                                    </div>
+
+                                                                    <!-- Sub-Actions Container (Indented with a left border line) -->
+                                                                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 pl-3 sm:pl-4 border-l-2 border-indigo-200">
+                                                                        @foreach($actionVal as $subAction)
+                                                                            @php $subPermissionName = "{$moduleName}.{$subAction}"; @endphp
+                                                                            <div class="flex items-center justify-between p-2.5 bg-white rounded-lg border border-slate-100 shadow-2xs">
+                                                                                <span class="text-xs font-medium text-slate-700 truncate capitalize mr-2 flex items-center gap-1.5">
+                                                                                    <span class="text-slate-400">↳</span> {{ $subAction }}
+                                                                                </span>
+                                                                                <label class="relative inline-flex items-center shrink-0 transition-opacity"
+                                                                                    :class="!editingPermissions ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'">
+                                                                                    <input type="checkbox" 
+                                                                                        name="permissions[{{ $role->id }}][{{ $subPermissionName }}]" 
+                                                                                        value="1" 
+                                                                                        class="sr-only peer" 
+                                                                                        x-model="permissionsState['{{ $subAction }}']"
+                                                                                        x-bind:disabled="!editingPermissions">
+                                                                                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                                                </label>
+                                                                            </div>
+                                                                        @endforeach
+                                                                    </div>
+                                                                </div>
+                                                            @else
+                                                                {{-- Standard Flat Action Box --}}
+                                                                @php $permissionName = "{$moduleName}.{$actionVal}"; @endphp
+                                                                <div class="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-100 shadow-sm">
+                                                                    <span class="text-xs font-medium text-gray-800 truncate capitalize mr-2" title="{{ $actionVal }}">
+                                                                        {{ $actionVal }}
+                                                                    </span>
+                                                                    <label class="relative inline-flex items-center shrink-0 transition-opacity"
+                                                                        :class="!editingPermissions ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'">
+                                                                        <input type="checkbox" 
+                                                                            name="permissions[{{ $role->id }}][{{ $permissionName }}]" 
+                                                                            value="1" 
+                                                                            class="sr-only peer" 
+                                                                            x-model="permissionsState['{{ $actionVal }}']"
+                                                                            x-bind:disabled="!editingPermissions">
+                                                                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                                    </label>
+                                                                </div>
+                                                            @endif
                                                         @endforeach
                                                     </div>
                                                 </div>

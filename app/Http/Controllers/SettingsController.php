@@ -58,11 +58,28 @@ class SettingsController extends Controller
         $modules = config('permissions.modules', []);
     
         foreach ($modules as $moduleName => $actions) {
-            foreach ($actions as $action) {
-                Permission::firstOrCreate([
-                    'name' => "{$moduleName}.{$action}",
-                    'guard_name' => 'web'
-                ]);
+            foreach ($actions as $key => $value) {
+                if (is_array($value)) {
+                    // 1. Create the parent action (e.g., 'invoice.record payment')
+                    Permission::firstOrCreate([
+                        'name' => "{$moduleName}.{$key}",
+                        'guard_name' => 'web'
+                    ]);
+
+                    // 2. Loop and create each nested sub-action (e.g., 'invoice.edit penalty')
+                    foreach ($value as $subAction) {
+                        Permission::firstOrCreate([
+                            'name' => "{$moduleName}.{$subAction}",
+                            'guard_name' => 'web'
+                        ]);
+                    }
+                } else {
+                    // Standard flat action (e.g., 'invoice.tab', 'invoice.void')
+                    Permission::firstOrCreate([
+                        'name' => "{$moduleName}.{$value}",
+                        'guard_name' => 'web'
+                    ]);
+                }
             }
         }
 

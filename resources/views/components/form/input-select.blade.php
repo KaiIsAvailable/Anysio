@@ -8,6 +8,7 @@
     'labelField' => null,
     'maxHeight' => 'max-h-60',
     'multiple' => false,
+    'ignoreCheckoutOrRenew' => false,
 ])
 
 @php
@@ -76,9 +77,10 @@
         if (@js($disabled)) return true;
         if (typeof editing !== 'undefined' && !editing) return true;
         if (typeof editingPendingRenewal !== 'undefined' && !editingPendingRenewal) return true;
-        if (typeof isCheckoutOrRenew !== 'undefined' && isCheckoutOrRenew) return true;
+        
+        // Skip locking if ignoreCheckoutOrRenew is true
+        if (!@js($ignoreCheckoutOrRenew) && typeof isCheckoutOrRenew !== 'undefined' && isCheckoutOrRenew) return true;
 
-        // Check native HTML attributes as a fallback
         if (this.$el.hasAttribute('disabled') || this.$el.getAttribute('aria-disabled') === 'true') return true;
 
         return false;

@@ -48,8 +48,12 @@ class LeaseCharge extends Model
         return $this->belongsTo(FeeType::class);
     }
 
-    // --- Scopes ---
+    public function invoice(): BelongsTo
+    {
+        return $this->belongsTo(Invoice::class);
+    }
 
+    // --- Scopes ---
     public function scopeRecurring($q)
     {
         return $q->where('charge_type', self::TYPE_RECURRING)

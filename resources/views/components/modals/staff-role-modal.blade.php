@@ -33,7 +33,7 @@
                             let payload = {
                                 name: newRoleName,
                                 permissions: selectedPermissions,
-                                user_id: formData.get('user_id') // Matches $request->input('user_id') in your controller
+                                user_id: formData.get('user_id')
                             };
 
                             fetch('{{ route('admin.roles.store') }}', {
@@ -61,7 +61,7 @@
                             })
                          ">
                 <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
-                    {{-- 💡 Admin User Selection Field (Visible only if current user is admin/super-admin) --}}
+                    {{-- Admin User Selection Field --}}
                     @if(auth()->user()->role === 'admin' || app(\Illuminate\Contracts\Auth\Access\Gate::class)->allows('super-admin'))
                         <div>
                             @php
@@ -71,8 +71,8 @@
                                     ->map(function($management) {
                                         $u = $management->user;
                                         return [
-                                            'value' => (string) $u->id,              // Changed from 'id' to 'value'
-                                            'label' => "{$u->name} ({$u->email})"    // Changed from 'name' to 'label'
+                                            'value' => (string) $u->id,            
+                                            'label' => "{$u->name} ({$u->email})"    
                                         ];
                                     })
                                     ->toArray();
@@ -84,8 +84,8 @@
                                 name="user_id" 
                                 class="w-full"
                                 :options="$managementUsers"
-                                value-field="value"     
-                                label-field="label"     
+                                value-field="value"    
+                                label-field="label"    
                                 x-model="selectedTargetUserId"
                                 :value="old('user_id')"
                             />
@@ -104,27 +104,38 @@
                         
                         @foreach(config('permissions.modules', []) as $moduleName => $actions)
                             @php
-                                // Precompute all permission names for this module so JavaScript can reference them easily
-                                $modulePerms = collect($actions)->map(fn($action) => "{$moduleName}.{$action}")->toJson();
+                                // Flatten both regular strings and nested sub-actions into a single array list for JavaScript/Alpine
+                                $flatPerms = [];
+                                foreach ($actions as $actionKey => $actionVal) {
+                                    if (is_array($actionVal)) {
+                                        $flatPerms[] = "{$moduleName}.{$actionKey}";
+                                        foreach ($actionVal as $subAction) {
+                                            $flatPerms[] = "{$moduleName}.{$subAction}";
+                                        }
+                                    } else {
+                                        $flatPerms[] = "{$moduleName}.{$actionVal}";
+                                    }
+                                }
+                                $modulePermsJson = json_encode($flatPerms);
                             @endphp
 
                             <div class="p-3 rounded-lg border border-gray-100 bg-gray-50 space-y-3"
-                                 x-data="{
-                                     modulePerms: {{ $modulePerms }},
-                                     get isAllChecked() {
-                                         return this.modulePerms.every(p => selectedPermissions.includes(p));
-                                     },
-                                     toggleAll() {
-                                         if (this.isAllChecked) {
-                                             // Remove all permissions belonging to this module
-                                             selectedPermissions = selectedPermissions.filter(p => !this.modulePerms.includes(p));
-                                         } else {
-                                             // Add all permissions belonging to this module without duplicates
-                                             selectedPermissions = Array.from(new Set([...selectedPermissions, ...this.modulePerms]));
-                                         }
-                                     }
-                                 }">
-                                
+                                   x-data="{
+                                       modulePerms: {{ $modulePermsJson }},
+                                       get isAllChecked() {
+                                           return this.modulePerms.every(p => selectedPermissions.includes(p));
+                                       },
+                                       toggleAll() {
+                                           if (this.isAllChecked) {
+                                               // Remove all permissions belonging to this module
+                                               selectedPermissions = selectedPermissions.filter(p => !this.modulePerms.includes(p));
+                                           } else {
+                                               // Add all permissions belonging to this module without duplicates
+                                               selectedPermissions = Array.from(new Set([...selectedPermissions, ...this.modulePerms]));
+                                           }
+                                       }
+                                   }">
+                            
                                 <!-- Module Header with Master Toggle Switch -->
                                 <div class="flex items-center justify-between pb-2 border-b border-gray-200/60">
                                     <h4 class="text-xs font-bold text-gray-600 uppercase tracking-wider flex items-center gap-2">
@@ -144,22 +155,57 @@
                                     </div>
                                 </div>
 
-                                <!-- Individual Permission Toggles Grid -->
+                                <!-- Individual Permission & Nested Toggles Grid -->
                                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                    @foreach($actions as $action)
-                                        @php $permName = "{$moduleName}.{$action}"; @endphp
-                                        <div class="flex items-center justify-between bg-white p-2.5 rounded-lg border border-gray-100 shadow-sm">
-                                            <span class="text-xs font-medium text-gray-800 truncate capitalize mr-2">{{ $action }}</span>
-                                            
-                                            <!-- Toggle Switch -->
-                                            <label class="relative inline-flex items-center shrink-0 cursor-pointer">
-                                                <input type="checkbox" 
-                                                       value="{{ $permName }}" 
-                                                       x-model="selectedPermissions"
-                                                       class="sr-only peer">
-                                                <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                                            </label>
-                                        </div>
+                                    @foreach($actions as $actionKey => $actionVal)
+                                        @if(is_array($actionVal))
+                                            {{-- 1. Render Parent Action Toggle (e.g., Record Payment) --}}
+                                            @php 
+                                                $parentPermName = "{$moduleName}.{$actionKey}"; 
+                                            @endphp
+                                            <div class="flex items-center justify-between bg-white p-2.5 rounded-lg border border-gray-100 shadow-sm">
+                                                <span class="text-xs font-medium text-gray-800 truncate capitalize mr-2">{{ $actionKey }}</span>
+                                                <label class="relative inline-flex items-center shrink-0 cursor-pointer">
+                                                    <input type="checkbox" 
+                                                           value="{{ $parentPermName }}" 
+                                                           x-model="selectedPermissions"
+                                                           class="sr-only peer">
+                                                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                </label>
+                                            </div>
+
+                                            {{-- 2. Render Nested Sub-Action Toggles (e.g., Edit Penalty, Remove Penalty) --}}
+                                            @foreach($actionVal as $subAction)
+                                                @php 
+                                                    $subPermName = "{$moduleName}.{$subAction}"; 
+                                                @endphp
+                                                <div class="flex items-center justify-between bg-indigo-50/40 p-2.5 rounded-lg border border-indigo-100/50 shadow-sm ml-2">
+                                                    <span class="text-xs font-medium text-indigo-900 truncate capitalize mr-2">↳ {{ $subAction }}</span>
+                                                    <label class="relative inline-flex items-center shrink-0 cursor-pointer">
+                                                        <input type="checkbox" 
+                                                               value="{{ $subPermName }}" 
+                                                               x-model="selectedPermissions"
+                                                               class="sr-only peer">
+                                                        <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                    </label>
+                                                </div>
+                                            @endforeach
+                                        @else
+                                            {{-- Standard Flat Action Toggle --}}
+                                            @php 
+                                                $permName = "{$moduleName}.{$actionVal}"; 
+                                            @endphp
+                                            <div class="flex items-center justify-between bg-white p-2.5 rounded-lg border border-gray-100 shadow-sm">
+                                                <span class="text-xs font-medium text-gray-800 truncate capitalize mr-2">{{ $actionVal }}</span>
+                                                <label class="relative inline-flex items-center shrink-0 cursor-pointer">
+                                                    <input type="checkbox" 
+                                                           value="{{ $permName }}" 
+                                                           x-model="selectedPermissions"
+                                                           class="sr-only peer">
+                                                    <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                                                </label>
+                                            </div>
+                                        @endif
                                     @endforeach
                                 </div>
                             </div>

@@ -28,8 +28,8 @@
                                     id="lease-status"
                                     :options="[
                                         'New' => 'New',
-                                        'Renew' => 'Renew',
-                                        'Check Out' => 'Check Out',
+                                        //'Renew' => 'Renew',
+                                        //'Check Out' => 'Check Out',
                                         //'End Agreement' => 'End Agreement'
                                     ]"
                                     ::value="old('status', request('status', 'New'))"

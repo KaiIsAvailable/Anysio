@@ -42,7 +42,7 @@ class LeaseService
                 if ($status === 'Renew' && $oldLease) {
                     // Assuming your Lease model has an 'invoices' relation and a status field like 'paid'
                     $hasUnpaidInvoices = $oldLease->invoices()
-                        ->where('status', '!=', 'paid')
+                        ->whereNotIn('status', ['paid', 'void'])
                         ->exists();
 
                     if ($hasUnpaidInvoices) {
@@ -449,11 +449,14 @@ class LeaseService
         $serviceFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::SERVICE->value)->values();
         $depositFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::DEPOSIT->value)->values();
         $managementFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::MANAGEMENT->value)->values();
+        $itemFeeTypes = $filteredFeeTypes->where('category', FeeTypeCategory::ITEM->value)->values();
 
         // Base shared eager-loading and formatter closure for leases
         $leaseRelations = [
             'tenant.user',
             'charges.feeType',
+            'charges.invoice',
+            'invoices.items.feeType',
             'parentLease.charges.feeType',
             'leasable' => function ($morphTo) {
                 $morphTo->morphWith([
@@ -534,6 +537,7 @@ class LeaseService
                     'cumulative_security' => $cumulativeSecurity,
                     'cumulative_utilities' => $cumulativeUtilities,
                     'charges' => $lease->charges,
+                    'invoices' => $lease->invoices,
                 ]
             );
         });
@@ -560,6 +564,7 @@ class LeaseService
             'serviceFeeTypes',
             'depositFeeTypes',
             'managementFeeTypes',
+            'itemFeeTypes',
             'statuses'
         );
     }

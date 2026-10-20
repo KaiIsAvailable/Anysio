@@ -8,6 +8,8 @@
             walletBalance = parseFloat(String(paymentData.walletBalance || '0').replace(/,/g, '')) || 0;
             useWallet = false;
             method = 'Cash';
+            penaltyCancelled = false;
+            overridePenaltyAmount = null;
             if (paymentData.invoiceItems) {
                 selectedItems = paymentData.invoiceItems.map((_, i) => i);
                 payFull = true;
@@ -30,6 +32,9 @@
             penaltySequence: 0,
 
             dynamicPenalty: null,
+            penaltyCancelled: false,
+            overridePenaltyAmount: null,
+
             form: {
                 payment_date: '',
                 due_date: '',
@@ -39,6 +44,8 @@
             async updatePenalty() {
                 const sequence = ++this.penaltySequence;
                 this.dynamicPenalty = null;
+                this.overridePenaltyAmount = null;
+                this.penaltyCancelled = false;
                 this.penaltyError = '';
                 if (!this.paymentData?.id || !this.form.payment_date) {
                     this.penaltyError = 'Select an invoice and payment date to calculate the penalty.';
@@ -65,6 +72,7 @@
                     if (sequence !== this.penaltySequence) return;
                     if (!response.ok) throw new Error(data.errors ? Object.values(data.errors).flat().join(' ') : data.message || 'Unable to calculate the penalty.');
                     this.dynamicPenalty = data; 
+                    this.overridePenaltyAmount = data.amount || data.totalAmount || 0;
                 } catch (error) {
                     if (sequence === this.penaltySequence) this.penaltyError = error.message || 'Unable to calculate the penalty. Please try again.';
                 } finally {
@@ -73,7 +81,13 @@
             },
             
             get penaltyDetails() {
-                return this.dynamicPenalty?.amount > 0 ? this.dynamicPenalty : null;
+                if (this.penaltyCancelled || !this.dynamicPenalty) return null;
+                // Allow amount to be 0 or empty for typing flexibility without hiding the row
+                let currentAmount = this.overridePenaltyAmount !== null && this.overridePenaltyAmount !== '' ? parseFloat(this.overridePenaltyAmount) || 0 : 0;
+                return {
+                    ...this.dynamicPenalty,
+                    amount: currentAmount
+                };
             },
             
             get computedAmount() {
@@ -91,9 +105,8 @@
                         return sum + (parseFloat(itemAmount) || 0);
                     }, 0);
 
-                if (this.penaltyDetails && this.payFull && this.penaltyDetails.amount) {
-                    let penaltyAmount = String(this.penaltyDetails.amount).replace(/,/g, '');
-                    baseAmount += parseFloat(penaltyAmount) || 0;
+                if (this.penaltyDetails && this.payFull) {
+                    baseAmount += parseFloat(this.penaltyDetails.amount) || 0;
                 }
 
                 return baseAmount.toFixed(2);
@@ -159,6 +172,8 @@
                 @endphp
 
                 <x-form.form x-bind:action="paymentData.actionUrl" method="POST">
+                    <input type="hidden" name="penalty_amount" x-bind:value="penaltyDetails ? penaltyDetails.amount : 0">
+
                     <div class="flex flex-col max-h-[85vh]">
                         <!-- Scrollable Form Body -->
                         <div class="p-5 space-y-3 overflow-y-auto flex-1 pr-1">
@@ -166,7 +181,7 @@
                             <div class="bg-gray-50 p-3.5 rounded-xl border border-gray-200 space-y-2.5">
                                 <div class="flex items-center justify-between">
                                     <span class="text-xs font-bold text-gray-500 uppercase tracking-wider">Payment Breakdown</span>
-                                    <span class="text-xs font-semibold text-gray-400" x-text="((paymentData.invoiceItems || []).length + (penaltyDetails ? 1 : 0)) + ' Item(s)'"></span>
+                                    <span class="text-xs font-semibold text-gray-400" x-text="((paymentData.invoiceItems || []).length + (penaltyDetails && Object.keys(penaltyDetails).length > 0 ? 1 : 0)) + ' Item(s)'"></span>
                                 </div>
 
                                 <div class="divide-y divide-gray-200 max-h-32 overflow-y-auto pr-1">
@@ -178,14 +193,40 @@
                                         </div>
                                     </template>
 
-                                    {{-- Dynamic Penalty Row with Settings Details --}}
-                                    <template x-if="penaltyDetails">
-                                        <div class="py-2 px-2.5 flex items-center justify-between text-sm bg-amber-50/80 border border-amber-200/60 rounded-lg my-1">
-                                            <div class="flex flex-col">
-                                                <span class="font-semibold text-amber-900" x-text="penaltyDetails.title"></span>
-                                                <span class="text-xs text-amber-700/80" x-text="'Calculation: ' + penaltyDetails?.calculation"></span>
+                                    {{-- Dynamic Editable/Cancellable Penalty Row (Only shows when penalty rule/data exists) --}}
+                                    <template x-if="!penaltyCancelled && dynamicPenalty && Object.keys(dynamicPenalty).length > 0">
+                                        <div class="py-2 px-2.5 flex items-center justify-between text-sm bg-amber-50/80 border border-amber-200/60 rounded-lg my-1 gap-2">
+                                            <div class="flex flex-col flex-1 min-w-0">
+                                                <span class="font-semibold text-amber-900 truncate" x-text="dynamicPenalty.title"></span>
+                                                <span class="text-xs text-amber-700/80 truncate" x-text="'Calculation: ' + dynamicPenalty?.calculation"></span>
                                             </div>
-                                            <span class="font-bold text-amber-900" x-text="'+ RM ' + (Number(penaltyDetails.totalAmount || penaltyDetails.amount || 0)).toFixed(2)"></span>
+                                            
+                                            <div class="flex items-center space-x-2 shrink-0">
+                                                <div class="flex items-center space-x-1">
+                                                    <span class="text-xs font-bold text-amber-900">+ RM</span>
+                                                    <input type="number" step="0.01" 
+                                                        x-model.number="overridePenaltyAmount"
+                                                        class="w-24 px-2 py-1 text-sm font-bold text-amber-900 bg-white border border-amber-300 rounded-md focus:ring-1 focus:ring-amber-500 focus:outline-none text-right @canany(['owner-admin', 'invoice.edit penalty']) @else bg-gray-100 text-gray-500 cursor-not-allowed opacity-75 @endcanany"
+                                                        @wheel="$event.preventDefault()"
+                                                        @canany(['owner-admin', 'invoice.edit penalty']) @else readonly @endcanany />
+                                                </div>
+                                                
+                                                @canany(['owner-admin', 'invoice.remove penalty'])
+                                                <button type="button" @click="penaltyCancelled = true" class="text-amber-700 hover:text-red-600 p-1 transition-colors" title="Cancel/Remove Penalty">
+                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                    </svg>
+                                                </button>
+                                                @endcanany
+                                            </div>
+                                        </div>
+                                    </template>
+
+                                    {{-- Cancelled Penalty State with Restore Option (Only shows if a penalty rule actually existed) --}}
+                                    <template x-if="penaltyCancelled && dynamicPenalty && Object.keys(dynamicPenalty).length > 0">
+                                        <div class="py-1.5 px-2.5 flex items-center justify-between text-xs bg-gray-100 border border-gray-200 rounded-lg my-1">
+                                            <span class="text-gray-500 italic">Penalty cancelled / removed</span>
+                                            <button type="button" @click="penaltyCancelled = false" class="text-indigo-600 font-semibold hover:underline">Restore</button>
                                         </div>
                                     </template>
                                 </div>
@@ -242,7 +283,7 @@
                                             x-model="method"
                                             required 
                                             class="block w-full px-3.5 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm bg-gray-50">
-                                            @foreach($paymentMethods as $key => $label)
+                                            @foreach($paymentMethods as $key =>$label)
                                                 <option value="{{ $key }}">{{ $label }}</option>
                                             @endforeach
                                         </select>

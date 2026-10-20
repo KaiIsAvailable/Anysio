@@ -20,7 +20,9 @@ class FeeTypeController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'category' => 'required|string|in:invoice,expense',
+            'category' => 'required|string|in:invoice,expense,item',
+            'original_price' => 'nullable|integer|min:0',
+            'sell_price' => 'nullable|integer|min:0',
         ]);
 
         $feeType = $this->feeTypeService->createFeeType($validated);

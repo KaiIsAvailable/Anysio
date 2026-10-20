@@ -221,7 +221,7 @@
                                                         </template>
                                                     </select>
                                                     <button type="button" 
-                                                            @click="$dispatch('open-fee-type-modal')" 
+                                                            @click="$dispatch('open-fee-type-modal', { category: 'invoice' })"
                                                             title="Add New Fee Type" 
                                                             class="shrink-0 p-2 bg-white border border-gray-200 hover:border-indigo-500 hover:text-indigo-600 text-gray-500 rounded-lg transition-all text-xs font-bold flex items-center justify-center">
                                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -251,8 +251,6 @@
                             </div>
                         </div>
 
-                        <x-modals.add-fee-type-modal />
-
                         <hr class="border-gray-100">
 
                         {{-- Remarks --}}
@@ -273,6 +271,8 @@
                         </x-form.primary-button>
                     </div>
                 </form>
+
+                <!--<x-modals.add-fee-type-modal />-->
             </div>
         </div>
     </div>

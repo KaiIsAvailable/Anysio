@@ -1,4 +1,4 @@
-@props(['tenants', 'leases', 'properties', 'units', 'rooms', 'templates', 'rentFeeTypes', 'serviceFeeTypes', 'depositFeeTypes', 'managementFeeTypes', 'leasePreviewData'])
+@props(['tenants', 'leases', 'properties', 'units', 'rooms', 'templates', 'rentFeeTypes', 'serviceFeeTypes', 'depositFeeTypes', 'managementFeeTypes', 'itemFeeTypes', 'leasePreviewData'])
 
 <div x-data="{ 
         open: @js($errors->any()), 
@@ -7,6 +7,7 @@
         formLeaseId: @js(old('lease_id', '')),
         isEditMode: false,
         loading: false,
+        shake: false,
 
         get isCheckoutOrRenew() {
             return this.action === 'renew' || this.action === 'checkout';
@@ -23,6 +24,29 @@
             this.formStatus = rawStatus;
             this.formLeaseId = (detail.leaseId && detail.leaseId !== '0') ? String(detail.leaseId) : '';
             this.open = true;
+
+            // 🔍 COMPREHENSIVE LEASE, INVOICE & ITEM INSPECTOR
+            if (this.formLeaseId) {
+                const leaseObj = typeof allLeases !== 'undefined' ? allLeases[this.formLeaseId] : null;
+                const previewObj = typeof leasePreviewData !== 'undefined' ? leasePreviewData[this.formLeaseId] : null;
+
+                console.group(`🔍 [Lease Data Inspector for ID: ${this.formLeaseId}]`);
+                console.log('📋 Full Lease Object from allLeases:', leaseObj);
+                console.log('💰 Lease Preview Data from leasePreviewData:', previewObj);
+
+                if (previewObj && previewObj.invoices) {
+                    console.log('📄 Invoices found:', previewObj.invoices);
+                    previewObj.invoices.forEach((inv, index) => {
+                        console.group(`--- Invoice #${index + 1} (ID: ${inv.id}, No: ${inv.invoice_no || 'N/A'}) ---`);
+                        console.log('Invoice Details:', inv);
+                        console.log('Invoice Items / Line Items:', inv.items || inv.invoice_items || 'No items property found');
+                        console.groupEnd();
+                    });
+                } else {
+                    console.log('⚠️ No invoices array found inside leasePreviewData for this lease ID.');
+                }
+                console.groupEnd();
+            }
 
             if (this.formStatus === 'Renew') {
                 this.action = 'renew';
@@ -50,17 +74,18 @@
      style="display: none;"
      x-cloak>
     
-    {{-- Backdrop --}}
+    {{-- Backdrop (Triggers shake instead of closing) --}}
     <div x-show="open" 
          x-transition.opacity
          class="fixed inset-0 bg-gray-900/50 backdrop-blur-sm" 
-         @click="open = false">
+         @click="shake = true; setTimeout(() => shake = false, 400)">
     </div>
 
     {{-- Modal Dialog --}}
     <div class="flex min-h-screen items-center justify-center p-4">
         <div x-show="open" 
              x-transition.scale
+             :class="{ 'animate-shake': shake }"
              class="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100 z-10 my-8">
 
             {{-- Dynamic Header --}}
@@ -203,7 +228,11 @@
 
                         <div id="check_out_section" class="mt-4 hidden">
                             <x-form.input-label value="Check Out Date" class="mb-1" />
-                            <x-form.date-input id="check-out-date" name="checked_out_at" :value="old('checked_out_at')" />
+                            <x-form.date-input 
+                                id="check-out-date" 
+                                name="checked_out_at" 
+                                :value="old('checked_out_at')" 
+                            />
                             <x-form.input-error :messages="$errors->get('checked_out_at')" class="mt-1" />
                         </div>
 
@@ -236,7 +265,223 @@
 
                         <x-preview-agreement-modal />
 
-                        <div class="space-y-4 border-t border-gray-200 pt-6">
+                        <!-- CHECKOUT REFUND SECTION -->
+                        @can('asedasdasd')
+                        <div id="checkout_refund_section" class="mt-4 hidden space-y-4 p-5 bg-amber-50/60 border border-amber-200/80 rounded-2xl shadow-sm"
+                        x-data="{
+                            manualDeductions: [],
+                            availableFeeTypes: allFeeTypes,
+                            checkoutDate: '',
+                            isEarlyCheckout: false, // Make it a reactive property instead of a complex getter
+                            earlyDays: 0, // Store the number of early days
+                            autoDeductionTotal: 0,
+
+                            init() {
+                                this.$watch('checkoutDate', (value) => {
+                                    console.log('🔄 [Alpine Watcher] checkoutDate changed to:', value);
+                                    this.evaluateEarlyCheckout();
+                                });
+                            },
+
+                            evaluateEarlyCheckout() {
+                                const leaseSelect = document.getElementById('lease_id');
+                                
+                                if (!leaseSelect || !leaseSelect.value || !this.checkoutDate) {
+                                    this.isEarlyCheckout = false;
+                                    this.earlyDays = 0;
+                                    return;
+                                }
+
+                                const selectedLease = allLeases[leaseSelect.value];
+                                if (!selectedLease || !selectedLease.end_date) {
+                                    this.isEarlyCheckout = false;
+                                    this.earlyDays = 0;
+                                    return;
+                                }
+
+                                let checkoutDateObj;
+                                if (this.checkoutDate.includes('-')) {
+                                    checkoutDateObj = new Date(this.checkoutDate);
+                                } else if (this.checkoutDate.includes('/')) {
+                                    const parts = this.checkoutDate.split('/');
+                                    if (parts.length !== 3) {
+                                        this.isEarlyCheckout = false;
+                                        this.earlyDays = 0;
+                                        return;
+                                    }
+                                    checkoutDateObj = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                                }
+
+                                const leaseEndDateObj = new Date(selectedLease.end_date.split('T')[0]);
+                                
+                                // Check if it's early
+                                this.isEarlyCheckout = checkoutDateObj < leaseEndDateObj;
+
+                                if (this.isEarlyCheckout) {
+                                    // Calculate exact difference in milliseconds and convert to days
+                                    const diffTime = Math.abs(leaseEndDateObj - checkoutDateObj);
+                                    this.earlyDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                } else {
+                                    this.earlyDays = 0;
+                                }
+
+                                console.log('📅 [Early Days Calculation]:', {
+                                    checkout: checkoutDateObj,
+                                    leaseEnd: leaseEndDateObj,
+                                    earlyDays: this.earlyDays
+                                });
+                            },
+                            addDeductionRow() {
+                                this.manualDeductions.push({ fee_type_id: '', qty: 1, sell_price: 0 });
+                            },
+                            removeDeductionRow(index) {
+                                this.manualDeductions.splice(index, 1);
+                            },
+                            updateItemPrice(index, eventOrId) {
+                                // Extract the ID safely whether it's passed directly or via an event detail object
+                                let feeTypeId = eventOrId;
+                                if (eventOrId && typeof eventOrId === 'object') {
+                                    feeTypeId = eventOrId.detail?.value || eventOrId.target?.value || eventOrId.value;
+                                }
+
+                                let found = this.availableFeeTypes.find(f => f.id == feeTypeId);
+                                if (found) {
+                                    this.manualDeductions[index].fee_type_id = feeTypeId;
+                                    this.manualDeductions[index].sell_price = (found.sell_price || 0) / 100;
+                                } else {
+                                    this.manualDeductions[index].sell_price = 0;
+                                }
+                            },
+                            calculateManualTotal() {
+                                return this.manualDeductions.reduce((sum, item) => {
+                                    let qty = parseFloat(item.qty) || 0;
+                                    let price = parseFloat(item.sell_price) || 0;
+                                    return sum + (qty * price);
+                                }, 0);
+                            },
+                            handleFeeTypeAdded(detail) {
+                                this.availableFeeTypes.push(detail);
+                                let lastItem = this.manualDeductions[this.manualDeductions.length - 1];
+                                if (lastItem && !lastItem.fee_type_id) {
+                                    lastItem.fee_type_id = detail.id;
+                                    this.updateItemPrice(this.manualDeductions.length - 1, detail.id);
+                                }
+                            }
+                        }"
+                        @fee-type-added.window="handleFeeTypeAdded($event.detail)">
+                            
+                            {{-- Sticky Header Section --}}
+                            <div class="sticky top-0 z-10 bg-amber-50/95 backdrop-blur-xs py-2 -mx-1 px-1 flex items-start justify-between border-b border-amber-200/60 mb-3">
+                                <div>
+                                    <h4 class="text-sm font-bold text-amber-900 mb-1">
+                                        {{ __('Refund Settlement') }}
+                                        <span x-show="isEarlyCheckout" class="ml-1.5 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-red-700 rounded-full border border-red-200" x-cloak>
+                                            Early Check Out (<span x-text="earlyDays"></span> days early)
+                                        </span>
+                                    </h4>
+                                </div>
+
+                                {{-- Action Buttons --}}
+                                <div class="flex items-center gap-3 shrink-0 pt-0.5">
+                                    <button type="button" @click="$dispatch('open-fee-type-modal', { category: 'item' })" class="inline-flex items-center text-xs font-bold text-gray-600 hover:text-indigo-600 transition-colors">
+                                        + Add Fee Type
+                                    </button>
+                                    <button type="button" @click="addDeductionRow()" class="inline-flex items-center text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                        + Add Deduction Item
+                                    </button>
+                                </div>
+                            </div>
+
+                            {{-- Main Summary Card --}}
+                            <div class="bg-white p-4 rounded-xl border border-amber-200/60 shadow-xs space-y-4">
+                                
+                                {{-- Total Deposit Collected (Header Row) --}}
+                                <div class="flex justify-between items-center pb-3">
+                                    <span class="text-xs font-bold uppercase tracking-wider text-gray-500">{{ __('Total Deposit Collected') }}</span>
+                                    <span id="checkout-total-deposit" class="text-sm font-bold text-gray-900">RM 0.00</span>
+                                </div>
+
+                                {{-- 1. Auto-detected Unpaid Invoices Container --}}
+                                <div id="auto-deductions-container" class="hidden space-y-2 pb-3">
+                                    <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">{{ __('Auto-Detected Unpaid Invoices') }}</span>
+                                    <div id="auto-deductions-list" class="space-y-2 text-xs">
+                                        <!-- Dynamically injected unpaid invoices will appear here -->
+                                    </div>
+                                </div>
+
+                                {{-- 2. Custom Deductions & Charges Section (Hidden automatically when empty) --}}
+                                <div class="space-y-3 pt-1" x-show="manualDeductions.length > 0" x-transition>
+                                    <div class="flex items-center justify-between">
+                                        <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{{ __('Custom Deductions & Charges') }}</span>
+                                    </div>
+
+                                    {{-- Custom Deduction Rows styled matching the auto-deductions layout --}}
+                                    <div class="space-y-2">
+                                        <template x-for="(item, index) in manualDeductions" :key="index">
+                                            <div class="flex items-center justify-between bg-white p-2.5 rounded-lg border border-gray-200 gap-3">
+                                                
+                                                {{-- Delete / Remove Button --}}
+                                                <button type="button" @click="removeDeductionRow(index)" class="shrink-0 w-6 h-6 flex items-center justify-center text-gray-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors text-base font-bold" title="Remove">
+                                                    &times;
+                                                </button>
+
+                                                {{-- Fee Type Selector (Flexible width) --}}
+                                                <div class="flex-1">
+                                                    <x-form.input-select
+                                                        x-model="item.fee_type_id"
+                                                        ::name="'items['+index+'][fee_type_id]'"
+                                                        :options="$itemFeeTypes->map(fn($f) => ['value' => (string)$f->id, 'label' => $f->name . ' (Item)'])->values()"
+                                                        placeholder="Select Item"
+                                                        :ignore-checkout-or-renew="true"
+                                                        @change="updateItemPrice(index, $event)" 
+                                                    />
+                                                </div>
+
+                                                {{-- Quantity Input --}}
+                                                <div class="w-16 shrink-0">
+                                                    <x-form.text-input 
+                                                        type="text" 
+                                                        min="1" 
+                                                        step="1" 
+                                                        ::name="'items['+index+'][qty]'" 
+                                                        x-model.number="item.qty"
+                                                        required 
+                                                        title="Quantity"
+                                                        class="block w-full px-2 py-1.5 bg-white border border-gray-200 rounded-lg text-xs text-center font-semibold focus:ring-2 focus:ring-indigo-500" 
+                                                    />
+                                                </div>
+
+                                                {{-- Hidden input to store computed total amount for backend submission --}}
+                                                <input type="hidden" :name="'items['+index+'][amount]'" :value="((parseFloat(item.qty) || 0) * (parseFloat(item.sell_price) || 0)).toFixed(2)">
+
+                                                {{-- Line Total Preview matching text style --}}
+                                                <div class="w-24 shrink-0 text-right text-xs font-semibold text-red-600 pr-1" 
+                                                    x-text="'RM ' + ((parseFloat(item.qty) || 0) * (parseFloat(item.sell_price) || 0)).toFixed(2)">
+                                                    RM 0.00
+                                                </div>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                {{-- Final Net Summary Calculation Footer --}}
+                                <div class="pt-3 border-t border-gray-200 space-y-2">
+                                    <div class="flex justify-between items-center text-xs text-gray-600">
+                                        <span>{{ __('Total Deductions (Auto + Custom):') }}</span>
+                                        <span class="font-semibold text-red-600">- RM <span id="checkout-total-deductions" x-text="(autoDeductionTotal + calculateManualTotal()).toFixed(2)">0.00</span></span>
+                                    </div>
+
+                                    <div class="flex justify-between items-center text-base font-bold text-gray-900 pt-1">
+                                        <span>{{ __('Nett Refund Amount:') }}</span>
+                                        <span id="checkout-net-refund" class="text-indigo-600 text-lg" x-text="'RM ' + Math.max(0, (parseFloat(window.checkoutTotalDepositValue || 0) - (autoDeductionTotal + calculateManualTotal()))).toFixed(2)">RM 0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <x-modals.add-fee-type-modal />
+
+                        <div id="lease_charges_section" class="space-y-4 border-t border-gray-200 pt-6">
                             <div class="flex justify-between items-center">
                                 <x-form.input-label value="Lease Charges & Deposits" :required="true" />
                                 <button type="button" onclick="addChargeRow()" class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-lg hover:bg-indigo-100 transition-colors">
@@ -291,6 +536,7 @@
                                 <span class="block mt-1 text-xs text-blue-600 italic">These amounts are brought forward from your previous lease.</span>
                             </p>
                         </div>
+                        @endcan
                     </div>
 
                     {{-- Footer Buttons --}}
@@ -312,6 +558,15 @@
 
 @push('scripts')
     @php
+        $jsAllFeeTypes = collect()
+            ->concat($itemFeeTypes->map(fn($f) => [
+                'id' => $f->id, 
+                'name' => $f->name, 
+                'sell_price' => $f->sell_price ?? 0,
+                'original_price' => $f->original_price ?? 0
+            ]))
+            ->values();
+
         $jsRentFees = $rentFeeTypes->map(fn($f) => ['id' => $f->id, 'name' => $f->name])->values();
         $jsDepositFees = $depositFeeTypes->map(fn($f) => ['id' => $f->id, 'name' => $f->name])->values();
         
@@ -361,6 +616,7 @@
 
     <div id="server-data" class="hidden" style="display: none;"
         data-create-url="{{ route('admin.leases.create') }}"
+        data-all-fee-types="{{ json_encode($jsAllFeeTypes) }}"
         data-rent-fees="{{ json_encode($jsRentFees) }}"
         data-deposit-fees="{{ json_encode($jsDepositFees) }}"
         data-all-leases="{{ json_encode($leases->keyBy('id')) }}"
@@ -373,6 +629,7 @@
 
     <script>
         const serverDataEl = document.getElementById('server-data');
+        const allFeeTypes = JSON.parse(serverDataEl.getAttribute('data-all-fee-types') || '[]');
         const createUrl = serverDataEl.getAttribute('data-create-url');
         const rentFeeTypes = JSON.parse(serverDataEl.getAttribute('data-rent-fees') || '[]');
         const depositFeeTypes = JSON.parse(serverDataEl.getAttribute('data-deposit-fees') || '[]');
@@ -461,7 +718,6 @@
         function toggleLeaseSelect(statusParam = null) {
             let resolvedStatus = statusParam;
 
-            // Unwrap Proxies, Arrays, or Objects cleanly
             if (resolvedStatus && (typeof resolvedStatus === 'object' || Array.isArray(resolvedStatus))) {
                 if (Array.isArray(resolvedStatus) || resolvedStatus instanceof Array) {
                     resolvedStatus = resolvedStatus[0] || null;
@@ -470,7 +726,6 @@
                 }
             }
 
-            // Fallback to Alpine scope if still empty
             if (!resolvedStatus || typeof resolvedStatus === 'object') {
                 const modalEl = document.querySelector('[x-data*="openModal"]');
                 if (modalEl && window.Alpine) {
@@ -489,16 +744,17 @@
                 'tenant_field': newStatus === 'New',
                 'date_section': ['New', 'Renew'].includes(newStatus),
                 'bring_forward_notice': newStatus === 'Renew',
+                'lease_charges_section': newStatus !== 'Check Out',
+                'checkout_refund_section': newStatus === 'Check Out', // <-- Added checkout summary section visibility
                 'check_out_section': newStatus === 'Check Out',
                 'agreement_end_section': newStatus === 'End Agreement',
-                'agreement_template_section': ['New', 'Renew'].includes(newStatus)
+                'agreement_template_section': ['New', 'Renew', 'Check Out'].includes(newStatus)
             };
 
-            // Use requestAnimationFrame to ensure DOM elements exist before toggling classes
             requestAnimationFrame(() => {
                 Object.keys(sections).forEach(id => {
                     const el = document.getElementById(id);
-                    if (!el) return; // Safely skip if element isn't rendered yet
+                    if (!el) return;
                     
                     const isVisible = sections[id];
                     el.classList.toggle('hidden', !isVisible);
@@ -741,6 +997,29 @@
                     alert("Something went wrong while generating the preview: " + error.message);
                 }
             });
+
+            const checkoutDateInput = document.getElementById('check-out-date');
+            if (checkoutDateInput) {
+                const syncCheckoutDate = (val) => {
+                    const refundSection = document.getElementById('checkout_refund_section');
+                    if (refundSection && window.Alpine) {
+                        let alpineData = window.Alpine.$data(refundSection);
+                        if (alpineData) {
+                            alpineData.checkoutDate = val;
+                            console.log('🔄 [Synced Checkout Date to Alpine]:', val);
+                        }
+                    }
+                };
+
+                checkoutDateInput.addEventListener('change', (e) => syncCheckoutDate(e.target.value));
+                checkoutDateInput.addEventListener('input', (e) => syncCheckoutDate(e.target.value));
+
+                if (checkoutDateInput._flatpickr) {
+                    checkoutDateInput._flatpickr.config.onChange.push(function(selectedDates, dateStr) {
+                        syncCheckoutDate(dateStr);
+                    });
+                }
+            }
         });
 
         const currentUserId = @js(function_exists('get_effective_user') ? get_effective_user()->id : null);
@@ -860,18 +1139,7 @@
             const itemsContainer = document.getElementById('bring-forward-items-container'); 
             const leaseData = leasePreviewData[leaseId];
 
-            if (leaseData && itemsContainer && noticeBox) {
-                itemsContainer.innerHTML = ''; 
-
-                const currentCharges = leaseData.charges || [];
-                const currentChargeElements = currentCharges.length > 0 
-                    ? currentCharges.map(charge => {
-                        const name = charge.feeType?.name || charge.fee_type?.name || charge.name || 'Charge';
-                        const amount = parseFloat(charge.amount / 100 || 0);
-                        return `<div>• RM ${amount.toFixed(2)} (${name})</div>`;
-                    }).join('')
-                    : '<div class="text-gray-500 italic">No charges found in this lease.</div>';
-
+            if (leaseData) {
                 function collectFullHistory(lease, accumulator = []) {
                     if (!lease) return accumulator;
                     if (lease.charges) {
@@ -882,9 +1150,24 @@
                 }
 
                 const allHistoryCharges = collectFullHistory(leaseData);
+                
+                // 🔍 Filter deposit charges where the invoice is PAID
                 const depositCharges = allHistoryCharges.filter(charge => {
                     const category = charge.feeType?.category || charge.fee_type?.category;
-                    return category === 'deposit';
+                    if (category !== 'deposit') return false;
+
+                    // Check if linked invoice status is 'paid'
+                    if (charge.invoice && charge.invoice.status === 'paid') {
+                        return true;
+                    }
+
+                    // Fallback check if charge itself has a direct paid status/flag
+                    if (charge.status === 'paid' || charge.is_paid === true) {
+                        return true;
+                    }
+
+                    // Otherwise, exclude unpaid deposits from collected total
+                    return false;
                 });
 
                 let totalDeposit = 0;
@@ -892,20 +1175,90 @@
                     totalDeposit += parseFloat(charge.amount / 100 || 0);
                 });
 
-                if (currentCharges.length > 0 || depositCharges.length > 0) {
-                    noticeBox.classList.remove('hidden'); 
-                    itemsContainer.innerHTML = `
-                        <div class="mb-3">
-                            <span class="font-semibold block text-blue-900 mb-1">Lease Charges:</span>
-                            <div class="text-gray-700 space-y-1">${currentChargeElements}</div>
-                        </div>
-                        <div class="border-t border-blue-200 pt-2">
-                            <span class="font-semibold text-blue-900">Total Deposit Collected:</span> 
-                            <span class="font-bold text-gray-900">RM ${totalDeposit.toFixed(2)}</span>
-                        </div>
-                    `;
-                } else {
-                    noticeBox.classList.add('hidden'); 
+                // 1. Update Bring Forward Notice Box (for Renewals)
+                if (noticeBox && itemsContainer) {
+                    const currentCharges = leaseData.charges || [];
+                    const currentChargeElements = currentCharges.length > 0 
+                        ? currentCharges.map(charge => {
+                            const name = charge.feeType?.name || charge.fee_type?.name || charge.name || 'Charge';
+                            const amount = parseFloat(charge.amount / 100 || 0);
+                            return `<div>• RM ${amount.toFixed(2)} (${name})</div>`;
+                        }).join('')
+                        : '<div class="text-gray-500 italic">No charges found in this lease.</div>';
+
+                    if (currentCharges.length > 0 || depositCharges.length > 0) {
+                        noticeBox.classList.remove('hidden'); 
+                        itemsContainer.innerHTML = `
+                            <div class="mb-3">
+                                <span class="font-semibold block text-blue-900 mb-1">Lease Charges:</span>
+                                <div class="text-gray-700 space-y-1">${currentChargeElements}</div>
+                            </div>
+                            <div class="border-t border-blue-200 pt-2">
+                                <span class="font-semibold text-blue-900">Total Deposit Collected:</span> 
+                                <span class="font-bold text-gray-900">RM ${totalDeposit.toFixed(2)}</span>
+                            </div>
+                        `;
+                    } else {
+                        noticeBox.classList.add('hidden'); 
+                    }
+                }
+
+                // 2. Update Checkout Refund Section (for Check Outs)
+                const checkoutTotalDepositEl = document.getElementById('checkout-total-deposit');
+                const autoDeductionsContainer = document.getElementById('auto-deductions-container');
+                const autoDeductionsList = document.getElementById('auto-deductions-list');
+
+                if (checkoutTotalDepositEl) {
+                    checkoutTotalDepositEl.innerText = `RM ${totalDeposit.toFixed(2)}`;
+                    window.checkoutTotalDepositValue = totalDeposit; // Store for Alpine net refund calculation
+                }
+
+                // Grab auto unpaid invoices from leaseData if available (excluding paid and void)
+                let autoDeductionSum = 0;
+                if (leaseData && autoDeductionsList && autoDeductionsContainer) {
+                    autoDeductionsList.innerHTML = '';
+                    const unpaidInvoices = leaseData.invoices ? leaseData.invoices.filter(inv => inv.status !== 'paid' && inv.status !== 'void') : [];
+
+                    if (unpaidInvoices.length > 0) {
+                        autoDeductionsContainer.classList.remove('hidden');
+                        let htmlContent = '';
+                        unpaidInvoices.forEach((inv, idx) => {
+                            let balance = parseFloat(inv.amount_balance || inv.total_amount || 0) / 100;
+                            autoDeductionSum += balance;
+
+                            let feeNames = [];
+                            let lineItems = inv.items || inv.invoice_items || [];
+                            if (Array.isArray(lineItems) && lineItems.length > 0) {
+                                lineItems.forEach(item => {
+                                    let fName = item.feeType?.name || item.fee_type?.name || item.fee_name || item.name || item.description;
+                                    if (fName && !feeNames.includes(fName)) feeNames.push(fName);
+                                });
+                            }
+                            let feeTypeText = feeNames.length > 0 ? feeNames.join(', ') : (inv.description || 'General Charge');
+
+                            htmlContent += `
+                                <div class="flex justify-between items-center bg-white p-2 rounded border border-gray-200">
+                                    <span>${inv.invoice_no || inv.id} (${feeTypeText})</span>
+                                    <span class="font-semibold text-red-600">RM ${balance.toFixed(2)}</span>
+                                    <input type="hidden" name="auto_deductions[${idx}][invoice_id]" value="${inv.id}">
+                                    <input type="hidden" name="auto_deductions[${idx}][amount]" value="${balance.toFixed(2)}">
+                                </div>
+                            `;
+                        });
+                        autoDeductionsList.innerHTML = htmlContent;
+                    } else {
+                        autoDeductionsContainer.classList.add('hidden');
+                    }
+                }
+                
+                // 🌟 Push to both window AND Alpine reactive state
+                window.autoDeductionTotal = autoDeductionSum;
+                const refundSectionEl = document.getElementById('checkout_refund_section');
+                if (refundSectionEl && window.Alpine) {
+                    let alpineData = window.Alpine.$data(refundSectionEl);
+                    if (alpineData) {
+                        alpineData.autoDeductionTotal = autoDeductionSum;
+                    }
                 }
             }
 

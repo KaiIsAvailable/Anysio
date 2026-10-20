@@ -33,6 +33,8 @@ class FeeTypeService
             'user_id' => $userId->id,
             'name' => $data['name'],
             'category' => $category->value,
+            'original_price' => $data['original_price'] ?? null,
+            'sell_price' => $data['sell_price'] ?? null,
             'is_system' => 0,
             'is_active' => true,
         ]);

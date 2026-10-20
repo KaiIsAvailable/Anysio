@@ -18,6 +18,8 @@ class FeeType extends Model
         'user_id',
         'name',
         'category',
+        'original_price',
+        'sell_price',
         'is_system',
         'is_active',
     ];

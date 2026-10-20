@@ -92,7 +92,7 @@ class InvoiceController extends Controller
 
     public function recordPayment(RecordPaymentRequest $request, Invoice $invoice)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.record payment')) {
+        if (Gate::denies('owner-admin') && Gate::denies('invoice.record payment')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -113,7 +113,7 @@ class InvoiceController extends Controller
 
     public function void(VoidInvoiceRequest $request, Invoice $invoice)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.void')) {
+        if (Gate::denies('owner-admin') && Gate::denies('invoice.void')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 

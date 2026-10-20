@@ -34,10 +34,22 @@ class AppServiceProvider extends ServiceProvider
             // Optional: Delete old hyphenated permissions automatically on boot
             Permission::where('name', 'like', '%-%')->delete();
 
-            // Auto-register config permissions
+            // Auto-register config permissions (supporting nested structures)
             foreach (config('permissions.modules') as $module => $actions) {
-                foreach ($actions as $action) {
-                    Permission::firstOrCreate(['name' => "{$module}.{$action}"]);
+                foreach ($actions as $key => $value) {
+                    if (is_array($value)) {
+                        // $key is 'record payment', and $value is the sub-permissions array
+                        // 1. Register the parent action itself (e.g., 'invoice.record payment')
+                        Permission::firstOrCreate(['name' => "{$module}.{$key}"]);
+
+                        // 2. Register each nested sub-action (e.g., 'invoice.edit penalty', 'invoice.remove penalty')
+                        foreach ($value as $subAction) {
+                            Permission::firstOrCreate(['name' => "{$module}.{$subAction}"]);
+                        }
+                    } else {
+                        // Standard string action (e.g., 'invoice.tab', 'invoice.void')
+                        Permission::firstOrCreate(['name' => "{$module}.{$value}"]);
+                    }
                 }
             }
         }
@@ -65,25 +77,9 @@ class AppServiceProvider extends ServiceProvider
                     })
                     ->whereHas('users', function ($q) use ($user, $effectiveBossId) {
                         $q->where('model_id', $user->id)
-                          ->where('team_id', $effectiveBossId);
+                        ->where('team_id', $effectiveBossId);
                     })
                     ->exists();
-
-                // Fetch the user's assigned roles under this specific boss/team context for logging
-                $userRoles = $user->roles()
-                    ->where('model_has_roles.team_id', $effectiveBossId) // 💡 Specify table name to avoid ambiguity
-                    ->pluck('name')
-                    ->toArray();
-
-                // 📝 Log full role and permission evaluation details to the testing channel
-                //Log::channel('testing')->info('Gate::before Permission Evaluation', [
-                //    'user_id' => $user->id,
-                //    'user_email' => $user->email ?? null,
-                //    'ability_checked' => $ability,
-                //    'effective_boss_id' => $effectiveBossId,
-                //    'user_roles_in_team' => $userRoles,
-                //    'has_permission_result' => $hasPermission,
-                //]);
 
                 return $hasPermission;
 

@@ -260,6 +260,7 @@
                 :serviceFeeTypes="$serviceFeeTypes" 
                 :depositFeeTypes="$depositFeeTypes" 
                 :managementFeeTypes="$managementFeeTypes" 
+                :itemFeeTypes="$itemFeeTypes" 
                 :leasePreviewData="$leasePreviewData" 
             />
 

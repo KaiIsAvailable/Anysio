@@ -20,6 +20,8 @@
             </div>
 
             <!-- Main Content Card -->
+            <x-invoice-statement :statement="$statement" :filters="$statementFilters" />
+
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">

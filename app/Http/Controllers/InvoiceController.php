@@ -16,7 +16,7 @@ class InvoiceController extends Controller
         private readonly WalletService $walletService
     ) {}
 
-    public function index()
+    public function index(Request $request)
     {
         if (Gate::denies('owner-admin') && Gate::denies('invoice.tab')) {
             return view('errors.403');
@@ -26,61 +26,12 @@ class InvoiceController extends Controller
         $effectiveUser = get_effective_user();
         $effectiveUserId = $effectiveUser?->id;
 
-        $query = Invoice::with([
-            'documentTemplate',
-            'user',
-            'billable',
-            'lease.leasable.owner',
-            'lease.tenant.user',
-            'items.feeType',
-            'transactions.documentTemplate',
-            'transactions.approver',
-            'payments',
-        ]);
+        $statementFilters = $request->validate(InvoiceService::statementFilterRules());
+        $superAdmin = Gate::allows('super-admin');
+        $statement = $this->invoiceService->getStatement($actualUserId, $effectiveUserId, $superAdmin, $statementFilters);
+        $invoices = $this->invoiceService->getIndexInvoices($actualUserId, $effectiveUserId, $superAdmin, max(1, $request->integer('page', 1)));
 
-        if (!Gate::allows('super-admin')) {
-            $query->whereHas('lease', function ($leaseQuery) use ($effectiveUserId, $actualUserId) {
-                $leaseQuery->where(function ($q) use ($effectiveUserId, $actualUserId) {
-                    $q->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($mq, $type) use ($effectiveUserId, $actualUserId) {
-                        if ($type === Room::class) {
-                            $mq->whereHas('unit.owner', function ($oq) use ($effectiveUserId, $actualUserId) {
-                                $oq->where(function ($subQ) use ($effectiveUserId, $actualUserId) {
-                                    $subQ->where('created_by', $effectiveUserId)
-                                        ->orWhere('created_by', $actualUserId)
-                                        ->orWhere('owner_id', $effectiveUserId);
-                                });
-                            });
-                        } else {
-                            $mq->whereHas('owner', function ($oq) use ($effectiveUserId, $actualUserId) {
-                                $oq->where(function ($subQ) use ($effectiveUserId, $actualUserId) {
-                                    $subQ->where('created_by', $effectiveUserId)
-                                        ->orWhere('created_by', $actualUserId)
-                                        ->orWhere('owner_id', $effectiveUserId);
-                                });
-                            });
-                        }
-                    })
-                    ->orWhereHas('tenant', function ($tq) use ($effectiveUserId, $actualUserId) {
-                        $tq->where('created_by', $effectiveUserId)
-                           ->orWhere('created_by', $actualUserId);
-                    });
-                });
-            });
-        }
-
-        $paginatedInvoices = $query->latest()
-            ->paginate(10)
-            ->onEachSide(1);
-
-        $paginatedInvoices->setCollection(
-            $paginatedInvoices->getCollection()->map(function ($invoice) {
-                return (object) $this->invoiceService->transformInvoice($invoice);
-            })
-        );
-        
-        $invoices = $paginatedInvoices;
-
-        return view('adminSide.leases.invoices.index', compact('invoices'));
+        return view('adminSide.leases.invoices.index', compact('invoices', 'statement', 'statementFilters'));
     }
 
     public function show(Lease $lease, Invoice $invoice)

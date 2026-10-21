@@ -1,0 +1,178 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\{Invoice, Property, Unit, Room};
+use App\Services\InvoiceService;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\{Blade, DB, Schema, Validator};
+use Tests\TestCase;
+
+class InvoiceStatementTest extends TestCase
+{
+    protected function setUp(): void
+    {
+        parent::setUp();
+        $this->assertSame('sqlite', DB::connection()->getDriverName());
+        $this->assertSame(':memory:', config('database.connections.sqlite.database'));
+        view()->share('errors', new \Illuminate\Support\ViewErrorBag());
+        foreach ([
+            'users' => ['name', 'created_by', 'owner_id'],
+            'tenants' => ['user_id', 'created_by'],
+            'properties' => ['owner_id'], 'units' => ['owner_id', 'property_id'], 'rooms' => ['unit_id'],
+            'leases' => ['tenant_id', 'leasable_type', 'leasable_id'],
+            'invoices' => ['lease_id', 'user_id', 'invoice_no', 'document_template_id', 'status', 'remarks'],
+            'invoice_items' => ['invoice_id', 'fee_type_id', 'description'], 'fee_types' => ['name'],
+            'document_templates' => ['user_id'],
+            'transactions' => ['invoice_id', 'receipt_no', 'payment_method', 'transaction_ref', 'payment_date'],
+            'wallets' => ['user_id'], 'wallet_transactions' => ['wallet_id', 'reference_id', 'type', 'remarks'],
+        ] as $table => $columns) {
+            Schema::create($table, function (Blueprint $t) use ($table, $columns) {
+                $t->string('id')->primary(); $t->timestamps();
+                foreach ($columns as $column) $t->text($column)->nullable();
+                if (in_array($table, ['invoices', 'transactions'])) $t->softDeletes();
+                foreach (match ($table) {
+                    'invoices' => ['total_amount'], 'transactions' => ['amount_paid', 'amount_applied', 'amount_excess'],
+                    'wallets' => ['balance'], 'wallet_transactions' => ['amount'], default => [],
+                } as $column) $t->bigInteger($column)->default(0);
+            });
+        }
+        foreach (['manager', 'other', 'alice', 'bob', 'owner'] as $id) {
+            $this->insert('users', ['id' => $id, 'name' => ucfirst($id)]);
+        }
+        $this->insert('tenants', ['id' => 'ta', 'user_id' => 'alice', 'created_by' => 'manager']);
+        $this->insert('tenants', ['id' => 'tb', 'user_id' => 'bob', 'created_by' => 'other']);
+        $this->insert('properties', ['id' => 'p', 'owner_id' => 'owner']);
+        foreach (['la' => 'ta', 'la2' => 'ta', 'lb' => 'tb'] as $id => $tenant) {
+            $this->insert('leases', ['id' => $id, 'tenant_id' => $tenant, 'leasable_type' => Property::class, 'leasable_id' => 'p']);
+        }
+        $this->insert('document_templates', ['id' => 'doc', 'user_id' => 'manager']);
+        foreach (['ia' => 'la', 'ia2' => 'la2', 'ib' => 'lb'] as $id => $lease) {
+            $this->insert('invoices', ['id' => $id, 'lease_id' => $lease, 'invoice_no' => strtoupper($id), 'total_amount' => 100000, 'document_template_id' => 'doc', 'status' => 'paid']);
+        }
+        $this->insert('fee_types', ['id' => 'rent', 'name' => 'Rental']);
+        $this->insert('fee_types', ['id' => 'fee', 'name' => 'Service fee']);
+        $this->insert('invoice_items', ['id' => 'item1', 'invoice_id' => 'ia', 'fee_type_id' => 'rent', 'description' => 'October rent']);
+        $this->insert('invoice_items', ['id' => 'item2', 'invoice_id' => 'ia', 'fee_type_id' => 'fee', 'description' => null]);
+        $this->insert('transactions', ['id' => 'receipt', 'invoice_id' => 'ia', 'amount_paid' => 120000, 'amount_applied' => 100000, 'amount_excess' => 20000, 'payment_date' => '2026-10-20', 'receipt_no' => 'R1', 'payment_method' => 'bank_transfer']);
+        $this->insert('wallets', ['id' => 'wa', 'user_id' => 'alice', 'balance' => 99999999]);
+        $this->insert('wallets', ['id' => 'wb', 'user_id' => 'bob', 'balance' => 88888888]);
+        $this->movement('credit', 'wa', 'ia', 20000, 'overpayment_credit');
+        $this->movement('debit', 'wa', 'receipt', -30000, 'invoice_payment');
+        $this->movement('other-lease', 'wa', 'ia2', 1500, 'overpayment_credit');
+        $this->movement('private', 'wb', 'ib', 500, 'overpayment_credit');
+        $this->movement('unlinked', 'wa', null, 700, 'manual_credit');
+        $this->movement('private-unlinked', 'wb', null, 800, 'manual_credit');
+    }
+
+    private function insert(string $table, array $data): void
+    {
+        DB::table($table)->insert($data + ['created_at' => '2026-10-20 12:34:00', 'updated_at' => '2026-10-20 12:34:00']);
+    }
+
+    private function movement(string $id, string $wallet, ?string $ref, int $amount, string $type): void
+    {
+        $this->insert('wallet_transactions', ['id' => $id, 'wallet_id' => $wallet, 'reference_id' => $ref, 'amount' => $amount, 'type' => $type, 'remarks' => 'History '.$id]);
+    }
+
+    public function test_lease_history_has_one_event_per_source_and_no_join_multiplication_or_balance_fabrication(): void
+    {
+        $page = app(InvoiceService::class)->getStatement('manager', 'manager', false, [], 'la');
+        $rows = $page->getCollection()->keyBy('id');
+        $this->assertSame(4, $page->total());
+        $this->assertSame(100000, $rows['invoice:ia']['amount_cents']);
+        $this->assertSame(100000, $rows['payment:receipt']['amount_cents']);
+        $this->assertSame(20000, $rows['wallet_credit:credit']['amount_cents']);
+        $this->assertSame(-30000, $rows['wallet_payment:debit']['amount_cents']);
+        $this->assertSame('Alice', $rows['wallet_credit:credit']['party']);
+        $this->assertSame('Manager', $rows['invoice:ia']['issuer']);
+        $this->assertSame('Owner', $rows['payment:receipt']['payee']);
+        $this->assertSame(['Rental', 'Service fee'], array_column($rows['payment:receipt']['fees'], 'name'));
+        $this->assertSame('October rent', $rows['invoice:ia']['fees'][0]['description']);
+        $this->assertNull($rows['invoice:ia']['fees'][1]['description']);
+        $this->assertStringContainsString('not an additional receipt', $rows['wallet_credit:credit']['note']);
+        $this->assertStringContainsString('do not add again', $rows['wallet_payment:debit']['note']);
+        $this->assertFalse($rows->contains(fn ($r) => array_key_exists('balance', $r)));
+        $this->assertSame(99999999, DB::table('wallets')->where('id', 'wa')->value('balance'));
+    }
+
+    public function test_global_scope_is_not_limited_to_invoice_list_page_and_excludes_other_managers(): void
+    {
+        $rows = app(InvoiceService::class)->getStatement('staff', 'manager', false)->getCollection();
+        $this->assertContains('invoice:ia2', $rows->pluck('id'));
+        $this->assertContains('wallet_credit:unlinked', $rows->pluck('id'));
+        $this->assertNotContains('invoice:ib', $rows->pluck('id'));
+        $this->assertNotContains('wallet_credit:private', $rows->pluck('id'));
+        $this->assertNotContains('wallet_credit:private-unlinked', $rows->pluck('id'));
+        $this->assertSame(0, app(InvoiceService::class)->getStatement('manager', 'manager', false, [], 'lb')->total());
+        $this->assertContains('invoice:ib', app(InvoiceService::class)->getStatement('root', 'root', true)->getCollection()->pluck('id'));
+        $this->assertSame(0, app(InvoiceService::class)->getStatement(null, null, false)->total());
+    }
+
+    public function test_soft_deleted_records_and_mismatched_wallet_owners_do_not_leak(): void
+    {
+        $this->movement('wrong-owner', 'wb', 'ia', 999, 'manual_credit');
+        DB::table('invoices')->where('id', 'ia2')->update(['deleted_at' => '2026-10-21']);
+        DB::table('transactions')->where('id', 'receipt')->update(['deleted_at' => '2026-10-21']);
+        $ids = app(InvoiceService::class)->getStatement('manager', 'manager', false)->getCollection()->pluck('id');
+        foreach (['invoice:ia2', 'wallet_credit:other-lease', 'payment:receipt', 'wallet_payment:debit', 'wallet_credit:wrong-owner'] as $id) $this->assertNotContains($id, $ids);
+    }
+
+    public function test_filters_pagination_and_safe_shared_blade(): void
+    {
+        $service = app(InvoiceService::class);
+        $page = $service->getStatement('manager', 'manager', false, ['statement_from' => '2026-10-20', 'statement_to' => '2026-10-20', 'statement_kind' => 'payment', 'statement_invoice' => 'IA']);
+        $this->assertSame(1, $page->total());
+        $this->assertSame('20/10/2026', $page[0]['date']);
+        $this->assertSame('20/10/2026 12:34', $page[0]['recorded_at']);
+        $this->assertSame(0, $service->getStatement('manager', 'manager', false, ['statement_from' => '2026-10-21'])->total());
+        DB::table('invoice_items')->where('id', 'item1')->update(['description' => '<script>bad()</script>']);
+        $page = $service->getStatement('manager', 'manager', false, [], 'la');
+        $html = Blade::render('<x-invoice-statement :statement="$statement" />', ['statement' => $page]);
+        $this->assertStringContainsString('&lt;script&gt;', $html);
+        $this->assertStringNotContainsString('<script>bad()', $html);
+        $this->assertStringNotContainsString('Balance', $html);
+        for ($i = 0; $i < 25; $i++) $this->movement('extra-'.$i, 'wa', 'ia', 1, 'manual_credit');
+        $page = $service->getStatement('manager', 'manager', false, ['statement_page' => 2], 'la');
+        $this->assertSame(29, $page->total());
+        $this->assertSame(9, $page->count());
+        $this->assertStringContainsString('statement_page=1', $page->url(1));
+    }
+
+    public function test_date_validation_allows_open_ended_range_and_rejects_invalid_input(): void
+    {
+        foreach ([['statement_to' => '2026-10-20'], ['statement_from' => '2026-10-20']] as $data) {
+            $this->assertTrue(Validator::make($data, InvoiceService::statementFilterRules())->passes());
+        }
+        foreach ([['statement_from' => 'bad'], ['statement_page' => -1], ['statement_kind' => 'refund_action'], ['statement_from' => '2026-10-21', 'statement_to' => '2026-10-20']] as $data) {
+            $this->assertTrue(Validator::make($data, InvoiceService::statementFilterRules())->fails());
+        }
+    }
+
+    public function test_existing_owner_visibility_applies_to_property_unit_and_room(): void
+    {
+        DB::table('users')->where('id', 'owner')->update(['created_by' => 'manager']);
+        $this->insert('units', ['id' => 'u', 'property_id' => 'p', 'owner_id' => 'owner']);
+        $this->insert('rooms', ['id' => 'r', 'unit_id' => 'u']);
+        foreach ([[Property::class, 'p'], [Unit::class, 'u'], [Room::class, 'r']] as [$type, $id]) {
+            DB::table('leases')->where('id', 'lb')->update(['leasable_type' => $type, 'leasable_id' => $id]);
+            $rows = app(InvoiceService::class)->getStatement('staff', 'manager', false, [], 'lb');
+            $this->assertContains('invoice:ib', $rows->getCollection()->pluck('id'));
+            $this->assertContains('wallet_credit:private', $rows->getCollection()->pluck('id'));
+        }
+    }
+
+    public function test_unresolved_references_and_existing_refund_history_are_read_only(): void
+    {
+        $this->movement('unknown', 'wa', 'missing-reference', 1234, 'manual_credit');
+        $this->movement('refund-history', 'wa', 'ia', 4000, 'refund');
+        $global = app(InvoiceService::class)->getStatement('manager', 'manager', false)->getCollection()->keyBy('id');
+        $this->assertSame('12.34', $global['wallet_credit:unknown']['amount']);
+        $this->assertNull($global['wallet_credit:unknown']['invoice_no']);
+        $this->assertSame('Refund', $global['wallet_credit:refund-history']['source_type']);
+        $leaseIds = app(InvoiceService::class)->getStatement('manager', 'manager', false, [], 'la')->getCollection()->pluck('id');
+        $this->assertNotContains('wallet_credit:unknown', $leaseIds);
+        $this->assertContains('wallet_credit:refund-history', $leaseIds);
+        $this->assertSame(99999999, DB::table('wallets')->where('id', 'wa')->value('balance'));
+    }
+}

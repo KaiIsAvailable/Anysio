@@ -16,6 +16,83 @@ class InvoiceService
         private readonly SettingService $settingService,
     ) {}
 
+    public static function statementFilterRules(): array
+    {
+        return [
+            'statement_from' => ['nullable', 'date_format:Y-m-d'],
+            'statement_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:statement_from'],
+            'statement_kind' => ['nullable', 'in:invoice,payment,wallet_credit,wallet_payment,wallet_other'],
+            'statement_invoice' => ['nullable', 'string', 'max:100'],
+            'statement_page' => ['nullable', 'integer', 'min:1'],
+        ];
+    }
+
+    public function getIndexInvoices(?string $actualId, ?string $effectiveId, bool $superAdmin, int $page = 1)
+    {
+        $invoices = Invoice::indexPage($actualId, $effectiveId, $superAdmin, $page);
+        $invoices->setCollection($invoices->getCollection()->map(fn ($invoice) => (object) $this->transformInvoice($invoice)));
+        return $invoices;
+    }
+
+    public function getStatement(?string $actualId, ?string $effectiveId, bool $superAdmin, array $filters = [], ?string $leaseId = null)
+    {
+        $page = Invoice::statementPage($actualId, $effectiveId, $superAdmin, $filters, $leaseId);
+        [$invoices, $walletUsers] = Invoice::statementDetails(
+            $page->getCollection()->pluck('invoice_id')->filter()->unique()->all(),
+            $page->getCollection()->pluck('wallet_user_id')->filter()->unique()->all(),
+        );
+        $page->setCollection($page->getCollection()->map(function ($event) use ($invoices, $walletUsers) {
+            $invoice = $invoices->get($event->invoice_id);
+            $walletEvent = str_starts_with($event->event_kind, 'wallet_');
+            $person = $walletEvent ? $walletUsers->get($event->wallet_user_id) : ($invoice?->lease?->tenant?->user ?? $invoice?->user);
+            $asset = $invoice?->lease?->leasable;
+            $payee = $asset instanceof Room ? $asset->unit?->owner : $asset?->owner;
+            $labels = ['invoice' => 'Invoice issued', 'payment' => 'Invoice payment applied', 'wallet_credit' => 'Wallet credit', 'wallet_payment' => 'Wallet debit', 'wallet_other' => 'Wallet entry'];
+            $note = match ($event->event_kind) {
+                'payment' => 'Applied to invoice; may include wallet funds. Excess credited to wallet is shown separately.',
+                'wallet_payment' => $event->source_type === 'invoice_payment' || $event->source_type === 'payment_debit'
+                    ? 'Wallet funding movement; do not add again to invoice payments.' : 'Wallet movement; no invoice payment allocation inferred.',
+                'wallet_credit' => $event->source_type === 'overpayment_credit'
+                    ? 'Excess transferred to wallet; not an additional receipt.' : 'Wallet movement, not an invoice payment.',
+                default => null,
+            };
+            return [
+                'id' => $event->event_kind.':'.$event->event_id,
+                'kind' => $event->event_kind,
+                'label' => $labels[$event->event_kind],
+                'date' => $event->occurred_at ? Carbon::parse($event->occurred_at)->format($event->date_only ? 'd/m/Y' : 'd/m/Y H:i') : 'Not recorded',
+                'recorded_at' => $event->recorded_at ? Carbon::parse($event->recorded_at)->format('d/m/Y H:i') : null,
+                'date_only' => (bool) $event->date_only,
+                'party_label' => $walletEvent ? 'Wallet holder' : 'Billed to',
+                'party' => $person?->name ?? 'Not recorded',
+                'payee' => $invoice?->lease ? ($payee?->name ?? 'Not recorded') : null,
+                'issuer' => $invoice?->documentTemplate?->user?->name,
+                'invoice_no' => $event->invoice_no,
+                'receipt_no' => $event->receipt_no,
+                'reference' => $event->reference,
+                'source_type' => $walletEvent
+                    ? ucfirst(str_replace('_', ' ', $event->source_type ?? ''))
+                    : 'Current invoice status: '.($event->source_type ?? 'Not recorded'),
+                'payment_method' => $event->payment_method,
+                'amount_cents' => $event->amount === null ? null : (int) $event->amount,
+                'amount' => $event->amount === null ? 'Not recorded' : number_format(abs((int) $event->amount) / 100, 2),
+                'invoice_amount' => $event->event_kind === 'invoice',
+                'payment_amount' => $event->event_kind === 'payment',
+                'wallet_amount' => $walletEvent,
+                'wallet_direction' => (int) $event->amount > 0 ? '+' : ((int) $event->amount < 0 ? '−' : ''),
+                'description' => filled($event->description) ? $event->description : null,
+                // Fee lines are invoice context, not a guessed allocation of partial payments.
+                'fees' => $invoice?->items->map(fn ($item) => [
+                    'name' => $item->feeType?->name ?? 'Not recorded',
+                    'description' => filled($item->description) ? $item->description : null,
+                ])->all() ?? [],
+                'note' => $note,
+            ];
+        }));
+        return $page->appends(array_filter($filters, fn ($v, $k) => $k !== 'statement_page' && $v !== null && $v !== '', ARRAY_FILTER_USE_BOTH))
+            ->fragment('invoice-statement');
+    }
+
     /**
      * Owner manually creates an invoice containing multiple items after the lease exists.
      */

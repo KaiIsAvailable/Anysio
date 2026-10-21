@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use App\Traits\Auditable;
+use Illuminate\Support\Facades\DB;
 
 class Invoice extends Model
 {
@@ -137,6 +138,114 @@ class Invoice extends Model
     public function scopeTenant($q)
     {
         return $q->where('context', self::CONTEXT_TENANT);
+    }
+
+    /** Existing invoice-index visibility, shared by the list and statement. */
+    public function scopeVisibleTo($query, ?string $actualId, ?string $effectiveId, bool $superAdmin = false)
+    {
+        if ($superAdmin) return $query;
+        if (!$actualId || !$effectiveId) return $query->whereRaw('1 = 0');
+
+        return $query->whereHas('lease', function ($lease) use ($actualId, $effectiveId) {
+            $lease->where(function ($scope) use ($actualId, $effectiveId) {
+                $scope->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($asset, $type) use ($actualId, $effectiveId) {
+                    $asset->whereHas($type === Room::class ? 'unit.owner' : 'owner', function ($owner) use ($actualId, $effectiveId) {
+                        $owner->where(function ($q) use ($actualId, $effectiveId) {
+                            $q->where('created_by', $effectiveId)->orWhere('created_by', $actualId)->orWhere('owner_id', $effectiveId);
+                        });
+                    });
+                })->orWhereHas('tenant', fn ($tenant) => $tenant->whereIn('created_by', [$actualId, $effectiveId]));
+            });
+        });
+    }
+
+    /** One row per source event. Never join items to payments or wallet movements. */
+    public static function statementPage(?string $actualId, ?string $effectiveId, bool $superAdmin, array $filters, ?string $leaseId = null)
+    {
+        $visible = static::query()->visibleTo($actualId, $effectiveId, $superAdmin)
+            ->when($leaseId !== null, fn ($q) => $q->forLease($leaseId))->select('invoices.id');
+
+        $invoices = DB::table('invoices as i')->whereIn('i.id', clone $visible)
+            ->selectRaw("i.id as event_id, 'invoice' as event_kind, i.id as invoice_id, i.invoice_no,
+                i.created_at as occurred_at, i.created_at as recorded_at, i.total_amount as amount,
+                NULL as wallet_user_id, NULL as receipt_no, NULL as payment_method, NULL as reference,
+                i.remarks as description, i.status as source_type, 0 as date_only");
+        $payments = DB::table('transactions as t')->join('invoices as i', 'i.id', '=', 't.invoice_id')
+            ->whereNull('t.deleted_at')->whereIn('i.id', clone $visible)
+            ->selectRaw("t.id as event_id, 'payment' as event_kind, i.id as invoice_id, i.invoice_no,
+                COALESCE(t.payment_date, t.created_at) as occurred_at, t.created_at as recorded_at,
+                t.amount_applied as amount, NULL as wallet_user_id, t.receipt_no, t.payment_method,
+                t.transaction_ref as reference, NULL as description, i.status as source_type,
+                CASE WHEN t.payment_date IS NULL THEN 0 ELSE 1 END as date_only");
+
+        // reference_id is historically either an invoice ID or a transaction ID.
+        // All joins below are primary-key joins, so a movement can appear only once.
+        $wallet = DB::table('wallet_transactions as wt')->join('wallets as w', 'w.id', '=', 'wt.wallet_id')
+            ->leftJoin('invoices as direct', 'direct.id', '=', 'wt.reference_id')
+            ->leftJoin('transactions as receipt', 'receipt.id', '=', 'wt.reference_id')
+            ->leftJoin('invoices as via_receipt', 'via_receipt.id', '=', 'receipt.invoice_id')
+            ->where(function ($q) use ($visible, $leaseId, $superAdmin, $actualId, $effectiveId) {
+                $q->where(function ($linked) use ($visible) {
+                    $linked->whereIn(DB::raw('COALESCE(direct.id, via_receipt.id)'), clone $visible)
+                        ->where(function ($unambiguous) {
+                            $unambiguous->whereNull('direct.id')->orWhereNull('receipt.id')->orWhereColumn('direct.id', 'via_receipt.id');
+                        })
+                        ->where(function ($r) {
+                            $r->whereNotNull('direct.id')->orWhereNull('receipt.deleted_at');
+                        })->whereExists(function ($tenant) {
+                            $tenant->selectRaw('1')->from('leases as wl')->join('tenants as wt_owner', 'wt_owner.id', '=', 'wl.tenant_id')
+                                ->whereColumn('wl.id', DB::raw('COALESCE(direct.lease_id, via_receipt.lease_id)'))
+                                ->whereColumn('wt_owner.user_id', 'w.user_id');
+                        });
+                });
+                // An unresolved tenant-level reference cannot be assigned to a lease.
+                if ($leaseId === null) {
+                    $q->orWhere(function ($unlinked) use ($superAdmin, $actualId, $effectiveId) {
+                        $unlinked->whereNull('direct.id')->whereNull('receipt.id');
+                        if (!$superAdmin) {
+                            $ids = $actualId && $effectiveId ? [$actualId, $effectiveId] : [];
+                            $unlinked->whereExists(fn ($t) => $t->selectRaw('1')->from('tenants as managed_tenant')
+                                ->whereColumn('managed_tenant.user_id', 'w.user_id')->whereIn('managed_tenant.created_by', $ids));
+                        }
+                    });
+                }
+            })
+            ->selectRaw("wt.id as event_id,
+                CASE WHEN wt.amount > 0 THEN 'wallet_credit' WHEN wt.amount < 0 THEN 'wallet_payment' ELSE 'wallet_other' END as event_kind,
+                COALESCE(direct.id, via_receipt.id) as invoice_id, COALESCE(direct.invoice_no, via_receipt.invoice_no) as invoice_no,
+                wt.created_at as occurred_at, wt.created_at as recorded_at, wt.amount, w.user_id as wallet_user_id,
+                NULL as receipt_no, NULL as payment_method, wt.reference_id as reference,
+                wt.remarks as description, wt.type as source_type, 0 as date_only");
+
+        $events = DB::query()->fromSub($invoices->unionAll($payments)->unionAll($wallet), 'statement_events');
+        if (!empty($filters['statement_from'])) $events->where('occurred_at', '>=', $filters['statement_from']);
+        if (!empty($filters['statement_to'])) $events->where('occurred_at', '<', \Carbon\Carbon::parse($filters['statement_to'])->addDay()->toDateString());
+        if (!empty($filters['statement_kind'])) $events->where('event_kind', $filters['statement_kind']);
+        if (!empty($filters['statement_invoice'])) $events->where('invoice_no', 'like', '%'.$filters['statement_invoice'].'%');
+        return $events->orderByDesc('occurred_at')->orderByDesc('recorded_at')->orderBy('event_kind')->orderByDesc('event_id')
+            ->paginate(20, ['*'], 'statement_page', $filters['statement_page'] ?? 1);
+    }
+
+    public static function statementDetails(array $invoiceIds, array $userIds): array
+    {
+        return [
+            static::with(['items.feeType', 'lease.tenant.user', 'user', 'documentTemplate.user',
+                'lease.leasable' => fn (MorphTo $asset) => $asset->morphWith([
+                    Room::class => ['unit.owner'], Unit::class => ['owner'], Property::class => ['owner'],
+                ]),
+            ])
+                ->whereKey($invoiceIds)->get()->keyBy('id'),
+            User::whereIn('id', $userIds)->get()->keyBy('id'),
+        ];
+    }
+
+    public static function indexPage(?string $actualId, ?string $effectiveId, bool $superAdmin, int $page = 1)
+    {
+        return static::with([
+            'documentTemplate', 'user', 'billable', 'lease.leasable.owner', 'lease.tenant.user',
+            'items.feeType', 'transactions.documentTemplate', 'transactions.approver', 'payments',
+        ])->visibleTo($actualId, $effectiveId, $superAdmin)->latest()
+            ->paginate(10, ['*'], 'page', $page)->onEachSide(1);
     }
 
     public function scopeSubscription($q)

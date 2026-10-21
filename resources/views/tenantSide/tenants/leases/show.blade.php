@@ -617,22 +617,7 @@
                     <button type="button"
                         data-base-content="{{ $lease->documentTemplate?->html_template }}"
                         data-title="{{ $lease->documentTemplate?->title }}"
-                        data-replacements="{{ json_encode([
-                                    'status' => $lease->status ?? 'N/A',
-                                    'tenant_name' => $lease->tenant?->user?->name ?? 'N/A',
-                                    'tenant_ic' => $lease->tenant?->ic_number ?? 'N/A',
-                                    'owner_name' => $ownerName,
-                                    'owner_ic' => $ownerIc,
-                                    'property_address' => $propertyAddress,
-                                    'property_type' => $type,
-                                    'property_name' => $propertyName,
-                                    'rent_mode' => $lease->term_type ?? 'N/A',
-                                    'rent_price' => number_format($rentAmount / 100, 2),
-                                    'security_deposit' => number_format(($lease->security_deposit ?? 0) / 100, 2),
-                                    'utilities_deposit' => number_format(($lease->utilities_deposit ?? 0) / 100, 2),
-                                    'start_date' => $lease->start_date?->format('d/m/Y') ?? 'N/A',
-                                    'end_date' => $lease->end_date?->format('d/m/Y') ?? 'N/A',
-                                ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
+                        data-replacements="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementVariables($lease), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
 
                         onclick="viewTenantAgreement(this)"
 
@@ -695,7 +680,7 @@
 
             Object.keys(replacements).forEach(key => {
 
-                const val = replacements[key] || 'N/A';
+                const val = String(replacements[key] ?? 'N/A').replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
 
                 const safeVal = `<strong>${val}</strong>`;
 
@@ -709,7 +694,7 @@
 
                 content = content.replace(
                     dataVarRegex,
-                    safeVal
+                    () => safeVal
                 );
 
 
@@ -727,7 +712,7 @@
 
                 content = content.replace(
                     textRegex,
-                    safeVal
+                    () => safeVal
                 );
 
             });

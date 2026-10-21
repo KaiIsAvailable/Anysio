@@ -30,11 +30,17 @@
             <div class="bg-slate-900 shadow-2xl rounded-xl border border-slate-800 overflow-hidden flex items-center justify-center p-6" 
                 style="height: calc(100vh - 180px); min-height: 600px;">
                 
+                @if(app(\App\Services\FileService::class)->getFileMimeType($tenant->ic_photo_path) === 'application/pdf')
+                    <object data="{{ route('admin.tenants.ic_photo', ['filename' => basename($tenant->ic_photo_path)]) }}" type="application/pdf" class="w-full h-full">
+                        <a href="{{ route('admin.tenants.ic_photo', ['filename' => basename($tenant->ic_photo_path)]) }}" target="_blank" rel="noopener">Open PDF</a>
+                    </object>
+                @else
                 <img 
                     src="{{ route('admin.tenants.ic_photo', ['filename' => basename($tenant->ic_photo_path)]) }}" 
                     class="max-w-full max-h-full object-contain rounded-lg shadow-lg select-none"
                     alt="Identity Document"
                     draggable="false">
+                @endif
             </div>
         </div>
     </div>

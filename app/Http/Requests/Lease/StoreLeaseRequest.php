@@ -115,6 +115,7 @@ class StoreLeaseRequest extends FormRequest
                 'numeric',
                 'min:0',
             ],
+            'charges.*.frequency' => ['sometimes', Rule::in(['daily', 'weekly', 'monthly', 'yearly', 'one_time'])],
 
             'document_id' => [
                 Rule::requiredIf(in_array($this->input('status'), ['New', 'Renew'])),

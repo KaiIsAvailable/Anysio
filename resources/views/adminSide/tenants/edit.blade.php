@@ -183,13 +183,17 @@
                         
                         <div id="ic_preview_container" class="mb-2 {{ $tenant->ic_photo_path ? '' : 'hidden' }}">
                             @if($tenant->ic_photo_path)
+                                @if(app(\App\Services\FileService::class)->getFileMimeType($tenant->ic_photo_path) === 'application/pdf')
+                                    <a href="{{ route('admin.tenants.ic_photo', basename($tenant->ic_photo_path)) }}" target="_blank" rel="noopener">Open current PDF</a>
+                                @else
                                 <img id="ic_preview" src="{{ route('admin.tenants.ic_photo', basename($tenant->ic_photo_path)) }}" alt="Current Photo" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
+                                @endif
                             @else
                                 <img id="ic_preview" src="#" alt="Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
                             @endif
                         </div>
 
-                        <x-form.file-input name="ic_photo_path" id="ic_photo_path" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full" />
+                        <x-form.file-input name="ic_photo_path" id="ic_photo_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full" />
                         <p class="text-xs text-gray-500 mt-1">Leave empty to keep current photo.</p>
                         <x-form.input-error :messages="$errors->get('ic_photo_path')" class="mt-1" />
                     </div>
@@ -269,16 +273,30 @@
         // Image Preview
         function previewImage(input, previewId, containerId) {
             const container = document.getElementById(containerId);
-            const preview = document.getElementById(previewId);
-            
-            if (input.files && input.files[0]) {
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    preview.src = e.target.result;
-                    container.classList.remove('hidden');
-                }
-                reader.readAsDataURL(input.files[0]);
+            const file = input.files?.[0];
+            if (!file) return;
+            if (!['image/jpeg', 'image/png', 'image/gif', 'application/pdf'].includes(file.type) || file.size > 2048 * 1024) {
+                input.value = '';
+                alert('Please select a JPEG, PNG, GIF or PDF file up to 2 MB.');
+                return;
             }
+            if (container.dataset.objectUrl) URL.revokeObjectURL(container.dataset.objectUrl);
+            const url = URL.createObjectURL(file);
+            container.dataset.objectUrl = url;
+            const preview = document.createElement(file.type === 'application/pdf' ? 'a' : 'img');
+            preview.id = previewId;
+            if (file.type === 'application/pdf') {
+                preview.href = url;
+                preview.target = '_blank';
+                preview.rel = 'noopener';
+                preview.textContent = 'Open PDF: ' + file.name;
+            } else {
+                preview.src = url;
+                preview.alt = 'Identity document preview';
+                preview.className = 'h-40 w-40 object-cover rounded-lg border border-gray-200';
+            }
+            container.replaceChildren(preview);
+            container.classList.remove('hidden');
         }
 
         // Dynamic Emergency Contacts

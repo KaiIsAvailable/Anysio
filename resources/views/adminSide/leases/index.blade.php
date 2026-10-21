@@ -163,16 +163,16 @@
         const replacements = JSON.parse(button.dataset.replacements);
 
         Object.keys(replacements).forEach(key => {
-            const val = replacements[key] || 'N/A';
+            const val = String(replacements[key] ?? 'N/A').replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
             const safeVal = `<strong>${val}</strong>`;
 
             // Replace GrapesJS data-variable elements
             const dataVarRegex = new RegExp(`<[^>]+data-variable=["']${key}["'][^>]*>[\\s\\S]*?<\\/\\w+>`, 'gi');
-            content = content.replace(dataVarRegex, safeVal);
+            content = content.replace(dataVarRegex, () => safeVal);
 
             // Replace standard or encoded curly brackets variants
             const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${key}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
-            content = content.replace(textRegex, safeVal);
+            content = content.replace(textRegex, () => safeVal);
         });
 
         window.dispatchEvent(new CustomEvent('open-lease-preview', { 

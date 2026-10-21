@@ -367,6 +367,92 @@ class LeaseService
         return Carbon::parse($date)->format('Y-m-d');
     }
 
+    /** Read-only variables shared by every live agreement preview and its PDF. */
+    public function getAgreementVariables(Lease $lease): array
+    {
+        $leasable = $lease->leasable;
+        $unit = $leasable instanceof Room ? $leasable->unit : ($leasable instanceof Unit ? $leasable : null);
+        $property = $leasable instanceof Property ? $leasable : $unit?->property;
+        // Match each asset's existing detail/list display through its model attribute.
+        $servicePackage = match (true) {
+            $leasable instanceof Property => $leasable->type,
+            $leasable instanceof Unit => $leasable->type,
+            $leasable instanceof Room => $leasable->room_type,
+            default => null,
+        };
+        $servicePackage = filled($servicePackage) ? $servicePackage : 'Not recorded';
+        $owner = $unit?->owner ?? $leasable?->owner;
+        $charges = $lease->charges;
+        $money = function ($selected, string $legacy) use ($lease, $charges): string {
+            if ($selected->isNotEmpty()) {
+                return number_format($selected->sum('amount') / 100, 2);
+            }
+            // Legacy columns are cents too. Never turn an absent value into zero.
+            $raw = $lease->getAttributes()[$legacy] ?? null;
+            return $charges->isEmpty() && $raw !== null ? number_format($raw / 100, 2) : 'Not recorded';
+        };
+        $rent = $charges->filter(fn ($c) => $c->feeType?->category === FeeTypeCategory::RENT);
+        $deposit = $charges->filter(fn ($c) => $c->feeType?->category === FeeTypeCategory::DEPOSIT);
+        $namedDeposit = fn ($name) => $deposit->filter(fn ($c) => strcasecmp(trim($c->description ?: $c->feeType?->name), $name) === 0);
+        $rentValue = $money($rent, 'rent_price');
+        // Do not invent a monthly equivalent for daily/weekly/yearly agreements.
+        if ($rent->isNotEmpty() && $rent->contains(fn ($c) => $c->frequency !== 'monthly')) {
+            $rentValue = $rent->map(fn ($c) => number_format($c->amount / 100, 2).' ('.$c->frequency.')')->implode('; ');
+        }
+        $security = $money($namedDeposit('Security Deposit'), 'security_deposit');
+        $address = $this->formatAgreementAddress($unit?->unit_no, $property?->full_address);
+
+        return [
+            'status' => $lease->status ?? 'N/A',
+            'tenant_name' => $lease->tenant?->user?->name ?? 'N/A',
+            'tenant_ic' => $lease->tenant?->ic_number ?? $lease->tenant?->passport ?? 'N/A',
+            'owner_name' => $owner?->name ?? 'N/A',
+            'owner_ic' => $owner?->owner?->ic_number ?? 'N/A',
+            'property_address' => $address ?: 'Not recorded',
+            'unit_number' => $unit?->unit_no ?? ($leasable instanceof Property ? 'N/A (whole property)' : 'Not recorded'),
+            'unit_no' => $unit?->unit_no ?? ($leasable instanceof Property ? 'N/A (whole property)' : 'Not recorded'),
+            'property_type' => $lease->leasable_type_label,
+            // These legacy agreement tokens denote the leased asset's Service Package.
+            // Keep property_type above unchanged for its existing asset-kind usage.
+            'leasable_type' => $servicePackage,
+            'leasalable_type' => $servicePackage,
+            'service_package' => $servicePackage,
+            'property_name' => $lease->leasable_name,
+            'rent_mode' => $lease->term_type ?? 'N/A',
+            'rent_price' => $rentValue,
+            'deposit_mode' => $lease->deposit_mode ?? 'N/A',
+            'security_deposit' => $security,
+            'deposit_amount' => $security,
+            'utilities_deposit' => $money($namedDeposit('Utilities Deposit'), 'utilities_deposit'),
+            'total_deposit' => $deposit->isNotEmpty() ? number_format($deposit->sum('amount') / 100, 2) : 'Not recorded',
+            'start_date' => $lease->start_date?->format('d/m/Y') ?? 'N/A',
+            'end_date' => $lease->end_date?->format('d/m/Y') ?? 'N/A',
+            'check_out_date' => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
+            'end_agreement_date' => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
+        ];
+    }
+
+    private function formatAgreementAddress(?string $unitNumber, ?string $propertyAddress): string
+    {
+        $address = trim($propertyAddress ?? '');
+        $number = trim($unitNumber ?? '');
+        while (preg_match('/^\((.*)\)$/s', $number, $match)) {
+            $number = trim($match[1]);
+        }
+        if ($number === '') {
+            return $address;
+        }
+
+        // Remove only an exact leading unit component, never parentheses in a street name.
+        $quoted = preg_quote($number, '/');
+        $prefix = '/^(?:Unit\s+)?(?:\(\s*'.$quoted.'\s*\)|'.$quoted.')(?:\s*,\s*|$)/i';
+        do {
+            $address = preg_replace($prefix, '', $address, 1, $count);
+        } while ($count > 0);
+
+        return '('.$number.')'.($address !== '' ? ', '.$address : '');
+    }
+
     public function cancelLease(Lease $lease, ?string $reason = null): void
     {
         // Guardrail: Check for outstanding unpaid invoices

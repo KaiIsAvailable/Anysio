@@ -24,7 +24,7 @@ class FileService
     public function upload($file, string $userId, string $category)
     {
         $directory = $this->getPath($category, $userId);
-        $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
+        $filename = Str::uuid() . '.' . ($category === 'tenant_ic' ? $file->extension() : $file->getClientOriginalExtension());
 
         try {
             $fullPath = $file->storeAs($directory, $filename, $this->disk);
@@ -72,6 +72,9 @@ class FileService
     // 如果你需要 mimeType (用于预览)
     public function getFileMimeType(string $path)
     {
+        if (!Storage::disk($this->disk)->exists($path) && Storage::disk($this->disk)->exists('private/'.$path)) {
+            $path = 'private/'.$path;
+        }
         // 获取磁盘的根路径 (例如 storage/app/private)
         $root = Storage::disk($this->disk)->path('');
         $fullPath = $root . $path;

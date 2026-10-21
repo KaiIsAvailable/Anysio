@@ -23,6 +23,8 @@ class TenantsController extends Controller
 {
     use RoleBasedDataTrait;
 
+    public const IC_DOCUMENT_RULES = 'nullable|file|max:2048|mimes:jpeg,png,jpg,gif,pdf|mimetypes:image/jpeg,image/png,image/gif,application/pdf';
+
     public function leases()
     {
         $user = Auth::user();
@@ -488,7 +490,7 @@ class TenantsController extends Controller
             'nationality' => 'required|string|max:100',
             'gender' => 'required|string|in:Male,Female,MALE,FEMALE',
             'occupation' => 'nullable|string|max:100',
-            'ic_photo_path' => 'nullable|image|max:2048|mimes:jpeg,png,jpg,gif',
+            'ic_photo_path' => self::IC_DOCUMENT_RULES,
             'emergency_contacts' => 'required|array|min:1',
             'emergency_contacts.*.name' => 'required|string|max:255',
             'emergency_contacts.*.phone' => 'required|numeric',

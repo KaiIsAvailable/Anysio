@@ -251,25 +251,7 @@
                                                     <button type="button"
                                                         data-base-content="{{ $lease->documentTemplate?->html_template }}"
                                                         data-title="{{ $lease->documentTemplate?->title }}"
-                                                        data-replacements="{{ json_encode([
-                                                            'status' => $lease->status ?? 'N/A',
-                                                            'tenant_name' => $lease->tenant?->user->name ?? 'N/A',
-                                                            'tenant_ic' => $lease->tenant?->ic_number ?? 'N/A',
-                                                            'owner_name' => ($lease->leasable instanceof Room) ? ($lease->leasable->unit?->owner?->name ?? 'N/A') : ($lease->leasable->owner?->name ?? 'N/A'),
-                                                            'owner_ic' => ($lease->leasable instanceof Room) ? ($lease->leasable->unit?->owner?->owner?->ic_number ?? 'N/A') : ($lease->leasable->owner?->owner?->ic_number ?? 'N/A'),
-                                                            'property_address' => $lease->leasable?->full_address ?? 'N/A',
-                                                            'property_type' => $lease->leasableTypeLabel ?? 'N/A',
-                                                            'property_name' => $lease->leasableName ?? 'N/A',
-                                                            'rent_mode' => $lease->term_type ?? 'N/A',
-                                                            'rent_price' => number_format($lease->rent_price, 2),
-                                                            'deposit_mode' => $lease->deposit_mode ?? 'N/A',
-                                                            'security_deposit' => number_format($lease->security_deposit, 2),
-                                                            'utilities_deposit' => number_format($lease->utilities_deposit, 2),
-                                                            'start_date' => $lease->start_date?->format('d/m/Y') ?? 'N/A',
-                                                            'end_date' => $lease->end_date?->format('d/m/Y') ?? 'N/A',
-                                                            'check_out_date' => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
-                                                            'end_agreement_date' => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
-                                                        ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
+                                                        data-replacements="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementVariables($lease), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
                                                         @click="viewAgreement($el); openDropdown = false;"
                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center">
                                                         View Agreement

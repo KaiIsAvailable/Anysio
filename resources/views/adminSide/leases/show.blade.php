@@ -245,29 +245,7 @@
                             <button type="button"
                                 data-base-content="{{ $lease->documentTemplate?->html_template }}"
                                 data-title="{{ $lease->documentTemplate?->title }}"
-                                data-replacements="{{ json_encode([
-                                    'status' => $lease->status ?? 'N/A',
-                                    'tenant_name' => $lease->tenant?->user->name ?? 'N/A',
-                                    'tenant_ic' => $lease->tenant?->ic_number ?? 'N/A',
-                                    'owner_name' => ($lease->leasable instanceof Room)
-                                        ? ($lease->leasable->unit?->owner?->name ?? 'N/A')
-                                        : ($lease->leasable->owner?->name ?? 'N/A'),
-                                    'owner_ic' => ($lease->leasable instanceof Room)
-                                        ? ($lease->leasable->unit?->owner?->owner?->ic_number ?? 'N/A')
-                                        : ($lease->leasable->owner?->owner?->ic_number ?? 'N/A'),
-                                    'property_address' => $lease->leasable?->full_address ?? 'N/A',
-                                    'property_type' => $lease->leasableTypeLabel ?? 'N/A',
-                                    'property_name' => $lease->leasableName ?? 'N/A',
-                                    'rent_mode' => $lease->term_type ?? 'N/A',
-                                    'rent_price' => number_format($lease->rent_price, 2),
-                                    'deposit_mode' => $lease->deposit_mode ?? 'N/A',
-                                    'security_deposit' => number_format($lease->security_deposit, 2),
-                                    'utilities_deposit' => number_format($lease->utilities_deposit, 2),
-                                    'start_date' => $lease->start_date?->format('d/m/Y') ?? 'N/A',
-                                    'end_date' => $lease->end_date?->format('d/m/Y') ?? 'N/A',
-                                    'check_out_date' => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
-                                    'end_agreement_date' => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
-                                ], JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
+                                data-replacements="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementVariables($lease), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
                                 @click="viewAgreement($el)"
                                 class="px-3 py-2 bg-indigo-50 text-indigo-600 text-xs font-black rounded-xl border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center text-center">
                                 VIEW AGREEMENT
@@ -764,16 +742,16 @@
         const replacements = JSON.parse(button.dataset.replacements);
 
         Object.keys(replacements).forEach(key => {
-            const val = replacements[key] || 'N/A';
+            const val = String(replacements[key] ?? 'N/A').replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
             const safeVal = `<strong>${val}</strong>`;
 
             // Replace GrapesJS data-variable elements
             const dataVarRegex = new RegExp(`<[^>]+data-variable=["']${key}["'][^>]*>[\\s\\S]*?<\\/\\w+>`, 'gi');
-            content = content.replace(dataVarRegex, safeVal);
+            content = content.replace(dataVarRegex, () => safeVal);
 
             // Replace standard or encoded curly brackets variants
             const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${key}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
-            content = content.replace(textRegex, safeVal);
+            content = content.replace(textRegex, () => safeVal);
         });
 
         window.dispatchEvent(new CustomEvent('open-lease-preview', { 

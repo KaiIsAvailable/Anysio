@@ -211,7 +211,7 @@
             if (tenantTypeSelect.value === 'corporate') {
                 // Label & Placeholder
                 if (nameLabel) nameLabel.innerText = 'Company Name';
-                if (nameInput) nameInput.placeholder = 'e.g. Anysio Technologies Sdn. Bhd.';
+                if (nameInput) nameInput.placeholder = '';
 
                 // Show Corporate / Hide Individual containers
                 if (corporateContainer) corporateContainer.classList.remove('hidden');
@@ -233,7 +233,7 @@
             } else {
                 // Label & Placeholder
                 if (nameLabel) nameLabel.innerText = 'Full Name';
-                if (nameInput) nameInput.placeholder = 'e.g. Ali Bin Abu';
+                if (nameInput) nameInput.placeholder = '';
 
                 // Show Individual / Hide Corporate containers
                 if (corporateContainer) corporateContainer.classList.add('hidden');

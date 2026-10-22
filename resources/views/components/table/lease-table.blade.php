@@ -177,7 +177,7 @@
                                                     View Cert
                                                 </a>
                                             </div>
-                                        @elseif(!in_array(strtolower($lease->status), ['check out', 'end']))
+                                        @elseif(!in_array(strtolower($lease->status), ['end']))
                                             <span class="text-sm font-semibold text-amber-600 flex items-center gap-1 whitespace-nowrap uppercase">
                                                 Pending Stamping
                                             </span>

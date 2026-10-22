@@ -22,15 +22,25 @@
                     <div class="mb-6 border-b pb-4">
                         <h2 class="text-xl font-semibold text-slate-800 mb-4">User Details</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <!-- Full Name -->
+                            <!-- Tenant Type (Fixed / Read-only display) -->
                             <div class="mb-4">
-                                <x-form.input-label for="name" value="Full Name" class="mb-1" />
+                                <x-form.input-label value="Tenant Type" class="mb-1" />
+                                <div class="flex items-center h-10 px-3 bg-gray-100 rounded-lg border border-gray-300 text-slate-700 font-medium capitalize">
+                                    {{ $tenant->tenant_type }}
+                                </div>
+                                <!-- Keep the actual value submitted to the backend -->
+                                <input type="hidden" name="tenant_type" value="{{ $tenant->tenant_type }}">
+                            </div>
+
+                            <!-- Full Name / Company Name -->
+                            <div class="mb-4">
+                                <x-form.input-label for="name" id="name_label" value="{{ $tenant->tenant_type === 'corporate' ? 'Company Name' : 'Full Name' }}" class="mb-1" />
                                 <x-form.text-input name="name" id="name" value="{{ old('name', $tenant->user->name) }}" class="w-full" required />
                                 <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                             </div>
 
                             <!-- Email Address -->
-                            <div class="mb-4">
+                            <div class="mb-4 col-span-1 md:col-span-2">
                                 <div class="flex items-center justify-between mb-1">
                                     <x-form.input-label for="email" value="Email Address" required />
                                     
@@ -73,57 +83,77 @@
                             <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
                         </div>
 
-                        @php
-                            $isIc = !empty($tenant->ic_number) || empty($tenant->passport);
-                        @endphp
+                        <!-- CORPORATE FIELDS CONTAINER -->
+                        <div id="corporate_fields_container" class="{{ $tenant->tenant_type === 'corporate' ? 'contents' : 'contents hidden' }}">
+                            <!-- SSM Number -->
+                            <div class="mb-4">
+                                <x-form.input-label for="ssm_number" value="SSM Registration Number" class="mb-1" />
+                                <x-form.text-input name="ssm_number" id="ssm_number" value="{{ old('ssm_number', $tenant->ssm_number) }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('ssm_number')" class="mt-1" />
+                            </div>
 
-                        <!-- Identity Type Selection -->
-                        <div class="mb-4 col-span-1 md:col-span-2">
-                            <x-form.input-label value="Identity Document" class="mb-2" />
-                            <div class="flex gap-4">
-                                <label class="inline-flex items-center cursor-pointer">
-                                    <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" {{ $isIc ? 'checked' : '' }} onchange="toggleIdentityInputs(false)">
-                                    <span class="ml-2">IC (Malaysian)</span>
-                                </label>
-                                <label class="inline-flex items-center cursor-pointer">
-                                    <input type="radio" name="identity_type" value="passport" class="form-radio text-indigo-600" {{ !$isIc ? 'checked' : '' }} onchange="toggleIdentityInputs(false)">
-                                    <span class="ml-2">Passport (Non-Malaysian)</span>
-                                </label>
+                            <!-- Company Address -->
+                            <div class="mb-4 col-span-1 md:col-span-2">
+                                <x-form.input-label for="company_address" value="Company Address" class="mb-1" />
+                                <x-form.text-input name="company_address" id="company_address" value="{{ old('company_address', $tenant->company_address) }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('company_address')" class="mt-1" />
                             </div>
                         </div>
 
-                        <!-- IC Number -->
-                        <div class="mb-4" id="ic_container">
-                            <x-form.input-label for="ic_number" value="IC Number" class="mb-1" />
-                            <x-form.text-input name="ic_number" id="ic_number" value="{{ old('ic_number', $tenant->ic_number) }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full" />
-                            <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
-                        </div>
+                        <!-- INDIVIDUAL FIELDS CONTAINER -->
+                        @php
+                            $isIc = !empty($tenant->ic_number) || empty($tenant->passport);
+                        @endphp
+                        <div id="individual_fields_container" class="{{ $tenant->tenant_type === 'corporate' ? 'contents hidden' : 'contents' }}">
+                            <!-- Identity Type Selection -->
+                            <div class="mb-4 col-span-1 md:grid-cols-2">
+                                <x-form.input-label value="Identity Document" class="mb-2" />
+                                <div class="flex gap-4">
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" {{ $isIc ? 'checked' : '' }} onchange="toggleIdentityInputs(false)">
+                                        <span class="ml-2">IC (Malaysian)</span>
+                                    </label>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="identity_type" value="passport" class="form-radio text-indigo-600" {{ !$isIc ? 'checked' : '' }} onchange="toggleIdentityInputs(false)">
+                                        <span class="ml-2">Passport (Non-Malaysian)</span>
+                                    </label>
+                                </div>
+                            </div>
 
-                        <!-- Passport -->
-                        <div class="mb-4 {{ $isIc ? 'hidden' : '' }}" id="passport_container">
-                            <x-form.input-label for="passport" value="Passport Number" class="mb-1" />
-                            <x-form.text-input name="passport" id="passport" value="{{ old('passport', $tenant->passport) }}" class="w-full" />
-                            <x-form.input-error :messages="$errors->get('passport')" class="mt-1" />
-                        </div>
+                            <!-- IC Number -->
+                            <div class="mb-4" id="ic_container">
+                                <x-form.input-label for="ic_number" value="IC Number" class="mb-1" />
+                                <x-form.text-input name="ic_number" id="ic_number" value="{{ old('ic_number', $tenant->ic_number) }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
+                            </div>
 
-                        <!-- Nationality -->
-                        <div class="mb-4">
-                            <x-form.input-label for="nationality" value="Nationality" class="mb-1" />
-                            <x-form.text-input name="nationality" id="nationality" value="{{ old('nationality', $tenant->nationality) }}" class="w-full" required />
-                            <x-form.input-error :messages="$errors->get('nationality')" class="mt-1" />
-                        </div>
+                            <!-- Passport -->
+                            <div class="mb-4 {{ $isIc ? 'hidden' : '' }}" id="passport_container">
+                                <x-form.input-label for="passport" value="Passport Number" class="mb-1" />
+                                <x-form.text-input name="passport" id="passport" value="{{ old('passport', $tenant->passport) }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('passport')" class="mt-1" />
+                            </div>
 
-                        <!-- Gender -->
-                        <div class="mb-4">
-                            <x-form.input-label for="gender" value="Gender" class="mb-1" />
-                            <x-form.input-select name="gender" id="gender" :value="old('gender', $tenant->gender)" :options="['Male' => 'Male', 'Female' => 'Female']" placeholder="-- Select Gender --" class="w-full shadow-sm" required />
-                            <x-form.input-error :messages="$errors->get('gender')" class="mt-1" />
-                        </div>
+                            <!-- Nationality -->
+                            <div class="mb-4">
+                                <x-form.input-label for="nationality" value="Nationality" class="mb-1" />
+                                <x-form.text-input name="nationality" id="nationality" value="{{ old('nationality', $tenant->nationality) }}" class="w-full" required />
+                                <x-form.input-error :messages="$errors->get('nationality')" class="mt-1" />
+                            </div>
 
-                        <div class="col-span-1 md:col-span-2">
-                            <x-form.input-label for="occupation" value="Occupation" class="mb-1" />
-                            <x-form.text-input name="occupation" id="occupation" value="{{ old('occupation', $tenant->occupation) }}" class="w-full" />
-                            <x-form.input-error :messages="$errors->get('occupation')" class="mt-1" />
+                            <!-- Gender -->
+                            <div class="mb-4">
+                                <x-form.input-label for="gender" value="Gender" class="mb-1" />
+                                <x-form.input-select name="gender" id="gender" :value="old('gender', $tenant->gender)" :options="['Male' => 'Male', 'Female' => 'Female']" placeholder="-- Select Gender --" class="w-full shadow-sm" required />
+                                <x-form.input-error :messages="$errors->get('gender')" class="mt-1" />
+                            </div>
+
+                            <!-- Occupation -->
+                            <div class="mb-4">
+                                <x-form.input-label for="occupation" value="Occupation" class="mb-1" />
+                                <x-form.text-input name="occupation" id="occupation" value="{{ old('occupation', $tenant->occupation) }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('occupation')" class="mt-1" />
+                            </div>
                         </div>
                     </div>
 
@@ -137,7 +167,7 @@
                         </div>
                         
                         <div id="contactList" class="space-y-4">
-                            @foreach(old('emergency_contacts', $tenant->emergencyContacts) as $index => $contact)
+                            @foreach(old('emergency_contacts', $tenant->emergencyContacts) as $index =>$contact)
                                 <div class="contact-row rounded-lg border border-gray-200 bg-gray-50 p-4">
                                     <div class="flex justify-between items-center mb-2">
                                     <span class="text-xs font-semibold text-gray-500 uppercase tracking-wider">
@@ -154,19 +184,19 @@
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Name</label>
                                             <input type="text" name="emergency_contacts[{{ $index }}][name]" 
-                                                value="{{ is_array($contact) ? ($contact['name'] ?? '') : $contact->name }}" 
+                                                value="{{ is_array($contact) ? ($contact['name'] ?? '') :$contact->name }}" 
                                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Relationship</label>
                                             <input type="text" name="emergency_contacts[{{ $index }}][relationship]" 
-                                                value="{{ is_array($contact) ? ($contact['relationship'] ?? '') : $contact->relationship }}" 
+                                                value="{{ is_array($contact) ? ($contact['relationship'] ?? '') :$contact->relationship }}" 
                                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                                         </div>
                                         <div>
                                             <label class="block text-sm font-medium text-slate-700 mb-1">Phone</label>
                                             <input type="text" name="emergency_contacts[{{ $index }}][phone]" 
-                                                value="{{ is_array($contact) ? ($contact['phone'] ?? '') : $contact->phone }}" 
+                                                value="{{ is_array($contact) ? ($contact['phone'] ?? '') :$contact->phone }}" 
                                                 oninput="this.value = this.value.replace(/[^0-9]/g, '')" inputmode="numeric" maxlength="20"
                                                 class="w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500" required>
                                         </div>
@@ -176,26 +206,66 @@
                         </div>
                     </div>
 
-                    <!-- Photo -->
+                    <!-- Photo / SSM Certificate -->
                     <div class="mb-6">
-                        <x-form.input-label for="ic_photo_path" id="photo_label" value="Upload photocopy IC (for rental purpose)" class="mb-1" />
-                        <p class="text-xs text-gray-500 mb-2">Please ask user to scratch IC before upload.</p>
+                        <x-form.input-label for="ic_photo_path" id="photo_label" value="{{ $tenant->tenant_type === 'corporate' ? 'SSM Certificate' : 'Upload photocopy IC (for rental purpose)' }}" class="mb-1" />
+                        <p class="text-xs text-gray-500 mb-2" id="photo_helper">Please ask user to scratch IC before upload.</p>
                         
-                        <div id="ic_preview_container" class="mb-2 {{ $tenant->ic_photo_path ? '' : 'hidden' }}">
-                            @if($tenant->ic_photo_path)
-                                @if(app(\App\Services\FileService::class)->getFileMimeType($tenant->ic_photo_path) === 'application/pdf')
-                                    <a href="{{ route('admin.tenants.ic_photo', basename($tenant->ic_photo_path)) }}" target="_blank" rel="noopener">Open current PDF</a>
+                        @php
+                            $isCorporate = $tenant->tenant_type === 'corporate';
+                            $currentPath = $isCorporate ? $tenant->ssm_cert_path : $tenant->ic_photo_path;
+                            
+                            // Safely check mime type without crashing if file is missing from disk
+                            $isPdf = false;
+                            if ($currentPath) {
+                                if (str_ends_with(strtolower($currentPath), '.pdf')) {
+                                    $isPdf = true;
+                                } else {
+                                    try {
+                                        $mime = app(\App\Services\FileService::class)->getFileMimeType($currentPath);
+                                        $isPdf = ($mime === 'application/pdf');
+                                    } catch (\Exception $e) {
+                                        $isPdf = false;
+                                    }
+                                }
+                            }
+                        @endphp
+
+                        <!-- Individual Photo Preview -->
+                        <div id="individual_photo_preview_container" class="mb-2 {{ (!$isCorporate && $currentPath) ? '' : 'hidden' }}">
+                            @if(!$isCorporate && $currentPath)
+                                @if($isPdf)
+                                    <a href="{{ route('admin.tenants.ic_photo', basename($currentPath)) }}" target="_blank" rel="noopener" class="text-indigo-600 underline text-sm font-medium">Open current IC/Passport PDF</a>
                                 @else
-                                <img id="ic_preview" src="{{ route('admin.tenants.ic_photo', basename($tenant->ic_photo_path)) }}" alt="Current Photo" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
+                                    <img src="{{ route('admin.tenants.ic_photo', basename($currentPath)) }}" alt="Current Photo" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
                                 @endif
-                            @else
-                                <img id="ic_preview" src="#" alt="Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
                             @endif
                         </div>
 
-                        <x-form.file-input name="ic_photo_path" id="ic_photo_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full" />
-                        <p class="text-xs text-gray-500 mt-1">Leave empty to keep current photo.</p>
+                        <!-- Corporate SSM Cert Preview -->
+                        <div id="corporate_photo_preview_container" class="mb-2 {{ ($isCorporate && $currentPath) ? '' : 'hidden' }}">
+                            @if($isCorporate && $currentPath)
+                                @if($isPdf)
+                                    <a href="{{ route('admin.tenants.ic_photo', basename($currentPath)) }}" target="_blank" rel="noopener" class="text-indigo-600 underline text-sm font-medium">Open current SSM Certificate PDF</a>
+                                @else
+                                    <img src="{{ route('admin.tenants.ic_photo', basename($currentPath)) }}" alt="Current SSM Cert" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
+                                @endif
+                            @endif
+                        </div>
+
+                        <!-- Individual File Input -->
+                        <div id="individual_photo_input_container" class="{{ $isCorporate ? 'hidden' : '' }}">
+                            <x-form.file-input name="ic_photo_path" id="ic_photo_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ic_preview', 'individual_photo_preview_container')" class="w-full" />
+                        </div>
+
+                        <!-- Corporate File Input -->
+                        <div id="corporate_photo_input_container" class="{{ $isCorporate ? '' : 'hidden' }}">
+                            <x-form.file-input name="ssm_cert_path" id="ssm_cert_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ssm_preview', 'corporate_photo_preview_container')" class="w-full" />
+                        </div>
+
+                        <p class="text-xs text-gray-500 mt-1">Leave empty to keep current file.</p>
                         <x-form.input-error :messages="$errors->get('ic_photo_path')" class="mt-1" />
+                        <x-form.input-error :messages="$errors->get('ssm_cert_path')" class="mt-1" />
                     </div>
 
                     <div class="flex justify-end pt-4 border-t">
@@ -209,15 +279,18 @@
     </div>
 
     <script>
-        // Identity Type Toggle
+        // Identity Type Toggle (IC vs Passport)
         function toggleIdentityInputs(isInit = false) {
-            // If window.toggleIdentityInputs is defined in tenants.js, defer to it
-            if (window.toggleIdentityInputs && window.toggleIdentityInputs !== toggleIdentityInputs) {
-                window.toggleIdentityInputs(isInit);
+            // Safety: If this is a corporate tenant, do not enforce individual required fields
+            const tenantTypeInput = document.querySelector('input[name="tenant_type"]');
+            if (tenantTypeInput && tenantTypeInput.value === 'corporate') {
                 return;
             }
 
-            const identityType = document.querySelector('input[name="identity_type"]:checked').value;
+            const identityTypeEl = document.querySelector('input[name="identity_type"]:checked');
+            if (!identityTypeEl) return;
+
+            const identityType = identityTypeEl.value;
             const icContainer = document.getElementById('ic_container');
             const passportContainer = document.getElementById('passport_container');
             const nationalityInput = document.getElementById('nationality');
@@ -233,48 +306,34 @@
                     nationalityInput.classList.add('bg-gray-100');
                     nationalityInput.readOnly = true;
                 }
-                if (icNumberInput) {
-                    icNumberInput.required = true;
-                }
+                if (icNumberInput) icNumberInput.required = true;
                 if (passportInput) {
                     passportInput.required = false;
-                    if (!isInit) {
-                        passportInput.value = '';
-                    }
+                    if (!isInit) passportInput.value = '';
                 }
-                if (photoLabel) {
-                    photoLabel.innerText = 'Upload photocopy IC (for rental purpose)';
-                }
+                if (photoLabel) photoLabel.innerText = 'Upload photocopy IC (for rental purpose)';
             } else {
                 if (icContainer) icContainer.classList.add('hidden');
                 if (passportContainer) passportContainer.classList.remove('hidden');
                 if (nationalityInput) {
-                    if (nationalityInput.value === 'MALAYSIAN') {
-                        nationalityInput.value = '';
-                    }
+                    if (nationalityInput.value === 'MALAYSIAN') nationalityInput.value = '';
                     nationalityInput.classList.remove('bg-gray-100');
                     nationalityInput.readOnly = false;
                 }
-                if (icNumberInput) {
-                    icNumberInput.required = false;
-                    if (!isInit) {
-                        icNumberInput.value = '';
-                    }
-                }
-                if (passportInput) {
-                    passportInput.required = true;
-                }
-                if (photoLabel) {
-                    photoLabel.innerText = 'Upload photocopy Passport (for rental purpose)';
-                }
+                if (icNumberInput) icNumberInput.required = false;
+                if (isInit == false && icNumberInput) icNumberInput.value = '';
+                if (passportInput) passportInput.required = true;
+                if (photoLabel) photoLabel.innerText = 'Upload photocopy Passport (for rental purpose)';
             }
         }
 
-        // Image Preview
+        // Image / PDF Preview
         function previewImage(input, previewId, containerId) {
             const container = document.getElementById(containerId);
             const file = input.files?.[0];
             if (!file) return;
+
+            // Fixed file size math check (2MB)
             if (!['image/jpeg', 'image/png', 'image/gif', 'application/pdf'].includes(file.type) || file.size > 2048 * 1024) {
                 input.value = '';
                 alert('Please select a JPEG, PNG, GIF or PDF file up to 2 MB.');
@@ -283,19 +342,22 @@
             if (container.dataset.objectUrl) URL.revokeObjectURL(container.dataset.objectUrl);
             const url = URL.createObjectURL(file);
             container.dataset.objectUrl = url;
+            
+            container.innerHTML = '';
             const preview = document.createElement(file.type === 'application/pdf' ? 'a' : 'img');
             preview.id = previewId;
             if (file.type === 'application/pdf') {
                 preview.href = url;
                 preview.target = '_blank';
                 preview.rel = 'noopener';
-                preview.textContent = 'Open PDF: ' + file.name;
+                preview.textContent = 'Open Selected PDF: ' + file.name;
+                preview.className = 'text-indigo-600 underline text-sm';
             } else {
                 preview.src = url;
-                preview.alt = 'Identity document preview';
+                preview.alt = 'Document preview';
                 preview.className = 'h-40 w-40 object-cover rounded-lg border border-gray-200';
             }
-            container.replaceChildren(preview);
+            container.appendChild(preview);
             container.classList.remove('hidden');
         }
 
@@ -340,23 +402,37 @@
                 idx++;
             }
 
-            addBtn.addEventListener('click', addRow);
+            if(addBtn) addBtn.addEventListener('click', addRow);
             
-            // Handle existing rows removal
-            list.addEventListener('click', function(e) {
-                if (e.target.classList.contains('remove-edit-contact')) {
-                    const row = e.target.closest('.contact-row');
-                    const deleteFlag = row.querySelector('.delete-flag');
-                    if (deleteFlag) {
-                        deleteFlag.value = '1';
-                        row.classList.add('hidden');
-                    } else {
-                        row.remove();
+            if(list) {
+                list.addEventListener('click', function(e) {
+                    if (e.target.classList.contains('remove-edit-contact')) {
+                        const row = e.target.closest('.contact-row');
+                        const deleteFlag = row.querySelector('.delete-flag');
+                        if (deleteFlag) {
+                            deleteFlag.value = '1';
+                            row.classList.add('hidden');
+                        } else {
+                            row.remove();
+                        }
                     }
-                }
-            });
+                });
+            }
         })();
 
-        document.addEventListener('DOMContentLoaded', () => toggleIdentityInputs(true));
+        document.addEventListener('DOMContentLoaded', () => {
+            @if($tenant->tenant_type === 'corporate')
+                // Force-remove required from all individual fields when it's a corporate tenant
+                ['ic_number', 'passport', 'nationality', 'gender'].forEach(fieldId => {
+                    const input = document.getElementById(fieldId);
+                    if (input) {
+                        input.removeAttribute('required');
+                        input.required = false;
+                    }
+                });
+            @else
+                toggleIdentityInputs(true);
+            @endif
+        });
     </script>
 </x-app-layout>

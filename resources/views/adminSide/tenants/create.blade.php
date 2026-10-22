@@ -19,15 +19,22 @@
                     <div class="mb-6 border-b border-gray-100 pb-6">
                         <h2 class="text-xl font-semibold text-slate-800 mb-4">Tenant Details</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <!-- Name -->
+                            <!-- Tenant Type Selection -->
                             <div>
-                                <x-form.input-label for="name" value="Full Name" :required="true" class="mb-1" />
+                                <x-form.input-label for="tenant_type" value="Tenant Type" :required="true" class="mb-1" />
+                                <x-form.input-select name="tenant_type" id="tenant_type" :options="['' => 'Select Type', 'individual' => 'Individual', 'corporate' => 'Corporate']" :value="old('tenant_type', 'individual')" class="w-full shadow-sm" required @change="toggleTenantType()" />
+                                <x-form.input-error :messages="$errors->get('tenant_type')" class="mt-1" />
+                            </div>
+
+                            <!-- Name / Company Name -->
+                            <div>
+                                <x-form.input-label for="name" id="name_label" value="Full Name" :required="true" class="mb-1" />
                                 <x-form.text-input name="name" id="name" value="{{ old('name') }}" class="w-full" required />
                                 <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                             </div>
 
                             <!-- Email (Owners Style) -->
-                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 md:col-span-2">
                                 <div class="flex items-center justify-between mb-2">
                                     <x-form.input-label value="Email Address" :required="true" class="mb-0" />
                                     <label class="inline-flex items-center cursor-pointer">
@@ -43,7 +50,7 @@
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <!-- Phone -->
+                        <!-- Phone (Shared by both) -->
                         <div>
                             <x-form.input-label for="phone" value="Phone" :required="true" class="mb-1" />
                             <x-form.text-input name="phone" id="phone" value="{{ old('phone') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" inputmode="numeric" maxlength="20" class="w-full" required />
@@ -51,55 +58,80 @@
                             <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
                         </div>
 
-                        <!-- Identity Type Selection -->
-                        <div>
-                            <x-form.input-label value="Identity Document" :required="true" class="mb-3" />
-                            <div class="flex gap-4">
-                                <label class="inline-flex items-center cursor-pointer">
-                                    <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" checked onchange="toggleIdentityInputs(false)">
-                                    <span class="ml-2 text-gray-700">IC (Malaysian)</span>
-                                </label>
-                                <label class="inline-flex items-center cursor-pointer">
-                                    <input type="radio" name="identity_type" value="passport" class="form-radio text-indigo-600" onchange="toggleIdentityInputs(false)">
-                                    <span class="ml-2 text-gray-700">Passport (Non-Malaysian)</span>
-                                </label>
+                        <!-- ========================================== -->
+                        <!-- CORPORATE FIELDS CONTAINER (Shown for Corporate) -->
+                        <!-- ========================================== -->
+                        <div id="corporate_fields_container" class="contents hidden">
+                            <!-- SSM Number -->
+                            <div>
+                                <x-form.input-label for="ssm_number" value="SSM Registration Number" :required="true" class="mb-1" />
+                                <x-form.text-input name="ssm_number" id="ssm_number" value="{{ old('ssm_number') }}" class="w-full" placeholder="e.g. 202301012345" />
+                                <x-form.input-error :messages="$errors->get('ssm_number')" class="mt-1" />
+                            </div>
+
+                            <!-- Company Address -->
+                            <div class="col-span-1 md:col-span-2">
+                                <x-form.input-label for="company_address" value="Company Address" :required="true" class="mb-1" />
+                                <x-form.text-input name="company_address" id="company_address" value="{{ old('company_address') }}" class="w-full" placeholder="Enter official business address" />
+                                <x-form.input-error :messages="$errors->get('company_address')" class="mt-1" />
                             </div>
                         </div>
 
-                        <!-- IC Number -->
-                        <div id="ic_container">
-                            <x-form.input-label for="ic_number" value="IC Number" :required="true" class="mb-1" />
-                            <x-form.text-input name="ic_number" id="ic_number" value="{{ old('ic_number') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full" />
-                            <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
-                            <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
-                        </div>
+                        <!-- ========================================== -->
+                        <!-- INDIVIDUAL FIELDS CONTAINER (Shown for Individual) -->
+                        <!-- ========================================== -->
+                        <div id="individual_fields_container" class="contents">
+                            <!-- Identity Type Selection -->
+                            <div>
+                                <x-form.input-label value="Identity Document" :required="true" class="mb-3" />
+                                <div class="flex gap-4">
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="identity_type" value="ic" class="form-radio text-indigo-600" checked onchange="toggleIdentityInputs(false)">
+                                        <span class="ml-2 text-gray-700">IC (Malaysian)</span>
+                                    </label>
+                                    <label class="inline-flex items-center cursor-pointer">
+                                        <input type="radio" name="identity_type" value="passport" class="form-radio text-indigo-600" onchange="toggleIdentityInputs(false)">
+                                        <span class="ml-2 text-gray-700">Passport (Non-Malaysian)</span>
+                                    </label>
+                                </div>
+                            </div>
 
-                        <!-- Passport -->
-                        <div id="passport_container" class="hidden">
-                            <x-form.input-label for="passport" value="Passport Number" :required="true" class="mb-1" />
-                            <x-form.text-input name="passport" id="passport" value="{{ old('passport') }}" class="w-full" />
-                            <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: A12345678</p>
-                            <x-form.input-error :messages="$errors->get('passport')" class="mt-1" />
-                        </div>
+                            <!-- IC Number -->
+                            <div id="ic_container">
+                                <x-form.input-label for="ic_number" value="IC Number" :required="true" class="mb-1" />
+                                <x-form.text-input name="ic_number" id="ic_number" value="{{ old('ic_number') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="12" inputmode="numeric" class="w-full" />
+                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
+                                <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
+                            </div>
 
-                        <!-- Nationality -->
-                        <div>
-                            <x-form.input-label for="nationality" value="Nationality" :required="true" class="mb-1" />
-                            <x-form.text-input name="nationality" id="nationality" value="{{ old('nationality', 'MALAYSIAN') }}" class="w-full bg-gray-100" readonly required />
-                            <x-form.input-error :messages="$errors->get('nationality')" class="mt-1" />
-                        </div>
+                            <!-- Passport -->
+                            <div id="passport_container" class="hidden">
+                                <x-form.input-label for="passport" value="Passport Number" :required="true" class="mb-1" />
+                                <x-form.text-input name="passport" id="passport" value="{{ old('passport') }}" class="w-full" />
+                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: A12345678</p>
+                                <x-form.input-error :messages="$errors->get('passport')" class="mt-1" />
+                            </div>
 
-                        <!-- Gender -->
-                        <div>
-                            <x-form.input-label for="gender" value="Gender" :required="true" class="mb-1" />
-                            <x-form.input-select name="gender" id="gender" :options="['' => '', 'Male' => 'Male', 'Female' => 'Female']" class="w-full shadow-sm" required />
-                            <x-form.input-error :messages="$errors->get('gender')" class="mt-1" />
-                        </div>
+                            <!-- Nationality -->
+                            <div>
+                                <x-form.input-label for="nationality" value="Nationality" :required="true" class="mb-1" />
+                                <x-form.text-input name="nationality" id="nationality" value="{{ old('nationality', 'MALAYSIAN') }}" class="w-full bg-gray-100" readonly required />
+                                <x-form.input-error :messages="$errors->get('nationality')" class="mt-1" />
+                            </div>
 
-                        <div class="col-span-1 md:col-span-2">
-                            <x-form.input-label for="occupation" value="Occupation" :required="true" class="mb-1" />
-                            <x-form.text-input name="occupation" id="occupation" value="{{ old('occupation') }}" class="w-full" />
-                            <x-form.input-error :messages="$errors->get('occupation')" class="mt-1" />
+                            <!-- Gender -->
+                            <div>
+                                <x-form.input-label for="gender" value="Gender" :required="true" class="mb-1" />
+                                <x-form.input-select name="gender" id="gender" :options="['' => '', 'Male' => 'Male', 'Female' => 'Female']" class="w-full shadow-sm" required />
+                                <x-form.input-error :messages="$errors->get('gender')" class="mt-1" />
+                            </div>
+
+                            <!-- Occupation -->
+                            <div>
+                                <x-form.input-label for="occupation" value="Occupation" :required="true" class="mb-1" />
+                                <x-form.text-input name="occupation" id="occupation" value="{{ old('occupation') }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('occupation')" class="mt-1" />
+                            </div>
                         </div>
                     </div>
 
@@ -115,15 +147,27 @@
                         <div id="contactList" class="space-y-4"></div>
                     </div>
 
-                    <!-- Photo -->
-                    <div class="mb-6">
+                    <!-- Individual Photo Upload Container (ic_photo_path) -->
+                    <div id="individual_photo_container" class="mb-6">
                         <x-form.input-label for="ic_photo_path" id="photo_label" value="IC Photo" :required="true" class="mb-1" />
                         <x-form.file-input name="ic_photo_path" id="ic_photo_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full" />
+                        <p class="mt-2 text-xs text-gray-500 italic">Upload image (JPEG, PNG, GIF) or PDF (Max: 2MB)</p>
                         <x-form.input-error :messages="$errors->get('ic_photo_path')" class="mt-1" />
                         
-                        <!-- Image Preview Container -->
                         <div id="ic_preview_container" class="mt-3 hidden">
                             <img id="ic_preview" src="#" alt="IC Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
+                        </div>
+                    </div>
+
+                    <!-- Corporate Certificate Upload Container (ssm_cert_path) -->
+                    <div id="corporate_photo_container" class="mb-6 hidden">
+                        <x-form.input-label for="ssm_cert_path" value="SSM Certificate" :required="true" class="mb-1" />
+                        <x-form.file-input name="ssm_cert_path" id="ssm_cert_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ssm_preview', 'ssm_preview_container')" class="w-full" />
+                        <p class="mt-2 text-xs text-gray-500 italic">Upload image (JPEG, PNG, GIF) or PDF (Max: 2MB)</p>
+                        <x-form.input-error :messages="$errors->get('ssm_cert_path')" class="mt-1" />
+                        
+                        <div id="ssm_preview_container" class="mt-3 hidden">
+                            <img id="ssm_preview" src="#" alt="SSM Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
                         </div>
                     </div>
 
@@ -138,15 +182,89 @@
     </div>
 
     <script>
+        // Tenant Type Toggle (Individual vs Corporate)
+        function toggleTenantType() {
+            const tenantTypeSelect = document.getElementById('tenant_type');
+            const nameLabel = document.getElementById('name_label');
+            const nameInput = document.getElementById('name');
+
+            // Containers
+            const individualContainer = document.getElementById('individual_fields_container');
+            const corporateContainer = document.getElementById('corporate_fields_container');
+            const individualPhotoContainer = document.getElementById('individual_photo_container');
+            const corporatePhotoContainer = document.getElementById('corporate_photo_container');
+
+            // Corporate Inputs
+            const ssmInput = document.getElementById('ssm_number');
+            const companyAddressInput = document.getElementById('company_address');
+            const ssmCertInput = document.getElementById('ssm_cert_path');
+
+            // Individual Inputs
+            const icInput = document.getElementById('ic_number');
+            const passportInput = document.getElementById('passport');
+            const genderInput = document.getElementById('gender');
+            const occupationInput = document.getElementById('occupation');
+            const icPhotoInput = document.getElementById('ic_photo_path');
+
+            if (!tenantTypeSelect) return;
+
+            if (tenantTypeSelect.value === 'corporate') {
+                // Label & Placeholder
+                if (nameLabel) nameLabel.innerText = 'Company Name';
+                if (nameInput) nameInput.placeholder = 'e.g. Anysio Technologies Sdn. Bhd.';
+
+                // Show Corporate / Hide Individual containers
+                if (corporateContainer) corporateContainer.classList.remove('hidden');
+                if (individualContainer) individualContainer.classList.add('hidden');
+                if (corporatePhotoContainer) corporatePhotoContainer.classList.remove('hidden');
+                if (individualPhotoContainer) individualPhotoContainer.classList.add('hidden');
+
+                // Set HTML5 required attributes
+                if (ssmInput) ssmInput.required = true;
+                if (companyAddressInput) companyAddressInput.required = true;
+                if (ssmCertInput) ssmCertInput.required = true;
+
+                if (icInput) icInput.required = false;
+                if (passportInput) passportInput.required = false;
+                if (genderInput) genderInput.required = false;
+                if (occupationInput) occupationInput.required = false;
+                if (icPhotoInput) icPhotoInput.required = false;
+
+            } else {
+                // Label & Placeholder
+                if (nameLabel) nameLabel.innerText = 'Full Name';
+                if (nameInput) nameInput.placeholder = 'e.g. Ali Bin Abu';
+
+                // Show Individual / Hide Corporate containers
+                if (corporateContainer) corporateContainer.classList.add('hidden');
+                if (individualContainer) individualContainer.classList.remove('hidden');
+                if (corporatePhotoContainer) corporatePhotoContainer.classList.add('hidden');
+                if (individualPhotoContainer) individualPhotoContainer.classList.remove('hidden');
+
+                // Set HTML5 required attributes
+                if (ssmInput) ssmInput.required = false;
+                if (companyAddressInput) companyAddressInput.required = false;
+                if (ssmCertInput) ssmCertInput.required = false;
+
+                if (genderInput) genderInput.required = true;
+                if (occupationInput) occupationInput.required = true;
+                if (icPhotoInput) icPhotoInput.required = true;
+
+                toggleIdentityInputs(true);
+            }
+        }
+
         // Identity Type Toggle
         function toggleIdentityInputs(isInit = false) {
-            // If window.toggleIdentityInputs is defined in tenants.js, defer to it
             if (window.toggleIdentityInputs && window.toggleIdentityInputs !== toggleIdentityInputs) {
                 window.toggleIdentityInputs(isInit);
                 return;
             }
 
-            const identityType = document.querySelector('input[name="identity_type"]:checked').value;
+            const identityTypeElement = document.querySelector('input[name="identity_type"]:checked');
+            if (!identityTypeElement) return;
+
+            const identityType = identityTypeElement.value;
             const icContainer = document.getElementById('ic_container');
             const passportContainer = document.getElementById('passport_container');
             const nationalityInput = document.getElementById('nationality');
@@ -162,40 +280,26 @@
                     nationalityInput.classList.add('bg-gray-100');
                     nationalityInput.readOnly = true;
                 }
-                if (icNumberInput) {
-                    icNumberInput.required = true;
-                }
+                if (icNumberInput) icNumberInput.required = true;
                 if (passportInput) {
                     passportInput.required = false;
-                    if (!isInit) {
-                        passportInput.value = '';
-                    }
+                    if (!isInit) passportInput.value = '';
                 }
-                if (photoLabel) {
-                    photoLabel.innerText = 'IC Photo';
-                }
+                if (photoLabel) photoLabel.innerText = 'IC Photo';
             } else {
                 if (icContainer) icContainer.classList.add('hidden');
                 if (passportContainer) passportContainer.classList.remove('hidden');
                 if (nationalityInput) {
-                    if (nationalityInput.value === 'MALAYSIAN') {
-                        nationalityInput.value = '';
-                    }
+                    if (nationalityInput.value === 'MALAYSIAN') nationalityInput.value = '';
                     nationalityInput.classList.remove('bg-gray-100');
                     nationalityInput.readOnly = false;
                 }
                 if (icNumberInput) {
                     icNumberInput.required = false;
-                    if (!isInit) {
-                        icNumberInput.value = '';
-                    }
+                    if (!isInit) icNumberInput.value = '';
                 }
-                if (passportInput) {
-                    passportInput.required = true;
-                }
-                if (photoLabel) {
-                    photoLabel.innerText = 'Passport Photo';
-                }
+                if (passportInput) passportInput.required = true;
+                if (photoLabel) photoLabel.innerText = 'Passport Photo';
             }
         }
 
@@ -275,7 +379,6 @@
                     if (phoneInput) phoneInput.value = data.phone || '';
                 }
 
-                // Hide remove button for the first row to ensure at least one contact
                 const removeBtn = row.querySelector('.remove-contact');
                 if (list.children.length === 0) {
                     removeBtn.style.display = 'none';
@@ -285,24 +388,29 @@
                 idx++;
             }
 
-            addBtn.addEventListener('click', () => addRow());
+            if (addBtn) {
+                addBtn.addEventListener('click', () => addRow());
+            }
 
-            // Initialize
-            list.innerHTML = '';
-            
-            // Check if oldContacts is a non-empty array or object
-            const hasOldData = oldContacts && (
-                (Array.isArray(oldContacts) && oldContacts.length > 0) ||
-                (typeof oldContacts === 'object' && Object.keys(oldContacts).length > 0)
-            );
+            if (list) {
+                list.innerHTML = '';
+                const hasOldData = oldContacts && (
+                    (Array.isArray(oldContacts) && oldContacts.length > 0) ||
+                    (typeof oldContacts === 'object' && Object.keys(oldContacts).length > 0)
+                );
 
-            if (hasOldData) {
-                Object.values(oldContacts).forEach(c => addRow(c));
-            } else {
-                addRow(); // Add exactly one row by default
+                if (hasOldData) {
+                    Object.values(oldContacts).forEach(c => addRow(c));
+                } else {
+                    addRow();
+                }
             }
         })();
 
-        document.addEventListener('DOMContentLoaded', () => toggleIdentityInputs(true));
+        // Run on page load to handle old() values or default selections
+        document.addEventListener('DOMContentLoaded', () => {
+            toggleTenantType();
+            toggleIdentityInputs(true);
+        });
     </script>
 </x-app-layout>

@@ -200,6 +200,10 @@
                                 <td class="px-6 py-4 text-sm">
                                     <div class="space-y-1">
                                         <div class="text-xs text-slate-600 flex justify-between gap-3">
+                                            <span class="font-medium text-slate-500">Type</span>
+                                            <span class="text-sm font-medium text-gray-900">{{ $unit->type ?? '-' }}</span>
+                                        </div>
+                                        <div class="text-xs text-slate-600 flex justify-between gap-3">
                                             <span class="font-medium text-slate-500">Block</span>
                                             <span class="text-sm font-medium text-gray-900">{{ $unit->block ?? '-' }}</span>
                                         </div>

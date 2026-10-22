@@ -87,6 +87,7 @@ class UnitController extends Controller
                 // 核心逻辑：在 properties 关联下，unit_no 必须唯一
                 Rule::unique('units')->where(fn($query) => $query->where('property_id', $request->property_id))
             ],
+            'type'      => 'nullable|string|max:255',
             'has_rooms' => 'required|boolean',
             'total_rooms' => 'nullable|integer|min:0',
 
@@ -118,6 +119,7 @@ class UnitController extends Controller
             $unit->property_id = $request->property_id;
             $unit->owner_id = $request->owner_id;
             $unit->unit_no = $request->unit_no;
+            $unit->type = $request->type;
             $unit->block = $request->block;
             $unit->floor = $request->floor;
             $unit->sqft = $request->sqft;
@@ -310,6 +312,7 @@ class UnitController extends Controller
                     ->where(fn($query) => $query->where('property_id', $request->property_id))
                     ->ignore($unit->id) // 排除当前 unit 自身
             ],
+            'type'           => 'nullable|string|max:255',
             'owner_id'       => 'nullable|exists:users,id',
             'management_fee' => 'nullable|numeric|min:0',
             'sqft'           => 'nullable|numeric|min:0',
@@ -325,6 +328,7 @@ class UnitController extends Controller
                 'property_id'         => $request->property_id,
                 'owner_id'            => $request->owner_id,
                 'unit_no'             => $request->unit_no,
+                'type'                => $request->type,
                 'block'               => $request->block,
                 'floor'               => $request->floor,
                 'sqft'                => $request->sqft,

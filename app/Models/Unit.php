@@ -18,6 +18,7 @@ class Unit extends Model
         'property_id',
         'owner_id',
         'unit_no',
+        'type',
         'block',
         'floor',
         'sqft',

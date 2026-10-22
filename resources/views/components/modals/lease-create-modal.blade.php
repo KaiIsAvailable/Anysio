@@ -266,6 +266,7 @@
                         <x-preview-agreement-modal />
 
                         <!-- CHECKOUT REFUND SECTION -->
+                        @can('asdasdasdasd')
                         <div id="checkout_refund_section" class="mt-4 hidden space-y-4 p-5 bg-amber-50/60 border border-amber-200/80 rounded-2xl shadow-sm"
                         x-data="{
                             manualDeductions: [],
@@ -477,6 +478,9 @@
                                 </div>
                             </div>
                         </div>
+                        @endcan
+
+                        refund function is in process...
 
                         <x-modals.add-fee-type-modal />
 

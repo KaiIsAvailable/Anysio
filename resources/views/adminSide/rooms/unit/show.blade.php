@@ -65,6 +65,17 @@
                             </dd>
                         </div>
 
+                        {{-- Unit Number --}}
+                        <div>
+                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                                Type
+                            </dt>
+
+                            <dd class="text-sm font-medium text-slate-900 mt-1">
+                                {{ $unit->type ?? '—' }}
+                            </dd>
+                        </div>
+
                         {{-- Block --}}
                         <div>
                             <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">

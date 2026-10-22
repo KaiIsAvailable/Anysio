@@ -70,39 +70,64 @@
                     {{-- 第二部分：单位基本信息 --}}
                     <section>
                         <h2 class="text-lg font-semibold text-slate-900 mb-4 border-b pb-2">Unit Information</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Unit No.</label>
-                                <input type="text" name="unit_no" 
+                                <x-form.input-label value="Unit No." class="mb-1" required />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="unit_no" 
                                     value="{{ old('unit_no', $unit->unit_no) }}" 
-                                    class="w-full rounded-lg @error('unit_no') border-red-500 @enderror border-gray-300 focus:ring-indigo-500 shadow-sm" required>
-                                @error('unit_no')
-                                    <p class="text-red-500 text-xs mt-1">{{ $message }}</p>
-                                @enderror
+                                    class="w-full" 
+                                    required 
+                                />
+                                <x-form.input-error :messages="$errors->get('unit_no')" class="mt-1" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Block / Tower</label>
-                                <input type="text" name="block" 
-                                    value="{{ old('block', $unit->block) }}" 
-                                    class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" required>
+                                <x-form.input-label value="Type" class="mb-1" />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="type" 
+                                    value="{{ old('type', $unit->type) }}" 
+                                    class="w-full" 
+                                />
+                                <x-form.input-error :messages="$errors->get('type')" class="mt-1" />
                             </div>
-                            
+                            <div>
+                                <x-form.input-label value="Block / Tower" class="mb-1" required />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="block" 
+                                    value="{{ old('block', $unit->block) }}"
+                                    class="w-full" 
+                                    required 
+                                />
+                                <x-form.input-error :messages="$errors->get('block')" class="mt-1" />
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Floor</label>
-                                <input type="number" name="floor" 
-                                    value="{{ old('floor', $unit->floor) }}" 
-                                    class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" min="0">
+                                <x-form.input-label value="Floor" class="mb-1" />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="floor" 
+                                    value="{{ old('floor', $unit->floor) }}"
+                                    class="w-full" 
+                                />
+                                <x-form.input-error :messages="$errors->get('floor')" class="mt-1" />
                             </div>
                             <div>
-                                <label class="block text-sm font-medium text-slate-900 mb-1">Size (Sqft)</label>
+                                <x-form.input-label value="Size (Sqft)" class="mb-1" />
                                 <div class="relative">
-                                    <input type="number" name="sqft" 
+                                    <x-form.text-input 
+                                        type="number" 
+                                        name="sqft" 
                                         value="{{ old('sqft', $unit->sqft) }}" 
-                                        class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" min="0">
+                                        class="w-full" 
+                                        min="0" 
+                                    />
                                 </div>
+                                <x-form.input-error :messages="$errors->get('sqft')" class="mt-1" />
                             </div>
                         </div>
                     </section>

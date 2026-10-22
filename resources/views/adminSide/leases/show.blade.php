@@ -357,9 +357,9 @@
                 </template>
             </div>
 
-            <!-- Invoice Tables -->
+            <!-- Invoice Tables 
             <x-invoice-statement :statement="$statement" :filters="$statementFilters"
-                :scope-label="'Lease opened on this page: '.$lease->start_date_formatted.' – '.$lease->end_date_formatted.'. History selection above does not change this statement.'" />
+                :scope-label="'Lease opened on this page: '.$lease->start_date_formatted.' – '.$lease->end_date_formatted.'. History selection above does not change this statement.'" />-->
 
             <div class="mt-8">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-6 space-y-6">

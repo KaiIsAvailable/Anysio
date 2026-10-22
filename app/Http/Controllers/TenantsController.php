@@ -191,31 +191,62 @@ class TenantsController extends Controller
                 'role' => 'tenant',
             ]);
 
-            // 5. 准备 Tenant 详细数据
-            $data = $request->only(['phone', 'ic_number', 'passport', 'nationality', 'gender', 'occupation']);
-            $data['gender'] = $request->gender;
-            $data['occupation'] = $request->occupation;
-            $data['nationality'] = $request->nationality;
+            // 5. 准备 Tenant 基础数据
+            $tenantType = $request->input('tenant_type', 'individual');
+            
+            $data = [
+                'user_id' => $user->id,
+                'created_by' => $effectiveUserId,
+                'tenant_type' => $tenantType,
+                'phone' => $request->phone,
+            ];
 
-            // 身份类型清理
-            if ($request->identity_type === 'ic') {
-                $data['passport'] = null;
-            } else {
+            // 根据类型区分字段写入
+            if ($tenantType === 'corporate') {
+                $data['company_name'] = $request->name; // 名字存在 name / 公司名
+                $data['ssm_number'] = $request->ssm_number;
+                $data['company_address'] = $request->company_address;
+                
+                // 清空个人字段
                 $data['ic_number'] = null;
-            }
+                $data['passport'] = null;
+                $data['nationality'] = null;
+                $data['gender'] = null;
+                $data['occupation'] = null;
 
-            $data['user_id'] = $user->id;
-            $data['created_by'] = $effectiveUserId;
+                // 公司 SSM 证书上传处理
+                if ($request->hasFile('ssm_cert_path')) {
+                    $userId = Auth::id();
+                    $data['ssm_cert_path'] = $fileService->upload(
+                        $request->file('ssm_cert_path'),
+                        $userId,
+                        'tenant_ssm'
+                    );
+                }
+            } else {
+                // 个人租客数据
+                $data['nationality'] = $request->nationality;
+                $data['gender'] = $request->gender;
+                $data['occupation'] = $request->occupation;
 
-            // 图片处理
-            if ($request->hasFile('ic_photo_path')) {
-                $userId = Auth::id();
+                // 身份类型清理
+                if ($request->identity_type === 'ic') {
+                    $data['ic_number'] = $request->ic_number;
+                    $data['passport'] = null;
+                } else {
+                    $data['passport'] = $request->passport;
+                    $data['ic_number'] = null;
+                }
 
-                $data['ic_photo_path'] = $fileService->upload(
-                    $request->file('ic_photo_path'),
-                    $userId,
-                    'tenant_ic'
-                );
+                // 个人证件图片处理
+                if ($request->hasFile('ic_photo_path')) {
+                    $userId = Auth::id();
+                    $data['ic_photo_path'] = $fileService->upload(
+                        $request->file('ic_photo_path'),
+                        $userId,
+                        'tenant_ic'
+                    );
+                }
             }
 
             $tenant = Tenants::create($data);
@@ -275,29 +306,62 @@ class TenantsController extends Controller
                     : null,
             ]);
 
-            // 3. 准备 Tenant 数据
-            $data = $request->only(['phone', 'nationality', 'gender', 'occupation']);
-            $data['gender'] = $request->gender;
-            $data['occupation'] = $request->occupation;
-            $data['nationality'] = $request->nationality;
+            // 3. 准备 Tenant 基础数据
+            $data = [
+                'phone' => $request->phone,
+            ];
 
-            // 身份类型与号码清理
-            $data['ic_number'] = $request->identity_type === 'ic' ? $request->ic_number : null;
-            $data['passport'] = $request->identity_type === 'passport' ? $request->passport : null;
+            // 4. 根据租客类型分流更新字段
+            if ($tenant->tenant_type === 'corporate') {
+                $data['company_name'] = $request->name;
+                $data['ssm_number'] = $request->ssm_number;
+                $data['company_address'] = $request->company_address;
 
-            // 4. 图片处理逻辑
-            if ($request->hasFile('ic_photo_path')) {
-                $userId = Auth::id();
+                // 清理个人字段
+                $data['ic_number'] = null;
+                $data['passport'] = null;
+                $data['nationality'] = null;
+                $data['gender'] = null;
+                $data['occupation'] = null;
 
-                if (!empty($tenant->ic_photo_path)) {
-                    $fileService->delete($tenant->ic_photo_path);
+                // 公司 SSM 证书更新处理
+                if ($request->hasFile('ssm_cert_path')) {
+                    $userId = Auth::id();
+
+                    if (!empty($tenant->ssm_cert_path)) {
+                        $fileService->delete($tenant->ssm_cert_path);
+                    }
+
+                    $data['ssm_cert_path'] = $fileService->upload(
+                        $request->file('ssm_cert_path'),
+                        $userId,
+                        'tenant_ssm'
+                    );
                 }
+            } else {
+                // 个人租客数据
+                $data['nationality'] = $request->nationality;
+                $data['gender'] = $request->gender;
+                $data['occupation'] = $request->occupation;
 
-                $data['ic_photo_path'] = $fileService->upload(
-                    $request->file('ic_photo_path'),
-                    $userId,
-                    'tenant_ic'
-                );
+                // 身份类型与号码清理
+                $data['ic_number'] = $request->identity_type === 'ic' ? $request->ic_number : null;
+                $data['passport'] = $request->identity_type === 'passport' ? $request->passport : null;
+
+                // 个人证件图片处理
+                if ($request->hasFile('ic_photo_path')) {
+                    $userId = Auth::id();
+
+                    if (!empty($tenant->ic_photo_path)) {
+                        $fileService->delete($tenant->ic_photo_path);
+                    }
+
+                    $data['ic_photo_path'] = $fileService->upload(
+                        $request->file('ic_photo_path'),
+                        $userId,
+                        'tenant_ic'
+                    );
+                }
             }
 
             $tenant->update($data);
@@ -433,13 +497,25 @@ class TenantsController extends Controller
 
     public function showIcPhoto(Request $request, $filename, FileService $fileService)
     {
-        $tenant = Tenants::where('ic_photo_path', 'LIKE', '%' . $filename)->first();
+        // Search by filename in either ic_photo_path or ssm_cert_path
+        $tenant = Tenants::where('ic_photo_path', 'LIKE', '%' . $filename)
+            ->orWhere('ssm_cert_path', 'LIKE', '%' . $filename)
+            ->first();
 
         if (!$tenant) {
             abort(404, 'Tenant record not found.');
         }
 
-        return $fileService->getStreamResponse($tenant->ic_photo_path);
+        // Determine which path matches the filename and stream it
+        $filePath = str_contains($tenant->ic_photo_path ?? '', $filename) 
+            ? $tenant->ic_photo_path 
+            : $tenant->ssm_cert_path;
+
+        if (!$filePath) {
+            abort(404, 'Document path not found.');
+        }
+
+        return $fileService->getStreamResponse($filePath);
     }
 
     public function viewIc(Tenants $tenant)
@@ -448,8 +524,9 @@ class TenantsController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
-        if (empty($tenant->ic_photo_path)) {
-            abort(404, 'No identity document uploaded.');
+        // Check if neither document is uploaded
+        if (empty($tenant->ic_photo_path) && empty($tenant->ssm_cert_path)) {
+            abort(404, 'No identity document or SSM certificate uploaded.');
         }
 
         return view('adminSide.tenants.view-ic', compact('tenant'));
@@ -457,48 +534,61 @@ class TenantsController extends Controller
 
 
     /**
-     * 统一处理 Tenant 和 Emergency Contacts 的验证逻辑
+     * 统一处理 Tenant 和 Emergency Contacts 的验证逻辑 (支援 Individual 与 Corporate)
      */
     private function validateTenantData(Request $request, $tenantId = null, $userId = null)
     {
-        // Clean identity data based on type before validation
-        if ($request->identity_type === 'ic') {
-            $request->merge(['passport' => null]);
-        } else {
-            $request->merge(['ic_number' => null]);
+        $tenantType = $request->input('tenant_type', 'individual');
+
+        // 数据清洗处理
+        if ($tenantType === 'individual') {
+            if ($request->identity_type === 'ic') {
+                $request->merge(['passport' => null]);
+            } else {
+                $request->merge(['ic_number' => null]);
+            }
         }
 
-        // 1. 基础字段验证
+        // 1. 基础字段通用验证
         $rules = [
+            'tenant_type' => 'required|in:individual,corporate',
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,' . $userId,
             'phone' => 'required|numeric',
-            'identity_type' => 'required|in:ic,passport',
-            'ic_number' => [
+            'emergency_contacts' => 'required|array|min:1',
+            'emergency_contacts.*.name' => 'required|string|max:255',
+            'emergency_contacts.*.phone' => 'required|numeric',
+        ];
+
+        // 2. 根据类型动态追加验证规则
+        if ($tenantType === 'corporate') {
+            $rules['ssm_number'] = 'required|string|max:50|unique:tenants,ssm_number,' . $tenantId;
+            $rules['company_address'] = 'required|string|max:500';
+            $rules['ssm_cert_path'] = self::IC_DOCUMENT_RULES; // 复用文件验证规则
+        } else {
+            $rules['identity_type'] = 'required|in:ic,passport';
+            $rules['ic_number'] = [
                 'nullable',
                 'numeric',
                 'digits:12',
                 'required_if:identity_type,ic',
                 Rule::unique('tenants', 'ic_number')
                     ->where(function ($query) {
-                        return $query->where('created_by', Auth::id()) // 限制在当前 Owner (房东)
-                            ->where('status', 'active');     // 只有处于 active 状态的才算冲突
+                        return $query->where('created_by', Auth::id())
+                            ->where('status', 'active');
                     })
-                    ->ignore($tenantId), // 更新时排除掉当前租客 ID
-            ],
-            'passport' => 'nullable|string|max:30|regex:/^[A-Z0-9]+$/|required_if:identity_type,passport|unique:tenants,passport,' . $tenantId,
-            'nationality' => 'required|string|max:100',
-            'gender' => 'required|string|in:Male,Female,MALE,FEMALE',
-            'occupation' => 'nullable|string|max:100',
-            'ic_photo_path' => self::IC_DOCUMENT_RULES,
-            'emergency_contacts' => 'required|array|min:1',
-            'emergency_contacts.*.name' => 'required|string|max:255',
-            'emergency_contacts.*.phone' => 'required|numeric',
-        ];
+                    ->ignore($tenantId),
+            ];
+            $rules['passport'] = 'nullable|string|max:30|regex:/^[A-Z0-9]+$/|required_if:identity_type,passport|unique:tenants,passport,' . $tenantId;
+            $rules['nationality'] = 'required|string|max:100';
+            $rules['gender'] = 'required|string|in:Male,Female,MALE,FEMALE';
+            $rules['occupation'] = 'nullable|string|max:100';
+            $rules['ic_photo_path'] = self::IC_DOCUMENT_RULES;
+        }
 
         $request->validate($rules);
 
-        // 2. 紧急联系人电话重复性检查
+        // 3. 紧急联系人电话重复性检查
         $tenantPhone = trim($request->phone);
         foreach ($request->emergency_contacts as $index => $contact) {
             if (($contact['delete'] ?? '0') === '1')
@@ -506,7 +596,6 @@ class TenantsController extends Controller
 
             $emergencyPhone = trim($contact['phone'] ?? '');
             if ($emergencyPhone !== '' && $emergencyPhone === $tenantPhone) {
-                // 抛出异常，让 Laravel 自动处理错误返回
                 throw \Illuminate\Validation\ValidationException::withMessages([
                     "emergency_contacts.{$index}.phone" => 'Emergency contact phone number cannot be the same as the tenant\'s phone number.'
                 ]);

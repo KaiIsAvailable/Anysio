@@ -19,8 +19,8 @@
                 </div>
             </div>
 
-            <!-- Main Content Card -->
-            <x-invoice-statement :statement="$statement" :filters="$statementFilters" />
+            <!-- Main Content Card 
+            <x-invoice-statement :statement="$statement" :filters="$statementFilters" />-->
 
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
                 <div class="p-5 border-b border-gray-100 bg-white">
@@ -67,48 +67,51 @@
                                 @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt', 'invoice.view payment proof'])
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex flex-col items-start gap-1.5" 
-                                                                        x-data="{ 
+                                    x-data="{ 
                                         openReceipt: false, 
                                         receiptImage: '', 
                                         receiptUser: '', 
                                         receiptDate: '',
-                                        openReceiptModal(url, user = '', date = '') {
+                                        isPdf: false,
+                                        openReceiptModal(url, user = '', date = '', isPdf = false) {
                                             this.receiptImage = url;
                                             this.receiptUser = user;
                                             this.receiptDate = date;
+                                            this.isPdf = isPdf;
                                             this.openReceipt = true;
                                         }
                                     }">
                                         <!-- Loop through payments to display receipt proof buttons -->
                                         @canany(['owner-admin', 'invoice.view payment proof'])
-                                        @foreach($invoice->payments as $payment)
-                                            {{-- Handle whether $payment is an array or an Eloquent object --}}
-                                            @php
-                                                $receiptUrl = is_array($payment) ? ($payment['receipt_url'] ?? null) : ($payment->receipt_url ?? null);
-                                                $paymentCreatedAt = is_array($payment) ? ($payment['created_at'] ?? '') : ($payment->created_at ?? '');
-                                                $payDate = $paymentCreatedAt ? \Carbon\Carbon::parse($paymentCreatedAt)->format('Y-m-d') : '—';
-                                            @endphp
+                                            @foreach($invoice->payments as $payment)
+                                                @php
+                                                    $receiptUrl = is_array($payment) ? ($payment['receipt_url'] ?? null) : ($payment->receipt_url ?? null);
+                                                    $paymentCreatedAt = is_array($payment) ? ($payment['created_at'] ?? '') : ($payment->created_at ?? '');
+                                                    $payDate = $paymentCreatedAt ? \Carbon\Carbon::parse($paymentCreatedAt)->format('Y-m-d') : '—';
+                                                    
+                                                    // Check if the URL string or file extension points to a PDF
+                                                    $isPdfFile = $receiptUrl ? str_ends_with(strtolower(parse_url($receiptUrl, PHP_URL_PATH)), '.pdf') : false;
+                                                @endphp
 
-                                            @if(!empty($receiptUrl))
-                                                <div class="mt-1">
-                                                    <button 
-                                                        type="button" 
-                                                        @click="openReceiptModal('{{ $receiptUrl }}', '{{ $invoice->recipient_name }}', '{{ $payDate }}')"
-                                                        class="inline-flex items-center px-2.5 py-1.5 border border-amber-300 shadow-sm text-xs font-medium rounded-md text-amber-800 bg-amber-50 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 cursor-pointer transition-all"
-                                                    >
-                                                        <!-- Optional Icon for visual cue -->
-                                                        <svg class="w-3.5 h-3.5 mr-1.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                                        </svg>
-                                                        View Payment Proof
-                                                    </button>
-                                                </div>
-                                            @endif
-                                        @endforeach
+                                                @if(!empty($receiptUrl))
+                                                    <div class="mt-1">
+                                                        <button 
+                                                            type="button" 
+                                                            @click="openReceiptModal('{{ $receiptUrl }}', '{{ $invoice->recipient_name }}', '{{ $payDate }}', {{ $isPdfFile ? 'true' : 'false' }})"
+                                                            class="inline-flex items-center px-2.5 py-1.5 border border-amber-300 shadow-sm text-xs font-medium rounded-md text-amber-800 bg-amber-50 hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 cursor-pointer transition-all"
+                                                        >
+                                                            <svg class="w-3.5 h-3.5 mr-1.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                                            </svg>
+                                                            View Payment Proof
+                                                        </button>
+                                                    </div>
+                                                @endif
+                                            @endforeach
 
-                                        <x-modals.receipt-preview-modal />
-                                        @endcanany
+                                            <x-modals.receipt-preview-modal />
+                                            @endcanany
 
                                         @php
                                         $template = data_get($invoice, 'documentTemplate');

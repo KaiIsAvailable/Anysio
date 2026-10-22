@@ -76,7 +76,7 @@
                     {{-- 第二部分：单位基本信息 --}}
                     <section>
                         <h2 class="text-lg font-semibold text-slate-900 mb-4 border-b pb-2">Unit Information</h2>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                             <div>
                                 <x-form.input-label value="Unit No." class="mb-1" required />
                                 <x-form.text-input 
@@ -87,6 +87,16 @@
                                     required 
                                 />
                                 <x-form.input-error :messages="$errors->get('unit_no')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-form.input-label value="Type" class="mb-1" />
+                                <x-form.text-input 
+                                    type="text" 
+                                    name="type" 
+                                    value="{{ old('type') }}" 
+                                    class="w-full" 
+                                />
+                                <x-form.input-error :messages="$errors->get('type')" class="mt-1" />
                             </div>
                             <div>
                                 <x-form.input-label value="Block / Tower" class="mb-1" required />

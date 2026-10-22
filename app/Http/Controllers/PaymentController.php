@@ -35,6 +35,13 @@ class PaymentController extends Controller
     {
         abort_unless($payment->receipt_path, 404);
 
-        return response()->file(storage_path('app/private/' . $payment->receipt_path));
+        $fullPath = storage_path('app/private/' . $payment->receipt_path);
+
+        // Safeguard: Ensure the file physically exists on disk
+        if (!file_exists($fullPath)) {
+            abort(404, 'Receipt file not found on server.');
+        }
+
+        return response()->file($fullPath);
     }
 }

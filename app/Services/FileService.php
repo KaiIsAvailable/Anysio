@@ -70,21 +70,24 @@ class FileService
     }
 
     // 如果你需要 mimeType (用于预览)
-    public function getFileMimeType(string $path)
+    public function getFileMimeType(?string $path)
     {
+        // If path is null or empty, return default immediately
+        if (empty($path)) {
+            return 'application/octet-stream';
+        }
+
         if (!Storage::disk($this->disk)->exists($path) && Storage::disk($this->disk)->exists('private/'.$path)) {
             $path = 'private/'.$path;
         }
-        // 获取磁盘的根路径 (例如 storage/app/private)
+        
         $root = Storage::disk($this->disk)->path('');
         $fullPath = $root . $path;
 
-        // 检查文件是否存在
         if (!file_exists($fullPath)) {
-            return 'application/octet-stream'; // 默认值
+            return 'application/octet-stream';
         }
 
-        // 使用 PHP 原生的 finfo 获取 MIME 类型，这是最底层且最可靠的方式
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mimeType = finfo_file($finfo, $fullPath);
         finfo_close($finfo);

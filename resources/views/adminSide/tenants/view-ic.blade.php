@@ -9,16 +9,20 @@
                     Back to Tenant Details
                 </a>
             </nav>
-            <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Identity Document Preview</h1>
+            <h1 class="text-3xl font-bold text-slate-900 tracking-tight">
+                {{ $tenant->tenant_type === 'corporate' ? 'SSM Certificate Preview' : 'Identity Document Preview' }}
+            </h1>
             <p class="mt-2 text-sm text-gray-500">
                 Tenant: <span class="font-semibold text-slate-700">{{ $tenant->user->name }}</span> 
                 | Document: <span class="font-semibold text-slate-700">
-                    @if($tenant->ic_number)
+                    @if($tenant->tenant_type === 'corporate')
+                        SSM Certificate ({{ $tenant->ssm_number }})
+                    @elseif($tenant->ic_number)
                         IC ({{ $tenant->ic_number }})
                     @elseif($tenant->passport)
                         Passport ({{ $tenant->passport }})
                     @else
-                        Identity Photo
+                        Document Preview
                     @endif
                 </span>
             </p>
@@ -30,16 +34,29 @@
             <div class="bg-slate-900 shadow-2xl rounded-xl border border-slate-800 overflow-hidden flex items-center justify-center p-6" 
                 style="height: calc(100vh - 180px); min-height: 600px;">
                 
-                @if(app(\App\Services\FileService::class)->getFileMimeType($tenant->ic_photo_path) === 'application/pdf')
-                    <object data="{{ route('admin.tenants.ic_photo', ['filename' => basename($tenant->ic_photo_path)]) }}" type="application/pdf" class="w-full h-full">
-                        <a href="{{ route('admin.tenants.ic_photo', ['filename' => basename($tenant->ic_photo_path)]) }}" target="_blank" rel="noopener">Open PDF</a>
-                    </object>
+                @php
+                    // Select the appropriate file path based on tenant type
+                    $filePath = $tenant->tenant_type === 'corporate' ? $tenant->ssm_cert_path : $tenant->ic_photo_path;
+                    $filename = $filePath ? basename($filePath) : null;
+                    $mimeType = $filePath ? app(\App\Services\FileService::class)->getFileMimeType($filePath) : '';
+                @endphp
+
+                @if($filePath)
+                    @if($mimeType === 'application/pdf')
+                        <object data="{{ route('admin.tenants.ic_photo', ['filename' => $filename]) }}" type="application/pdf" class="w-full h-full">
+                            <a href="{{ route('admin.tenants.ic_photo', ['filename' => $filename]) }}" target="_blank" rel="noopener" class="text-white underline">Open PDF in New Tab</a>
+                        </object>
+                    @else
+                        <img 
+                            src="{{ route('admin.tenants.ic_photo', ['filename' => $filename]) }}" 
+                            class="max-w-full max-h-full object-contain rounded-lg shadow-lg select-none"
+                            alt="Document Preview"
+                            draggable="false">
+                    @endif
                 @else
-                <img 
-                    src="{{ route('admin.tenants.ic_photo', ['filename' => basename($tenant->ic_photo_path)]) }}" 
-                    class="max-w-full max-h-full object-contain rounded-lg shadow-lg select-none"
-                    alt="Identity Document"
-                    draggable="false">
+                    <div class="text-center text-gray-400">
+                        <p class="text-lg font-medium">No document uploaded.</p>
+                    </div>
                 @endif
             </div>
         </div>

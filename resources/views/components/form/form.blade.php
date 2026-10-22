@@ -80,6 +80,15 @@
     
     {{-- 💡 页面加载时：只聚焦，不乱弹 --}}
     x-init="$nextTick(() => {
+        // 1. Clean up hidden required fields so browser validation never throws focus errors
+        Array.from($el.querySelectorAll('input, select, textarea')).forEach(el => {
+            if (el.offsetWidth === 0 && el.offsetHeight === 0) {
+                el.removeAttribute('required');
+                el.required = false;
+            }
+        });
+
+        // 2. Focus the first actual visible input
         const first = Array.from($el.querySelectorAll('input, select, textarea'))
             .find(el => 
                 el.type !== 'hidden' && 
@@ -90,10 +99,9 @@
 
         if (first) {
             first.focus();
-            // 确保光标在开头
             if (typeof first.setSelectionRange === 'function') {
-                const len = first.value.length; // 获取当前输入框内文本的长度
-                first.setSelectionRange(len, len); // 定位到最后
+                const len = first.value.length;
+                first.setSelectionRange(len, len);
             }
         }
     })"

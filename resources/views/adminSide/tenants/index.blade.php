@@ -140,16 +140,31 @@
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <div class="text-sm text-slate-900 font-medium">{{ $tenant->phone }}</div>
                                             <div class="text-xs text-indigo-600 font-medium">
-                                                {{ $tenant->ic_number ? 'IC: ' . $tenant->ic_number : 'Pass: ' . $tenant->passport }}
+                                                @if($tenant->ic_number)
+                                                    IC: {{ $tenant->ic_number }}
+                                                @elseif($tenant->passport)
+                                                    Pass: {{ $tenant->passport }}
+                                                @elseif($tenant->ssm_number)
+                                                    SSM: {{ $tenant->ssm_number }}
+                                                @else
+                                                    -
+                                                @endif
                                             </div>
                                         </td>
 
-                                        <!-- Demographics (Nationality + Gender + Occupation) -->
+                                        <!-- Demographics / Company Info -->
                                         <td class="px-6 py-4 whitespace-nowrap">
-                                            <div class="text-sm text-slate-900">{{ $tenant->nationality }}</div>
-                                            <div class="text-xs text-gray-500">
-                                                {{ $tenant->gender }} • {{ $tenant->occupation ?? 'N/A' }}
-                                            </div>
+                                            @if($tenant->company_address)
+                                                <div class="text-sm text-slate-900 font-medium">Corporate Tenant</div>
+                                                <div class="text-xs text-gray-500 truncate max-w-xs" title="{{ $tenant->company_address }}">
+                                                    {{ $tenant->company_address }}
+                                                </div>
+                                            @else
+                                                <div class="text-sm text-slate-900">{{ $tenant->nationality }}</div>
+                                                <div class="text-xs text-gray-500">
+                                                    {{ $tenant->gender }} • {{ $tenant->occupation ?? 'N/A' }}
+                                                </div>
+                                            @endif
                                         </td>
 
                                         <!-- Emergency Contacts -->
@@ -168,14 +183,21 @@
                                             @endif
                                         </td>
 
-                                        <!-- Document (IC/Passport Photo) -->
+                                        <!-- Document (IC/Passport Photo or SSM Certificate) -->
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             @if($tenant->ic_photo_path)
                                                 <a href="{{ route('admin.tenants.view-ic', $tenant->id) }}" 
                                                 onclick="event.stopPropagation();" 
                                                 class="inline-flex items-center px-2 py-1 bg-green-50 text-green-700 border border-green-200 rounded text-[10px] font-bold uppercase">
-                                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
-                                                    Uploaded
+                                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                    IC/Pass Uploaded
+                                                </a>
+                                            @elseif($tenant->ssm_cert_path)
+                                                <a href="{{ route('admin.tenants.view-ic', $tenant->id) }}" 
+                                                onclick="event.stopPropagation();" 
+                                                class="inline-flex items-center px-2 py-1 bg-indigo-50 text-indigo-700 border border-indigo-200 rounded text-[10px] font-bold uppercase">
+                                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                                                    SSM Uploaded
                                                 </a>
                                             @else
                                                 <span class="text-gray-300 text-[10px] font-bold uppercase tracking-widest">Missing</span>
@@ -185,7 +207,7 @@
                                         <!-- Joined Date -->
                                         <td class="px-6 py-4 whitespace-nowrap">
                                             <span class="text-sm text-slate-700 font-medium">
-                                                {{ $tenant->created_at->format('d M Y') }}
+                                                {{ $tenant->created_at->format('Y/m/d') }}
                                             </span>
                                         </td>
 

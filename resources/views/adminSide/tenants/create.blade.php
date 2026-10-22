@@ -149,7 +149,7 @@
 
                     <!-- Individual Photo Upload Container (ic_photo_path) -->
                     <div id="individual_photo_container" class="mb-6">
-                        <x-form.input-label for="ic_photo_path" id="photo_label" value="IC Photo" :required="true" class="mb-1" />
+                        <x-form.input-label for="ic_photo_path" id="photo_label" value="IC Photo" class="mb-1" />
                         <x-form.file-input name="ic_photo_path" id="ic_photo_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ic_preview', 'ic_preview_container')" class="w-full" />
                         <p class="mt-2 text-xs text-gray-500 italic">Upload image (JPEG, PNG, GIF) or PDF (Max: 2MB)</p>
                         <x-form.input-error :messages="$errors->get('ic_photo_path')" class="mt-1" />
@@ -161,7 +161,7 @@
 
                     <!-- Corporate Certificate Upload Container (ssm_cert_path) -->
                     <div id="corporate_photo_container" class="mb-6 hidden">
-                        <x-form.input-label for="ssm_cert_path" value="SSM Certificate" :required="true" class="mb-1" />
+                        <x-form.input-label for="ssm_cert_path" value="SSM Certificate" class="mb-1" />
                         <x-form.file-input name="ssm_cert_path" id="ssm_cert_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ssm_preview', 'ssm_preview_container')" class="w-full" />
                         <p class="mt-2 text-xs text-gray-500 italic">Upload image (JPEG, PNG, GIF) or PDF (Max: 2MB)</p>
                         <x-form.input-error :messages="$errors->get('ssm_cert_path')" class="mt-1" />
@@ -222,7 +222,7 @@
                 // Set HTML5 required attributes
                 if (ssmInput) ssmInput.required = true;
                 if (companyAddressInput) companyAddressInput.required = true;
-                if (ssmCertInput) ssmCertInput.required = true;
+                if (ssmCertInput) ssmCertInput.required = false;
 
                 if (icInput) icInput.required = false;
                 if (passportInput) passportInput.required = false;
@@ -248,7 +248,7 @@
 
                 if (genderInput) genderInput.required = true;
                 if (occupationInput) occupationInput.required = true;
-                if (icPhotoInput) icPhotoInput.required = true;
+                if (icPhotoInput) icPhotoInput.required = false;
 
                 toggleIdentityInputs(true);
             }

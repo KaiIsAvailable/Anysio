@@ -134,5 +134,9 @@ Route::get('/debug-revert/{filename}', function ($filename) {
     return "Session file not found.";
 });
 
+Route::get('/check-php', function () {
+    return phpversion();
+});
+
 // 4. 认证相关路由 (Login, Register 等)
 require __DIR__.'/auth.php';

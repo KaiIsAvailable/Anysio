@@ -367,6 +367,39 @@ class LeaseService
         return Carbon::parse($date)->format('Y-m-d');
     }
 
+    /** Raw cents for optional preview formatting; never parse formatted agreement tokens. */
+    public function getAgreementRentalBasis(Lease $lease): array
+    {
+        $charges = $lease->charges;
+        $rent = $charges->filter(fn ($c) => $c->feeType?->category === FeeTypeCategory::RENT);
+        $failure = fn ($message) => ['cents' => null, 'frequency' => null, 'error' => $message];
+        if ($rent->isNotEmpty()) {
+            $frequencies = $rent->pluck('frequency')->unique()->values();
+            if ($frequencies->count() !== 1) {
+                return $failure('Rental charges have multiple frequencies. A unique rental amount cannot be determined.');
+            }
+            $frequency = $frequencies[0];
+            $amounts = $rent->map(fn ($charge) => $charge->getAttributes()['amount'] ?? null);
+        } elseif ($charges->isEmpty()) {
+            // Same legacy fallback as getAgreementVariables, with an explicit recorded frequency.
+            $frequency = $lease->term_type;
+            $amounts = collect([$lease->getAttributes()['rent_price'] ?? null]);
+        } else {
+            return $failure('Rental charge data is missing. No rental amount can be determined.');
+        }
+        if (!in_array($frequency, ['daily', 'monthly', 'yearly'], true)) {
+            return $failure('Rental frequency is missing or unsupported. Expected daily, monthly or yearly.');
+        }
+        if ($amounts->contains(fn ($amount) => !is_scalar($amount) || !preg_match('/^\d+$/D', (string) $amount))) {
+            return $failure('Rental amount is missing or invalid.');
+        }
+        $cents = $amounts->sum();
+        if ($cents > 9007199254740991) {
+            return $failure('Rental amount exceeds the supported exact amount range.');
+        }
+        return ['cents' => (int) $cents, 'frequency' => $frequency, 'error' => null];
+    }
+
     /** Read-only variables shared by every live agreement preview and its PDF. */
     public function getAgreementVariables(Lease $lease): array
     {
@@ -381,6 +414,13 @@ class LeaseService
             default => null,
         };
         $servicePackage = filled($servicePackage) ? $servicePackage : 'Not recorded';
+        // Compatibility default is the original Description in AntzCustomTemplate's TENANT agreement.
+        // Existing hardcoded templates remain untouched by this additional variable.
+        $servicePackageDescription = match (strtoupper(trim($servicePackage))) {
+            'WIFI UNIT' => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER, FACILITY ALLOWANCE & HIGH SPEED WIFI',
+            'STANDARD UNIT' => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER & FACILITY ALLOWANCE',
+            default => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER,FACILITY ALLOWANCE, CCTV, FACILITY ROOM &HIGH SPEED WIFI',
+        };
         $owner = $unit?->owner ?? $leasable?->owner;
         $charges = $lease->charges;
         $money = function ($selected, string $legacy) use ($lease, $charges): string {
@@ -417,6 +457,7 @@ class LeaseService
             'leasable_type' => $servicePackage,
             'leasalable_type' => $servicePackage,
             'service_package' => $servicePackage,
+            'service_package_description' => $servicePackageDescription,
             'property_name' => $lease->leasable_name,
             'rent_mode' => $lease->term_type ?? 'N/A',
             'rent_price' => $rentValue,

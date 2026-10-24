@@ -48,14 +48,6 @@ class InvoiceService
             $asset = $invoice?->lease?->leasable;
             $payee = $asset instanceof Room ? $asset->unit?->owner : $asset?->owner;
             $labels = ['invoice' => 'Invoice issued', 'payment' => 'Invoice payment applied', 'wallet_credit' => 'Wallet credit', 'wallet_payment' => 'Wallet debit', 'wallet_other' => 'Wallet entry'];
-            $note = match ($event->event_kind) {
-                'payment' => 'Applied to invoice; may include wallet funds. Excess credited to wallet is shown separately.',
-                'wallet_payment' => $event->source_type === 'invoice_payment' || $event->source_type === 'payment_debit'
-                    ? 'Wallet funding movement; do not add again to invoice payments.' : 'Wallet movement; no invoice payment allocation inferred.',
-                'wallet_credit' => $event->source_type === 'overpayment_credit'
-                    ? 'Excess transferred to wallet; not an additional receipt.' : 'Wallet movement, not an invoice payment.',
-                default => null,
-            };
             return [
                 'id' => $event->event_kind.':'.$event->event_id,
                 'kind' => $event->event_kind,
@@ -86,11 +78,9 @@ class InvoiceService
                     'name' => $item->feeType?->name ?? 'Not recorded',
                     'description' => filled($item->description) ? $item->description : null,
                 ])->all() ?? [],
-                'note' => $note,
             ];
         }));
-        return $page->appends(array_filter($filters, fn ($v, $k) => $k !== 'statement_page' && $v !== null && $v !== '', ARRAY_FILTER_USE_BOTH))
-            ->fragment('invoice-statement');
+        return $page->appends(array_filter($filters, fn ($v, $k) => $k !== 'statement_page' && $v !== null && $v !== '', ARRAY_FILTER_USE_BOTH));
     }
 
     /**

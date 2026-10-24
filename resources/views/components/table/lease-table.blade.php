@@ -251,6 +251,8 @@
                                                     <button type="button"
                                                         data-base-content="{{ $lease->documentTemplate?->html_template }}"
                                                         data-title="{{ $lease->documentTemplate?->title }}"
+                                                        data-rental-breakdown="{{ !$lease->stamping_status && !$lease->stamping_cert_path ? 'true' : 'false' }}"
+                                                        data-rental-basis="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementRentalBasis($lease)) }}"
                                                         data-replacements="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementVariables($lease), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
                                                         @click="viewAgreement($el); openDropdown = false;"
                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center">

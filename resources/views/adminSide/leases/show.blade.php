@@ -357,9 +357,7 @@
                 </template>
             </div>
 
-            <!-- Invoice Tables 
-            <x-invoice-statement :statement="$statement" :filters="$statementFilters"
-                :scope-label="'Lease opened on this page: '.$lease->start_date_formatted.' – '.$lease->end_date_formatted.'. History selection above does not change this statement.'" />-->
+            <x-invoice-statement-modal :endpoint="route('admin.leases.invoice-statement', $lease)" />
 
             <div class="mt-8">
                 <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden p-6 space-y-6">
@@ -433,6 +431,8 @@
                             <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
                                 <span class="w-1.5 h-4 bg-emerald-500 rounded-full"></span>
                                 Invoices
+                                <button type="button" @click="$dispatch('open-modal', 'invoice-statement')"
+                                    class="ml-auto normal-case tracking-normal px-3 py-2 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200">View Statement</button>
                             </h4>
                             <div class="overflow-x-auto border border-gray-100 rounded-xl">
                                 <table class="min-w-full divide-y divide-gray-200">

@@ -26,12 +26,26 @@ class InvoiceController extends Controller
         $effectiveUser = get_effective_user();
         $effectiveUserId = $effectiveUser?->id;
 
-        $statementFilters = $request->validate(InvoiceService::statementFilterRules());
         $superAdmin = Gate::allows('super-admin');
-        $statement = $this->invoiceService->getStatement($actualUserId, $effectiveUserId, $superAdmin, $statementFilters);
         $invoices = $this->invoiceService->getIndexInvoices($actualUserId, $effectiveUserId, $superAdmin, max(1, $request->integer('page', 1)));
 
-        return view('adminSide.leases.invoices.index', compact('invoices', 'statement', 'statementFilters'));
+        return view('adminSide.leases.invoices.index', compact('invoices'));
+    }
+
+    public function statement(Request $request, ?Lease $lease = null)
+    {
+        abort_unless(Gate::allows('owner-admin') || Gate::allows($lease ? 'leases.show' : 'invoice.tab'), 403);
+        $actualId = Auth::id();
+        $effectiveId = get_effective_user()?->id;
+        $superAdmin = Gate::allows('super-admin');
+        if ($lease) {
+            abort_unless(Invoice::statementLeases($actualId, $effectiveId, $superAdmin)->whereKey($lease->id)->exists(), 403);
+        }
+        $filters = $request->validate(InvoiceService::statementFilterRules());
+        $statement = $this->invoiceService->getStatement($actualId, $effectiveId, $superAdmin, $filters, $lease?->id);
+        $scopeLabel = $lease ? 'Records for this lease only' : 'All records you can view';
+
+        return response()->json(['html' => view('components.invoice-statement', compact('statement', 'filters', 'scopeLabel'))->render()]);
     }
 
     public function show(Lease $lease, Invoice $invoice)

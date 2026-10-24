@@ -1,8 +1,12 @@
 import './bootstrap';
 import Alpine from 'alpinejs';
 import collapse from '@alpinejs/collapse';
+import { invoiceStatement } from './invoice-statement';
+import { agreementBreakdown } from './agreement-breakdown';
 
 Alpine.plugin(collapse);
+Alpine.data('invoiceStatement', invoiceStatement);
+window.agreementBreakdown = agreementBreakdown;
 window.Alpine = Alpine;
 Alpine.start();
 

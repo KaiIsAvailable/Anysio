@@ -1,33 +1,8 @@
 @props(['statement', 'filters' => [], 'scopeLabel' => 'All records you can view'])
 
-<section id="invoice-statement" class="my-8 rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden">
+<section id="invoice-statement" class="bg-white overflow-hidden">
     <div class="p-6 border-b border-gray-100 space-y-3">
-        <h2 class="text-xl font-bold text-slate-900">Invoice Statement</h2>
         <p class="text-sm text-slate-600">{{ $scopeLabel }}</p>
-        <p class="text-xs text-slate-500">Invoice amounts, applied payments and wallet movements are separate histories, not amounts to add together. Wallet payments may already be included in applied payments. Fee details describe the invoice, not an allocation of each payment.</p>
-        <form method="GET" action="{{ url()->current() }}#invoice-statement" class="flex flex-wrap items-end gap-3">
-            <label class="text-sm text-slate-700">From
-                <input type="date" name="statement_from" value="{{ $filters['statement_from'] ?? '' }}" class="block rounded-lg border-gray-300">
-            </label>
-            <label class="text-sm text-slate-700">To
-                <input type="date" name="statement_to" value="{{ $filters['statement_to'] ?? '' }}" class="block rounded-lg border-gray-300">
-            </label>
-            <label class="text-sm text-slate-700">Record type
-                <select name="statement_kind" class="block rounded-lg border-gray-300">
-                    @foreach(['' => 'All records', 'invoice' => 'Invoices', 'payment' => 'Applied payments', 'wallet_credit' => 'Wallet credits', 'wallet_payment' => 'Wallet debits', 'wallet_other' => 'Other wallet entries'] as $value => $label)
-                        <option value="{{ $value }}" @selected(($filters['statement_kind'] ?? '') === $value)>{{ $label }}</option>
-                    @endforeach
-                </select>
-            </label>
-            <label class="text-sm text-slate-700">Invoice No.
-                <input name="statement_invoice" maxlength="100" value="{{ $filters['statement_invoice'] ?? '' }}" class="block rounded-lg border-gray-300">
-            </label>
-            <button type="submit" class="px-4 py-2 rounded-lg bg-indigo-600 text-white font-semibold">Search history</button>
-            <a href="{{ url()->current() }}#invoice-statement" class="px-3 py-2 text-sm text-indigo-600">Clear</a>
-        </form>
-        @foreach(['statement_from', 'statement_to', 'statement_kind', 'statement_invoice', 'statement_page'] as $field)
-            @error($field)<p class="text-sm text-red-600">{{ $message }}</p>@enderror
-        @endforeach
     </div>
     <div class="overflow-x-auto">
         <table class="min-w-full text-sm text-left divide-y divide-gray-200">
@@ -51,7 +26,6 @@
                             <div class="font-semibold">{{ $entry['label'] }}</div>
                             <div class="text-xs text-slate-500">{{ $entry['source_type'] }}</div>
                             @if($entry['payment_method'])<div class="text-xs">{{ $entry['payment_method'] }}</div>@endif
-                            @if($entry['note'])<p class="mt-2 text-xs text-slate-500 max-w-xs">{{ $entry['note'] }}</p>@endif
                         </td>
                         <td class="px-4 py-4">
                             <div class="text-xs text-slate-500">{{ $entry['party_label'] }}</div>
@@ -65,14 +39,12 @@
                             @if($entry['reference'])<div class="text-xs text-slate-500">Ref: {{ $entry['reference'] }}</div>@endif
                         </td>
                         <td class="px-4 py-4 min-w-[200px]">
-                            @forelse($entry['fees'] as $fee)
+                            @foreach($entry['fees'] as $fee)
                                 <div class="mb-2"><div class="font-medium">{{ $fee['name'] }}</div>
-                                    @if($fee['description'])<p class="text-xs text-slate-500 whitespace-pre-line">{{ $fee['description'] }}</p>@endif
+                                    @if(filled($fee['description']))<p class="text-xs text-slate-500 whitespace-pre-line">{{ $fee['description'] }}</p>@endif
                                 </div>
-                            @empty
-                                <span class="text-slate-400">—</span>
-                            @endforelse
-                            @if($entry['description'])<p class="mt-2 text-xs text-slate-600 whitespace-pre-line">{{ $entry['description'] }}</p>@endif
+                            @endforeach
+                            @if(filled($entry['description']))<p class="mt-2 text-xs text-slate-600 whitespace-pre-line">{{ $entry['description'] }}</p>@endif
                         </td>
                         <td class="px-4 py-4 text-right whitespace-nowrap">{{ $entry['invoice_amount'] ? $entry['amount'] : '—' }}</td>
                         <td class="px-4 py-4 text-right whitespace-nowrap">{{ $entry['payment_amount'] ? $entry['amount'] : '—' }}</td>

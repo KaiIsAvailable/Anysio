@@ -518,14 +518,7 @@ class LeaseController extends Controller
 
         $leaseModalData = $leaseService->getLeaseFormPayload($userId, $request);
 
-        $statementFilters = $request->validate(InvoiceService::statementFilterRules());
-        $statement = $this->invoiceService->getStatement(
-            Auth::id(), $userId?->id, Gate::allows('super-admin'), $statementFilters, $lease->id
-        );
-
         return view('adminSide.leases.show', array_merge([
-            'statement' => $statement,
-            'statementFilters' => $statementFilters,
             'lease' => $lease,
             'leaseHistory' => $leaseHistory,
             'invoices' => $invoices,

@@ -176,7 +176,9 @@
         });
 
         window.dispatchEvent(new CustomEvent('open-lease-preview', { 
-            detail: { content: content, title: button.dataset.title } 
+            detail: { content: content, title: button.dataset.title,
+                allowBreakdown: button.dataset.rentalBreakdown === 'true',
+                rentalBasis: JSON.parse(button.dataset.rentalBasis || 'null') }
         }));
     };
 </script>

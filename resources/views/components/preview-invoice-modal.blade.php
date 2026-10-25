@@ -1,8 +1,10 @@
 {{-- Preview Agreement Modal Component --}}
 <div x-data="{ 
+        ...agreementBreakdown(),
         openPreview: false, 
         shakeModal: false,
         closeModal() {
+            this.resetBreakdown();
             this.openPreview = false;
             document.body.style.overflow = ''; // Restores background scrolling
         },
@@ -38,6 +40,7 @@
      }"
 
         @open-invoice-preview.window="
+    resetBreakdown();
     openPreview = true;
     $nextTick(() => {
         document.getElementById('invoice-modal-content').innerHTML = $event.detail.content;
@@ -53,6 +56,7 @@
 "
 
     @open-lease-preview.window="
+    resetBreakdown($event.detail);
     openPreview = true;
     $nextTick(() => {
         document.getElementById('invoice-modal-content').innerHTML = $event.detail.content;
@@ -122,6 +126,7 @@
                     <div class="px-8 py-6 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                         <span class="text-xs text-slate-400 font-bold uppercase tracking-widest">End of Document</span>
                         <div class="flex items-center gap-3">
+                            <x-form.secondary-button x-show="breakdownAllowed" @click="editBreakdown()">Set Rental Breakdown</x-form.secondary-button>
                             {{-- Print Button --}}
                             @canany(['owner-admin', 'document template.print'])
                             <button type="button"
@@ -146,4 +151,29 @@
             </div>
         </div>
     </template>
+    <x-modals.confirmation-modal id="rental-breakdown" title="Set Rental Breakdown" zIndex="z-[10000]">
+        <x-form.form :async="true" :autofocus="false" @submit.prevent="applyBreakdown()" class="p-6 space-y-4" novalidate>
+            <div>
+                <x-form.input-label for="rental-total" style="text-transform: none" x-text="rentalFrequency ? 'Original ' + rentalFrequency + ' rental (RM)' : 'Original rental (RM)'" />
+                <x-form.text-input id="rental-total" readonly x-bind:value="rentalTotal === null ? 'Not available' : formatRentalCents(rentalTotal)" />
+                <p class="text-sm text-red-600" x-show="rentalBasisError" x-text="rentalBasisError"></p>
+                <p class="text-sm text-amber-700" x-show="rentalTotal !== null && rentalTotal % 100 !== 0">The original rental includes non-zero decimals. Its exact amount will be retained; no rounding is applied.</p>
+            </div>
+            <div>
+                <x-form.input-label for="basic-lease" value="Basic Lease (RM)" />
+                <x-form.text-input id="basic-lease" inputmode="decimal" x-model="basicLease" />
+            </div>
+            <div>
+                <x-form.input-label for="service-charge" value="Service Charge (RM)" />
+                <x-form.text-input id="service-charge" inputmode="decimal" x-model="serviceCharge" />
+            </div>
+            <p class="text-sm text-gray-500">Excludes deposits and Agreement Fee. Applies only to this preview.</p>
+            <p role="alert" class="text-sm text-red-600" x-text="breakdownError"></p>
+            <div class="flex flex-wrap justify-end gap-2">
+                <x-form.secondary-button x-show="appliedBreakdown" @click="removeBreakdown()">Remove Breakdown</x-form.secondary-button>
+                <x-form.secondary-button @click="$dispatch('close-rental-breakdown')">Cancel</x-form.secondary-button>
+                <x-form.primary-button type="submit">Apply</x-form.primary-button>
+            </div>
+        </x-form.form>
+    </x-modals.confirmation-modal>
 </div>

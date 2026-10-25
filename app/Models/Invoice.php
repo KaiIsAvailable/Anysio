@@ -146,7 +146,16 @@ class Invoice extends Model
         if ($superAdmin) return $query;
         if (!$actualId || !$effectiveId) return $query->whereRaw('1 = 0');
 
-        return $query->whereHas('lease', function ($lease) use ($actualId, $effectiveId) {
+        return $query->whereIn('lease_id', static::statementLeases($actualId, $effectiveId, $superAdmin)->select('leases.id'));
+    }
+
+    public static function statementLeases(?string $actualId, ?string $effectiveId, bool $superAdmin = false)
+    {
+        $query = Lease::query();
+        if ($superAdmin) return $query;
+        if (!$actualId || !$effectiveId) return $query->whereRaw('1 = 0');
+
+        return $query->where(function ($lease) use ($actualId, $effectiveId) {
             $lease->where(function ($scope) use ($actualId, $effectiveId) {
                 $scope->whereHasMorph('leasable', [Room::class, Unit::class, Property::class], function ($asset, $type) use ($actualId, $effectiveId) {
                     $asset->whereHas($type === Room::class ? 'unit.owner' : 'owner', function ($owner) use ($actualId, $effectiveId) {

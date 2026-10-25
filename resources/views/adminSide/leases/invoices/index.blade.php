@@ -17,10 +17,11 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Invoices</h1>
                     <p class="mt-2 text-sm text-gray-500">View and process tenant invoices and payment records.</p>
                 </div>
+                <button type="button" @click="$dispatch('open-modal', 'invoice-statement')"
+                    class="inline-flex items-center px-4 py-2 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">View Statement</button>
             </div>
 
-            <!-- Main Content Card 
-            <x-invoice-statement :statement="$statement" :filters="$statementFilters" />-->
+            <x-invoice-statement-modal :endpoint="route('admin.invoices.statement')" />
 
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
                 <div class="p-5 border-b border-gray-100 bg-white">

@@ -1,4 +1,4 @@
-@props(['action' => '', 'method' => 'POST', 'async' => false, 'preserveTextareaEnter' => false, 'guardComposition' => false])
+@props(['action' => '', 'method' => 'POST', 'async' => false, 'preserveTextareaEnter' => false, 'guardComposition' => false, 'autofocus' => true])
 
 @php
     $realMethod = in_array(strtoupper($method), ['GET', 'POST']) ? $method : 'POST';
@@ -89,6 +89,7 @@
         });
 
         // 2. Focus the first actual visible input
+        @if($autofocus)
         const first = Array.from($el.querySelectorAll('input, select, textarea'))
             .find(el => 
                 el.type !== 'hidden' && 
@@ -104,6 +105,7 @@
                 first.setSelectionRange(len, len);
             }
         }
+        @endif
     })"
     
     @keydown.enter="handleEnter($event)"

@@ -70,6 +70,48 @@ class InvoiceStatementTest extends TestCase
         DB::table($table)->insert($data + ['created_at' => '2026-10-20 12:34:00', 'updated_at' => '2026-10-20 12:34:00']);
     }
 
+    public function test_statement_endpoints_enforce_permissions_and_lease_scope(): void
+    {
+        $user = \App\Models\User::findOrFail('manager');
+        $user->email_verified_at = now();
+        $this->actingAs($user);
+        \Illuminate\Support\Facades\Gate::swap(new \Illuminate\Auth\Access\Gate(app(), fn () => $user));
+        \Illuminate\Support\Facades\Gate::before(fn ($user, $ability) => in_array($ability, ['invoice.tab', 'leases.show']));
+        // Short fixture IDs use explicit binding instead of the model's ULID validation.
+        \Illuminate\Support\Facades\Route::bind('lease', fn ($id) => \App\Models\Lease::whereKey($id)->firstOrFail());
+        $leaseUrl = route('admin.leases.invoice-statement', 'la');
+        $globalUrl = route('admin.invoices.statement');
+        $html = $this->getJson($leaseUrl.'?lease_id=lb')->assertOk()->json('html');
+        $this->assertStringContainsString('invoice:ia', $html);
+        $this->assertStringNotContainsString('invoice:ia2', $html);
+        $this->assertStringNotContainsString('invoice:ib', $html);
+        $this->getJson(route('admin.leases.invoice-statement', 'lb'))->assertForbidden();
+        $this->getJson(route('admin.leases.invoice-statement', 'missing'))->assertNotFound();
+        $html = $this->getJson($globalUrl.'?page=99&search=outside&lease_id=lb')->assertOk()->json('html');
+        $this->assertStringContainsString('invoice:ia2', $html);
+        $this->assertStringNotContainsString('invoice:ib', $html);
+        $this->getJson($globalUrl.'?statement_kind=invalid')->assertUnprocessable();
+        $html = $this->getJson($leaseUrl.'?statement_invoice=absent')->assertOk()->json('html');
+        $this->assertStringContainsString('No statement records', $html);
+        for ($i = 0; $i < 25; $i++) $this->movement('page-'.$i, 'wa', 'ia', 1, 'manual_credit');
+        $html = $this->getJson($leaseUrl.'?statement_page=2&statement_kind=wallet_credit&page=99')->assertOk()->json('html');
+        $this->assertStringContainsString('statement_page=1', $html);
+        $this->assertStringContainsString('statement_kind=wallet_credit', $html);
+        $this->assertStringNotContainsString('page=99', $html);
+    }
+
+    public function test_statement_endpoints_deny_users_without_existing_permissions(): void
+    {
+        $user = \App\Models\User::findOrFail('manager');
+        $user->email_verified_at = now();
+        $this->actingAs($user);
+        \Illuminate\Support\Facades\Gate::swap(new \Illuminate\Auth\Access\Gate(app(), fn () => $user));
+        \Illuminate\Support\Facades\Gate::before(fn () => false);
+        \Illuminate\Support\Facades\Route::bind('lease', fn ($id) => \App\Models\Lease::whereKey($id)->firstOrFail());
+        $this->getJson(route('admin.invoices.statement'))->assertForbidden();
+        $this->getJson(route('admin.leases.invoice-statement', 'la'))->assertForbidden();
+    }
+
     private function movement(string $id, string $wallet, ?string $ref, int $amount, string $type): void
     {
         $this->insert('wallet_transactions', ['id' => $id, 'wallet_id' => $wallet, 'reference_id' => $ref, 'amount' => $amount, 'type' => $type, 'remarks' => 'History '.$id]);
@@ -90,8 +132,10 @@ class InvoiceStatementTest extends TestCase
         $this->assertSame(['Rental', 'Service fee'], array_column($rows['payment:receipt']['fees'], 'name'));
         $this->assertSame('October rent', $rows['invoice:ia']['fees'][0]['description']);
         $this->assertNull($rows['invoice:ia']['fees'][1]['description']);
-        $this->assertStringContainsString('not an additional receipt', $rows['wallet_credit:credit']['note']);
-        $this->assertStringContainsString('do not add again', $rows['wallet_payment:debit']['note']);
+        $this->assertArrayNotHasKey('note', $rows['wallet_credit:credit']);
+        $this->assertArrayNotHasKey('note', $rows['wallet_payment:debit']);
+        $this->assertSame('History credit', $rows['wallet_credit:credit']['description']);
+        $this->assertSame('History debit', $rows['wallet_payment:debit']['description']);
         $this->assertFalse($rows->contains(fn ($r) => array_key_exists('balance', $r)));
         $this->assertSame(99999999, DB::table('wallets')->where('id', 'wa')->value('balance'));
     }
@@ -132,6 +176,11 @@ class InvoiceStatementTest extends TestCase
         $this->assertStringContainsString('&lt;script&gt;', $html);
         $this->assertStringNotContainsString('<script>bad()', $html);
         $this->assertStringNotContainsString('Balance', $html);
+        $this->assertStringContainsString('History credit', $html);
+        $this->assertStringContainsString('History debit', $html);
+        foreach (['do not add again', 'not an additional receipt', 'may include wallet funds', 'no invoice payment allocation inferred', 'Wallet movement, not an invoice payment', 'not amounts to add together', 'No description'] as $explanation) {
+            $this->assertStringNotContainsString($explanation, $html);
+        }
         for ($i = 0; $i < 25; $i++) $this->movement('extra-'.$i, 'wa', 'ia', 1, 'manual_credit');
         $page = $service->getStatement('manager', 'manager', false, ['statement_page' => 2], 'la');
         $this->assertSame(29, $page->total());

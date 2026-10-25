@@ -27,6 +27,39 @@ class LeaseAgreementRegressionTest extends TestCase
             ->setRelation('feeType', new FeeType(['name' => $name, 'category' => $category]));
     }
 
+    public function test_breakdown_basis_uses_exact_rent_cents_and_unique_frequency_only(): void
+    {
+        $service = app(LeaseService::class);
+        foreach (['daily', 'monthly', 'yearly'] as $frequency) {
+            $lease = $this->lease()->setRelation('charges', collect([
+                $this->charge('Agreement Fee', FeeTypeCategory::MANAGEMENT, 8000, 'one_time'),
+                $this->charge('Rent A', FeeTypeCategory::RENT, 30000, $frequency),
+                $this->charge('Deposit', FeeTypeCategory::DEPOSIT, 100000),
+                $this->charge('Rent B', FeeTypeCategory::RENT, 20000, $frequency),
+            ]));
+            $before = $lease->toArray();
+            $this->assertSame(['cents' => 50000, 'frequency' => $frequency, 'error' => null], $service->getAgreementRentalBasis($lease));
+            $this->assertSame($before, $lease->toArray());
+            $lease->charges[1]->amount = 30001;
+            $this->assertSame(50001, $service->getAgreementRentalBasis($lease)['cents']);
+            $lease->charges[1]->frequency = $frequency === 'daily' ? 'yearly' : 'daily';
+            $this->assertNull($service->getAgreementRentalBasis($lease)['cents']);
+            $this->assertStringContainsString('multiple frequencies', $service->getAgreementRentalBasis($lease)['error']);
+        }
+        $lease = $this->lease();
+        $this->assertNotNull($service->getAgreementRentalBasis($lease)['error']);
+        $lease->setRawAttributes(['rent_price' => 50001, 'term_type' => 'yearly']);
+        $this->assertSame(['cents' => 50001, 'frequency' => 'yearly', 'error' => null], $service->getAgreementRentalBasis($lease));
+        $lease->setRelation('charges', collect([$this->charge('Deposit', FeeTypeCategory::DEPOSIT, 100000)]));
+        $this->assertNull($service->getAgreementRentalBasis($lease)['cents']);
+        foreach ([null, -1] as $amount) {
+            $charge = $this->charge('Rent', FeeTypeCategory::RENT, 1);
+            $charge->amount = $amount;
+            $lease->setRelation('charges', collect([$charge]));
+            $this->assertNotNull($service->getAgreementRentalBasis($lease)['error']);
+        }
+    }
+
     public function test_agreement_uses_lease_charges_and_parent_unit_without_mutating_models(): void
     {
         $lease = $this->lease();
@@ -48,6 +81,36 @@ class LeaseAgreementRegressionTest extends TestCase
         $this->assertSame('Master Room', $vars['service_package']);
         $this->assertSame('Room', $vars['property_type']);
         $this->assertSame($before, $lease->toArray());
+    }
+
+    public function test_service_package_description_uses_only_the_assets_own_type_and_preserves_default(): void
+    {
+        $service = app(LeaseService::class);
+        $default = 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER,FACILITY ALLOWANCE, CCTV, FACILITY ROOM &HIGH SPEED WIFI';
+        $wifi = 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER, FACILITY ALLOWANCE & HIGH SPEED WIFI';
+        $standard = 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER & FACILITY ALLOWANCE';
+        $lease = $this->lease();
+        $room = $lease->leasable;
+        $unit = $room->unit;
+        $property = $unit->property->setRelation('owner', null);
+        foreach ([[$property, 'type'], [$unit, 'type'], [$room, 'room_type']] as [$asset, $field]) {
+            // Conflicting ancestor values must never provide a fallback.
+            $property->type = 'WIFI UNIT';
+            $unit->type = 'STANDARD UNIT';
+            $lease->setRelation('leasable', $asset);
+            foreach ([['WIFI UNIT', $wifi], [' wifi unit ', $wifi], ['STANDARD UNIT', $standard],
+                ["\tStAnDaRd UnIt\n", $standard], ['Other', $default], [null, $default], ['', $default], ['   ', $default]] as [$type, $expected]) {
+                $asset->$field = $type;
+                $before = $lease->toArray();
+                $variables = $service->getAgreementVariables($lease);
+                $this->assertSame($expected, $variables['service_package_description']);
+                $this->assertSame('Not recorded', $variables['rent_price']);
+                $this->assertSame($before, $lease->toArray());
+            }
+        }
+        $seed = file_get_contents(database_path('seeders/AntzCustomTemplate.php'));
+        $this->assertSame(1, substr_count($seed, '{{ service_package_description }}'));
+        $this->assertStringContainsString('<td id="i75opp">{{ service_package_description }}</td>', $seed);
     }
 
     public function test_property_unit_missing_legacy_and_nonmonthly_values(): void

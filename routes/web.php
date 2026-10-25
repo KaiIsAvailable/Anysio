@@ -57,6 +57,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/excelImportRoute.php';
         require __DIR__.'/settingRoute.php';
         require __DIR__.'/roleRoute.php';
+        require __DIR__.'/refundRoute.php';
 
         // --- 只有管理员 (owner-admin) 权限能进的路由 ---
         Route::middleware('can:owner-admin')->group(function () {

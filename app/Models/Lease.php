@@ -74,6 +74,11 @@ class Lease extends Model
         return $this->belongsTo(User::class, 'owner_id');
     }
 
+    public function refunds()
+    {
+        return $this->hasMany(Refund::class, 'lease_id');
+    }
+
     protected function ownerUserId(): Attribute
     {
         return Attribute::make(

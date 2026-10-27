@@ -132,7 +132,7 @@
                                 <div class="space-y-0.5 border-t border-gray-100 pt-1 mt-1">
                                     @foreach($lease->charges as $charge)
                                         <div class="text-sm text-slate-600 flex justify-between gap-2">
-                                            <span class="truncate" title="{{ $charge->description }}">{{ $charge->feeType?->name ?? 'Charge' }}@if(filled($charge->description)) &mdash; {{ $charge->description }}@endif:</span>
+                                            <span class="truncate" title="{{ $charge->description }}">{{ $charge->feeType?->name ?? 'Charge' }}:</span>
                                             <span class="text-sm text-slate-900 shrink-0">RM {{ number_format($charge->amount / 100, 2 ) }}</span>
                                         </div>
                                     @endforeach

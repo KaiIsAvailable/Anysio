@@ -180,21 +180,6 @@
                         </div>
                     </div>
 
-                    <x-modals.lease-create-modal 
-                        :tenants="$tenants" 
-                        :leases="$modalLeases"
-                        :properties="$properties" 
-                        :units="$units" 
-                        :rooms="$rooms" 
-                        :templates="$templates" 
-                        :rentFeeTypes="$rentFeeTypes" 
-                        :serviceFeeTypes="$serviceFeeTypes" 
-                        :depositFeeTypes="$depositFeeTypes" 
-                        :managementFeeTypes="$managementFeeTypes" 
-                        :itemFeeTypes="$itemFeeTypes" 
-                        :leasePreviewData="$leasePreviewData" 
-                    />
-
                     <div class="p-6">
                         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full z-[101]">
                             @foreach($leaseHistory as $history)
@@ -733,6 +718,21 @@
             </div>
         </div>
     </div>
+    
+    <x-modals.lease-create-modal 
+        :tenants="$tenants" 
+        :leases="$modalLeases"
+        :properties="$properties" 
+        :units="$units" 
+        :rooms="$rooms" 
+        :templates="$templates" 
+        :rentFeeTypes="$rentFeeTypes" 
+        :serviceFeeTypes="$serviceFeeTypes" 
+        :depositFeeTypes="$depositFeeTypes" 
+        :managementFeeTypes="$managementFeeTypes" 
+        :itemFeeTypes="$itemFeeTypes" 
+        :leasePreviewData="$leasePreviewData" 
+    />
 </x-app-layout>
 
 <script>

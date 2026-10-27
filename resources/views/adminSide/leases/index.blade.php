@@ -88,7 +88,7 @@
                     </div>
                 </div>
 
-                <div class="bg-white rounded-xl shadow-lg border border-gray-100">
+                <div class="bg-white rounded-xl shadow-lg border border-gray-100 overflow-x-auto">
                     <x-table.lease-table :leases="$leases" :showOwner="true" :showTenant="true" :showAction="true" />
                 </div>
                 

@@ -89,673 +89,681 @@
 
     {{-- Modal Dialog --}}
     <div class="flex min-h-screen items-center justify-center p-4">
-        <div x-show="open" 
-             x-transition.scale
-             :class="{ 'animate-shake': shake }"
-             class="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100 z-10 my-8">
+        <template x-if="open">
+            <div x-show="open" 
+                x-transition.scale
+                :class="{ 'animate-shake': shake }"
+                class="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100 z-10 my-8">
 
-            {{-- Dynamic Header --}}
-            <div class="px-8 py-5 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
-                <h1 class="text-2xl font-bold text-slate-900 tracking-tight" 
-                    x-text="action === 'renew' ? 'Renew Lease' : (action === 'checkout' ? 'Check Out Lease' : 'Create Lease')">
-                </h1>
-                <button @click="open = false" class="text-gray-400 hover:text-gray-600 transition-colors">
-                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                </button>
-            </div>
+                {{-- Dynamic Header --}}
+                <div class="px-8 py-5 bg-gray-50 border-b border-gray-100 flex justify-between items-center">
+                    <h1 class="text-2xl font-bold text-slate-900 tracking-tight" 
+                        x-text="action === 'renew' ? 'Renew Lease' : (action === 'checkout' ? 'Check Out Lease' : 'Create Lease')">
+                    </h1>
+                    <button @click="open = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
 
-            {{-- Modal Body --}}
-            <div class="max-h-[80vh] overflow-y-auto">
+                {{-- Modal Body --}}
+                <div class="max-h-[80vh] overflow-y-auto">
+                    <x-form.form method="POST" action="{{ route('admin.leases.store') }}" @submit="loading = true">
+                        @csrf
+                        
+                        <input type="hidden" name="redirect_to" value="{{ request()->routeIs('admin.dashboard') ? 'dashboard' : 'index' }}">
 
-                <x-form.form method="POST" action="{{ route('admin.leases.store') }}" @submit="loading = true">
-                    @csrf
-                    
-                    <input type="hidden" name="redirect_to" value="{{ request()->routeIs('admin.dashboard') ? 'dashboard' : 'index' }}">
-
-                    <div class="p-8 space-y-8">
-                        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                            <div class="md:col-span-1">
-                                <x-form.input-label value="Status" :required="true" class="mb-1" />
-                                <x-form.input-select
-                                    name="status"
-                                    id="lease-status"
-                                    x-model="formStatus"
-                                    :options="[
-                                        'New' => 'New',
-                                        'Renew' => 'Renew',
-                                        'Check Out' => 'Check Out',
-                                    ]"
-                                    x-bind:disabled="isCheckoutOrRenew"
-                                    @change="toggleLeaseSelect()"
-                                />
-                            </div>
-
-                            <div id="tenant_field" class="md:col-span-3">
-                                <x-form.input-label value="Select Tenant" :required="true" class="mb-1" />
-                                <x-form.input-select
-                                    name="tenant_id"
-                                    id="tenant_id"
-                                    :options="$tenants"
-                                    valueField="id"
-                                    labelField="user.name"
-                                />
-                            </div>
-
-                            <div id="lease_select_container" class="md:col-span-3 hidden">
-                                <x-form.input-label value="Select Existing Lease" :required="true" class="mb-1" />
-                                <x-form.input-select 
-                                    name="lease_id" 
-                                    id="lease_id"
-                                    x-model="formLeaseId"
-                                    :options="$leases"
-                                    value-field="id"
-                                    label-field="computed_label"
-                                    x-bind:disabled="isCheckoutOrRenew"
-                                    @change="window.handleLeaseChange($event)"
-                                />
-                            </div>
-                        </div>
-
-                        <div id="property_select_type" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                               <x-form.input-label value="Select Properties Type" :required="true" class="mb-1" />
-                                <x-form.input-select
-                                    name="lease_selection"
-                                    id="lease_selection"
-                                    :options="[
-                                        'property' => 'Entire Property',
-                                        'unit' => 'Specific Unit',
-                                        'room' => 'Specific Room'
-                                    ]"
-                                    :value="old('lease_selection', 'property')"
-                                    @change="toggleLeaseInput()"
-                                />
-                            </div>
-
-                            <div>
-                                <div id="property_field" class="lease-field">
-                                    <x-form.input-label value="Select Property" :required="true" class="mb-1" />
+                        <div class="p-8 space-y-8">
+                            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                                <div class="md:col-span-1">
+                                    <x-form.input-label value="Status" :required="true" class="mb-1" />
                                     <x-form.input-select
-                                        name="property_id"
-                                        id="property_select_input"
-                                        :options="$properties"
-                                        valueField="id"
-                                        labelField="name"
-                                        :value="old('property_id')"
-                                        @change="filterTemplates()"
+                                        name="status"
+                                        id="lease-status"
+                                        x-model="formStatus"
+                                        :options="[
+                                            'New' => 'New',
+                                            'Renew' => 'Renew',
+                                            'Check Out' => 'Check Out',
+                                        ]"
+                                        x-bind:disabled="isCheckoutOrRenew"
+                                        @change="toggleLeaseSelect()"
                                     />
-                                    <x-form.input-error :messages="$errors->get('property_id')" class="mt-1" />
                                 </div>
 
-                                <div id="unit_field" class="lease-field hidden">
-                                    <x-form.input-label value="Select Unit" :required="true" class="mb-1" />
+                                <div id="tenant_field" class="md:col-span-3">
+                                    <x-form.input-label value="Select Tenant" :required="true" class="mb-1" />
                                     <x-form.input-select
-                                        name="unit_id"
-                                        id="unit_select_input"
-                                        :options="$units"
+                                        name="tenant_id"
+                                        id="tenant_id"
+                                        :options="$tenants"
                                         valueField="id"
-                                        labelField="display_label"
-                                        :value="old('unit_id')"
-                                        @change="filterTemplates()"
+                                        labelField="user.name"
                                     />
-                                    <x-form.input-error :messages="$errors->get('unit_id')" class="mt-1" />
                                 </div>
 
-                                <div id="room_field" class="lease-field hidden">
-                                    <x-form.input-label value="Select Room" :required="true" class="mb-1" />
-                                    <x-form.input-select
-                                        name="room_id"
-                                        id="room_select_input"
-                                        :options="$rooms"
-                                        valueField="id"
-                                        labelField="room_no"
-                                        :value="old('room_id')"
-                                        @change="filterTemplates()"
+                                <div id="lease_select_container" class="md:col-span-3 hidden">
+                                    <x-form.input-label value="Select Existing Lease" :required="true" class="mb-1" />
+                                    <x-form.input-select 
+                                        name="lease_id" 
+                                        id="lease_id"
+                                        x-model="formLeaseId"
+                                        :options="$leases"
+                                        value-field="id"
+                                        label-field="computed_label"
+                                        x-bind:disabled="isCheckoutOrRenew"
+                                        @change="window.handleLeaseChange($event)"
                                     />
-                                    <x-form.input-error :messages="$errors->get('room_id')" class="mt-1" />
                                 </div>
                             </div>
-                        </div>
 
-                        <div id="date_section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div>
-                                <x-form.input-label value="Start Date" :required="true" class="mb-1" />
-                                <x-form.date-input id="start-date" name="start_date" :value="old('start_date')" />
-                                <x-form.input-error :messages="$errors->get('start_date')" class="mt-1" />
+                            <div id="property_select_type" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                <x-form.input-label value="Select Properties Type" :required="true" class="mb-1" />
+                                    <x-form.input-select
+                                        name="lease_selection"
+                                        id="lease_selection"
+                                        :options="[
+                                            'property' => 'Entire Property',
+                                            'unit' => 'Specific Unit',
+                                            'room' => 'Specific Room'
+                                        ]"
+                                        :value="old('lease_selection', 'property')"
+                                        @change="toggleLeaseInput()"
+                                    />
+                                </div>
+
+                                <div>
+                                    <div id="property_field" class="lease-field">
+                                        <x-form.input-label value="Select Property" :required="true" class="mb-1" />
+                                        <x-form.input-select
+                                            name="property_id"
+                                            id="property_select_input"
+                                            :options="$properties"
+                                            valueField="id"
+                                            labelField="name"
+                                            :value="old('property_id')"
+                                            @change="filterTemplates()"
+                                        />
+                                        <x-form.input-error :messages="$errors->get('property_id')" class="mt-1" />
+                                    </div>
+
+                                    <div id="unit_field" class="lease-field hidden">
+                                        <x-form.input-label value="Select Unit" :required="true" class="mb-1" />
+                                        <x-form.input-select
+                                            name="unit_id"
+                                            id="unit_select_input"
+                                            :options="$units"
+                                            valueField="id"
+                                            labelField="display_label"
+                                            :value="old('unit_id')"
+                                            @change="filterTemplates()"
+                                        />
+                                        <x-form.input-error :messages="$errors->get('unit_id')" class="mt-1" />
+                                    </div>
+
+                                    <div id="room_field" class="lease-field hidden">
+                                        <x-form.input-label value="Select Room" :required="true" class="mb-1" />
+                                        <x-form.input-select
+                                            name="room_id"
+                                            id="room_select_input"
+                                            :options="$rooms"
+                                            valueField="id"
+                                            labelField="room_no"
+                                            :value="old('room_id')"
+                                            @change="filterTemplates()"
+                                        />
+                                        <x-form.input-error :messages="$errors->get('room_id')" class="mt-1" />
+                                    </div>
+                                </div>
                             </div>
 
-                            <div>
-                                <x-form.input-label value="End Date" :required="true" class="mb-1" />
-                                <x-form.date-input id="end-date" name="end_date" :value="old('end_date')" />
-                                <x-form.input-error :messages="$errors->get('end_date')" class="mt-1" />
+                            <div id="date_section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <x-form.input-label value="Start Date" :required="true" class="mb-1" />
+                                    <x-form.date-input id="start-date" name="start_date" :value="old('start_date')" />
+                                    <x-form.input-error :messages="$errors->get('start_date')" class="mt-1" />
+                                </div>
+
+                                <div>
+                                    <x-form.input-label value="End Date" :required="true" class="mb-1" />
+                                    <x-form.date-input id="end-date" name="end_date" :value="old('end_date')" />
+                                    <x-form.input-error :messages="$errors->get('end_date')" class="mt-1" />
+                                </div>
                             </div>
-                        </div>
 
-                        <div id="check_out_section" class="mt-4 hidden">
-                            <x-form.input-label value="Check Out Date" class="mb-1" />
-                            <x-form.date-input 
-                                id="check-out-date" 
-                                name="checked_out_at" 
-                                :value="old('checked_out_at')" 
-                            />
-                            <x-form.input-error :messages="$errors->get('checked_out_at')" class="mt-1" />
-                        </div>
-
-                        <div id="agreement_end_section" class="mt-4 hidden">
-                            <x-form.input-label value="Agreement Ended Date" class="mb-1" />
-                            <x-form.date-input id="agreement-end-date" name="agreement_ended_at" :value="old('agreement_ended_at')" />
-                            <x-form.input-error :messages="$errors->get('agreement_ended_at')" class="mt-1" />
-                        </div>
-
-                        <div id="agreement_template_section" class="mt-4">
-                            <div class="flex justify-between items-center mb-1">
-                                <x-form.input-label value="Agreements Template" :required="true" />
-                                <button type="button" id="preview-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
-                                    Preview Template
-                                </button>
+                            <div id="check_out_section" class="mt-4 hidden">
+                                <x-form.input-label value="Check Out Date" class="mb-1" />
+                                <x-form.date-input 
+                                    id="check-out-date" 
+                                    name="checked_out_at" 
+                                    :value="old('checked_out_at')" 
+                                />
+                                <x-form.input-error :messages="$errors->get('checked_out_at')" class="mt-1" />
                             </div>
-                            
-                            <select id="document_id" name="document_id"
-                                class="block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                <option value="">-- Select Template --</option>
-                                @foreach($templates as $template)
-                                    <option value="{{ $template->id }}" data-agreement-user-id="{{$template->user->id}}" {{ old('document_id') == $template->id ? 'selected' : '' }}>
-                                        {{ $template->title }} (v{{ $template->version }}) - {{ $template->user->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            
-                            <x-form.input-error :messages="$errors->get('document_id')" class="mt-1" />
-                        </div>
 
-                        <x-preview-agreement-modal />
+                            <div id="agreement_end_section" class="mt-4 hidden">
+                                <x-form.input-label value="Agreement Ended Date" class="mb-1" />
+                                <x-form.date-input id="agreement-end-date" name="agreement_ended_at" :value="old('agreement_ended_at')" />
+                                <x-form.input-error :messages="$errors->get('agreement_ended_at')" class="mt-1" />
+                            </div>
 
-                        @can('asdasdasd')
-                        <!-- CHECKOUT REFUND SECTION -->
-                        <div id="checkout_refund_section" class="mt-4 hidden space-y-4"
-                        x-data="{
-                            manualDeductions: [],
-                            availableFeeTypes: allFeeTypes,
-                            checkoutDate: '',
-                            isEarlyCheckout: false,
-                            earlyDays: 0,
-                            autoDeductionTotal: 0,
-
-                            init() {
-                                this.$watch('checkoutDate', (value) => {
-                                    console.log('🔄 [Alpine Watcher] checkoutDate changed to:', value);
-                                    this.evaluateEarlyCheckout();
-                                });
-                            },
-
-                            evaluateEarlyCheckout() {
-                                const leaseSelect = document.getElementById('lease_id');
+                            <div id="agreement_template_section" class="mt-4">
+                                <div class="flex justify-between items-center mb-1">
+                                    <x-form.input-label value="Agreements Template" :required="true" />
+                                    <button type="button" id="preview-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
+                                        Preview Template
+                                    </button>
+                                </div>
                                 
-                                if (!leaseSelect || !leaseSelect.value || !this.checkoutDate) {
-                                    this.isEarlyCheckout = false;
-                                    this.earlyDays = 0;
-                                    return;
-                                }
+                                <x-form.input-select
+                                    name="document_id"
+                                    id="document_id"
+                                    :options="$templates->map(fn($t) => [
+                                        'value' => (string)$t->id,
+                                        'label' => $t->title . ' (v' . $t->version . ') - ' . $t->user->name,
+                                        'data-agreement-user-id' => $t->user->id
+                                    ])->values()"
+                                    valueField="value"
+                                    labelField="label"
+                                    :value="old('document_id')"
+                                    :ignore-checkout-or-renew="true"
+                                />
+                                
+                                <x-form.input-error :messages="$errors->get('document_id')" class="mt-1" />
+                            </div>
 
-                                const selectedLease = allLeases[leaseSelect.value];
-                                if (!selectedLease || !selectedLease.end_date) {
-                                    this.isEarlyCheckout = false;
-                                    this.earlyDays = 0;
-                                    return;
-                                }
+                            <x-preview-agreement-modal />
+                            
+                            <!-- CHECKOUT REFUND SECTION -->
+                            <div id="checkout_refund_section" class="mt-4 hidden space-y-4"
+                            x-data="{
+                                manualDeductions: [],
+                                availableFeeTypes: allFeeTypes,
+                                checkoutDate: '',
+                                isEarlyCheckout: false,
+                                earlyDays: 0,
+                                autoDeductionTotal: 0,
 
-                                let checkoutDateObj;
-                                if (this.checkoutDate.includes('-')) {
-                                    checkoutDateObj = new Date(this.checkoutDate);
-                                } else if (this.checkoutDate.includes('/')) {
-                                    const parts = this.checkoutDate.split('/');
-                                    if (parts.length !== 3) {
+                                init() {
+                                    this.$watch('checkoutDate', (value) => {
+                                        console.log('🔄 [Alpine Watcher] checkoutDate changed to:', value);
+                                        this.evaluateEarlyCheckout();
+                                    });
+                                },
+
+                                evaluateEarlyCheckout() {
+                                    const leaseSelect = document.getElementById('lease_id');
+                                    
+                                    if (!leaseSelect || !leaseSelect.value || !this.checkoutDate) {
                                         this.isEarlyCheckout = false;
                                         this.earlyDays = 0;
                                         return;
                                     }
-                                    checkoutDateObj = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
-                                }
 
-                                const leaseEndDateObj = new Date(selectedLease.end_date.split('T')[0]);
-                                
-                                this.isEarlyCheckout = checkoutDateObj < leaseEndDateObj;
-
-                                if (this.isEarlyCheckout) {
-                                    const diffTime = Math.abs(leaseEndDateObj - checkoutDateObj);
-                                    this.earlyDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                } else {
-                                    this.earlyDays = 0;
-                                }
-
-                                console.log('📅 [Early Days Calculation]:', {
-                                    checkout: checkoutDateObj,
-                                    leaseEnd: leaseEndDateObj,
-                                    earlyDays: this.earlyDays
-                                });
-                            },
-                            addDeductionRow() {
-                                this.manualDeductions.push({ fee_type_id: '', qty: 1, sell_price: 0 });
-                            },
-                            removeDeductionRow(index) {
-                                this.manualDeductions.splice(index, 1);
-                            },
-                            updateItemPrice(index, eventOrId) {
-                                let feeTypeId = eventOrId;
-                                if (eventOrId && typeof eventOrId === 'object') {
-                                    feeTypeId = eventOrId.detail?.value || eventOrId.target?.value || eventOrId.value;
-                                }
-                                
-                                // Explicitly assign it to the reactive item object
-                                this.manualDeductions[index].fee_type_id = feeTypeId;
-
-                                let found = this.availableFeeTypes.find(f => f.id == feeTypeId);
-                                if (found) {
-                                    this.manualDeductions[index].sell_price = (found.sell_price || 0) / 100;
-                                } else {
-                                    this.manualDeductions[index].sell_price = 0;
-                                }
-                            },
-                            calculateManualTotal() {
-                                return this.manualDeductions.reduce((sum, item) => {
-                                    let qty = parseFloat(item.qty) || 0;
-                                    let price = parseFloat(item.sell_price) || 0;
-                                    return sum + (qty * price);
-                                }, 0);
-                            },
-                            handleFeeTypeAdded(detail) {
-                                this.availableFeeTypes.push(detail);
-                                let lastItem = this.manualDeductions[this.manualDeductions.length - 1];
-                                if (lastItem && !lastItem.fee_type_id) {
-                                    lastItem.fee_type_id = detail.id;
-                                    this.updateItemPrice(this.manualDeductions.length - 1, detail.id);
-                                }
-                            },
-                            get activeRefund() {
-                                if (!this.formLeaseId || !window.leasePreviewData) return null;
-                                const preview = window.leasePreviewData[this.formLeaseId];
-                                return preview?.active_refund || null;
-                            },
-                            get refundStatus() {
-                                if (!this.formLeaseId || !window.leasePreviewData) return 'none';
-                                const preview = window.leasePreviewData[this.formLeaseId];
-                                // Handle both string and Enum object serialization safely
-                                const status = preview?.active_refund?.status;
-                                if (!status) return 'none';
-                                return typeof status === 'object' ? (status.value || 'none') : String(status).toLowerCase();
-                            }
-                        }"
-                        @fee-type-added.window="handleFeeTypeAdded($event.detail)">
-                            
-                            {{-- Professional Process Stepper Header --}}
-                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-4">
-                                <div class="flex items-center justify-between mb-3">
-                                    <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                                        {{ __('Refund Workflow Progress') }}
-                                    </h4>
-                                    <span x-show="isEarlyCheckout" class="px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-red-700 rounded-full border border-red-200" x-cloak>
-                                        Early Check Out (<span x-text="earlyDays"></span> days early)
-                                    </span>
-                                </div>
-
-                                <div class="grid grid-cols-9 gap-1 items-center text-center text-xs font-semibold w-full" x-data="{
-                                    getCurrentStep() {
-                                        const map = { 'none': 1, 'draft': 2, 'pending': 3, 'approved': 4, 'paid': 5 };
-                                        return map[this.refundStatus] || 1;
+                                    const selectedLease = allLeases[leaseSelect.value];
+                                    if (!selectedLease || !selectedLease.end_date) {
+                                        this.isEarlyCheckout = false;
+                                        this.earlyDays = 0;
+                                        return;
                                     }
-                                }">
-                                    {{-- Step 1: Initial --}}
-                                    <div class="col-span-1 flex flex-col items-center gap-1.5">
-                                        <div :class="getCurrentStep() > 1 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 1 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
-                                            class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
-                                            1
-                                        </div>
-                                        <span :class="getCurrentStep() === 1 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 1 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Initial</span>
-                                    </div>
 
-                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 1 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
+                                    let checkoutDateObj;
+                                    if (this.checkoutDate.includes('-')) {
+                                        checkoutDateObj = new Date(this.checkoutDate);
+                                    } else if (this.checkoutDate.includes('/')) {
+                                        const parts = this.checkoutDate.split('/');
+                                        if (parts.length !== 3) {
+                                            this.isEarlyCheckout = false;
+                                            this.earlyDays = 0;
+                                            return;
+                                        }
+                                        checkoutDateObj = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+                                    }
 
-                                    {{-- Step 2: Draft --}}
-                                    <div class="col-span-1 flex flex-col items-center gap-1.5">
-                                        <div :class="getCurrentStep() > 2 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 2 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
-                                            class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
-                                            2
-                                        </div>
-                                        <span :class="getCurrentStep() === 2 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 2 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Draft</span>
-                                    </div>
+                                    const leaseEndDateObj = new Date(selectedLease.end_date.split('T')[0]);
+                                    
+                                    this.isEarlyCheckout = checkoutDateObj < leaseEndDateObj;
 
-                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 2 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
+                                    if (this.isEarlyCheckout) {
+                                        const diffTime = Math.abs(leaseEndDateObj - checkoutDateObj);
+                                        this.earlyDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                    } else {
+                                        this.earlyDays = 0;
+                                    }
 
-                                    {{-- Step 3: Pending --}}
-                                    <div class="col-span-1 flex flex-col items-center gap-1.5">
-                                        <div :class="getCurrentStep() > 3 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 3 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
-                                            class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
-                                            3
-                                        </div>
-                                        <span :class="getCurrentStep() === 3 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 3 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Pending</span>
-                                    </div>
+                                    console.log('📅 [Early Days Calculation]:', {
+                                        checkout: checkoutDateObj,
+                                        leaseEnd: leaseEndDateObj,
+                                        earlyDays: this.earlyDays
+                                    });
+                                },
+                                addDeductionRow() {
+                                    this.manualDeductions.push({ fee_type_id: '', qty: 1, sell_price: 0 });
+                                },
+                                removeDeductionRow(index) {
+                                    this.manualDeductions.splice(index, 1);
+                                },
+                                updateItemPrice(index, eventOrId) {
+                                    let feeTypeId = eventOrId;
+                                    if (eventOrId && typeof eventOrId === 'object') {
+                                        feeTypeId = eventOrId.detail?.value || eventOrId.target?.value || eventOrId.value;
+                                    }
+                                    
+                                    // Explicitly assign it to the reactive item object
+                                    this.manualDeductions[index].fee_type_id = feeTypeId;
 
-                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 3 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
-
-                                    {{-- Step 4: Approved --}}
-                                    <div class="col-span-1 flex flex-col items-center gap-1.5">
-                                        <div :class="getCurrentStep() > 4 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 4 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
-                                            class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
-                                            4
-                                        </div>
-                                        <span :class="getCurrentStep() === 4 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 4 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Approved</span>
-                                    </div>
-
-                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 4 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
-
-                                    {{-- Step 5: Refunded --}}
-                                    <div class="col-span-1 flex flex-col items-center gap-1.5">
-                                        <div :class="getCurrentStep() === 5 ? 'bg-emerald-600 text-white ring-4 ring-emerald-100' : 'bg-slate-200 text-slate-600'" 
-                                            class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
-                                            5
-                                        </div>
-                                        <span :class="getCurrentStep() === 5 ? 'text-emerald-600 font-bold' : 'text-slate-500'" class="whitespace-nowrap">Refunded</span>
-                                    </div>
-                                </div>
-
-                            {{-- Sticky Header Bar (Fixed with proper sticky classes and background) --}}
-                            <div class="sticky top-0 z-20 mt-4 bg-white py-3 px-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                                <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                                    {{ __('Refund Settlement Items') }}
-                                </h4>
-
-                                {{-- Action Buttons --}}
-                                <div class="flex items-center gap-3" x-show="['none', 'draft'].includes(refundStatus)">
-                                    <button type="button" @click="$dispatch('open-fee-type-modal', { category: 'item' })" class="inline-flex items-center text-xs font-bold text-gray-600 hover:text-indigo-600 transition-colors">
-                                        + Add Fee Type
-                                    </button>
-                                    <button type="button" @click="addDeductionRow()" class="inline-flex items-center text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
-                                        + Add Deduction Item
-                                    </button>
-                                </div>
-                            </div>
-
-                            {{-- Main Summary Card --}}
-                            <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-4">
+                                    let found = this.availableFeeTypes.find(f => f.id == feeTypeId);
+                                    if (found) {
+                                        this.manualDeductions[index].sell_price = (found.sell_price || 0) / 100;
+                                    } else {
+                                        this.manualDeductions[index].sell_price = 0;
+                                    }
+                                },
+                                calculateManualTotal() {
+                                    return this.manualDeductions.reduce((sum, item) => {
+                                        let qty = parseFloat(item.qty) || 0;
+                                        let price = parseFloat(item.sell_price) || 0;
+                                        return sum + (qty * price);
+                                    }, 0);
+                                },
+                                handleFeeTypeAdded(detail) {
+                                    this.availableFeeTypes.push(detail);
+                                    let lastItem = this.manualDeductions[this.manualDeductions.length - 1];
+                                    if (lastItem && !lastItem.fee_type_id) {
+                                        lastItem.fee_type_id = detail.id;
+                                        this.updateItemPrice(this.manualDeductions.length - 1, detail.id);
+                                    }
+                                },
+                                get activeRefund() {
+                                    if (!this.formLeaseId || !window.leasePreviewData) return null;
+                                    const preview = window.leasePreviewData[this.formLeaseId];
+                                    return preview?.active_refund || null;
+                                },
+                                get refundStatus() {
+                                    if (!this.formLeaseId || !window.leasePreviewData) return 'none';
+                                    const preview = window.leasePreviewData[this.formLeaseId];
+                                    // Handle both string and Enum object serialization safely
+                                    const status = preview?.active_refund?.status;
+                                    if (!status) return 'none';
+                                    return typeof status === 'object' ? (status.value || 'none') : String(status).toLowerCase();
+                                }
+                            }"
+                            @fee-type-added.window="handleFeeTypeAdded($event.detail)">
                                 
-                                {{-- Total Deposit Collected --}}
-                                <div class="flex justify-between items-center pb-3 border-b border-slate-100">
-                                    <span class="text-xs font-bold uppercase tracking-wider text-gray-500">{{ __('Total Deposit Collected') }}</span>
-                                    <span id="checkout-total-deposit" class="text-sm font-bold text-gray-900">RM 0.00</span>
-                                </div>
-
-                                {{-- 1. Auto-detected Unpaid Invoices Container --}}
-                                <div id="auto-deductions-container" class="hidden space-y-2 pb-3 border-b border-slate-100">
-                                    <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">{{ __('Auto-Detected Unpaid Invoices') }}</span>
-                                    <div id="auto-deductions-list" class="space-y-2 text-xs">
-                                        <!-- Dynamically injected unpaid invoices will appear here -->
-                                    </div>
-                                </div>
-
-                                {{-- 2. Custom Deductions & Charges Section --}}
-                                <div class="space-y-3 pt-1" x-show="manualDeductions.length > 0 || refundStatus === 'none' || refundStatus === 'draft'" x-transition>
-                                    <div class="flex items-center justify-between" x-show="['none', 'draft'].includes(refundStatus) || manualDeductions.length > 0">
-                                        <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{{ __('Custom Deductions & Charges') }}</span>
+                                {{-- Professional Process Stepper Header --}}
+                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-4">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                            {{ __('Refund Workflow Progress') }}
+                                        </h4>
+                                        <span x-show="isEarlyCheckout" class="px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider bg-red-100 text-red-700 rounded-full border border-red-200" x-cloak>
+                                            Early Check Out (<span x-text="earlyDays"></span> days early)
+                                        </span>
                                     </div>
 
-                                    <div class="space-y-2">
-                                        <template x-for="(item, index) in manualDeductions" :key="index">
-                                            <div class="flex items-center gap-2 mb-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                                                
-                                                {{-- Remove Button (Hidden if not in Draft/None) --}}
-                                                <button type="button" 
-                                                        x-show="['none', 'draft'].includes(refundStatus)"
-                                                        @click="manualDeductions.splice(index, 1)"
-                                                        class="text-slate-400 hover:text-red-600 p-1 rounded transition"
-                                                        title="Remove item">
-                                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                                    </svg>
-                                                </button>
-
-                                                <!-- Fee Type Select -->
-                                                <div class="flex-1">
-                                                    <!-- Editable Select Component (Shown only during None or Draft) -->
-                                                    <div x-show="['none', 'draft'].includes(refundStatus)">
-                                                        <x-form.input-select
-                                                            x-model="item.fee_type_id"
-                                                            ::name="'items['+index+'][fee_type_id]'"
-                                                            :options="$itemFeeTypes->map(fn($f) => ['value' => (string)$f->id, 'label' => $f->name . ' (Item)'])->values()"
-                                                            placeholder="Select Item"
-                                                            :ignore-checkout-or-renew="true"
-                                                            @change="updateItemPrice(index, $event)" 
-                                                        />
-                                                        <input type="hidden" :name="'items['+index+'][fee_type_id]'" x-model="item.fee_type_id">
-                                                    </div>
-
-                                                    <!-- Read-Only Text Span (Shown during Pending, Approved, or Paid) -->
-                                                    <div x-show="!['none', 'draft'].includes(refundStatus)" class="py-2 text-sm font-medium text-slate-700">
-                                                        <span x-text="
-                                                            (() => {
-                                                                let found = availableFeeTypes.find(f => String(f.id) === String(item.fee_type_id));
-                                                                return found ? found.name + ' (Item)' : 'N/A';
-                                                            })()
-                                                        "></span>
-                                                    </div>
-                                                </div>
-
-                                                <!-- Quantity Display / Input -->
-                                                <div class="w-20">
-                                                    <!-- Editable Input (Shown only during None or Draft) -->
-                                                    <div x-show="['none', 'draft'].includes(refundStatus)">
-                                                        <x-form.text-input 
-                                                            type="number"
-                                                            x-model.number="item.qty" 
-                                                            min="1" 
-                                                            @wheel.prevent 
-                                                        />
-                                                        <input type="hidden" :name="'items['+index+'][qty]'" x-model="item.qty">
-                                                    </div>
-
-                                                    <!-- Read-Only Text Span (Shown during Pending, Approved, or Paid) -->
-                                                    <div x-show="!['none', 'draft'].includes(refundStatus)" class="py-2 text-sm font-medium text-slate-700 text-center">
-                                                        <span x-text="item.qty || 1"></span>
-                                                    </div>
-                                                </div>
-
-                                                <!-- Hidden Input for Sell Price -->
-                                                <input type="hidden" :name="'items['+index+'][sell_price]'" x-model="item.sell_price">
-
-                                                <!-- Computed Total Display -->
-                                                <div class="w-28 text-right pr-1">
-                                                    <span class="text-sm font-semibold text-red-600" 
-                                                        x-text="'RM ' + ((item.qty || 1) * (item.sell_price || 0)).toFixed(2)">
-                                                    </span>
-                                                </div>
-
+                                    <div class="grid grid-cols-9 gap-1 items-center text-center text-xs font-semibold w-full" x-data="{
+                                        getCurrentStep() {
+                                            const map = { 'none': 1, 'draft': 2, 'pending': 3, 'approved': 4, 'paid': 5 };
+                                            return map[this.refundStatus] || 1;
+                                        }
+                                    }">
+                                        {{-- Step 1: Initial --}}
+                                        <div class="col-span-1 flex flex-col items-center gap-1.5">
+                                            <div :class="getCurrentStep() > 1 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 1 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
+                                                class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
+                                                1
                                             </div>
-                                        </template>
-                                    </div>
-                                </div>
-
-                                {{-- Final Net Summary Calculation Footer --}}
-                                <div class="pt-3 border-t border-gray-200 space-y-2">
-                                    <div class="flex justify-between items-center text-xs text-gray-600">
-                                        <span>{{ __('Total Deductions (Auto + Custom):') }}</span>
-                                        <span class="font-semibold text-red-600">- RM <span id="checkout-total-deductions" x-text="(autoDeductionTotal + calculateManualTotal()).toFixed(2)">0.00</span></span>
-                                    </div>
-
-                                    <div class="flex justify-between items-center text-base font-bold text-gray-900 pt-1">
-                                        <span>{{ __('Nett Refund Amount:') }}</span>
-                                        <span id="checkout-net-refund" class="text-indigo-600 text-lg font-bold" x-text="'RM ' + Math.max(0, (parseFloat(window.checkoutTotalDepositValue || 0) - (autoDeductionTotal + calculateManualTotal()))).toFixed(2)">RM 0.00</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        @endcan
-
-                        <x-modals.add-fee-type-modal />
-
-                        <div id="lease_charges_section" class="space-y-4 border-t border-gray-200 pt-6">
-                            <div class="flex justify-between items-center">
-                                <x-form.input-label value="Lease Charges & Deposits" :required="true" />
-                                <button type="button" onclick="addChargeRow()" class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-lg hover:bg-indigo-100 transition-colors">
-                                    + Add Charge Item
-                                </button>
-                            </div>
-
-                            <div id="charges-container" class="space-y-4">
-                                <div class="charge-row rounded-lg border border-gray-200 bg-gray-50 p-4">
-                                    <div class="flex justify-between items-center mb-2">
-                                        <span class="text-xs font-semibold text-gray-500 tracking-wider">CHARGE ITEM #1</span>
-                                    </div>
-                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                        <div>
-                                            <x-form.input-label value="Charge Type" class="mb-1 text-xs" info="You may hide the charge type if not using it in 'Setting (Lease Settings)'"/>
-                                            <select name="charges[0][fee_type_id]" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                                <option value="">-- Select Fee Type --</option>
-                                                @foreach($rentFeeTypes as $feeType)
-                                                    <option value="{{ $feeType->id }}" data-type="rent">{{ $feeType->name }}</option>
-                                                @endforeach
-
-                                                @foreach($serviceFeeTypes as $serviceType)
-                                                    <option value="{{ $serviceType->id }}">{{ $serviceType->name }} (Service)</option>
-                                                @endforeach
-
-                                                @foreach($depositFeeTypes as $depositType)
-                                                    <option value="{{ $depositType->id }}">{{ $depositType->name }} (Deposit)</option>
-                                                @endforeach
-
-                                                @foreach($managementFeeTypes as $managementType)
-                                                    <option value="{{ $managementType->id }}">{{ $managementType->name }} (Management)</option>
-                                                @endforeach
-                                            </select>
+                                            <span :class="getCurrentStep() === 1 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 1 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Initial</span>
                                         </div>
 
-                                        <div>
-                                            <x-form.input-label value="Amount (RM)" class="mb-1 text-xs" />
-                                            <x-form.text-input type="text" name="charges[0][amount]" placeholder="0.00" class="w-full text-sm" />
+                                        <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 1 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
+
+                                        {{-- Step 2: Draft --}}
+                                        <div class="col-span-1 flex flex-col items-center gap-1.5">
+                                            <div :class="getCurrentStep() > 2 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 2 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
+                                                class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
+                                                2
+                                            </div>
+                                            <span :class="getCurrentStep() === 2 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 2 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Draft</span>
+                                        </div>
+
+                                        <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 2 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
+
+                                        {{-- Step 3: Pending --}}
+                                        <div class="col-span-1 flex flex-col items-center gap-1.5">
+                                            <div :class="getCurrentStep() > 3 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 3 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
+                                                class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
+                                                3
+                                            </div>
+                                            <span :class="getCurrentStep() === 3 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 3 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Pending</span>
+                                        </div>
+
+                                        <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 3 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
+
+                                        {{-- Step 4: Approved --}}
+                                        <div class="col-span-1 flex flex-col items-center gap-1.5">
+                                            <div :class="getCurrentStep() > 4 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 4 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
+                                                class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
+                                                4
+                                            </div>
+                                            <span :class="getCurrentStep() === 4 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 4 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Approved</span>
+                                        </div>
+
+                                        <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 4 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
+
+                                        {{-- Step 5: Refunded --}}
+                                        <div class="col-span-1 flex flex-col items-center gap-1.5">
+                                            <div :class="getCurrentStep() === 5 ? 'bg-emerald-600 text-white ring-4 ring-emerald-100' : 'bg-slate-200 text-slate-600'" 
+                                                class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
+                                                5
+                                            </div>
+                                            <span :class="getCurrentStep() === 5 ? 'text-emerald-600 font-bold' : 'text-slate-500'" class="whitespace-nowrap">Refunded</span>
+                                        </div>
+                                    </div>
+
+                                {{-- Sticky Header Bar (Fixed with proper sticky classes and background) --}}
+                                <div class="sticky top-0 z-20 mt-4 bg-white py-3 px-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
+                                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                        {{ __('Refund Settlement Items') }}
+                                    </h4>
+
+                                    {{-- Action Buttons --}}
+                                    <div class="flex items-center gap-3" x-show="['none', 'draft'].includes(refundStatus)">
+                                        <button type="button" @click="$dispatch('open-fee-type-modal', { category: 'item' })" class="inline-flex items-center text-xs font-bold text-gray-600 hover:text-indigo-600 transition-colors">
+                                            + Add Fee Type
+                                        </button>
+                                        <button type="button" @click="addDeductionRow()" class="inline-flex items-center text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                            + Add Deduction Item
+                                        </button>
+                                    </div>
+                                </div>
+
+                                {{-- Main Summary Card --}}
+                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-4">
+                                    
+                                    {{-- Total Deposit Collected --}}
+                                    <div class="flex justify-between items-center pb-3 border-b border-slate-100">
+                                        <span class="text-xs font-bold uppercase tracking-wider text-gray-500">{{ __('Total Deposit Collected') }}</span>
+                                        <span id="checkout-total-deposit" class="text-sm font-bold text-gray-900">RM 0.00</span>
+                                    </div>
+
+                                    {{-- 1. Auto-detected Unpaid Invoices Container --}}
+                                    <div id="auto-deductions-container" class="hidden space-y-2 pb-3 border-b border-slate-100">
+                                        <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">{{ __('Auto-Detected Unpaid Invoices') }}</span>
+                                        <div id="auto-deductions-list" class="space-y-2 text-xs">
+                                            <!-- Dynamically injected unpaid invoices will appear here -->
+                                        </div>
+                                    </div>
+
+                                    {{-- 2. Custom Deductions & Charges Section --}}
+                                    <div class="space-y-3 pt-1" x-show="manualDeductions.length > 0 || refundStatus === 'none' || refundStatus === 'draft'" x-transition>
+                                        <div class="flex items-center justify-between" x-show="['none', 'draft'].includes(refundStatus) || manualDeductions.length > 0">
+                                            <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{{ __('Custom Deductions & Charges') }}</span>
+                                        </div>
+
+                                        <div class="space-y-2">
+                                            <template x-for="(item, index) in manualDeductions" :key="index">
+                                                <div class="flex items-center gap-2 mb-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                                    
+                                                    {{-- Remove Button (Hidden if not in Draft/None) --}}
+                                                    <button type="button" 
+                                                            x-show="['none', 'draft'].includes(refundStatus)"
+                                                            @click="manualDeductions.splice(index, 1)"
+                                                            class="text-slate-400 hover:text-red-600 p-1 rounded transition"
+                                                            title="Remove item">
+                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                        </svg>
+                                                    </button>
+
+                                                    <!-- Fee Type Select -->
+                                                    <div class="flex-1">
+                                                        <!-- Editable Select Component (Shown only during None or Draft) -->
+                                                        <div x-show="['none', 'draft'].includes(refundStatus)">
+                                                            <x-form.input-select
+                                                                x-model="item.fee_type_id"
+                                                                ::name="'items['+index+'][fee_type_id]'"
+                                                                :options="$itemFeeTypes->map(fn($f) => ['value' => (string)$f->id, 'label' => $f->name . ' (Item)'])->values()"
+                                                                placeholder="Select Item"
+                                                                :ignore-checkout-or-renew="true"
+                                                                @change="updateItemPrice(index, $event)" 
+                                                            />
+                                                            <input type="hidden" :name="'items['+index+'][fee_type_id]'" x-model="item.fee_type_id">
+                                                        </div>
+
+                                                        <!-- Read-Only Text Span (Shown during Pending, Approved, or Paid) -->
+                                                        <div x-show="!['none', 'draft'].includes(refundStatus)" class="py-2 text-sm font-medium text-slate-700">
+                                                            <span x-text="
+                                                                (() => {
+                                                                    let found = availableFeeTypes.find(f => String(f.id) === String(item.fee_type_id));
+                                                                    return found ? found.name + ' (Item)' : 'N/A';
+                                                                })()
+                                                            "></span>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Quantity Display / Input -->
+                                                    <div class="w-20">
+                                                        <!-- Editable Input (Shown only during None or Draft) -->
+                                                        <div x-show="['none', 'draft'].includes(refundStatus)">
+                                                            <x-form.text-input 
+                                                                type="number"
+                                                                x-model.number="item.qty" 
+                                                                min="1" 
+                                                                @wheel.prevent 
+                                                            />
+                                                            <input type="hidden" :name="'items['+index+'][qty]'" x-model="item.qty">
+                                                        </div>
+
+                                                        <!-- Read-Only Text Span (Shown during Pending, Approved, or Paid) -->
+                                                        <div x-show="!['none', 'draft'].includes(refundStatus)" class="py-2 text-sm font-medium text-slate-700 text-center">
+                                                            <span x-text="item.qty || 1"></span>
+                                                        </div>
+                                                    </div>
+
+                                                    <!-- Hidden Input for Sell Price -->
+                                                    <input type="hidden" :name="'items['+index+'][sell_price]'" x-model="item.sell_price">
+
+                                                    <!-- Computed Total Display -->
+                                                    <div class="w-28 text-right pr-1">
+                                                        <span class="text-sm font-semibold text-red-600" 
+                                                            x-text="'RM ' + ((item.qty || 1) * (item.sell_price || 0)).toFixed(2)">
+                                                        </span>
+                                                    </div>
+
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+
+                                    {{-- Final Net Summary Calculation Footer --}}
+                                    <div class="pt-3 border-t border-gray-200 space-y-2">
+                                        <div class="flex justify-between items-center text-xs text-gray-600">
+                                            <span>{{ __('Total Deductions (Auto + Custom):') }}</span>
+                                            <span class="font-semibold text-red-600">- RM <span id="checkout-total-deductions" x-text="(autoDeductionTotal + calculateManualTotal()).toFixed(2)">0.00</span></span>
+                                        </div>
+
+                                        <div class="flex justify-between items-center text-base font-bold text-gray-900 pt-1">
+                                            <span>{{ __('Nett Refund Amount:') }}</span>
+                                            <span id="checkout-net-refund" class="text-indigo-600 text-lg font-bold" x-text="'RM ' + Math.max(0, (parseFloat(window.checkoutTotalDepositValue || 0) - (autoDeductionTotal + calculateManualTotal()))).toFixed(2)">RM 0.00</span>
                                         </div>
                                     </div>
                                 </div>
                             </div>
-                            <x-form.input-error :messages="$errors->get('charges')" class="mt-1" />
+
+                            <x-modals.add-fee-type-modal />
+
+                            <div id="lease_charges_section" class="space-y-4 border-t border-gray-200 pt-6">
+                                <div class="flex justify-between items-center">
+                                    <x-form.input-label value="Lease Charges & Deposits" :required="true" />
+                                    <button type="button" onclick="addChargeRow()" class="px-3 py-1.5 bg-indigo-50 text-indigo-600 text-xs font-semibold rounded-lg hover:bg-indigo-100 transition-colors">
+                                        + Add Charge Item
+                                    </button>
+                                </div>
+
+                                <div id="charges-container" class="space-y-4">
+                                    <div class="charge-row rounded-lg border border-gray-200 bg-gray-50 p-4">
+                                        <div class="flex justify-between items-center mb-2">
+                                            <span class="text-xs font-semibold text-gray-500 tracking-wider">CHARGE ITEM #1</span>
+                                        </div>
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                            <div>
+                                                <x-form.input-label value="Charge Type" class="mb-1 text-xs" info="You may hide the charge type if not using it in 'Setting (Lease Settings)'"/>
+                                                <select name="charges[0][fee_type_id]" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
+                                                    <option value="">-- Select Fee Type --</option>
+                                                    @foreach($rentFeeTypes as $feeType)
+                                                        <option value="{{ $feeType->id }}" data-type="rent">{{ $feeType->name }}</option>
+                                                    @endforeach
+
+                                                    @foreach($serviceFeeTypes as $serviceType)
+                                                        <option value="{{ $serviceType->id }}">{{ $serviceType->name }} (Service)</option>
+                                                    @endforeach
+
+                                                    @foreach($depositFeeTypes as $depositType)
+                                                        <option value="{{ $depositType->id }}">{{ $depositType->name }} (Deposit)</option>
+                                                    @endforeach
+
+                                                    @foreach($managementFeeTypes as $managementType)
+                                                        <option value="{{ $managementType->id }}">{{ $managementType->name }} (Management)</option>
+                                                    @endforeach
+                                                </select>
+                                            </div>
+
+                                            <div>
+                                                <x-form.input-label value="Amount (RM)" class="mb-1 text-xs" />
+                                                <x-form.text-input type="text" name="charges[0][amount]" placeholder="0.00" class="w-full text-sm" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <x-form.input-error :messages="$errors->get('charges')" class="mt-1" />
+                            </div>
+
+                            <div id="bring_forward_notice" class="hidden col-span-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                                <p class="text-sm text-blue-800">
+                                    <span class="font-semibold">Previous Deposits & Charges:</span>
+                                    <span id="bring-forward-items-container" class="inline">
+                                        <!-- Dynamically injected items will appear here -->
+                                    </span>
+                                    <span class="block mt-1 text-xs text-blue-600 italic">These amounts are brought forward from your previous lease.</span>
+                                </p>
+                            </div>
                         </div>
 
-                        <div id="bring_forward_notice" class="hidden col-span-3 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                            <p class="text-sm text-blue-800">
-                                <span class="font-semibold">Previous Deposits & Charges:</span>
-                                <span id="bring-forward-items-container" class="inline">
-                                    <!-- Dynamically injected items will appear here -->
-                                </span>
-                                <span class="block mt-1 text-xs text-blue-600 italic">These amounts are brought forward from your previous lease.</span>
-                            </p>
-                        </div>
-                    </div>
-
-                    {{-- Dynamic Footer Buttons based on Refund Lifecycle (Fixed / Sticky to Modal Bottom) --}}
-                    <div class="sticky bottom-0 z-30 px-8 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-lg flex items-center justify-end gap-3"
-                        x-data="{
-                            get activeRefund() {
-                                if (!this.formLeaseId || !window.leasePreviewData) return null;
-                                const preview = window.leasePreviewData[this.formLeaseId];
-                                return preview?.active_refund || null;
-                            },
-                            get currentRefundId() {
-                                return this.activeRefund?.id || '';
-                            }
-                        }">
-                        
-                        {{-- Hidden input to pass active refund ID to controller when clicking approve/disburse --}}
-                        <input type="hidden" name="refund_id" :value="currentRefundId">
-
-                        <button type="button" @click="open = false" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors">
-                            Cancel
-                        </button>
-                        
-                        <template x-if="action === 'checkout'">
-                            <div class="flex items-center gap-2" x-data="{ 
-                                subAction: '',
-                                submitCheckout(routeUrl, actionName) {
-                                    this.subAction = actionName;
-                                    const form = $el.closest('form');
-                                    form.action = routeUrl;
-                                    form.submit();
+                        {{-- Dynamic Footer Buttons based on Refund Lifecycle (Fixed / Sticky to Modal Bottom) --}}
+                        <div class="sticky bottom-0 z-30 px-8 py-4 bg-white/95 backdrop-blur-sm border-t border-slate-200 shadow-lg flex items-center justify-between gap-3 w-full"
+                            x-data="{
+                                get activeRefund() {
+                                    if (!this.formLeaseId || !window.leasePreviewData) return null;
+                                    const preview = window.leasePreviewData[this.formLeaseId];
+                                    return preview?.active_refund || null;
+                                },
+                                get currentRefundId() {
+                                    return this.activeRefund?.id || '';
                                 }
                             }">
+                            
+                            {{-- Hidden input to pass active refund ID to controller when clicking approve/disburse --}}
+                            <input type="hidden" name="refund_id" :value="currentRefundId">
+
+                            {{-- Left Side / Secondary Actions if needed (or keep empty to push buttons right) --}}
+                            <div></div>
+
+                            <div class="flex items-center gap-3">
+                                <button type="button" @click="open = false" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors">
+                                    Cancel
+                                </button>
                                 
-                                {{-- STEP 1 & 2: Save as Draft or Direct Confirm & Set as Pending --}}
-                                <template x-if="refundStatus === 'none' || refundStatus === 'draft'">
-                                    <div class="flex items-center gap-2">
-                                        {{-- Save as Draft Button --}}
-                                        <x-form.secondary-button 
-                                            type="button" 
-                                            loading="subAction === 'draft'" 
-                                            @click="submitCheckout('{{ route('admin.refunds.store-draft') }}', 'draft')"
-                                            class="px-4 py-2.5">
-                                            <span>Save as Draft</span>
-                                        </x-form.secondary-button>
+                                <template x-if="action === 'checkout'">
+                                    <div class="flex items-center gap-2" x-data="{ 
+                                        subAction: '',
+                                        submitCheckout(routeUrl, actionName) {
+                                            this.subAction = actionName;
+                                            const form = $el.closest('form');
+                                            form.action = routeUrl;
+                                            form.submit();
+                                        }
+                                    }">
+                                        
+                                        {{-- STEP 1 & 2: Save as Draft or Direct Confirm & Set as Pending --}}
+                                        <template x-if="refundStatus === 'none' || refundStatus === 'draft'">
+                                            <div class="flex items-center gap-2">
+                                                {{-- Save as Draft Button --}}
+                                                <x-form.secondary-button 
+                                                    type="button" 
+                                                    loading="subAction === 'draft'" 
+                                                    @click="submitCheckout('{{ route('admin.refunds.store-draft') }}', 'draft')"
+                                                    class="px-4 py-2.5">
+                                                    <span>Save as Draft</span>
+                                                </x-form.secondary-button>
 
-                                        {{-- Confirm & Set as Pending Button (Direct Action) --}}
-                                        <x-form.primary-button 
-                                            type="button" 
-                                            loading="subAction === 'pending'" 
-                                            @click="submitCheckout('{{ route('admin.refunds.submit-pending') }}', 'pending')"
-                                            class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700">
-                                            <span>Confirm & Set as Pending</span>
-                                        </x-form.primary-button>
+                                                {{-- Confirm & Set as Pending Button (Direct Action) --}}
+                                                <x-form.primary-button 
+                                                    type="button" 
+                                                    loading="subAction === 'pending'" 
+                                                    @click="submitCheckout('{{ route('admin.refunds.submit-pending') }}', 'pending')"
+                                                    class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700">
+                                                    <span>Confirm & Set as Pending</span>
+                                                </x-form.primary-button>
+                                            </div>
+                                        </template>
+
+                                        {{-- STEP 3: PENDING -> Approve or Reject Refund --}}
+                                        <template x-if="refundStatus === 'pending'">
+                                            <div class="flex items-center gap-2">
+                                                {{-- Reject / Send Back Button --}}
+                                                <x-form.secondary-button 
+                                                    loading="subAction === 'reject'" 
+                                                    @click="submitCheckout('{{ route('admin.refunds.reject') }}', 'reject')"
+                                                    class="!bg-red-600 !text-white !border-red-600 hover:!bg-red-700 focus:!ring-red-500">
+                                                    Reject / Send Back
+                                                </x-form.secondary-button>
+
+                                                {{-- Approve Button --}}
+                                                <x-form.primary-button 
+                                                    type="button" 
+                                                    loading="subAction === 'approve'" 
+                                                    @click="submitCheckout('{{ route('admin.refunds.approve') }}', 'approve')"
+                                                    class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700">
+                                                    <span>Approve Refund</span>
+                                                </x-form.primary-button>
+                                            </div>
+                                        </template>
+
+                                        {{-- STEP 4: APPROVED -> Proceed to Final Refund Payout --}}
+                                        <template x-if="refundStatus === 'approved'">
+                                            <x-form.primary-button 
+                                                type="button" 
+                                                loading="subAction === 'disburse'" 
+                                                @click="submitCheckout('{{ route('admin.refunds.disburse') }}', 'disburse')"
+                                                class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700">
+                                                <span>Proceed to Refund</span>
+                                            </x-form.primary-button>
+                                        </template>
+
+                                        {{-- STEP 5: PAID / REFUNDED (Finished State) --}}
+                                        <template x-if="refundStatus === 'paid'">
+                                            <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
+                                                ✓ Refund Completed
+                                            </span>
+                                        </template>
+
                                     </div>
                                 </template>
 
-                                {{-- STEP 3: PENDING -> Approve or Reject Refund --}}
-                                <template x-if="refundStatus === 'pending'">
-                                    <div class="flex items-center gap-2">
-                                        {{-- Reject / Send Back Button --}}
-                                        <x-form.secondary-button 
-                                            loading="subAction === 'reject'" 
-                                            @click="submitCheckout('{{ route('admin.refunds.reject') }}', 'reject')"
-                                            class="!bg-red-600 !text-white !border-red-600 hover:!bg-red-700 focus:!ring-red-500">
-                                            Reject / Send Back
-                                        </x-form.secondary-button>
-
-                                        {{-- Approve Button --}}
-                                        <x-form.primary-button 
-                                            type="button" 
-                                            loading="subAction === 'approve'" 
-                                            @click="submitCheckout('{{ route('admin.refunds.approve') }}', 'approve')"
-                                            class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700">
-                                            <span>Approve Refund</span>
-                                        </x-form.primary-button>
-                                    </div>
-                                </template>
-
-                                {{-- STEP 4: APPROVED -> Proceed to Final Refund Payout --}}
-                                <template x-if="refundStatus === 'approved'">
-                                    <x-form.primary-button 
-                                        type="button" 
-                                        loading="subAction === 'disburse'" 
-                                        @click="submitCheckout('{{ route('admin.refunds.disburse') }}', 'disburse')"
-                                        class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700">
-                                        <span>Proceed to Refund</span>
+                                <template x-if="action !== 'checkout'">
+                                    <x-form.primary-button type="submit" loading="loading" class="px-5 py-2.5">
+                                        <span x-text="action === 'renew' ? 'Process Renewal' : 'Create Lease'"></span>
                                     </x-form.primary-button>
                                 </template>
-
-                                {{-- STEP 5: PAID / REFUNDED (Finished State) --}}
-                                <template x-if="refundStatus === 'paid'">
-                                    <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
-                                        ✓ Refund Completed
-                                    </span>
-                                </template>
-
                             </div>
-                        </template>
-
-                        <template x-if="action !== 'checkout'">
-                            <x-form.primary-button type="submit" loading="loading" class="px-5 py-2.5">
-                                <span x-text="action === 'renew' ? 'Process Renewal' : 'Create Lease'"></span>
-                            </x-form.primary-button>
-                        </template>
-                    </div>
-                </x-form.form>
+                        </div>
+                    </x-form.form>
+                </div>
             </div>
-        </div>
+        </template>
     </div>
 </div>
 

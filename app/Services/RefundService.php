@@ -17,6 +17,11 @@ class RefundService {
 
         return DB::transaction(function () use ($lease, $data, $items, $actualUser, $effectiveUser) {
             
+            // 🌟 0. Automatically set the lease status to 'Check Out' when a refund draft starts/updates
+            if (strtolower($lease->status) !== 'check out') {
+                $lease->update(['status' => 'Check Out']);
+            }
+
             $grossCents = 0;
             $deductionCents = 0;
 
@@ -78,14 +83,57 @@ class RefundService {
                     $description = $feeType ? $feeType->name : 'Custom Deduction';
                 }
 
+                $qty = (int) ($item['qty'] ?? 1);
+                $amountCents = (int) ($item['amount_cents'] ?? 0);
+
                 $refund->items()->create([
                     'fee_type_id' => $feeTypeId,
                     'type' => $item['type'] ?? RefundItemType::ADJUSTMENT->value,
                     'description' => $description,
-                    'qty' => (int) ($item['qty'] ?? 1),
-                    'amount_cents' => (int) ($item['amount_cents'] ?? 0),
+                    'qty' => $qty,                    
+                    'amount_cents' => $amountCents,   
                     'lease_charge_id' => $item['lease_charge_id'] ?? null,
                     'invoice_item_id' => $item['invoice_item_id'] ?? null,
+                ]);
+            }
+
+            return $refund;
+        });
+    }
+
+    /**
+     * Save the current draft state and transition the status to Pending.
+     */
+    public function submitForPending(Lease $lease, array $data, array $items): Refund 
+    {
+        return DB::transaction(function () use ($lease, $data, $items) {
+            // 1. First save all latest items & calculate header totals (This already updates the lease status to 'Check Out')
+            $refund = $this->saveAsDraft($lease, $data, $items);
+
+            // 2. Just to be completely explicit and safe, ensure lease status is 'Check Out'
+            if (strtolower($lease->status) !== 'check out') {
+                $lease->update(['status' => 'Check Out']);
+            }
+
+            // 3. Lock and transition refund status to PENDING
+            if ($refund->status === RefundStatus::DRAFT) {
+                $refund->update([
+                    'status' => RefundStatus::PENDING,
+                ]);
+            }
+
+            return $refund;
+        });
+    }
+
+    public function rejectRefund(Lease $lease): Refund
+    {
+        return DB::transaction(function () use ($lease) {
+            $refund = $lease->refunds()->latest()->first();
+
+            if ($refund && $refund->status === RefundStatus::PENDING) {
+                $refund->update([
+                    'status' => RefundStatus::DRAFT,
                 ]);
             }
 

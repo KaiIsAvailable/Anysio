@@ -713,17 +713,17 @@ class LeaseService
             }
 
             // 🌟 Retrieve the latest active refund for this lease
-            $activeRefund = $lease->refunds()->latest()->first();
+            $activeRefund = $lease->refunds()->with('items')->latest()->first();
 
             // 🔍 Log the refund data to the 'testing' channel
-            Log::channel('testing')->info('Lease Preview Refund Data Debug:', [
-                'lease_id' => $lease->id,
-                'refund_id' => $activeRefund?->id,
-                'status' => $activeRefund?->status,
-                'items_count' => $activeRefund?->items?->count() ?? 0,
-                'items' => $activeRefund?->items?->toArray() ?? [],
-                'full_refund' => $activeRefund ? $activeRefund->toArray() : null,
-            ]);
+            //Log::channel('testing')->info('Lease Preview Refund Data Debug:', [
+            //    'lease_id' => $lease->id,
+            //    'refund_id' => $activeRefund?->id,
+            //    'status' => $activeRefund?->status,
+            //    'items_count' => $activeRefund?->items?->count() ?? 0,
+            //    'items' => $activeRefund?->items?->toArray() ?? [],
+            //    'full_refund' => $activeRefund ? $activeRefund->toArray() : null,
+            //]);
 
             return array_merge(
                 $lease->toArray(),

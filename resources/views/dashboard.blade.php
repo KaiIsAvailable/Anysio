@@ -197,7 +197,7 @@
                                                     @if($lease->status === 'End')
                                                         <span class="px-2.5 py-1 text-xs font-bold uppercase bg-rose-50 text-rose-600 rounded-full">Ended</span>
                                                     @elseif($lease->is_pending_renewal)
-                                                        <span class="px-2.5 py-1 text-xs font-bold uppercase bg-amber-50 text-amber-600 rounded-full">{{ $lease->status }} (Pending Renewal)</span>
+                                                        <span class="px-2.5 py-1 text-xs font-bold uppercase bg-amber-50 text-amber-600 rounded-full">Pending Renewal</span>
                                                     @else
                                                         <span class="px-2.5 py-1 text-xs font-bold uppercase bg-slate-100 text-slate-600 rounded-full">{{ $lease->status }}</span>
                                                     @endif

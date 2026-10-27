@@ -142,13 +142,24 @@
 
                         {{-- Status --}}
                         <td class="px-6 py-4">
+                            @php
+                                $statusKey = $lease->is_pending_renewal 
+                                    ? 'pending action' 
+                                    : (in_array(strtolower($lease->status ?? ''), ['new', 'renew']) ? 'current' : ($lease->status ?? 'N/A'));
+                                
+                                $badge = get_status_badge($statusKey);
+                            @endphp
+
                             <span class="whitespace-nowrap px-2.5 py-0.5 rounded-full text-sm font-medium {{ $badge }}">
-                                {{ 
-                                    in_array(strtolower($lease->status ?? ''), ['new', 'renew']) 
-                                        ? 'CURRENT' 
-                                        : strtoupper($lease->status ?? 'N/A') 
-                                }} 
-                                @if($lease->is_pending_renewal) (PENDING ACTION) @endif
+                                @if($lease->is_pending_renewal)
+                                    PENDING ACTION
+                                @else
+                                    {{ 
+                                        in_array(strtolower($lease->status ?? ''), ['new', 'renew']) 
+                                            ? 'CURRENT' 
+                                            : strtoupper($lease->status ?? 'N/A') 
+                                    }}
+                                @endif
                             </span>
                         </td>
 
@@ -274,7 +285,26 @@
 
                                             {{-- 4. Check Out --}}
                                             @canany(['owner-admin', 'leases.check out lease'])
-                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end']) || !$lease->is_current)
+                                                @php
+                                                    // Get the latest refund status safely
+                                                    $latestRefund = $lease->refunds()->latest()->first();
+                                                    
+                                                    // Extract string value whether it's an Enum instance, a string, or null
+                                                    $rawStatus = $latestRefund?->status;
+                                                    if ($rawStatus instanceof \BackedEnum) {
+                                                        $rawStatus = $rawStatus->value;
+                                                    }
+                                                    $refundStatus = strtolower(trim($rawStatus ?? 'none'));
+                                                    
+                                                    // Allow if not cancelled/ended, AND (it's not check out OR the refund is NOT paid yet)
+                                                    $leaseStatus = strtolower(trim($lease->status ?? ''));
+                                                    $isCheckOut = $leaseStatus === 'check out';
+                                                    $isPaid = $refundStatus === 'paid';
+                                                    
+                                                    $canShowCheckout = (!in_array($leaseStatus, ['cancelled', 'end'])) && (!$isCheckOut || !$isPaid);
+                                                @endphp
+
+                                                @if($canShowCheckout)
                                                     <button type="button" 
                                                         @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50 transition-colors flex items-center">
@@ -282,7 +312,6 @@
                                                     </button>
                                                 @endif
                                             @endcanany
-
                                             {{-- 5. Cancel Lease --}}
                                             @canany(['owner-admin', 'leases.cancel lease'])
                                                 @if($lease->status != 'cancelled')

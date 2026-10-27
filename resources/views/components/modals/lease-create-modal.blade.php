@@ -272,6 +272,7 @@
 
                         <x-preview-agreement-modal />
 
+                        @can('asdasdasd')
                         <!-- CHECKOUT REFUND SECTION -->
                         <div id="checkout_refund_section" class="mt-4 hidden space-y-4"
                         x-data="{
@@ -407,47 +408,47 @@
                                 }">
                                     {{-- Step 1: Initial --}}
                                     <div class="col-span-1 flex flex-col items-center gap-1.5">
-                                        <div :class="getCurrentStep() > 1 ? 'bg-emerald-500 text-white' : (getCurrentStep() === 1 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
+                                        <div :class="getCurrentStep() > 1 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 1 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
                                             class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
                                             1
                                         </div>
-                                        <span :class="getCurrentStep() === 1 ? 'text-indigo-600 font-bold' : 'text-slate-500'" class="whitespace-nowrap">Initial</span>
+                                        <span :class="getCurrentStep() === 1 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 1 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Initial</span>
                                     </div>
 
-                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 1 ? 'bg-emerald-500' : 'bg-slate-200'"></div>
+                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 1 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
 
                                     {{-- Step 2: Draft --}}
                                     <div class="col-span-1 flex flex-col items-center gap-1.5">
-                                        <div :class="getCurrentStep() > 2 ? 'bg-emerald-500 text-white' : (getCurrentStep() === 2 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
+                                        <div :class="getCurrentStep() > 2 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 2 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
                                             class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
                                             2
                                         </div>
-                                        <span :class="getCurrentStep() === 2 ? 'text-indigo-600 font-bold' : 'text-slate-500'" class="whitespace-nowrap">Draft</span>
+                                        <span :class="getCurrentStep() === 2 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 2 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Draft</span>
                                     </div>
 
-                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 2 ? 'bg-emerald-500' : 'bg-slate-200'"></div>
+                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 2 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
 
                                     {{-- Step 3: Pending --}}
                                     <div class="col-span-1 flex flex-col items-center gap-1.5">
-                                        <div :class="getCurrentStep() > 3 ? 'bg-emerald-500 text-white' : (getCurrentStep() === 3 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
+                                        <div :class="getCurrentStep() > 3 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 3 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
                                             class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
                                             3
                                         </div>
-                                        <span :class="getCurrentStep() === 3 ? 'text-indigo-600 font-bold' : 'text-slate-500'" class="whitespace-nowrap">Pending</span>
+                                        <span :class="getCurrentStep() === 3 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 3 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Pending</span>
                                     </div>
 
-                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 3 ? 'bg-emerald-500' : 'bg-slate-200'"></div>
+                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 3 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
 
                                     {{-- Step 4: Approved --}}
                                     <div class="col-span-1 flex flex-col items-center gap-1.5">
-                                        <div :class="getCurrentStep() > 4 ? 'bg-emerald-500 text-white' : (getCurrentStep() === 4 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
+                                        <div :class="getCurrentStep() > 4 ? 'bg-indigo-500 text-white' : (getCurrentStep() === 4 ? 'bg-indigo-600 text-white ring-4 ring-indigo-100' : 'bg-slate-200 text-slate-600')" 
                                             class="w-7 h-7 rounded-full flex items-center justify-center font-bold transition-all text-xs mx-auto">
                                             4
                                         </div>
-                                        <span :class="getCurrentStep() === 4 ? 'text-indigo-600 font-bold' : 'text-slate-500'" class="whitespace-nowrap">Approved</span>
+                                        <span :class="getCurrentStep() === 4 ? 'text-indigo-600 font-bold' : (getCurrentStep() > 4 ? 'text-indigo-600 font-medium' : 'text-slate-500')" class="whitespace-nowrap">Approved</span>
                                     </div>
 
-                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 4 ? 'bg-emerald-500' : 'bg-slate-200'"></div>
+                                    <div class="col-span-1 h-0.5 -mt-5 transition-all" :class="getCurrentStep() > 4 ? 'bg-indigo-500' : 'bg-slate-200'"></div>
 
                                     {{-- Step 5: Refunded --}}
                                     <div class="col-span-1 flex flex-col items-center gap-1.5">
@@ -458,7 +459,6 @@
                                         <span :class="getCurrentStep() === 5 ? 'text-emerald-600 font-bold' : 'text-slate-500'" class="whitespace-nowrap">Refunded</span>
                                     </div>
                                 </div>
-                            </div>
 
                             {{-- Sticky Header Bar (Fixed with proper sticky classes and background) --}}
                             <div class="sticky top-0 z-20 mt-4 bg-white py-3 px-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -467,7 +467,7 @@
                                 </h4>
 
                                 {{-- Action Buttons --}}
-                                <div class="flex items-center gap-3">
+                                <div class="flex items-center gap-3" x-show="['none', 'draft'].includes(refundStatus)">
                                     <button type="button" @click="$dispatch('open-fee-type-modal', { category: 'item' })" class="inline-flex items-center text-xs font-bold text-gray-600 hover:text-indigo-600 transition-colors">
                                         + Add Fee Type
                                     </button>
@@ -495,8 +495,8 @@
                                 </div>
 
                                 {{-- 2. Custom Deductions & Charges Section --}}
-                                <div class="space-y-3 pt-1" x-show="manualDeductions.length > 0" x-transition>
-                                    <div class="flex items-center justify-between">
+                                <div class="space-y-3 pt-1" x-show="manualDeductions.length > 0 || refundStatus === 'none' || refundStatus === 'draft'" x-transition>
+                                    <div class="flex items-center justify-between" x-show="['none', 'draft'].includes(refundStatus) || manualDeductions.length > 0">
                                         <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{{ __('Custom Deductions & Charges') }}</span>
                                     </div>
 
@@ -504,8 +504,9 @@
                                         <template x-for="(item, index) in manualDeductions" :key="index">
                                             <div class="flex items-center gap-2 mb-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
                                                 
-                                                {{-- 🌟 1. Remove Item Button (Left Side) --}}
+                                                {{-- Remove Button (Hidden if not in Draft/None) --}}
                                                 <button type="button" 
+                                                        x-show="['none', 'draft'].includes(refundStatus)"
                                                         @click="manualDeductions.splice(index, 1)"
                                                         class="text-slate-400 hover:text-red-600 p-1 rounded transition"
                                                         title="Remove item">
@@ -516,27 +517,53 @@
 
                                                 <!-- Fee Type Select -->
                                                 <div class="flex-1">
-                                                    <x-form.input-select
-                                                        x-model="item.fee_type_id"
-                                                        ::name="'items['+index+'][fee_type_id]'"
-                                                        :options="$itemFeeTypes->map(fn($f) => ['value' => (string)$f->id, 'label' => $f->name . ' (Item)'])->values()"
-                                                        placeholder="Select Item"
-                                                        :ignore-checkout-or-renew="true"
-                                                        @change="updateItemPrice(index, $event)" 
-                                                    />
-                                                    <input type="hidden" :name="'items['+index+'][fee_type_id]'" x-model="item.fee_type_id">
+                                                    <!-- Editable Select Component (Shown only during None or Draft) -->
+                                                    <div x-show="['none', 'draft'].includes(refundStatus)">
+                                                        <x-form.input-select
+                                                            x-model="item.fee_type_id"
+                                                            ::name="'items['+index+'][fee_type_id]'"
+                                                            :options="$itemFeeTypes->map(fn($f) => ['value' => (string)$f->id, 'label' => $f->name . ' (Item)'])->values()"
+                                                            placeholder="Select Item"
+                                                            :ignore-checkout-or-renew="true"
+                                                            @change="updateItemPrice(index, $event)" 
+                                                        />
+                                                        <input type="hidden" :name="'items['+index+'][fee_type_id]'" x-model="item.fee_type_id">
+                                                    </div>
+
+                                                    <!-- Read-Only Text Span (Shown during Pending, Approved, or Paid) -->
+                                                    <div x-show="!['none', 'draft'].includes(refundStatus)" class="py-2 text-sm font-medium text-slate-700">
+                                                        <span x-text="
+                                                            (() => {
+                                                                let found = availableFeeTypes.find(f => String(f.id) === String(item.fee_type_id));
+                                                                return found ? found.name + ' (Item)' : 'N/A';
+                                                            })()
+                                                        "></span>
+                                                    </div>
                                                 </div>
 
-                                                <!-- Quantity Input -->
+                                                <!-- Quantity Display / Input -->
                                                 <div class="w-20">
-                                                    <input type="number" 
-                                                        x-model.number="item.qty" 
-                                                        ::name="'items['+index+'][qty]'" 
-                                                        min="1" 
-                                                        class="w-full border-slate-300 rounded-md shadow-sm text-sm">
+                                                    <!-- Editable Input (Shown only during None or Draft) -->
+                                                    <div x-show="['none', 'draft'].includes(refundStatus)">
+                                                        <x-form.text-input 
+                                                            type="number"
+                                                            x-model.number="item.qty" 
+                                                            min="1" 
+                                                            @wheel.prevent 
+                                                        />
+                                                        <input type="hidden" :name="'items['+index+'][qty]'" x-model="item.qty">
+                                                    </div>
+
+                                                    <!-- Read-Only Text Span (Shown during Pending, Approved, or Paid) -->
+                                                    <div x-show="!['none', 'draft'].includes(refundStatus)" class="py-2 text-sm font-medium text-slate-700 text-center">
+                                                        <span x-text="item.qty || 1"></span>
+                                                    </div>
                                                 </div>
 
-                                                <!-- 🌟 2. Computed Total Subtotal Display (Qty * Unit Price) -->
+                                                <!-- Hidden Input for Sell Price -->
+                                                <input type="hidden" :name="'items['+index+'][sell_price]'" x-model="item.sell_price">
+
+                                                <!-- Computed Total Display -->
                                                 <div class="w-28 text-right pr-1">
                                                     <span class="text-sm font-semibold text-red-600" 
                                                         x-text="'RM ' + ((item.qty || 1) * (item.sell_price || 0)).toFixed(2)">
@@ -562,6 +589,7 @@
                                 </div>
                             </div>
                         </div>
+                        @endcan
 
                         <x-modals.add-fee-type-modal />
 
@@ -653,37 +681,49 @@
                                 }
                             }">
                                 
-                                {{-- STEP 1: INITIAL -> Save as Draft --}}
+                                {{-- STEP 1 & 2: Save as Draft or Direct Confirm & Set as Pending --}}
                                 <template x-if="refundStatus === 'none' || refundStatus === 'draft'">
-                                    <x-form.primary-button 
-                                        type="button" 
-                                        loading="subAction === 'draft'" 
-                                        @click="submitCheckout('{{ route('admin.refunds.store-draft') }}', 'draft')"
-                                        class="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700">
-                                        <span>Save as Draft</span>
-                                    </x-form.primary-button>
+                                    <div class="flex items-center gap-2">
+                                        {{-- Save as Draft Button --}}
+                                        <x-form.secondary-button 
+                                            type="button" 
+                                            loading="subAction === 'draft'" 
+                                            @click="submitCheckout('{{ route('admin.refunds.store-draft') }}', 'draft')"
+                                            class="px-4 py-2.5">
+                                            <span>Save as Draft</span>
+                                        </x-form.secondary-button>
+
+                                        {{-- Confirm & Set as Pending Button (Direct Action) --}}
+                                        <x-form.primary-button 
+                                            type="button" 
+                                            loading="subAction === 'pending'" 
+                                            @click="submitCheckout('{{ route('admin.refunds.submit-pending') }}', 'pending')"
+                                            class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700">
+                                            <span>Confirm & Set as Pending</span>
+                                        </x-form.primary-button>
+                                    </div>
                                 </template>
 
-                                {{-- STEP 2: DRAFT -> Confirm/Submit to Pending --}}
-                                <template x-if="refundStatus === 'draft'">
-                                    <x-form.primary-button 
-                                        type="button" 
-                                        loading="subAction === 'pending'" 
-                                        @click="submitCheckout('{{ route('admin.refunds.submit-pending') }}', 'pending')"
-                                        class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700">
-                                        <span>Confirm & Set as Pending</span>
-                                    </x-form.primary-button>
-                                </template>
-
-                                {{-- STEP 3: PENDING -> Approve Refund --}}
+                                {{-- STEP 3: PENDING -> Approve or Reject Refund --}}
                                 <template x-if="refundStatus === 'pending'">
-                                    <x-form.primary-button 
-                                        type="button" 
-                                        loading="subAction === 'approve'" 
-                                        @click="submitCheckout('{{ route('admin.refunds.approve') }}', 'approve')"
-                                        class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700">
-                                        <span>Approve Refund</span>
-                                    </x-form.primary-button>
+                                    <div class="flex items-center gap-2">
+                                        {{-- Reject / Send Back Button --}}
+                                        <x-form.secondary-button 
+                                            loading="subAction === 'reject'" 
+                                            @click="submitCheckout('{{ route('admin.refunds.reject') }}', 'reject')"
+                                            class="!bg-red-600 !text-white !border-red-600 hover:!bg-red-700 focus:!ring-red-500">
+                                            Reject / Send Back
+                                        </x-form.secondary-button>
+
+                                        {{-- Approve Button --}}
+                                        <x-form.primary-button 
+                                            type="button" 
+                                            loading="subAction === 'approve'" 
+                                            @click="submitCheckout('{{ route('admin.refunds.approve') }}', 'approve')"
+                                            class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700">
+                                            <span>Approve Refund</span>
+                                        </x-form.primary-button>
+                                    </div>
                                 </template>
 
                                 {{-- STEP 4: APPROVED -> Proceed to Final Refund Payout --}}
@@ -1302,19 +1342,17 @@
 
                     // 🌟 3. POPULATE SAVED MANUAL DEDUCTIONS IF A DRAFT REFUND EXISTS
                     if (leaseData.active_refund && leaseData.active_refund.items) {
-                        // Filter out items that are auto-deductions (or check by type/description)
                         const customItems = leaseData.active_refund.items.filter(item => {
-                            // If it's an auto-deduction item, skip it here since auto-invoices are rendered separately
                             return item.type !== 'utility' || !item.description?.includes('Unpaid Invoice');
                         });
 
                         alpineData.manualDeductions = customItems.map(item => {
                             const amountCents = item.amount_cents || 0;
-                            // Convert cents back to RM for the sell price (assuming qty is 1)
+                            const qty = item.qty || 1; // 🌟 Read the actual quantity from the database item
                             return {
                                 fee_type_id: item.fee_type_id || '',
-                                qty: 1, 
-                                sell_price: amountCents / 100
+                                qty: qty,                  // 🌟 Assign the real quantity
+                                sell_price: (amountCents / 100) / qty // Compute unit price correctly
                             };
                         });
                     } else {

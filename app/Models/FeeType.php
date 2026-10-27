@@ -54,4 +54,9 @@ class FeeType extends Model
     {
         return $query->where('is_active', true);
     }
+
+    public function refundItems(): HasMany
+    {
+        return $this->hasMany(RefundItem::class, 'fee_type_id');
+    }
 }

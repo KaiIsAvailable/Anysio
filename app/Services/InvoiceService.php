@@ -502,6 +502,7 @@ class InvoiceService
                         'fee_type'     => $charge->feeType,
                         'amount_cents' => $amountCents,
                         'description'  => $charge->description,
+                        'lease_charge_id' => $charge->id,
                     ]
                 ]);
 
@@ -519,7 +520,12 @@ class InvoiceService
 
             $invoice->items()->create([
                 'fee_type_id' => $feeType->id,
+<<<<<<< HEAD
                 'description' => filled($item['description'] ?? null) ? $item['description'] : '',
+=======
+                'lease_charge_id' => $item['lease_charge_id'] ?? null,
+                'description' => $item['description'],
+>>>>>>> baed32520d1bae8845e8d8e1aa9f55e3648fed2d
                 'amount'      => $item['amount_cents'],
             ]);
         }
@@ -544,9 +550,9 @@ class InvoiceService
             'items',
             'lease.leasable' => function ($morphTo) {
                 $morphTo->morphWith([
-                    \App\Models\Room::class => ['unit.owner', 'owner'],
-                    \App\Models\Unit::class => ['owner'],
-                    \App\Models\Property::class => ['owner'],
+                    Room::class => ['unit.owner', 'owner'],
+                    Unit::class => ['owner'],
+                    Property::class => ['owner'],
                 ]);
             }
         ]);

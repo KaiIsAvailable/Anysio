@@ -93,16 +93,24 @@ if (!function_exists('get_status_badge')) {
         $status = strtolower(trim($status ?? ''));
 
         return match ($status) {
-            // General / System Statuses
-            'active', 'occupied' => 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+            // General / System Statuses & Completed Checkouts
+            'active', 'occupied', 'paid', 'completed' => 'bg-emerald-100 text-emerald-800 border border-emerald-200',
             'pending', 'vacant'  => 'bg-amber-100 text-amber-800 border border-amber-200',
             'expired', 'maintenance', 'inactive' => 'bg-rose-100 text-rose-800 border border-rose-200',
             
             // Lease Specific Statuses
-            'new'       => 'bg-blue-100 text-blue-800 border border-blue-200',
-            'renew'     => 'bg-indigo-100 text-indigo-800 border border-indigo-200',
-            'check out' => 'bg-amber-100 text-amber-800 border border-amber-200',
-            'end'       => 'bg-gray-100 text-gray-800 border border-gray-200',
+            'new'           => 'bg-blue-100 text-blue-800 border border-blue-200',
+            'current'           => 'bg-blue-100 text-blue-800 border border-blue-200',
+            'renew'         => 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+            
+            // Check out can be amber while in-progress, or green when finalized/paid
+            'check out'     => 'bg-amber-100 text-amber-800 border border-amber-200',
+            'checked out'   => 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+            
+            'end'           => 'bg-gray-100 text-gray-800 border border-gray-200',
+            
+            // Pending Action State
+            'pending action' => 'bg-purple-100 text-purple-800 border border-purple-200',
             
             // Default Fallback
             default => 'bg-slate-100 text-slate-800 border border-slate-200',

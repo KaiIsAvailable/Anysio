@@ -194,13 +194,25 @@
                                                     {{ \Carbon\Carbon::parse($lease->end_date)->format('d/m/Y') }}
                                                 </td>
                                                 <td class="py-3 px-4">
-                                                    @if($lease->status === 'End')
-                                                        <span class="px-2.5 py-1 text-xs font-bold uppercase bg-rose-50 text-rose-600 rounded-full">Ended</span>
-                                                    @elseif($lease->is_pending_renewal)
-                                                        <span class="px-2.5 py-1 text-xs font-bold uppercase bg-amber-50 text-amber-600 rounded-full">{{ $lease->status }} (Pending Renewal)</span>
-                                                    @else
-                                                        <span class="px-2.5 py-1 text-xs font-bold uppercase bg-slate-100 text-slate-600 rounded-full">{{ $lease->status }}</span>
-                                                    @endif
+                                                    @php
+                                                        $statusKey = $lease->is_pending_renewal 
+                                                            ? 'pending action' 
+                                                            : (in_array(strtolower($lease->status ?? ''), ['new', 'renew']) ? 'current' : ($lease->status ?? 'N/A'));
+                                                        
+                                                        $badge = get_status_badge($statusKey);
+
+                                                        // Determine what label text to display
+                                                        if ($lease->is_pending_renewal) {
+                                                            $displayText = 'PENDING ACTIONS';
+                                                        } else {
+                                                            $normalizedStatus = strtolower(trim($lease->status ?? ''));
+                                                            $displayText = in_array($normalizedStatus, ['new', 'renew']) ? 'CURRENT' : strtoupper($lease->status ?? 'N/A');
+                                                        }
+                                                    @endphp
+
+                                                    <span class="px-2.5 py-1 text-xs font-bold uppercase rounded-full {{ $badge }}">
+                                                        {{ $displayText }}
+                                                    </span>
                                                 </td>
                                                 @canany(['owner-admin', 'leases.renew lease', 'leases.check out lease'])
                                                 <td class="py-3 px-4" @click.stop>

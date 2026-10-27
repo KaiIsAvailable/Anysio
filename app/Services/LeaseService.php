@@ -418,7 +418,9 @@ class LeaseService
         // Existing hardcoded templates remain untouched by this additional variable.
         $servicePackageDescription = match (strtoupper(trim($servicePackage))) {
             'WIFI UNIT' => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER, FACILITY ALLOWANCE & HIGH SPEED WIFI',
+            'WIFI Zone' => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER, FACILITY ALLOWANCE, CCTV, FACILITY ROOM & HIGH SPEED WIF',
             'STANDARD UNIT' => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER & FACILITY ALLOWANCE',
+            'PREMIUM UNIT' => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER, FACILITY ALLOWANCE, CCTV, FACILITY ROOM & HIGH SPEED WIFI',
             default => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER,FACILITY ALLOWANCE, CCTV, FACILITY ROOM &HIGH SPEED WIFI',
         };
         $owner = $unit?->owner ?? $leasable?->owner;
@@ -585,6 +587,7 @@ class LeaseService
             'charges.invoice',
             'invoices.items.feeType',
             'parentLease.charges.feeType',
+            'refunds',
             'leasable' => function ($morphTo) {
                 $morphTo->morphWith([
                     Room::class => ['unit.owner'],
@@ -642,9 +645,65 @@ class LeaseService
             ->get()
             ->each($formatLeaseCallback);
 
-        // 7. Lease Preview Data (Built from $modalLeases to ensure preview capability for all current leases)
+        // 7. Lease Preview Data (Built from $modalLeases with deep deposit calculation logging)
         $leasePreviewData = $modalLeases->map(function ($lease) {
             $leasable = $this->getLeasableWithOwner($lease);
+            
+            // Helper to recursively collect charges across parent leases
+            $collectFullHistory = function ($l, &$accumulator = []) use (&$collectFullHistory) {
+                if (!$l) return $accumulator;
+                foreach ($l->charges ?? [] as $charge) {
+                    $accumulator[] = $charge;
+                }
+                $parent = $l->parentLease ?? $l->parent_lease;
+                if ($parent) {
+                    $collectFullHistory($parent, $accumulator);
+                }
+                return $accumulator;
+            };
+
+            $allHistoryCharges = $collectFullHistory($lease);
+
+            // 1. Calculate Total Deposit Collected (where category is deposit and invoice is paid)
+            $totalDepositCents = collect($allHistoryCharges)->filter(function ($charge) {
+                $category = $charge->feeType?->category ?? null;
+                $isDeposit = ($category === FeeTypeCategory::DEPOSIT || $category === 'deposit');
+                
+                if (!$isDeposit) {
+                    return false;
+                }
+
+                // Check invoice status from direct relation or invoice items bridge
+                $linkedInvoice = $charge->invoice ?? \App\Models\Invoice::whereHas('items', function ($q) use ($charge) {
+                    $q->where('lease_charge_id', $charge->id);
+                })->first();
+
+                $invoiceStatus = strtolower($linkedInvoice?->status ?? '');
+                $chargeStatus = strtolower($charge->status ?? '');
+
+                $isPaid = ($invoiceStatus === 'paid' || $chargeStatus === 'paid' || $charge->is_paid === true);
+
+                return $isPaid;
+            })->sum('amount');
+
+            // 2. Calculate Auto-Deductions (Unpaid / non-void invoices in the lease history)
+            $unpaidInvoices = $lease->invoices ? $lease->invoices->filter(fn($inv) => strtolower($inv->status) !== 'paid' && strtolower($inv->status) !== 'void') : collect();
+            
+            $formattedUnpaidInvoices = $unpaidInvoices->map(function ($inv) {
+                $balanceCents = $inv->amount_balance ?? $inv->total_amount ?? 0;
+                $feeNames = $inv->items->map(fn($item) => $item->feeType?->name ?? $item->description)->filter()->unique()->implode(', ');
+                
+                return [
+                    'id' => $inv->id,
+                    'invoice_no' => $inv->invoice_no ?? $inv->id,
+                    'description' => $feeNames ?: ($inv->description ?? 'General Charge'),
+                    'balance_cents' => $balanceCents,
+                    'balance_formatted' => number_format($balanceCents / 100, 2),
+                ];
+            })->values();
+
+            $autoDeductionTotalCents = $unpaidInvoices->sum(fn($inv) => $inv->amount_balance ?? $inv->total_amount ?? 0);
+
             $cumulativeSecurity = 0;
             $cumulativeUtilities = 0;
             $current = $lease;
@@ -654,6 +713,19 @@ class LeaseService
                 $cumulativeUtilities += $current->utilities_deposit ?? 0;
                 $current = $current->parent_lease_id ? Lease::find($current->parent_lease_id) : null;
             }
+
+            // 🌟 Retrieve the latest active refund for this lease
+            $activeRefund = $lease->refunds()->with('items')->latest()->first();
+
+            // 🔍 Log the refund data to the 'testing' channel
+            //Log::channel('testing')->info('Lease Preview Refund Data Debug:', [
+            //    'lease_id' => $lease->id,
+            //    'refund_id' => $activeRefund?->id,
+            //    'status' => $activeRefund?->status,
+            //    'items_count' => $activeRefund?->items?->count() ?? 0,
+            //    'items' => $activeRefund?->items?->toArray() ?? [],
+            //    'full_refund' => $activeRefund ? $activeRefund->toArray() : null,
+            //]);
 
             return array_merge(
                 $lease->toArray(),
@@ -665,6 +737,12 @@ class LeaseService
                     'cumulative_utilities' => $cumulativeUtilities,
                     'charges' => $lease->charges,
                     'invoices' => $lease->invoices,
+                    'total_deposit_collected_cents' => $totalDepositCents,
+                    'total_deposit_collected_formatted' => number_format($totalDepositCents / 100, 2),
+                    'unpaid_invoices' => $formattedUnpaidInvoices,
+                    'auto_deduction_total_cents' => $autoDeductionTotalCents,
+                    'auto_deduction_total_formatted' => number_format($autoDeductionTotalCents / 100, 2),
+                    'active_refund' => $activeRefund,
                 ]
             );
         });

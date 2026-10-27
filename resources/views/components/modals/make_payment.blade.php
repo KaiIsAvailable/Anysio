@@ -159,7 +159,8 @@
                                         <div class="flex justify-between py-2">
                                             <div>
                                                 <div class="text-sm font-medium text-slate-700">
-                                                    {{ $item->description }}
+                                                    {{ $item->feeType?->name ?? 'Item' }}
+                                                    @if(filled($item->description))<small>{{ $item->description }}</small>@endif
                                                 </div>
 
                                                 @if($item->feeType)

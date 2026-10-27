@@ -325,10 +325,9 @@
 
                     items.forEach(item => {
 
-                        let itemDesc =
-                            item.description ||
-                            item.fee_type?.name ||
-                            'Item';
+                        const escapeItem = value => String(value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
+                        let itemDesc = escapeItem(item.name || item.fee_type?.name || item.description || 'Item');
+                        if ((item.name || item.fee_type?.name) && item.description?.trim()) itemDesc += '<br><small>' + escapeItem(item.description) + '</small>';
 
                         let itemAmount =
                             item.amount || 0;
@@ -393,10 +392,9 @@
 
                     items.forEach(item => {
 
-                        let itemDesc =
-                            item.description ||
-                            item.fee_type?.name ||
-                            'Item';
+                        const escapeItem = value => String(value).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
+                        let itemDesc = escapeItem(item.name || item.fee_type?.name || item.description || 'Item');
+                        if ((item.name || item.fee_type?.name) && item.description?.trim()) itemDesc += '<br><small>' + escapeItem(item.description) + '</small>';
 
                         // Add billing period to Monthly Rental on receipt
                         const billingPeriod =

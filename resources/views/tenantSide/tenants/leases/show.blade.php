@@ -514,9 +514,8 @@
                             <p class="text-sm font-semibold
                                               text-slate-900">
 
-                                {{ $charge->description
-                                            ?? $charge->feeType?->name
-                                            ?? 'Charge' }}
+                                {{ $charge->feeType?->name ?? 'Charge' }}
+                                @if(filled($charge->description))<small>{{ $charge->description }}</small>@endif
 
                             </p>
 

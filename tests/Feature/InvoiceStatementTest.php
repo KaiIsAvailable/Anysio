@@ -216,12 +216,111 @@ class InvoiceStatementTest extends TestCase
         $this->movement('unknown', 'wa', 'missing-reference', 1234, 'manual_credit');
         $this->movement('refund-history', 'wa', 'ia', 4000, 'refund');
         $global = app(InvoiceService::class)->getStatement('manager', 'manager', false)->getCollection()->keyBy('id');
-        $this->assertSame('12.34', $global['wallet_credit:unknown']['amount']);
+        $this->assertSame('+12.34', $global['wallet_credit:unknown']['amount']);
         $this->assertNull($global['wallet_credit:unknown']['invoice_no']);
         $this->assertSame('Refund', $global['wallet_credit:refund-history']['source_type']);
         $leaseIds = app(InvoiceService::class)->getStatement('manager', 'manager', false, [], 'la')->getCollection()->pluck('id');
         $this->assertNotContains('wallet_credit:unknown', $leaseIds);
         $this->assertContains('wallet_credit:refund-history', $leaseIds);
         $this->assertSame(99999999, DB::table('wallets')->where('id', 'wa')->value('balance'));
+    }
+
+    public function test_single_amount_signs_zero_partial_and_wallet_payments(): void
+    {
+        $this->insert('transactions', ['id' => 'partial', 'invoice_id' => 'ia', 'amount_applied' => 12345]);
+        $this->insert('transactions', ['id' => 'wallet-paid', 'invoice_id' => 'ia', 'amount_applied' => 30000, 'payment_method' => 'wallet']);
+        $this->insert('transactions', ['id' => 'negative', 'invoice_id' => 'ia', 'amount_applied' => -123]);
+        $this->insert('transactions', ['id' => 'zero', 'invoice_id' => 'ia', 'amount_applied' => 0]);
+        $this->movement('zero', 'wa', 'ia', 0, 'adjustment');
+        $page = app(InvoiceService::class)->getStatement('manager', 'manager', false, [], 'la');
+        $rows = $page->getCollection()->keyBy('id');
+        foreach ([
+            'invoice:ia' => ['-1,000.00', 'text-red-600'],
+            'payment:receipt' => ['+1,000.00', 'text-green-600'],
+            'wallet_credit:credit' => ['+200.00', 'text-green-600'],
+            'wallet_payment:debit' => ['-300.00', 'text-red-600'],
+            'payment:partial' => ['+123.45', 'text-green-600'],
+            'payment:wallet-paid' => ['+300.00', 'text-green-600'],
+            'payment:negative' => ['-1.23', 'text-red-600'],
+            'payment:zero' => ['0.00', 'text-slate-600'],
+            'wallet_other:zero' => ['0.00', 'text-slate-600'],
+        ] as $id => [$amount, $class]) {
+            $this->assertSame($amount, $rows[$id]['amount']);
+            $this->assertSame($class, $rows[$id]['amount_class']);
+        }
+        $this->assertSame(9, $page->total());
+        $html = Blade::render('<x-invoice-statement :statement="$statement" />', ['statement' => $page]);
+        $this->assertSame(1, substr_count($html, '>Amount (RM)</th>'));
+        $this->assertStringNotContainsString('Wallet movement (RM)', $html);
+        $this->assertSame(9, substr_count($html, 'data-statement-event='));
+        DB::table('invoices')->where('id', 'ia')->update(['total_amount' => 0]);
+        $zero = app(InvoiceService::class)->getStatement('manager', 'manager', false, ['statement_kind' => 'invoice'], 'la')[0];
+        $this->assertSame('0.00', $zero['amount']);
+        $this->assertSame('text-slate-600', $zero['amount_class']);
+    }
+
+    public function test_description_deduplication_is_item_local_and_read_only(): void
+    {
+        DB::table('invoice_items')->where('id', 'item1')->update(['description' => ' Rental ']);
+        DB::table('invoice_items')->where('id', 'item2')->update(['description' => " \t "]);
+        DB::table('wallet_transactions')->where('id', 'credit')->update(['remarks' => 'Rental']);
+        $rows = app(InvoiceService::class)->getStatement('manager', 'manager', false, [], 'la')->getCollection()->keyBy('id');
+        $this->assertSame(['Rental', 'Service fee'], array_column($rows['invoice:ia']['fees'], 'name'));
+        $this->assertSame([null, null], array_column($rows['invoice:ia']['fees'], 'description'));
+        $this->assertSame('Rental', $rows['wallet_credit:credit']['description']);
+        $this->assertSame(' Rental ', DB::table('invoice_items')->where('id', 'item1')->value('description'));
+        DB::table('invoice_items')->where('id', 'item1')->update(['description' => 'rental']);
+        $row = app(InvoiceService::class)->getStatement('manager', 'manager', false, ['statement_kind' => 'invoice'], 'la')[0];
+        $this->assertSame('rental', $row['fees'][0]['description']);
+    }
+
+    public function test_optional_descriptions_survive_charge_initial_and_recurring_invoice_writes(): void
+    {
+        Schema::table('fee_types', function (Blueprint $t) {
+            $t->string('user_id')->nullable(); $t->string('category')->default('rent');
+            $t->boolean('is_system')->default(true); $t->boolean('is_active')->default(true);
+        });
+        Schema::table('document_templates', function (Blueprint $t) {
+            $t->string('category')->default('invoice'); $t->string('status')->default('active');
+        });
+        Schema::table('invoices', function (Blueprint $t) {
+            foreach (['billable_type', 'billable_id', 'type', 'period', 'due_date', 'parent_id'] as $column) $t->string($column)->nullable();
+            $t->bigInteger('amount_paid')->default(0); $t->bigInteger('amount_balance')->default(0);
+        });
+        Schema::table('invoice_items', fn (Blueprint $t) => $t->bigInteger('amount')->default(0));
+        Schema::create('lease_charges', function (Blueprint $t) {
+            $t->string('id')->primary(); $t->timestamps(); $t->softDeletes();
+            foreach (['lease_id', 'fee_type_id', 'description', 'charge_type', 'frequency'] as $column) $t->string($column);
+            $t->bigInteger('amount'); $t->date('next_billing_date')->nullable();
+            $t->boolean('is_active'); $t->integer('sort_order');
+        });
+        $user = \App\Models\User::findOrFail('manager');
+        $this->actingAs($user);
+        $sequence = \Mockery::mock(\App\Services\DocumentSequenceService::class);
+        $sequence->shouldReceive('generateInvoiceNumber')->andReturnUsing(fn () => 'TEST-'.\Illuminate\Support\Str::ulid());
+        $settings = \Mockery::mock(\App\Services\SettingService::class);
+        $settings->shouldReceive('getEffectiveSettings')->andReturn([]);
+        $this->app->instance(\App\Services\DocumentSequenceService::class, $sequence);
+        $this->app->instance(\App\Services\SettingService::class, $settings);
+        $service = app(InvoiceService::class);
+        $lease = \App\Models\Lease::findOrFail('la');
+        $lease->start_date = '2026-10-01'; $lease->end_date = '2027-12-31'; $lease->is_current = true;
+        $descriptions = [[], ['description' => null], ['description' => ''], ['description' => " \t "], ['description' => ' Meter 123 ']];
+        $charges = array_map(fn ($description) => $description + ['fee_type_id' => 'rent', 'amount' => 12.34, 'frequency' => 'monthly'], $descriptions);
+        // Disable observers only inside the isolated persistence test; no real database is used.
+        \Illuminate\Database\Eloquent\Model::withoutEvents(function () use ($service, $lease, $user, $charges) {
+            $method = new \ReflectionMethod(\App\Services\LeaseService::class, 'createLeaseCharges');
+            $method->invoke(app(\App\Services\LeaseService::class), $lease, ['charges' => $charges]);
+            $this->assertSame(['', '', '', '', ' Meter 123 '], $lease->charges()->orderBy('sort_order')->pluck('description')->all());
+            $initial = $service->createInitialInvoiceForLease($lease, $user);
+            $this->assertSame(5, $initial->count());
+            $this->assertSame(['', '', '', '', ' Meter 123 '], $initial->flatMap->items->pluck('description')->all());
+            $this->assertSame(1, $service->generateRecurringInvoices($lease));
+            $recurring = Invoice::where('lease_id', 'la')->whereDate('period', '2026-11-01')->firstOrFail();
+            $this->assertSame(['', '', '', '', ' Meter 123 '], $recurring->items->pluck('description')->all());
+            $this->assertSame(6170, $recurring->total_amount);
+            $manual = $service->createManualInvoice($lease, ['items' => $charges, 'period' => '2026-12-01', 'due_date' => '2026-12-08']);
+            $this->assertSame(['', '', '', '', ' Meter 123 '], $manual->items->pluck('description')->all());
+        });
     }
 }

@@ -115,7 +115,8 @@ class InvoiceController extends Controller
                     'remarks' => $invoice->remarks ?? '—',
                     'items' => $invoice->items->map(function ($item) {
                         return [
-                            'description' => $item->description ?? $item->feeType?->name ?? 'Item',
+                            'name' => $item->feeType?->name ?? 'Item',
+                            'description' => $item->description,
                             'amount' => number_format($item->amount / 100, 2),
                         ];
                     })

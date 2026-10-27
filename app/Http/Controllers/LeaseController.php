@@ -239,7 +239,8 @@ class LeaseController extends Controller
                     return [
                         'id' => $subItem->id,
                         // Strictly use feeType name, with a fallback if feeType is missing
-                        'description' => $subItem->feeType?->name ?? 'Fee Item',
+                        'name' => $subItem->feeType?->name ?? 'Item',
+                        'description' => $subItem->description,
                         'amount' => number_format($subItem->amount / 100 ?? 0, 2),
                     ];
                 });
@@ -371,6 +372,7 @@ class LeaseController extends Controller
                 'charges' => $item->charges->map(function ($charge) {
                     return [
                         'id' => $charge->id,
+                        'name' => $charge->feeType?->name ?? 'Charge',
                         'description' => $charge->description,
                         'amount' => number_format($charge->amount / 100, 2),
                         'next_billing_date' => $charge->next_billing_date?->format('d/m/Y') ?? '',
@@ -437,7 +439,8 @@ class LeaseController extends Controller
                         // Map each invoice item to include description and formatted price
                         $invoiceItems = $invoice->items->map(function ($subItem) {
                             return [
-                                'description' => $subItem->feeType?->name ?? 'Item',
+                                'name' => $subItem->feeType?->name ?? 'Item',
+                                'description' => $subItem->description,
                                 'amount' => number_format($subItem->amount / 100 ?? 0, 2),
                                 'category' => $subItem->feeType?->category ?? '—',
                             ];

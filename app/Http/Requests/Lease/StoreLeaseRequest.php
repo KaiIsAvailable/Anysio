@@ -115,6 +115,7 @@ class StoreLeaseRequest extends FormRequest
                 'numeric',
                 'min:0',
             ],
+            'charges.*.description' => ['nullable', 'string', 'max:255'],
             'charges.*.frequency' => ['sometimes', Rule::in(['daily', 'weekly', 'monthly', 'yearly', 'one_time'])],
 
             'document_id' => [

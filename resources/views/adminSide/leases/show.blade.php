@@ -344,9 +344,10 @@
                             <template x-for="charge in activeLease.charges" :key="charge.id">
                                 <div class="py-2 border-b border-gray-100">
                                     <div class="flex items-center justify-between">
-                                        <span x-text="charge.description" class="text-gray-600 font-medium"></span>
+                                        <span x-text="charge.name" class="text-gray-600 font-medium"></span>
                                         <span class="font-semibold text-gray-900">RM <span x-text="charge.amount"></span></span>
                                     </div>
+                                    <div class="text-sm text-gray-500" x-show="charge.description" x-text="charge.description"></div>
                                     <div class="text-sm text-gray-500 mt-1" x-show="charge.next_billing_date">
                                         Next Billing Date <span class="font-medium text-gray-900" x-text="charge.next_billing_date"></span>
                                     </div>

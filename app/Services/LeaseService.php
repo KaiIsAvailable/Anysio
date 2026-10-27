@@ -347,7 +347,7 @@ class LeaseService
             LeaseCharge::create([
                 'lease_id' => $lease->id,
                 'fee_type_id' => $chargeData['fee_type_id'],
-                'description' => $feeTypeName,
+                'description' => filled($chargeData['description'] ?? null) ? $chargeData['description'] : '',
                 'amount' => (int) round($amount * 100), // Stored in cents
                 'charge_type' => $chargeType,
                 'frequency' => $frequency,

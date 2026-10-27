@@ -188,7 +188,7 @@
                                     {{-- Standard Invoice Items --}}
                                     <template x-for="(item, index) in (paymentData.invoiceItems || [])" :key="index">
                                         <div class="py-2 flex items-center justify-between text-sm">
-                                            <span class="font-medium text-gray-800 capitalize" x-text="item.description"></span>
+                                            <span class="font-medium text-gray-800 capitalize" x-text="item.name || item.description"></span>
                                             <span class="font-semibold text-gray-900" x-text="'RM ' + (parseFloat(String(item.amount || 0).replace(/,/g, ''))).toFixed(2)"></span>
                                         </div>
                                     </template>

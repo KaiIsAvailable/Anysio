@@ -48,9 +48,8 @@
                         @php
                             $invoiceItems = $invoice->items->map(function ($item) {
                                 return [
-                                    'description' => $item->description
-                                        ?? $item->feeType?->name
-                                        ?? 'Item',
+                                    'name' => $item->feeType?->name ?? 'Item',
+                                    'description' => $item->description,
 
                                     'amount' => number_format(
                                         ($item->amount ?? 0) / 100,
@@ -375,9 +374,8 @@
                                         @php
                                             $invoiceItems = $invoice->items->map(function ($item) {
                                                 return [
-                                                    'description' => $item->description
-                                                        ?? $item->feeType?->name
-                                                        ?? 'Item',
+                                                    'name' => $item->feeType?->name ?? 'Item',
+                                                    'description' => $item->description,
 
                                                     'amount' => number_format(
                                                         ($item->amount ?? 0) / 100,

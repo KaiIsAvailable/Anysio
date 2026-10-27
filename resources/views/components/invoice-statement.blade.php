@@ -11,7 +11,7 @@
                     <th class="px-4 py-3">Date / Time</th><th class="px-4 py-3">Record</th>
                     <th class="px-4 py-3">Related parties</th><th class="px-4 py-3">Invoice No. / Reference</th>
                     <th class="px-4 py-3">Fee Type / Description</th>
-                    <th class="px-4 py-3 text-right">Invoice (RM)</th><th class="px-4 py-3 text-right">Applied payment (RM)</th><th class="px-4 py-3 text-right">Wallet movement (RM)</th>
+                    <th class="px-4 py-3 text-right">Amount (RM)</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
@@ -46,12 +46,10 @@
                             @endforeach
                             @if(filled($entry['description']))<p class="mt-2 text-xs text-slate-600 whitespace-pre-line">{{ $entry['description'] }}</p>@endif
                         </td>
-                        <td class="px-4 py-4 text-right whitespace-nowrap">{{ $entry['invoice_amount'] ? $entry['amount'] : '—' }}</td>
-                        <td class="px-4 py-4 text-right whitespace-nowrap">{{ $entry['payment_amount'] ? $entry['amount'] : '—' }}</td>
-                        <td class="px-4 py-4 text-right whitespace-nowrap">{{ $entry['wallet_amount'] ? $entry['wallet_direction'].$entry['amount'] : '—' }}</td>
+                        <td class="px-4 py-4 text-right whitespace-nowrap {{ $entry['amount_class'] }}">{{ $entry['amount'] }}</td>
                     </tr>
                 @empty
-                    <tr><td colspan="8" class="px-6 py-10 text-center text-slate-500">No statement records match these filters.</td></tr>
+                    <tr><td colspan="6" class="px-6 py-10 text-center text-slate-500">No statement records match these filters.</td></tr>
                 @endforelse
             </tbody>
         </table>

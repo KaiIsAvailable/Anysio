@@ -97,6 +97,7 @@
                         status: data.invoice.status,
                         remarks: data.invoice.remarks,
                         invoice_items: (data.invoice.items || []).map(item => ({
+                            name: item.name,
                             description: item.description,
                             amount: item.amount
                         }))

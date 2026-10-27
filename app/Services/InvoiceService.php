@@ -48,6 +48,9 @@ class InvoiceService
             $asset = $invoice?->lease?->leasable;
             $payee = $asset instanceof Room ? $asset->unit?->owner : $asset?->owner;
             $labels = ['invoice' => 'Invoice issued', 'payment' => 'Invoice payment applied', 'wallet_credit' => 'Wallet credit', 'wallet_payment' => 'Wallet debit', 'wallet_other' => 'Wallet entry'];
+            $displayAmount = $event->amount === null ? null : (int) $event->amount;
+            // Only normal invoice amounts reverse direction for this presentation.
+            if ($event->event_kind === 'invoice' && $displayAmount > 0) $displayAmount = -$displayAmount;
             return [
                 'id' => $event->event_kind.':'.$event->event_id,
                 'kind' => $event->event_kind,
@@ -67,16 +70,13 @@ class InvoiceService
                     : 'Current invoice status: '.($event->source_type ?? 'Not recorded'),
                 'payment_method' => $event->payment_method,
                 'amount_cents' => $event->amount === null ? null : (int) $event->amount,
-                'amount' => $event->amount === null ? 'Not recorded' : number_format(abs((int) $event->amount) / 100, 2),
-                'invoice_amount' => $event->event_kind === 'invoice',
-                'payment_amount' => $event->event_kind === 'payment',
-                'wallet_amount' => $walletEvent,
-                'wallet_direction' => (int) $event->amount > 0 ? '+' : ((int) $event->amount < 0 ? '−' : ''),
+                'amount' => $displayAmount === null ? 'Not recorded' : ($displayAmount > 0 ? '+' : '').number_format($displayAmount / 100, 2),
+                'amount_class' => $displayAmount > 0 ? 'text-green-600' : ($displayAmount < 0 ? 'text-red-600' : 'text-slate-600'),
                 'description' => filled($event->description) ? $event->description : null,
                 // Fee lines are invoice context, not a guessed allocation of partial payments.
                 'fees' => $invoice?->items->map(fn ($item) => [
                     'name' => $item->feeType?->name ?? 'Not recorded',
-                    'description' => filled($item->description) ? $item->description : null,
+                    'description' => filled($item->description) && trim($item->description) !== trim($item->feeType?->name ?? '') ? $item->description : null,
                 ])->all() ?? [],
             ];
         }));
@@ -404,7 +404,7 @@ class InvoiceService
             $validatedItems[] = [
                 'fee_type'     => $feeType,
                 'amount_cents' => $amountCents,
-                'description'  => $item['description'] ?? $feeType->name,
+                'description'  => filled($item['description'] ?? null) ? $item['description'] : '',
             ];
 
             $totalCents += $amountCents;
@@ -519,7 +519,7 @@ class InvoiceService
 
             $invoice->items()->create([
                 'fee_type_id' => $feeType->id,
-                'description' => $item['description'],
+                'description' => filled($item['description'] ?? null) ? $item['description'] : '',
                 'amount'      => $item['amount_cents'],
             ]);
         }
@@ -672,7 +672,8 @@ class InvoiceService
 
         $invoiceItems = $invoice->items->map(function ($subItem) {
             return [
-                'description' => $subItem->feeType?->name ?? 'Item',
+                'name' => $subItem->feeType?->name ?? 'Item',
+                'description' => $subItem->description,
                 'amount' => number_format(($subItem->amount ?? 0) / 100, 2),
                 'category' => $subItem->feeType?->category ?? '—',
             ];

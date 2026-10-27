@@ -22,7 +22,7 @@ class InvoiceStatementTest extends TestCase
             'properties' => ['owner_id'], 'units' => ['owner_id', 'property_id'], 'rooms' => ['unit_id'],
             'leases' => ['tenant_id', 'leasable_type', 'leasable_id'],
             'invoices' => ['lease_id', 'user_id', 'invoice_no', 'document_template_id', 'status', 'remarks'],
-            'invoice_items' => ['invoice_id', 'fee_type_id', 'description'], 'fee_types' => ['name'],
+            'invoice_items' => ['invoice_id', 'fee_type_id', 'lease_charge_id', 'description'], 'fee_types' => ['name'],
             'document_templates' => ['user_id'],
             'transactions' => ['invoice_id', 'receipt_no', 'payment_method', 'transaction_ref', 'payment_date'],
             'wallets' => ['user_id'], 'wallet_transactions' => ['wallet_id', 'reference_id', 'type', 'remarks'],
@@ -68,6 +68,35 @@ class InvoiceStatementTest extends TestCase
     private function insert(string $table, array $data): void
     {
         DB::table($table)->insert($data + ['created_at' => '2026-10-20 12:34:00', 'updated_at' => '2026-10-20 12:34:00']);
+    }
+
+    public function test_statement_modal_hides_filters_and_opts_into_existing_shake_only(): void
+    {
+        $html = Blade::render('<x-invoice-statement-modal endpoint="/statement" />');
+        $this->assertStringContainsString('aria-label="Close Invoice Statement"', $html);
+        $this->assertStringContainsString('<svg', $html);
+        $this->assertStringNotContainsString('Loading statement', $html);
+        $this->assertStringContainsString('shake = true; setTimeout', $html);
+        $this->assertStringContainsString('x-on:keydown.escape.window="show = false"', $html);
+        foreach (['<form', 'statement_from', 'statement_to', 'Search History', 'Record Type', 'Clear'] as $filter) {
+            $this->assertStringNotContainsString($filter, $html);
+        }
+        $default = Blade::render('<x-modal name="unchanged">Other modal</x-modal>');
+        $this->assertStringContainsString('x-on:click="show = false"', $default);
+        $this->assertStringNotContainsString('shake = true; setTimeout', $default);
+    }
+
+    public function test_scope_labels_have_no_rendered_text_or_dedicated_container(): void
+    {
+        foreach (['Records for this lease only', 'All records you can view'] as $label) {
+            $html = view('components.invoice-statement', [
+                'statement' => new \Illuminate\Pagination\LengthAwarePaginator([], 0, 20),
+                'scopeLabel' => $label,
+            ])->render();
+            $this->assertStringNotContainsString($label, $html);
+            $this->assertMatchesRegularExpression('/<section[^>]*>\s*<div class="overflow-x-auto">/', $html);
+            $this->assertStringContainsString('No statement records', $html);
+        }
     }
 
     public function test_statement_endpoints_enforce_permissions_and_lease_scope(): void

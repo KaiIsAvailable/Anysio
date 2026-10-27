@@ -1,4 +1,12 @@
 export function invoiceStatement(endpoint) {
+    // Each opening starts at page one without remembered statement filters.
+    const unfilteredUrl = () => {
+        const url = new URL(endpoint, window.location.origin);
+        for (const key of [...url.searchParams.keys()]) {
+            if (key.startsWith('statement_')) url.searchParams.delete(key);
+        }
+        return url.href;
+    };
     return {
         statementLoading: false, error: '', lastUrl: endpoint, request: null, opener: null,
         filtersReady: false, recordKind: '',
@@ -6,7 +14,7 @@ export function invoiceStatement(endpoint) {
             this.opener = document.activeElement;
             this.recordKind = '';
             this.$refs.content.innerHTML = '';
-            this.load(endpoint);
+            this.load(unfilteredUrl());
             const openingRequest = this.request;
             this.$nextTick(() => {
                 if (this.request === openingRequest) this.$refs.title?.focus();
@@ -17,9 +25,11 @@ export function invoiceStatement(endpoint) {
             this.request = null;
             this.statementLoading = false;
             this.filtersReady = false;
+            this.$refs.content.innerHTML = '';
             this.opener?.focus();
         },
         async load(url) {
+            if (this.statementLoading && this.lastUrl === url) return;
             this.request?.abort();
             const request = new AbortController();
             this.request = request;
@@ -64,8 +74,8 @@ export function invoiceStatement(endpoint) {
             this.load(url.href);
         },
         clearFilters(form) {
-            form.reset();
-            form.querySelectorAll('input').forEach(input => input._flatpickr?.clear());
+            form?.reset();
+            form?.querySelectorAll('input').forEach(input => input._flatpickr?.clear());
             this.recordKind = '';
             this.load(endpoint);
         },

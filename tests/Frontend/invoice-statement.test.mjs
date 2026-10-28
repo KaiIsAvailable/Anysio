@@ -129,7 +129,7 @@ test('filter submission and pagination stay on the isolated endpoint', () => {
     state.submit({ target: new HTMLFormElement() });
     assert.equal(loaded, endpoint + '?statement_invoice=IA');
     let prevented = false;
-    state.navigate({ preventDefault: () => { prevented = true; }, target: { closest: () => ({ href: endpoint + '?statement_page=2' }) } });
+    state.navigate({ preventDefault: () => { prevented = true; }, target: { closest: selector => selector === 'a' ? ({ href: endpoint + '?statement_page=2', closest: () => ({}) }) : null } });
     assert.equal(prevented, true);
     assert.equal(loaded, endpoint + '?statement_page=2');
     assert.equal(window.location.href, 'http://localhost/admin/invoices?page=3&search=rent');

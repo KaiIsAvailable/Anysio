@@ -60,6 +60,69 @@ try {
                 assert.ok(await scroll.evaluate(el => el.scrollLeft > 0));
             }
             assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+            const rows = dialog.locator('[data-statement-event]');
+            assert.equal(await rows.first().locator('td').count(), entry === 'invoice-entry' ? 7 : 6);
+            assert.equal(await rows.first().locator('td').first().locator('button svg').count(), 1);
+            assert.equal(await rows.first().locator('td').last().locator('button').count(), 0);
+            assert.equal(await dialog.getByRole('button', { name: /^Details/ }).count(), 0);
+            for (const [index, amount, color] of [[0, 'Charged RM1,000.00', 'rgb(194, 65, 12)'], [1, 'Applied RM500.00', 'rgb(21, 128, 61)'], [2, 'Wallet credited RM200.00', 'rgb(29, 78, 216)'], [3, 'Wallet used RM100.00', 'rgb(126, 34, 206)']]) {
+                assert.equal(await rows.nth(index).getByText(amount, { exact: true }).evaluate(el => getComputedStyle(el).color), color);
+            }
+            for (const [index, label, color] of [[0, 'unpaid', 'rgb(254, 249, 195)'], [1, 'recorded', 'rgb(241, 245, 249)'], [4, 'paid', 'rgb(220, 252, 231)'], [5, 'partial', 'rgb(219, 234, 254)'], [6, 'overdue', 'rgb(254, 226, 226)']]) {
+                const badge = rows.nth(index).locator('td').last().locator('span');
+                assert.equal((await badge.innerText()).trim().toLowerCase(), label);
+                assert.equal(await badge.evaluate(el => getComputedStyle(el).backgroundColor), color);
+            }
+            const expand = dialog.locator('[data-statement-toggle]').first();
+            const mainRow = rows.first();
+            assert.equal((await mainRow.locator('td').first().innerText()).trim(), '27/10/2026');
+            assert.equal(await dialog.getByRole('columnheader', { name: 'Date', exact: true }).count(), 1);
+            assert.equal(await mainRow.evaluate(el => getComputedStyle(el).cursor), 'pointer');
+            await mainRow.locator('td').nth(1).click();
+            assert.equal(await expand.getAttribute('aria-expanded'), 'true');
+            await dialog.locator('#statement-detail-0').getByText('Fixture monthly rental', { exact: true }).click();
+            assert.equal(await expand.getAttribute('aria-expanded'), 'true');
+            await mainRow.locator('td').nth(1).click({ position: { x: 3, y: 3 } });
+            assert.equal(await expand.getAttribute('aria-expanded'), 'false');
+            await mainRow.evaluate(el => {
+                const cell = el.querySelectorAll('td')[1];
+                cell.insertAdjacentHTML('beforeend', '<a id="row-link" href="#row-test">Test link</a><button id="row-other-button" type="button">Other action</button>');
+                cell.querySelector('a').addEventListener('click', event => { event.preventDefault(); window.rowLinkClicked = true; });
+            });
+            await page.locator('#row-link').click();
+            assert.equal(await page.evaluate(() => window.rowLinkClicked), true);
+            assert.equal(await expand.getAttribute('aria-expanded'), 'false');
+            await page.locator('#row-other-button').click();
+            assert.equal(await expand.getAttribute('aria-expanded'), 'false');
+            await mainRow.evaluate(el => {
+                const target = el.querySelectorAll('td')[1];
+                const range = document.createRange(); range.selectNodeContents(target);
+                const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range);
+                target.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+            });
+            assert.equal(await expand.getAttribute('aria-expanded'), 'false');
+            await page.evaluate(() => { window.getSelection().removeAllRanges(); document.querySelector('#row-link').remove(); document.querySelector('#row-other-button').remove(); });
+
+            const details = dialog.locator('#statement-detail-0');
+            assert.equal(await details.isVisible(), false);
+            await expand.click();
+            assert.equal(await expand.getAttribute('aria-expanded'), 'true');
+            assert.equal(await details.isVisible(), true);
+            await page.waitForTimeout(350);
+            assert.equal(await expand.locator('svg').evaluate(el => getComputedStyle(el).transform), 'matrix(0, 1, -1, 0, 0, 0)');
+            assert.ok((await details.innerText()).includes('Fixture monthly rental'));
+            await expand.focus();
+            await page.keyboard.press('Enter');
+            assert.equal(await details.isVisible(), false);
+            assert.equal(await expand.getAttribute('aria-expanded'), 'false');
+            await expand.focus();
+            await page.keyboard.press('Space');
+            assert.equal(await expand.getAttribute('aria-expanded'), 'true');
+            await page.keyboard.press('Space');
+            assert.equal(await expand.getAttribute('aria-expanded'), 'false');
+            await page.waitForTimeout(350);
+            assert.equal(await expand.locator('svg').evaluate(el => getComputedStyle(el).transform), 'none');
+            await scroll.evaluate(el => { el.scrollLeft = 0; });
             await page.screenshot({ path: join(tmpdir(), `statement-${entry}-${width}.png`) });
             await page.mouse.click(2, 2);
             await page.locator('.animate-shake').waitFor();
@@ -74,6 +137,13 @@ try {
             assert.equal(await dialog.locator('table').count(), 1);
             assert.equal(await dialog.getByText('Loading statement', { exact: false }).count(), 0);
             await page.waitForFunction(() => document.querySelector('#page-marker')?.textContent === 'Page 2');
+            const nextToggle = dialog.locator('[data-statement-toggle]').first();
+            assert.equal(await nextToggle.getAttribute('aria-expanded'), 'false');
+            await dialog.locator('[data-statement-event]').first().locator('td').nth(1).click();
+            assert.equal(await dialog.locator('#statement-detail-0').isVisible(), true);
+            await nextToggle.focus();
+            await page.keyboard.press('Enter');
+            assert.equal(await dialog.locator('#statement-detail-0').isVisible(), false);
             await close.click();
             await page.waitForFunction(id => document.activeElement.id === id, entry);
             await page.locator('#' + entry).click();

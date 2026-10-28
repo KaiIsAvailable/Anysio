@@ -80,8 +80,23 @@ export function invoiceStatement(endpoint) {
             this.load(endpoint);
         },
         navigate(event) {
+            const row = event.target.closest('[data-statement-event]');
+            if (row && this.$refs.content.contains(row)) {
+                const arrow = event.target.closest('[data-statement-toggle]');
+                // Preserve text selection, native links and other controls. Keyboard activation
+                // of the arrow remains available even if a selection exists elsewhere.
+                if (event.detail !== 0 && window.getSelection()?.toString()) return;
+                if (!arrow && event.target.closest('a, button, input, select, textarea, label, summary, [role="button"], [role="link"], [contenteditable]:not([contenteditable="false"])')) return;
+                const toggle = arrow || row.querySelector('[data-statement-toggle]');
+                const details = toggle && document.getElementById(toggle.getAttribute('aria-controls'));
+                if (details && this.$refs.content.contains(details)) {
+                    details.hidden = !details.hidden;
+                    toggle.setAttribute('aria-expanded', String(!details.hidden));
+                }
+                return;
+            }
             const link = event.target.closest('a');
-            if (!link || !this.$refs.content.contains(link)) return;
+            if (!link || !this.$refs.content.contains(link) || !link.closest('[data-statement-pagination]')) return;
             event.preventDefault();
             const url = new URL(link.href);
             const base = new URL(endpoint, window.location.origin);

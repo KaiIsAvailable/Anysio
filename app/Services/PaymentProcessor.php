@@ -43,6 +43,15 @@ class PaymentProcessor
         $allowUnpaidPenalty = (bool) data_get($settings, 'payment_config.value.allow_unpaid_penalty', false);
 
         $rawPaidCents = (int) round(($data['amount_paid'] ?? 0) * 100);
+        $walletOnly = strtolower(trim($data['payment_method'] ?? '')) === 'wallet';
+        $useWallet = filter_var($data['use_wallet'] ?? false, FILTER_VALIDATE_BOOLEAN);
+        // Defend service callers too: a method label alone must never create a Wallet receipt.
+        if ($walletOnly && (!$useWallet || (float) ($data['amount_paid'] ?? 0) != 0 || filled($data['transaction_ref'] ?? null))) {
+            throw ValidationException::withMessages(['payment_method' => 'Wallet payments require Apply Wallet, zero external payment and no external reference.']);
+        }
+        if (!$walletOnly && $rawPaidCents <= 0) {
+            throw ValidationException::withMessages(['amount_paid' => 'An external payment method requires a positive external payment amount.']);
+        }
         $tenant = $invoice->lease?->tenant;
         $walletDeductionCents = 0;
 
@@ -55,7 +64,7 @@ class PaymentProcessor
         $totalRequiredCents = $invoice->amount_balance + $penaltyAmountCents;
 
         // Optional wallet deduction for the invoice & penalty
-        if (!empty($data['use_wallet']) && $tenant) {
+        if ($useWallet && $tenant) {
             $walletBalanceCents = $this->walletService->getBalance($tenant->user_id);
             $walletDeductionCents = min($walletBalanceCents, $totalRequiredCents);
 
@@ -68,6 +77,10 @@ class PaymentProcessor
                     "Wallet payment applied to invoice {$invoice->invoice_no} and penalties"
                 );
             }
+        }
+
+        if ($walletOnly && $walletDeductionCents <= 0) {
+            throw ValidationException::withMessages(['use_wallet' => 'No Wallet funds are available for this invoice.']);
         }
 
         $totalPaidCents = $rawPaidCents + $walletDeductionCents;

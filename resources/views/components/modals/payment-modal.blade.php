@@ -8,6 +8,8 @@
             walletBalance = parseFloat(String(paymentData.walletBalance || '0').replace(/,/g, '')) || 0;
             useWallet = false;
             method = 'Cash';
+            previousMethod = 'Cash';
+            $el.querySelectorAll('[name=transaction_ref]:not([type=hidden])').forEach(input => input.value = '');
             penaltyCancelled = false;
             overridePenaltyAmount = null;
             if (paymentData.invoiceItems) {
@@ -113,6 +115,7 @@
             },
 
             handleWalletToggle(event) {
+                event.target.form.querySelectorAll('[name=transaction_ref]:not([type=hidden])').forEach(input => input.value = '');
                 if (event.target.checked) {
                     if (this.method !== 'Wallet') {
                         this.previousMethod = this.method;
@@ -167,7 +170,6 @@
                     'e-Wallet / Digital Wallet' => 'e-Wallet / Digital Wallet (06)',
                     'Digital Bank' => 'Digital Bank (07)',
                     'Others' => 'Others (08)',
-                    'Wallet' => 'Wallet',
                 ];
                 @endphp
 
@@ -281,6 +283,8 @@
                                     <div x-show="!useWallet">
                                         <select name="payment_method" 
                                             x-model="method"
+                                            x-bind:disabled="useWallet"
+                                            @change="$el.form.querySelectorAll('[name=transaction_ref]:not([type=hidden])').forEach(input => input.value = '')"
                                             required 
                                             class="block w-full px-3.5 py-2.5 border border-gray-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm bg-gray-50">
                                             @foreach($paymentMethods as $key =>$label)
@@ -292,7 +296,7 @@
                                     <div x-show="useWallet" style="display: none;">
                                         <input type="text" value="Wallet" disabled 
                                             class="block w-full px-3.5 py-2.5 border border-gray-200 rounded-xl bg-gray-200 text-gray-500 text-sm cursor-not-allowed">
-                                        <input type="hidden" name="payment_method" value="Wallet">
+                                        <input type="hidden" name="payment_method" value="Wallet" disabled x-bind:disabled="!useWallet">
                                     </div>
                                 </div>
                             </div>
@@ -303,7 +307,7 @@
                                     <x-form.input-label value="Cheque Number" class="!text-xs !font-bold !text-indigo-600 uppercase tracking-wider mb-1" />
                                     <x-form.text-input type="text" name="transaction_ref" 
                                         x-bind:required="method === 'Cheque'"
-                                        x-bind:disabled="method !== 'Cheque'"
+                                        x-bind:disabled="useWallet || method !== 'Cheque'"
                                         placeholder="e.g. 123456"
                                         class="block w-full px-3.5 py-2.5 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" />
                                     <x-form.input-error :messages="$errors->get('transaction_ref')" class="mt-1" />
@@ -314,7 +318,7 @@
                                     <x-form.input-label value="Reference Number (Ref ID)" class="!text-xs !font-bold !text-indigo-600 uppercase tracking-wider mb-1" />
                                     <x-form.text-input type="text" name="transaction_ref" 
                                         x-bind:required="['Bank Transfer', 'e-Wallet / Digital Wallet', 'Digital Bank'].includes(method)"
-                                        x-bind:disabled="!['Bank Transfer', 'e-Wallet / Digital Wallet', 'Digital Bank'].includes(method)"
+                                        x-bind:disabled="useWallet || !['Bank Transfer', 'e-Wallet / Digital Wallet', 'Digital Bank'].includes(method)"
                                         placeholder="e.g. MYR88231... or TNG-992..."
                                         class="block w-full px-3.5 py-2.5 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" />
                                     <x-form.input-error :messages="$errors->get('transaction_ref')" class="mt-1" />
@@ -325,7 +329,7 @@
                                     <x-form.input-label value="Last 4 Digits / Auth Code" class="!text-xs !font-bold !text-indigo-600 uppercase tracking-wider mb-1" />
                                     <x-form.text-input type="text" name="transaction_ref" 
                                         x-bind:required="['Credit Card', 'Debit Card'].includes(method)"
-                                        x-bind:disabled="!['Credit Card', 'Debit Card'].includes(method)"
+                                        x-bind:disabled="useWallet || !['Credit Card', 'Debit Card'].includes(method)"
                                         placeholder="e.g. 8890"
                                         class="block w-full px-3.5 py-2.5 bg-white border border-indigo-200 rounded-xl focus:ring-2 focus:ring-indigo-500 text-sm shadow-sm" />
                                     <x-form.input-error :messages="$errors->get('transaction_ref')" class="mt-1" />
@@ -339,7 +343,7 @@
                                         </svg>
                                         No reference number required for cash payments.
                                     </p>
-                                    <input type="hidden" name="transaction_ref" value="CASH" x-bind:disabled="method !== 'Cash'">
+                                    <input type="hidden" name="transaction_ref" value="CASH" x-bind:disabled="useWallet || method !== 'Cash'">
                                 </div>
                             </div>
 

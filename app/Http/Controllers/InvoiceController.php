@@ -43,9 +43,11 @@ class InvoiceController extends Controller
         }
         $filters = $request->validate(InvoiceService::statementFilterRules());
         $statement = $this->invoiceService->getStatement($actualId, $effectiveId, $superAdmin, $filters, $lease?->id);
+        $summary = $this->invoiceService->getStatementSummary($actualId, $effectiveId, $superAdmin, $lease?->id);
+        $showTenant = $lease === null;
         $scopeLabel = $lease ? 'Records for this lease only' : 'All records you can view';
 
-        return response()->json(['html' => view('components.invoice-statement', compact('statement', 'filters', 'scopeLabel'))->render()]);
+        return response()->json(['html' => view('components.invoice-statement', compact('statement', 'filters', 'scopeLabel', 'summary', 'showTenant'))->render()]);
     }
 
     public function show(Lease $lease, Invoice $invoice)

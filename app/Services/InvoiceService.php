@@ -34,14 +34,23 @@ class InvoiceService
         return $invoices;
     }
 
+    public function getStatementSummary(?string $actualId, ?string $effectiveId, bool $superAdmin, ?string $leaseId): array
+    {
+        return Invoice::statementSummary($actualId, $effectiveId, $superAdmin, $leaseId);
+    }
+
     public function getStatement(?string $actualId, ?string $effectiveId, bool $superAdmin, array $filters = [], ?string $leaseId = null)
     {
         $page = Invoice::statementPage($actualId, $effectiveId, $superAdmin, $filters, $leaseId);
+        [$payments, $movements] = Invoice::statementPaymentDetails(
+            $page->getCollection()->where('event_kind', 'payment')->pluck('event_id')->all(),
+            $actualId, $effectiveId, $superAdmin, $leaseId,
+        );
         [$invoices, $walletUsers] = Invoice::statementDetails(
             $page->getCollection()->pluck('invoice_id')->filter()->unique()->all(),
             $page->getCollection()->pluck('wallet_user_id')->filter()->unique()->all(),
         );
-        $page->setCollection($page->getCollection()->map(function ($event) use ($invoices, $walletUsers) {
+        $page->setCollection($page->getCollection()->map(function ($event) use ($invoices, $walletUsers, $payments, $movements) {
             $invoice = $invoices->get($event->invoice_id);
             $walletEvent = str_starts_with($event->event_kind, 'wallet_');
             $person = $walletEvent ? $walletUsers->get($event->wallet_user_id) : ($invoice?->lease?->tenant?->user ?? $invoice?->user);
@@ -49,14 +58,27 @@ class InvoiceService
             $payee = $asset instanceof Room ? $asset->unit?->owner : $asset?->owner;
             $labels = ['invoice' => 'Invoice issued', 'payment' => 'Invoice payment applied', 'wallet_credit' => 'Wallet credit', 'wallet_payment' => 'Wallet debit', 'wallet_other' => 'Wallet entry'];
             $displayAmount = $event->amount === null ? null : (int) $event->amount;
-            // Only normal invoice amounts reverse direction for this presentation.
-            if ($event->event_kind === 'invoice' && $displayAmount > 0) $displayAmount = -$displayAmount;
+            $payment = $payments->get($event->event_id);
+            $children = $event->event_kind === 'payment' ? $movements->get($event->event_id, collect()) : collect();
+            $verb = match ($event->event_kind) {
+                'invoice' => 'Charged', 'payment' => 'Applied', 'wallet_credit' => 'Wallet credited',
+                'wallet_payment' => $event->source_type === 'invoice_payment' ? 'Wallet used' : 'Wallet debited', default => 'Wallet movement',
+            };
+            $label = $labels[$event->event_kind];
+            if ($event->event_kind === 'payment' && strtolower($event->payment_method ?? '') === 'wallet') $label = 'Wallet payment';
+            if ($event->event_kind === 'wallet_payment' && $event->source_type === 'invoice_payment') $label = 'Wallet payment';
             return [
                 'id' => $event->event_kind.':'.$event->event_id,
                 'kind' => $event->event_kind,
-                'label' => $labels[$event->event_kind],
-                'date' => $event->occurred_at ? Carbon::parse($event->occurred_at)->format($event->date_only ? 'd/m/Y' : 'd/m/Y H:i') : 'Not recorded',
-                'recorded_at' => $event->recorded_at ? Carbon::parse($event->recorded_at)->format('d/m/Y H:i') : null,
+                'label' => $label,
+                'lease_id' => $invoice?->lease_id,
+                'status' => $event->event_kind === 'invoice' ? ucfirst($event->source_type ?? 'Not recorded') : 'Recorded',
+                'linked_wallet' => $children->all(),
+                'stored_paid' => $payment?->amount_paid,
+                'stored_excess' => $payment?->amount_excess,
+                'date' => $event->recorded_at ? Carbon::parse($event->recorded_at)->format('d/m/Y') : 'Not recorded',
+                'payment_date' => $event->event_kind === 'payment' && $payment?->payment_date ? Carbon::parse($payment->payment_date)->format('d/m/Y') : null,
+                'recorded_at' => $event->recorded_at ? Carbon::parse($event->recorded_at)->format('d/m/Y H:i:s') : null,
                 'date_only' => (bool) $event->date_only,
                 'party_label' => $walletEvent ? 'Wallet holder' : 'Billed to',
                 'party' => $person?->name ?? 'Not recorded',
@@ -70,13 +92,14 @@ class InvoiceService
                     : 'Current invoice status: '.($event->source_type ?? 'Not recorded'),
                 'payment_method' => $event->payment_method,
                 'amount_cents' => $event->amount === null ? null : (int) $event->amount,
-                'amount' => $displayAmount === null ? 'Not recorded' : ($displayAmount > 0 ? '+' : '').number_format($displayAmount / 100, 2),
-                'amount_class' => $displayAmount > 0 ? 'text-green-600' : ($displayAmount < 0 ? 'text-red-600' : 'text-slate-600'),
+                'amount' => $displayAmount === null ? 'Not recorded' : $verb.' RM'.number_format(($walletEvent ? abs($displayAmount) : $displayAmount) / 100, 2),
+                'amount_class' => 'text-slate-800',
                 'description' => filled($event->description) ? $event->description : null,
+                'invoice_remarks' => $event->event_kind !== 'invoice' && filled($invoice?->remarks) ? $invoice->remarks : null,
                 // Fee lines are invoice context, not a guessed allocation of partial payments.
                 'fees' => $invoice?->items->map(fn ($item) => [
                     'name' => $item->feeType?->name ?? 'Not recorded',
-                    'description' => filled($item->description) && trim($item->description) !== trim($item->feeType?->name ?? '') ? $item->description : null,
+                    'description' => filled($item->description) ? $item->description : null,
                 ])->all() ?? [],
             ];
         }));

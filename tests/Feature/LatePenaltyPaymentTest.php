@@ -25,7 +25,7 @@ class LatePenaltyPaymentTest extends TestCase
             'owners' => ['user_id', 'agent_id'], 'properties' => ['owner_id', 'created_by'],
             'leases' => ['tenant_id', 'leasable_type', 'leasable_id'],
             'invoices' => ['parent_id', 'lease_id', 'user_id', 'context', 'type', 'billable_type', 'billable_id', 'invoice_no', 'document_template_id', 'period', 'due_date', 'status', 'remarks'],
-            'invoice_items' => ['invoice_id', 'fee_type_id', 'description'],
+            'invoice_items' => ['invoice_id', 'fee_type_id', 'lease_charge_id', 'description'],
             'fee_types' => ['user_id', 'name', 'category'],
             'document_templates' => ['user_id', 'category', 'status'],
             'document_sequences' => ['user_id', 'category', 'sequence'],
@@ -105,7 +105,7 @@ class LatePenaltyPaymentTest extends TestCase
         $this->assertSame(2000, $penalty->total_amount);
         $this->assertSame(0, $penalty->amount_balance);
         $this->assertSame('paid', Invoice::find('original')->status);
-        $this->assertStringContainsString('start=2026-10-20; through=2026-10-23; frequency=3; charges=2', $penalty->remarks);
+        $this->assertSame('Late penalty for invoice INV-TEST', $penalty->remarks);
         $this->assertSame(12000, (int) DB::table('transactions')->sum('amount_paid'));
     }
 
@@ -187,7 +187,7 @@ class LatePenaltyPaymentTest extends TestCase
     {
         DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 11000]);
         DB::unprepared("CREATE TRIGGER fail_receipt BEFORE INSERT ON transactions WHEN NEW.invoice_id = 'original' BEGIN SELECT RAISE(ABORT, 'test receipt failure'); END");
-        try { $this->pay(Invoice::find('original'), 0, '2026-10-20', ['use_wallet' => true]); $this->fail('Receipt should fail.'); }
+        try { $this->pay(Invoice::find('original'), 0, '2026-10-20', ['use_wallet' => true, 'payment_method' => 'Wallet', 'transaction_ref' => null]); $this->fail('Receipt should fail.'); }
         catch (\Illuminate\Database\QueryException $e) { $this->assertStringContainsString('test receipt failure', $e->getMessage()); }
         $this->assertSame(1, Invoice::count());
         $this->assertSame(10000, Invoice::find('original')->amount_balance);
@@ -196,7 +196,7 @@ class LatePenaltyPaymentTest extends TestCase
         $this->assertSame(0, DB::table('transactions')->count());
         $this->assertSame(0, DB::table('document_sequences')->count());
         DB::unprepared('DROP TRIGGER fail_receipt');
-        $this->pay(Invoice::find('original'), 0, '2026-10-20', ['use_wallet' => true]);
+        $this->pay(Invoice::find('original'), 0, '2026-10-20', ['use_wallet' => true, 'payment_method' => 'Wallet', 'transaction_ref' => null]);
         $this->assertSame(1, Invoice::where('parent_id', 'original')->count());
         $this->assertSame(0, (int) DB::table('wallets')->value('balance'));
     }
@@ -301,6 +301,70 @@ class LatePenaltyPaymentTest extends TestCase
         $this->assertStringContainsString('Ask the system administrator', session('error'));
         $this->assertTrue(session('errors')->has('penalty'));
         $this->assertSame(0, DB::table('transactions')->count());
+    }
+
+    public function test_payment_methods_and_references_survive_cash_bank_wallet_and_mixed_collection(): void
+    {
+        // Each case starts with independent persisted balances; no production DB or migrations.
+        foreach ([
+            ['Cash', 100, false, 'CASH', 5000, 5000],
+            ['Bank Transfer', 100, false, 'BANK-123', 5000, 5000],
+            ['Wallet', 0, true, null, 10000, 0],
+            ['Cash', 50, true, 'CASH', 5000, 0],
+            ['Bank Transfer', 50, true, 'MIXED-123', 5000, 0],
+        ] as [$method, $external, $useWallet, $reference, $balance, $remaining]) {
+            DB::table('transactions')->delete(); DB::table('wallet_transactions')->delete();
+            DB::table('wallets')->updateOrInsert(['id' => 'wallet'], ['user_id' => 'tenant', 'balance' => $balance]);
+            DB::table('invoices')->where('id', 'original')->update(['amount_paid' => 0, 'amount_balance' => 10000, 'status' => 'unpaid']);
+            $data = ['payment_method' => $method, 'amount_paid' => $external, 'use_wallet' => $useWallet, 'transaction_ref' => $reference, 'payment_date' => '2026-10-19'];
+            $request = \App\Http\Requests\Invoice\RecordPaymentRequest::create('/payment', 'POST', $data);
+            $validator = \Illuminate\Support\Facades\Validator::make($data, $request->rules());
+            $this->assertTrue($validator->passes(), $validator->errors()->toJson());
+            Model::withoutEvents(fn () => app(InvoiceService::class)->recordPayment(Invoice::find('original'), $validator->validated()));
+            $transaction = DB::table('transactions')->sole();
+            $this->assertSame($method, $transaction->payment_method);
+            $this->assertSame($reference, $transaction->transaction_ref);
+            $this->assertSame(10000, (int) $transaction->amount_applied);
+            $this->assertNotEmpty($transaction->receipt_no);
+            $this->assertSame($remaining, (int) DB::table('wallets')->value('balance'));
+            $this->assertSame($useWallet ? -$balance : 0, (int) DB::table('wallet_transactions')->sum('amount'));
+            $this->assertSame(0, Invoice::find('original')->amount_balance);
+        }
+    }
+
+    public function test_conflicting_wallet_requests_are_rejected_without_partial_writes(): void
+    {
+        $base = ['amount_paid' => 0, 'payment_date' => '2026-10-20', 'payment_method' => 'Wallet', 'use_wallet' => true, 'transaction_ref' => null];
+        DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 11000]);
+        foreach ([['use_wallet' => false], ['amount_paid' => 20], ['transaction_ref' => 'CASH'], ['transaction_ref' => 'BANK-OLD'], ['payment_method' => 'Cash']] as $changes) {
+            $data = array_merge($base, $changes);
+            $request = \App\Http\Requests\Invoice\RecordPaymentRequest::create('/payment', 'POST', $data);
+            $this->assertFalse(\Illuminate\Support\Facades\Validator::make($data, $request->rules())->passes());
+            try {
+                Model::withoutEvents(fn () => app(InvoiceService::class)->recordPayment(Invoice::find('original'), $data));
+                $this->fail('Contradictory request must fail even when bypassing FormRequest.');
+            } catch (ValidationException $e) { $this->assertNotEmpty($e->errors()); }
+            $this->assertSame(0, DB::table('transactions')->count());
+            $this->assertSame(0, DB::table('wallet_transactions')->count());
+            $this->assertSame(0, DB::table('document_sequences')->count());
+            $this->assertSame(1, Invoice::count());
+            $this->assertSame(10000, Invoice::find('original')->amount_balance);
+            $this->assertSame(11000, (int) DB::table('wallets')->value('balance'));
+        }
+        foreach (['empty', 'missing', 'no-tenant'] as $case) {
+            DB::table('wallets')->where('id', 'wallet')->update(['balance' => 0]);
+            if ($case === 'missing') DB::table('wallets')->delete();
+            if ($case === 'no-tenant') DB::table('leases')->where('id', 'lease')->update(['tenant_id' => null]);
+            try {
+                Model::withoutEvents(fn () => app(InvoiceService::class)->recordPayment(Invoice::find('original'), $base));
+                $this->fail('Wallet label requires actual available Wallet funds.');
+            } catch (ValidationException $e) { $this->assertArrayHasKey('use_wallet', $e->errors()); }
+            $this->assertSame(0, DB::table('transactions')->count());
+            $this->assertSame(0, DB::table('wallet_transactions')->count());
+            $this->assertSame(0, DB::table('document_sequences')->count());
+            $this->assertSame(1, Invoice::count());
+            $this->assertSame(10000, Invoice::find('original')->amount_balance);
+        }
     }
 
     public function test_payment_and_settings_blades_compile(): void

@@ -178,18 +178,35 @@ class Invoice extends Model
             ->selectRaw("i.id as event_id, 'invoice' as event_kind, i.id as invoice_id, i.invoice_no,
                 i.created_at as occurred_at, i.created_at as recorded_at, i.total_amount as amount,
                 NULL as wallet_user_id, NULL as receipt_no, NULL as payment_method, NULL as reference,
-                i.remarks as description, i.status as source_type, 0 as date_only");
+                i.remarks as description, i.status as source_type, 0 as date_only, NULL as linked_transaction_id");
         $payments = DB::table('transactions as t')->join('invoices as i', 'i.id', '=', 't.invoice_id')
             ->whereNull('t.deleted_at')->whereIn('i.id', clone $visible)
             ->selectRaw("t.id as event_id, 'payment' as event_kind, i.id as invoice_id, i.invoice_no,
-                COALESCE(t.payment_date, t.created_at) as occurred_at, t.created_at as recorded_at,
+                t.created_at as occurred_at, t.created_at as recorded_at,
                 t.amount_applied as amount, NULL as wallet_user_id, t.receipt_no, t.payment_method,
-                t.transaction_ref as reference, NULL as description, i.status as source_type,
-                CASE WHEN t.payment_date IS NULL THEN 0 ELSE 1 END as date_only");
+                t.transaction_ref as reference, t.remarks as description, i.status as source_type,
+                CASE WHEN t.payment_date IS NULL THEN 0 ELSE 1 END as date_only, NULL as linked_transaction_id");
 
+        // Explicit children are removed before pagination, never by invoice/date/amount matching.
+        $wallet = DB::query()->fromSub(static::statementWalletEvents($visible, $leaseId, $superAdmin, $actualId, $effectiveId), 'wallet_events')
+            ->whereNull('linked_transaction_id');
+
+        $events = DB::query()->fromSub($invoices->unionAll($payments)->unionAll($wallet), 'statement_events');
+        if (!empty($filters['statement_from'])) $events->where('occurred_at', '>=', $filters['statement_from']);
+        if (!empty($filters['statement_to'])) $events->where('occurred_at', '<', \Carbon\Carbon::parse($filters['statement_to'])->addDay()->toDateString());
+        if (!empty($filters['statement_kind'])) $events->where('event_kind', $filters['statement_kind']);
+        if (!empty($filters['statement_invoice'])) $events->where('invoice_no', 'like', '%'.$filters['statement_invoice'].'%');
+        // The receipt is the parent event for grouped movements. Unknown recording times sort last.
+        return $events->orderByRaw('CASE WHEN recorded_at IS NULL THEN 1 ELSE 0 END')->orderByDesc('recorded_at')->orderBy('event_kind')->orderByDesc('event_id')
+            ->paginate(20, ['*'], 'statement_page', $filters['statement_page'] ?? 1);
+    }
+
+    private static function statementWalletEvents($visible, ?string $leaseId, bool $superAdmin, ?string $actualId, ?string $effectiveId)
+    {
         // reference_id is historically either an invoice ID or a transaction ID.
         // All joins below are primary-key joins, so a movement can appear only once.
-        $wallet = DB::table('wallet_transactions as wt')->join('wallets as w', 'w.id', '=', 'wt.wallet_id')
+        return DB::table('wallet_transactions as wt')->join('wallets as w', 'w.id', '=', 'wt.wallet_id')
+            ->whereRaw("LOWER(COALESCE(wt.type, '')) NOT LIKE '%refund%'")
             ->leftJoin('invoices as direct', 'direct.id', '=', 'wt.reference_id')
             ->leftJoin('transactions as receipt', 'receipt.id', '=', 'wt.reference_id')
             ->leftJoin('invoices as via_receipt', 'via_receipt.id', '=', 'receipt.invoice_id')
@@ -224,15 +241,35 @@ class Invoice extends Model
                 COALESCE(direct.id, via_receipt.id) as invoice_id, COALESCE(direct.invoice_no, via_receipt.invoice_no) as invoice_no,
                 wt.created_at as occurred_at, wt.created_at as recorded_at, wt.amount, w.user_id as wallet_user_id,
                 NULL as receipt_no, NULL as payment_method, wt.reference_id as reference,
-                wt.remarks as description, wt.type as source_type, 0 as date_only");
+                wt.remarks as description, wt.type as source_type, 0 as date_only,
+                CASE WHEN direct.id IS NULL AND receipt.id IS NOT NULL
+                    AND ((wt.type = 'invoice_payment' AND wt.amount < 0) OR (wt.type = 'overpayment_credit' AND wt.amount > 0))
+                    THEN receipt.id ELSE NULL END as linked_transaction_id");
 
-        $events = DB::query()->fromSub($invoices->unionAll($payments)->unionAll($wallet), 'statement_events');
-        if (!empty($filters['statement_from'])) $events->where('occurred_at', '>=', $filters['statement_from']);
-        if (!empty($filters['statement_to'])) $events->where('occurred_at', '<', \Carbon\Carbon::parse($filters['statement_to'])->addDay()->toDateString());
-        if (!empty($filters['statement_kind'])) $events->where('event_kind', $filters['statement_kind']);
-        if (!empty($filters['statement_invoice'])) $events->where('invoice_no', 'like', '%'.$filters['statement_invoice'].'%');
-        return $events->orderByDesc('occurred_at')->orderByDesc('recorded_at')->orderBy('event_kind')->orderByDesc('event_id')
-            ->paginate(20, ['*'], 'statement_page', $filters['statement_page'] ?? 1);
+    }
+
+    public static function statementPaymentDetails(array $ids, ?string $actualId, ?string $effectiveId, bool $superAdmin, ?string $leaseId): array
+    {
+        $visible = static::query()->visibleTo($actualId, $effectiveId, $superAdmin)
+            ->when($leaseId !== null, fn ($q) => $q->forLease($leaseId))->select('invoices.id');
+        return [
+            Transaction::whereIn('invoice_id', clone $visible)->whereKey($ids)->get()->keyBy('id'),
+            DB::query()->fromSub(static::statementWalletEvents($visible, $leaseId, $superAdmin, $actualId, $effectiveId), 'movements')
+                ->whereIn('linked_transaction_id', $ids)->orderBy('recorded_at')->orderBy('event_id')->get()->groupBy('linked_transaction_id'),
+        ];
+    }
+
+    public static function statementSummary(?string $actualId, ?string $effectiveId, bool $superAdmin, ?string $leaseId): array
+    {
+        // Persisted balances using existing unpaid rules, including penalties. No refund adjustment.
+        $outstanding = static::query()->visibleTo($actualId, $effectiveId, $superAdmin)
+            ->when($leaseId !== null, fn ($q) => $q->forLease($leaseId))->unpaid()->sum('amount_balance');
+        $wallet = null;
+        if ($leaseId !== null) {
+            $lease = static::statementLeases($actualId, $effectiveId, $superAdmin)->with('tenant')->find($leaseId);
+            if ($lease?->tenant?->user_id) $wallet = Wallet::where('user_id', $lease->tenant->user_id)->value('balance');
+        }
+        return ['outstanding' => $outstanding, 'wallet' => $wallet];
     }
 
     public static function statementDetails(array $invoiceIds, array $userIds): array

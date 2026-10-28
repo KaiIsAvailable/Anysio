@@ -1,9 +1,6 @@
 @props(['statement', 'filters' => [], 'scopeLabel' => 'All records you can view'])
 
 <section id="invoice-statement" class="bg-white overflow-hidden">
-    <div class="p-6 border-b border-gray-100 space-y-3">
-        <p class="text-sm text-slate-600">{{ $scopeLabel }}</p>
-    </div>
     <div class="overflow-x-auto">
         <table class="min-w-full text-sm text-left divide-y divide-gray-200">
             <thead class="bg-gray-50 text-xs uppercase text-slate-600">

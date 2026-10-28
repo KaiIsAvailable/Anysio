@@ -1,4 +1,4 @@
-@props(['tenants', 'leases', 'properties', 'units', 'rooms', 'templates', 'rentFeeTypes', 'serviceFeeTypes', 'depositFeeTypes', 'managementFeeTypes', 'itemFeeTypes', 'leasePreviewData'])
+@props(['tenants', 'leases', 'properties', 'units', 'rooms', 'templates', 'refundTemplates','rentFeeTypes', 'serviceFeeTypes', 'depositFeeTypes', 'managementFeeTypes', 'itemFeeTypes', 'leasePreviewData'])
 
 <div x-data="{ 
         open: @js($errors->any()), 
@@ -233,16 +233,6 @@
                                 </div>
                             </div>
 
-                            <div id="check_out_section" class="mt-4 hidden">
-                                <x-form.input-label value="Check Out Date" class="mb-1" />
-                                <x-form.date-input 
-                                    id="check-out-date" 
-                                    name="checked_out_at" 
-                                    :value="old('checked_out_at')" 
-                                />
-                                <x-form.input-error :messages="$errors->get('checked_out_at')" class="mt-1" />
-                            </div>
-
                             <div id="agreement_end_section" class="mt-4 hidden">
                                 <x-form.input-label value="Agreement Ended Date" class="mb-1" />
                                 <x-form.date-input id="agreement-end-date" name="agreement_ended_at" :value="old('agreement_ended_at')" />
@@ -260,13 +250,10 @@
                                 <x-form.input-select
                                     name="document_id"
                                     id="document_id"
-                                    :options="$templates->map(fn($t) => [
-                                        'value' => (string)$t->id,
-                                        'label' => $t->title . ' (v' . $t->version . ') - ' . $t->user->name,
-                                        'data-agreement-user-id' => $t->user->id
-                                    ])->values()"
-                                    valueField="value"
-                                    labelField="label"
+                                    placeholder="-- Select Template --"
+                                    :options="$templates->mapWithKeys(fn ($template) => [
+                                        $template->id => $template->title . ' (v' . $template->version . ') - ' . $template->user->name,
+                                    ])->toArray()"
                                     :value="old('document_id')"
                                     :ignore-checkout-or-renew="true"
                                 />
@@ -391,6 +378,47 @@
                                 }
                             }"
                             @fee-type-added.window="handleFeeTypeAdded($event.detail)">
+
+                                <div id="check_out_section" class="mb-4">
+                                    <x-form.input-label value="Check Out Date" class="mb-1" :required="true"/>
+                                    <x-form.date-input 
+                                        id="check-out-date" 
+                                        name="checked_out_at" 
+                                        x-model="checkoutDate"
+                                        :value="old('checked_out_at')" 
+                                    />
+                                    <x-form.input-error :messages="$errors->get('checked_out_at')" class="mt-1" />
+                                </div>
+
+                                @php
+                                    $refundTemplateOptions = $refundTemplates->map(function ($template) {
+                                        return [
+                                            'value' => $template->id,
+                                            'label' => "{$template->title} (v{$template->version}) - {$template->user->name}",
+                                        ];
+                                    })->values()->all();
+                                @endphp
+
+                                {{-- Refund Agreement Template Section --}}
+                                <div class="mb-4">
+                                    <div class="flex justify-between items-center mb-1">
+                                        <x-form.input-label value="Refund Agreement Template" :required="true" />
+                                        <button type="button" id="preview-refund-template-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
+                                            Preview Refund Template
+                                        </button>
+                                    </div>
+                                    
+                                    <x-form.input-select
+                                        name="refund_document_id"
+                                        id="refund_document_id"
+                                        :options="$refundTemplateOptions"
+                                        :value="old('refund_document_id')"
+                                        placeholder="-- Select Refund Template --"
+                                        :ignore-checkout-or-renew="true"
+                                    />
+                                    
+                                    <x-form.input-error :messages="$errors->get('refund_document_id')" class="mt-1" />
+                                </div>
                                 
                                 {{-- Professional Process Stepper Header --}}
                                 <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-4">
@@ -462,133 +490,139 @@
                                             <span :class="getCurrentStep() === 5 ? 'text-emerald-600 font-bold' : 'text-slate-500'" class="whitespace-nowrap">Refunded</span>
                                         </div>
                                     </div>
-
-                                {{-- Sticky Header Bar (Fixed with proper sticky classes and background) --}}
-                                <div class="sticky top-0 z-20 mt-4 bg-white py-3 px-4 rounded-xl border border-slate-200 shadow-sm flex items-center justify-between">
-                                    <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
-                                        {{ __('Refund Settlement Items') }}
-                                    </h4>
-
-                                    {{-- Action Buttons --}}
-                                    <div class="flex items-center gap-3" x-show="['none', 'draft'].includes(refundStatus)">
-                                        <button type="button" @click="$dispatch('open-fee-type-modal', { category: 'item' })" class="inline-flex items-center text-xs font-bold text-gray-600 hover:text-indigo-600 transition-colors">
-                                            + Add Fee Type
-                                        </button>
-                                        <button type="button" @click="addDeductionRow()" class="inline-flex items-center text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
-                                            + Add Deduction Item
-                                        </button>
-                                    </div>
                                 </div>
 
-                                {{-- Main Summary Card --}}
-                                <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-4">
+                                {{-- Unified Container for Refund Settlement --}}
+                                <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
                                     
-                                    {{-- Total Deposit Collected --}}
-                                    <div class="flex justify-between items-center pb-3 border-b border-slate-100">
-                                        <span class="text-xs font-bold uppercase tracking-wider text-gray-500">{{ __('Total Deposit Collected') }}</span>
-                                        <span id="checkout-total-deposit" class="text-sm font-bold text-gray-900">RM 0.00</span>
-                                    </div>
+                                    {{-- Sticky Header Bar (Now sticky relative to the unified card wrapper) --}}
+                                    <div class="sticky top-0 z-20 bg-white py-3 px-4 border-b border-slate-200 flex items-center justify-between">
+                                        <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
+                                            {{ __('Refund Settlement Items') }}
+                                        </h4>
 
-                                    {{-- 1. Auto-detected Unpaid Invoices Container --}}
-                                    <div id="auto-deductions-container" class="hidden space-y-2 pb-3 border-b border-slate-100">
-                                        <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">{{ __('Auto-Detected Unpaid Invoices') }}</span>
-                                        <div id="auto-deductions-list" class="space-y-2 text-xs">
-                                            <!-- Dynamically injected unpaid invoices will appear here -->
+                                        {{-- Action Buttons --}}
+                                        <div class="flex items-center gap-3" x-show="['none', 'draft'].includes(refundStatus)">
+                                            <button type="button" @click="$dispatch('open-fee-type-modal', { category: 'item' })" class="inline-flex items-center text-xs font-bold text-gray-600 hover:text-indigo-600 transition-colors">
+                                                + Add Fee Type
+                                            </button>
+                                            <button type="button" @click="addDeductionRow()" class="inline-flex items-center text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
+                                                + Add Deduction Item
+                                            </button>
                                         </div>
                                     </div>
 
-                                    {{-- 2. Custom Deductions & Charges Section --}}
-                                    <div class="space-y-3 pt-1" x-show="manualDeductions.length > 0 || refundStatus === 'none' || refundStatus === 'draft'" x-transition>
-                                        <div class="flex items-center justify-between" x-show="['none', 'draft'].includes(refundStatus) || manualDeductions.length > 0">
-                                            <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{{ __('Custom Deductions & Charges') }}</span>
+                                    {{-- Main Summary Content Body (Padded inside the unified wrapper) --}}
+                                    <div class="p-4 space-y-4">
+                                        
+                                        {{-- Total Deposit Collected --}}
+                                        <div class="flex justify-between items-center pb-3 border-b border-slate-100">
+                                            <span class="text-xs font-bold uppercase tracking-wider text-gray-500">{{ __('Total Deposit Collected') }}</span>
+                                            <span id="checkout-total-deposit" class="text-sm font-bold text-gray-900">RM 0.00</span>
                                         </div>
 
-                                        <div class="space-y-2">
-                                            <template x-for="(item, index) in manualDeductions" :key="index">
-                                                <div class="flex items-center gap-2 mb-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
-                                                    
-                                                    {{-- Remove Button (Hidden if not in Draft/None) --}}
-                                                    <button type="button" 
-                                                            x-show="['none', 'draft'].includes(refundStatus)"
-                                                            @click="manualDeductions.splice(index, 1)"
-                                                            class="text-slate-400 hover:text-red-600 p-1 rounded transition"
-                                                            title="Remove item">
-                                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                                        </svg>
-                                                    </button>
+                                        {{-- 1. Auto-detected Unpaid Invoices Container --}}
+                                        <div id="auto-deductions-container" class="hidden space-y-2 pb-3 border-b border-slate-100">
+                                            <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">{{ __('Auto-Detected Unpaid Invoices') }}</span>
+                                            <div id="auto-deductions-list" class="space-y-2 text-xs">
+                                                <!-- Dynamically injected unpaid invoices will appear here -->
+                                            </div>
+                                        </div>
 
-                                                    <!-- Fee Type Select -->
-                                                    <div class="flex-1">
-                                                        <!-- Editable Select Component (Shown only during None or Draft) -->
-                                                        <div x-show="['none', 'draft'].includes(refundStatus)">
-                                                            <x-form.input-select
-                                                                x-model="item.fee_type_id"
-                                                                ::name="'items['+index+'][fee_type_id]'"
-                                                                :options="$itemFeeTypes->map(fn($f) => ['value' => (string)$f->id, 'label' => $f->name . ' (Item)'])->values()"
-                                                                placeholder="Select Item"
-                                                                :ignore-checkout-or-renew="true"
-                                                                @change="updateItemPrice(index, $event)" 
-                                                            />
-                                                            <input type="hidden" :name="'items['+index+'][fee_type_id]'" x-model="item.fee_type_id">
+                                        {{-- 2. Custom Deductions & Charges Section --}}
+                                        <div class="space-y-3 pt-1" x-show="manualDeductions.length > 0 || refundStatus === 'none' || refundStatus === 'draft'" x-transition>
+                                            <div class="flex items-center justify-between" x-show="['none', 'draft'].includes(refundStatus) || manualDeductions.length > 0">
+                                                <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{{ __('Custom Deductions & Charges') }}</span>
+                                            </div>
+
+                                            <div class="space-y-2">
+                                                <template x-for="(item, index) in manualDeductions" :key="index">
+                                                    <div class="flex items-center gap-2 mb-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
+                                                        
+                                                        {{-- Remove Button (Hidden if not in Draft/None) --}}
+                                                        <button type="button" 
+                                                                x-show="['none', 'draft'].includes(refundStatus)"
+                                                                @click="manualDeductions.splice(index, 1)"
+                                                                class="text-slate-400 hover:text-red-600 p-1 rounded transition"
+                                                                title="Remove item">
+                                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                                            </svg>
+                                                        </button>
+
+                                                        <!-- Fee Type Select -->
+                                                        <div class="flex-1">
+                                                            <!-- Editable Select Component (Shown only during None or Draft) -->
+                                                            <div x-show="['none', 'draft'].includes(refundStatus)">
+                                                                <x-form.input-select
+                                                                    x-model="item.fee_type_id"
+                                                                    ::name="'items['+index+'][fee_type_id]'"
+                                                                    :options="$itemFeeTypes->map(fn($f) => ['value' => (string)$f->id, 'label' => $f->name . ' (Item)'])->values()"
+                                                                    placeholder="Select Item"
+                                                                    :ignore-checkout-or-renew="true"
+                                                                    @change="updateItemPrice(index, $event)" 
+                                                                />
+                                                                <input type="hidden" :name="'items['+index+'][fee_type_id]'" x-model="item.fee_type_id">
+                                                            </div>
+
+                                                            <!-- Read-Only Text Span (Shown during Pending, Approved, or Paid) -->
+                                                            <div x-show="!['none', 'draft'].includes(refundStatus)" class="py-2 text-sm font-medium text-slate-700">
+                                                                <span x-text="
+                                                                    (() => {
+                                                                        let found = availableFeeTypes.find(f => String(f.id) === String(item.fee_type_id));
+                                                                        return found ? found.name + ' (Item)' : 'N/A';
+                                                                    })()
+                                                                "></span>
+                                                            </div>
                                                         </div>
 
-                                                        <!-- Read-Only Text Span (Shown during Pending, Approved, or Paid) -->
-                                                        <div x-show="!['none', 'draft'].includes(refundStatus)" class="py-2 text-sm font-medium text-slate-700">
-                                                            <span x-text="
-                                                                (() => {
-                                                                    let found = availableFeeTypes.find(f => String(f.id) === String(item.fee_type_id));
-                                                                    return found ? found.name + ' (Item)' : 'N/A';
-                                                                })()
-                                                            "></span>
+                                                        <!-- Quantity Display / Input -->
+                                                        <div class="w-20">
+                                                            <!-- Editable Input (Shown only during None or Draft) -->
+                                                            <div x-show="['none', 'draft'].includes(refundStatus)">
+                                                                <x-form.text-input 
+                                                                    type="number"
+                                                                    x-model.number="item.qty" 
+                                                                    min="1" 
+                                                                    @wheel.prevent 
+                                                                />
+                                                                <input type="hidden" :name="'items['+index+'][qty]'" x-model="item.qty">
+                                                            </div>
+
+                                                            <!-- Read-Only Text Span (Shown during Pending, Approved, or Paid) -->
+                                                            <div x-show="!['none', 'draft'].includes(refundStatus)" class="py-2 text-sm font-medium text-slate-700 text-center">
+                                                                <span x-text="item.qty || 1"></span>
+                                                            </div>
                                                         </div>
+
+                                                        <!-- Hidden Input for Sell Price -->
+                                                        <input type="hidden" :name="'items['+index+'][sell_price]'" x-model="item.sell_price">
+
+                                                        <!-- Computed Total Display -->
+                                                        <div class="w-28 text-right pr-1">
+                                                            <span class="text-sm font-semibold text-red-600" 
+                                                                x-text="'RM ' + ((item.qty || 1) * (item.sell_price || 0)).toFixed(2)">
+                                                            </span>
+                                                        </div>
+
                                                     </div>
-
-                                                    <!-- Quantity Display / Input -->
-                                                    <div class="w-20">
-                                                        <!-- Editable Input (Shown only during None or Draft) -->
-                                                        <div x-show="['none', 'draft'].includes(refundStatus)">
-                                                            <x-form.text-input 
-                                                                type="number"
-                                                                x-model.number="item.qty" 
-                                                                min="1" 
-                                                                @wheel.prevent 
-                                                            />
-                                                            <input type="hidden" :name="'items['+index+'][qty]'" x-model="item.qty">
-                                                        </div>
-
-                                                        <!-- Read-Only Text Span (Shown during Pending, Approved, or Paid) -->
-                                                        <div x-show="!['none', 'draft'].includes(refundStatus)" class="py-2 text-sm font-medium text-slate-700 text-center">
-                                                            <span x-text="item.qty || 1"></span>
-                                                        </div>
-                                                    </div>
-
-                                                    <!-- Hidden Input for Sell Price -->
-                                                    <input type="hidden" :name="'items['+index+'][sell_price]'" x-model="item.sell_price">
-
-                                                    <!-- Computed Total Display -->
-                                                    <div class="w-28 text-right pr-1">
-                                                        <span class="text-sm font-semibold text-red-600" 
-                                                            x-text="'RM ' + ((item.qty || 1) * (item.sell_price || 0)).toFixed(2)">
-                                                        </span>
-                                                    </div>
-
-                                                </div>
-                                            </template>
-                                        </div>
-                                    </div>
-
-                                    {{-- Final Net Summary Calculation Footer --}}
-                                    <div class="pt-3 border-t border-gray-200 space-y-2">
-                                        <div class="flex justify-between items-center text-xs text-gray-600">
-                                            <span>{{ __('Total Deductions (Auto + Custom):') }}</span>
-                                            <span class="font-semibold text-red-600">- RM <span id="checkout-total-deductions" x-text="(autoDeductionTotal + calculateManualTotal()).toFixed(2)">0.00</span></span>
+                                                </template>
+                                            </div>
                                         </div>
 
-                                        <div class="flex justify-between items-center text-base font-bold text-gray-900 pt-1">
-                                            <span>{{ __('Nett Refund Amount:') }}</span>
-                                            <span id="checkout-net-refund" class="text-indigo-600 text-lg font-bold" x-text="'RM ' + Math.max(0, (parseFloat(window.checkoutTotalDepositValue || 0) - (autoDeductionTotal + calculateManualTotal()))).toFixed(2)">RM 0.00</span>
+                                        {{-- Final Net Summary Calculation Footer --}}
+                                        <div class="pt-3 border-t border-gray-200 space-y-2">
+                                            <div class="flex justify-between items-center text-xs text-gray-600">
+                                                <span>{{ __('Total Deductions (Auto + Custom):') }}</span>
+                                                <span class="font-semibold text-red-600">- RM <span id="checkout-total-deductions" x-text="(autoDeductionTotal + calculateManualTotal()).toFixed(2)">0.00</span></span>
+                                            </div>
+
+                                            <div class="flex justify-between items-center text-base font-bold text-gray-900 pt-1">
+                                                <span>{{ __('Nett Refund Amount:') }}</span>
+                                                <span id="checkout-net-refund" class="text-indigo-600 text-lg font-bold" x-text="'RM ' + Math.max(0, (parseFloat(window.checkoutTotalDepositValue || 0) - (autoDeductionTotal + calculateManualTotal()))).toFixed(2)">RM 0.00</span>
+                                            </div>
                                         </div>
+
                                     </div>
                                 </div>
                             </div>
@@ -784,7 +818,17 @@
         $jsTemplates = $templates->map(fn($t) => [
             'id' => (string) $t->id, 
             'title' => $t->title, 
-            'content' => $t->html_template
+            'label' => $t->title . ' (v' . $t->version . ') - ' . $t->user->name,
+            'content' => $t->html_template,
+            'user_id' => (string) $t->user_id,
+        ])->keyBy('id');
+
+        $jsRefundTemplates = $refundTemplates->map(fn($t) => [
+            'id' => (string) $t->id,
+            'title' => $t->title,
+            'label' => $t->title . ' (v' . $t->version . ') - ' . $t->user->name,
+            'content' => $t->html_template,
+            'user_id' => (string) $t->user_id,
         ])->keyBy('id');
 
         $jsTenants = $tenants->map(fn($t) => [
@@ -824,6 +868,9 @@
     <script type="application/json" id="templates-json">
         {!! json_encode($jsTemplates, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}
     </script>
+    <script type="application/json" id="refund-templates-json">
+        {!! json_encode($jsRefundTemplates, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT) !!}
+    </script>
 
     <div id="server-data" class="hidden" style="display: none;"
         data-create-url="{{ route('admin.leases.create') }}"
@@ -854,6 +901,8 @@
 
         const templatesJsonEl = document.getElementById('templates-json');
         const allTemplates = templatesJsonEl ? JSON.parse(templatesJsonEl.textContent) : {};
+        const refundTemplatesJsonEl = document.getElementById('refund-templates-json');
+        const allRefundTemplates = refundTemplatesJsonEl ? JSON.parse(refundTemplatesJsonEl.textContent) : {};
 
         let chargeIndex = 1;
 
@@ -959,7 +1008,7 @@
                 'checkout_refund_section': newStatus === 'Check Out',
                 'check_out_section': newStatus === 'Check Out',
                 'agreement_end_section': newStatus === 'End Agreement',
-                'agreement_template_section': ['New', 'Renew', 'Check Out'].includes(newStatus)
+                'agreement_template_section': ['New', 'Renew'].includes(newStatus)
             };
 
             requestAnimationFrame(() => {
@@ -984,19 +1033,14 @@
         // Modal Preview Event Listeners & Handlers
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
-            const previewBtn = document.getElementById('preview-btn');
-            const agreementSelect = document.getElementById('document_id');
-
-            if (!previewBtn) return;
-
-            function generatePreviewContent() {
-                if (!agreementSelect || !agreementSelect.value) {
+            function generatePreviewContent(selectElement, templateCollection) {
+                if (!selectElement || !selectElement.value) {
                     alert("⚠️ Please select a template first.");
-                    return null;
+                    return;
                 }
 
-                const selectedTemplateId = String(agreementSelect.value);
-                const templateData = allTemplates[selectedTemplateId];
+                const selectedTemplateId = String(selectElement.value);
+                const templateData = templateCollection[selectedTemplateId];
 
                 if (!templateData || !templateData.content || templateData.content.trim() === '') {
                     alert("⚠ The selected template has no content!");
@@ -1005,6 +1049,64 @@
 
                 let content = templateData.content;
                 const title = templateData.title;
+                const isRefundTemplate = templateCollection === allRefundTemplates;
+                const selectedLeaseId = document.getElementById('lease_id')?.value || '';
+                const selectedLeaseData = selectedLeaseId
+                    ? window.leasePreviewData?.[selectedLeaseId]
+                    : null;
+                const activeRefund = selectedLeaseData?.active_refund || {};
+                const refundItems = Array.isArray(activeRefund.items) ? activeRefund.items : [];
+                const unpaidInvoiceItems = Array.isArray(selectedLeaseData?.unpaid_invoices)
+                    ? selectedLeaseData.unpaid_invoices.map(invoice => ({
+                        description: invoice.description || `Unpaid Invoice ${invoice.invoice_no || ''}`.trim(),
+                        type: 'utility',
+                        qty: 1,
+                        amount_cents: Number(invoice.balance_cents || 0)
+                    }))
+                    : [];
+                const dynamicRefundItems = refundItems.length ? refundItems : unpaidInvoiceItems;
+                const autoDeductionCents = Number(selectedLeaseData?.auto_deduction_total_cents || 0);
+                const totalDepositCents = Number(selectedLeaseData?.total_deposit_collected_cents || 0);
+                const customRefundItems = refundItems.filter(item => {
+                    const type = typeof item.type === 'object' ? item.type.value : item.type;
+                    return type !== 'utility' || !String(item.description || '').includes('Unpaid Invoice');
+                });
+                const customDeductionCents = customRefundItems.reduce(
+                    (total, item) => total + Number(item.amount_cents || 0),
+                    0
+                );
+                const nettRefundCents = Number(
+                    activeRefund.net_amount_cents
+                    ?? (totalDepositCents - autoDeductionCents - customDeductionCents)
+                );
+                const formatAmount = cents => (Number(cents || 0) / 100).toFixed(2);
+                const escapeHtml = value => String(value ?? '')
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#039;');
+                const itemDescription = item => escapeHtml(item.description || item.fee_type?.name || 'Refund deduction');
+                const itemType = item => {
+                    const type = typeof item.type === 'object' ? item.type.value : item.type;
+                    return escapeHtml(String(type || 'adjustment').replace(/_/g, ' '));
+                };
+                const dynamicRefundRows = dynamicRefundItems.length
+                    ? dynamicRefundItems.map((item, index) => `
+                        <tr>
+                            <td style="border: 1px solid #cbd5e1; padding: 10px;">${index + 1}</td>
+                            <td style="border: 1px solid #cbd5e1; padding: 10px;">
+                                ${itemDescription(item)} <span style="color: #64748b;">(${itemType(item)})</span>
+                            </td>
+                            <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center;">${escapeHtml(item.qty || 1)}</td>
+                            <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: right;">RM ${formatAmount(item.amount_cents)}</td>
+                        </tr>
+                    `).join('')
+                    : `<tr>
+                        <td colspan="4" style="border: 1px dashed #bbf7d0; padding: 20px; text-align: center; color: #166534; font-weight: bold;">
+                            No refund deduction items
+                        </td>
+                    </tr>`;
 
                 const replacements = {
                     '{tenant_name}': 'N/A',
@@ -1026,6 +1128,16 @@
                     '{total_deposit}': '0.00',
                     '{management_fee}': '0.00'
                 };
+
+                if (isRefundTemplate) {
+                    replacements['{checkout_date}'] = document.getElementById('check-out-date')?.value || 'N/A';
+                    replacements['{total_deposit_collected}'] = formatAmount(totalDepositCents);
+                    replacements['{auto_deductions_total}'] = formatAmount(autoDeductionCents);
+                    replacements['{custom_deductions_total}'] = formatAmount(customDeductionCents);
+                    replacements['{nett_refund_amount}'] = formatAmount(nettRefundCents);
+                    replacements['{unpaid_invoices_breakdown}'] = formatAmount(autoDeductionCents);
+                    replacements['{custom_items_breakdown}'] = formatAmount(customDeductionCents);
+                }
 
                 const sd = document.getElementById('start-date');
                 if (sd && sd.value) replacements['{start_date}'] = sd.value;
@@ -1093,21 +1205,16 @@
                     if (leaseIdSelect && leaseIdSelect.value) {
                         const leaseId = leaseIdSelect.value;
                         const previewData = leasePreviewData[leaseId];
-                        const opt = leaseIdSelect.options[leaseIdSelect.selectedIndex];
 
-                        if (opt) {
-                            replacements['{property_name}'] = opt.dataset.propertyName || previewData?.leasable_name || 'N/A';
-                            replacements['{property_address}'] = opt.dataset.propertyAddress || previewData?.leasable_address || 'N/A';
-                            replacements['{owner_name}'] = opt.dataset.ownerName || previewData?.owner_data?.name || 'N/A';
-                            replacements['{owner_ic}'] = opt.dataset.ownerIc || previewData?.owner_data?.ic_number || 'N/A';
-                            replacements['{owner_id}'] = opt.dataset.ownerId || previewData?.owner_data?.id || 'N/A';
-                            replacements['{property_type}'] = (opt.dataset.propertyType || '').toUpperCase();
-
-                            const match = opt.text.match(/^\s*(.+?)\s*\((.+?)\)/);
-                            if (match) {
-                                replacements['{tenant_name}'] = match[1].trim();
-                                replacements['{tenant_ic}'] = match[2].trim();
-                            }
+                        if (previewData) {
+                            replacements['{property_name}'] = previewData.leasable_name || 'N/A';
+                            replacements['{property_address}'] = previewData.leasable_address || 'N/A';
+                            replacements['{owner_name}'] = previewData.owner_data?.name || 'N/A';
+                            replacements['{owner_ic}'] = previewData.owner_data?.ic_number || 'N/A';
+                            replacements['{owner_id}'] = previewData.owner_data?.id || 'N/A';
+                            replacements['{property_type}'] = (previewData.leasable_type_label || previewData.leasable_type || '').toUpperCase();
+                            replacements['{tenant_name}'] = previewData.tenant_data?.name || previewData.tenant_name || 'N/A';
+                            replacements['{tenant_ic}'] = previewData.tenant_data?.ic_number || previewData.tenant_ic || 'N/A';
                         }
                     }
                 } else {
@@ -1159,53 +1266,67 @@
                     content = content.replace(textRegex, safeVal);
                 });
 
+                if (isRefundTemplate) {
+                    content = content.replace(
+                        /<tbody\b[^>]*id=["']dynamic-refund-tbody["'][^>]*>[\s\S]*?<\/tbody>/i,
+                        `<tbody id="dynamic-refund-tbody">${dynamicRefundRows}</tbody>`
+                    );
+                }
+
                 return { content, title };
             }
 
-            previewBtn.addEventListener('click', function(e) {
-                e.preventDefault();
-                e.stopPropagation(); 
-                
-                try {
-                    const result = generatePreviewContent();
-                    if (result) {
-                        const modal = document.getElementById('preview-modal');
-                        const modalContent = document.getElementById('modal-content');
-                        const modalTitle = document.getElementById('modal-title');
-                        
-                        if (modalTitle) modalTitle.innerText = "Preview: " + result.title;
-                        
-                        if (modalContent) {
-                            const resetStyles = `
-                                <style>
-                                    .grapes-preview-box h1 { font-size: 2.2em !important; font-weight: bold !important; margin: 0.67em 0 !important; line-height: 1.2 !important; }
-                                    .grapes-preview-box h2 { font-size: 1.6em !important; font-weight: bold !important; margin: 0.83em 0 !important; line-height: 1.3 !important; }
-                                    .grapes-preview-box h3 { font-size: 1.2em !important; font-weight: bold !important; margin: 1em 0 !important; }
-                                    .grapes-preview-box p { margin: 1em 0 !important; }
-                                    .grapes-preview-box ul { list-style-type: disc !important; padding-left: 40px !important; margin: 1em 0 !important; }
-                                    .grapes-preview-box ol { list-style-type: decimal !important; padding-left: 40px !important; margin: 1em 0 !important; }
-                                    .grapes-preview-box li { display: list-item !important; margin-bottom: 0.5em !important; }
-                                    .grapes-preview-box strong, .grapes-preview-box b { font-weight: bold !important; color: #000 !important; }
-                                    .grapes-preview-box hr { margin: 1.5em 0 !important; border-top: 1px solid #ccc !important; }
-                                </style>
-                            `;
-                            modalContent.innerHTML = `<div class="grapes-preview-box">${resetStyles}${result.content}</div>`;
-                        }
-                        
-                        if (modal) {
-                            modal.classList.remove('hidden');
-                            modal.style.display = 'block'; 
-                        }
+            function showPreview(result) {
+                if (!result) return;
 
-                        document.body.style.overflow = 'hidden';
-                        
-                        window.dispatchEvent(new CustomEvent('open-preview-modal', {
-                            detail: { title: result.title, content: result.content }
-                        }));
-                    }
+                const modalContent = document.getElementById('modal-content');
+                const modalTitle = document.getElementById('modal-title');
+                
+                if (modalTitle) modalTitle.innerText = "Preview: " + result.title;
+                
+                if (modalContent) {
+                    const resetStyles = `
+                        <style>
+                            .grapes-preview-box h1 { font-size: 2.2em !important; font-weight: bold !important; margin: 0.67em 0 !important; line-height: 1.2 !important; }
+                            .grapes-preview-box h2 { font-size: 1.6em !important; font-weight: bold !important; margin: 0.83em 0 !important; line-height: 1.3 !important; }
+                            .grapes-preview-box h3 { font-size: 1.2em !important; font-weight: bold !important; margin: 1em 0 !important; }
+                            .grapes-preview-box p { margin: 1em 0 !important; }
+                            .grapes-preview-box ul { list-style-type: disc !important; padding-left: 40px !important; margin: 1em 0 !important; }
+                            .grapes-preview-box ol { list-style-type: decimal !important; padding-left: 40px !important; margin: 1em 0 !important; }
+                            .grapes-preview-box li { display: list-item !important; margin-bottom: 0.5em !important; }
+                            .grapes-preview-box strong, .grapes-preview-box b { font-weight: bold !important; color: #000 !important; }
+                            .grapes-preview-box hr { margin: 1.5em 0 !important; border-top: 1px solid #ccc !important; }
+                        </style>
+                    `;
+                    modalContent.innerHTML = `<div class="grapes-preview-box">${resetStyles}${result.content}</div>`;
+                }
+
+                document.body.style.overflow = 'hidden';
+                window.dispatchEvent(new CustomEvent('open-preview-modal', {
+                    detail: { title: result.title, content: result.content }
+                }));
+            }
+
+            function handlePreviewClick(event, selectElement, templateCollection) {
+                event.preventDefault();
+                event.stopPropagation();
+
+                try {
+                    showPreview(generatePreviewContent(selectElement, templateCollection));
                 } catch (error) {
                     console.error("🚨 Preview Error: ", error);
                     alert("Something went wrong while generating the preview: " + error.message);
+                }
+            }
+
+            document.addEventListener('click', function(event) {
+                const previewButton = event.target.closest('#preview-btn');
+                const refundPreviewButton = event.target.closest('#preview-refund-template-btn');
+
+                if (previewButton) {
+                    handlePreviewClick(event, document.getElementById('document_id'), allTemplates);
+                } else if (refundPreviewButton) {
+                    handlePreviewClick(event, document.getElementById('refund_document_id'), allRefundTemplates);
                 }
             });
 
@@ -1241,10 +1362,7 @@
             if (!ownerId) {
                 const leaseSelect = document.getElementById('lease_id');
                 if (leaseSelect && leaseSelect.value !== "") {
-                    const selectedLease = leaseSelect.options[leaseSelect.selectedIndex];
-                    if (selectedLease) {
-                        ownerId = selectedLease.getAttribute('data-owner-id');
-                    }
+                    ownerId = window.leasePreviewData?.[leaseSelect.value]?.owner_data?.id || null;
                 }
             }
 
@@ -1271,21 +1389,23 @@
             const agreementSelect = document.getElementById('document_id');
             if (!agreementSelect) return;
 
-            Array.from(agreementSelect.options).forEach(option => {
-                if (option.value === "") return;
-                const templateUserId = option.getAttribute('data-agreement-user-id');
-                
-                const matchesOwner = ownerId && String(templateUserId) === String(ownerId);
-                const matchesAuthUser = currentUserId && String(templateUserId) === String(currentUserId);
+            const agreementComponent = agreementSelect.closest('[x-data]');
+            const agreementData = agreementComponent && window.Alpine
+                ? window.Alpine.$data(agreementComponent)
+                : null;
 
-                if (matchesOwner || matchesAuthUser) {
-                    option.style.display = 'block';
-                } else {
-                    option.style.display = 'none';
-                }
+            if (!agreementData || !Array.isArray(agreementData.options)) return;
+
+            agreementData.options = agreementData.options.filter(option => {
+                const template = allTemplates[String(option.value)];
+                const templateUserId = template?.user_id;
+
+                return !ownerId
+                    || String(templateUserId) === String(ownerId)
+                    || String(templateUserId) === String(currentUserId);
             });
 
-            if (agreementSelect.selectedIndex > 0 && agreementSelect.options[agreementSelect.selectedIndex].style.display === 'none') {
+            if (agreementSelect.value && !agreementData.options.some(option => String(option.value) === String(agreementSelect.value))) {
                 agreementSelect.value = "";
             }
         }

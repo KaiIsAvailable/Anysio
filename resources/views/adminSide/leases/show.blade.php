@@ -156,13 +156,34 @@
 
                             {{-- 2. Check Out Lease Button --}}
                             @canany(['owner-admin', 'leases.check out lease'])
-                                <button type="button" 
-                                    x-show="activeLease && activeLease.is_current && !['cancelled', 'check out', 'end'].includes((activeLease.status || '').toLowerCase())"
-                                    x-cloak
-                                    @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: activeId } }))"
-                                    class="px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-black rounded-lg border border-amber-100 hover:bg-amber-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
-                                    CHECK OUT
-                                </button>
+                                @canany(['owner-admin', 'leases.check out lease'])
+                                    @php
+                                        // Get the latest refund status safely
+                                        $latestRefund = $lease->refunds()->latest()->first();
+                                        
+                                        // Extract string value whether it's an Enum instance, a string, or null
+                                        $rawStatus = $latestRefund?->status;
+                                        if ($rawStatus instanceof \BackedEnum) {
+                                            $rawStatus = $rawStatus->value;
+                                        }
+                                        $refundStatus = strtolower(trim($rawStatus ?? 'none'));
+                                        
+                                        // Allow if not cancelled/ended, AND (it's not check out OR the refund is NOT paid yet)
+                                        $leaseStatus = strtolower(trim($lease->status ?? ''));
+                                        $isCheckOut = $leaseStatus === 'check out';
+                                        $isPaid = $refundStatus === 'paid';
+                                        
+                                        $canShowCheckout = (!in_array($leaseStatus, ['cancelled', 'end'])) && (!$isCheckOut || !$isPaid);
+                                    @endphp
+
+                                    @if($canShowCheckout)
+                                        <button type="button" 
+                                            @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
+                                            class="px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-black rounded-lg border border-amber-100 hover:bg-amber-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
+                                            CHECK OUT
+                                        </button>
+                                    @endif
+                                @endcanany
                             @endcanany
 
                             {{-- 3. Cancel Lease Button --}}
@@ -726,6 +747,7 @@
         :units="$units" 
         :rooms="$rooms" 
         :templates="$templates" 
+        :refundTemplates="$refundTemplates" 
         :rentFeeTypes="$rentFeeTypes" 
         :serviceFeeTypes="$serviceFeeTypes" 
         :depositFeeTypes="$depositFeeTypes" 

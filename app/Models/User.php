@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\{BelongsToMany, HasMany, HasOne};
 use Spatie\Permission\Traits\HasRoles;
 use App\Traits\Auditable;
 
@@ -147,6 +147,18 @@ class User extends Authenticatable implements MustVerifyEmail
 
     public function user_management() {
         return $this->hasOne(UserManagement::class, 'user_id');
+    }
+
+    public function companies(): BelongsToMany
+    {
+        return $this->belongsToMany(Company::class, 'company_user')
+            ->using(CompanyUser::class)
+            ->withTimestamps();
+    }
+
+    public function companyUsers(): HasMany
+    {
+        return $this->hasMany(CompanyUser::class, 'user_id');
     }
 
     public function hasRole($role) 

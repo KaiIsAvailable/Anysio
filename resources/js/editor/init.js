@@ -7,13 +7,15 @@ import privacyBlocks from './privacy';
 import invoiceBlocks from './invoice';
 import receiptBlocks from './receipt';
 import tosBlocks from './term_of_service';
+import refundBlocks from './refund';
 
 const blockSets = {
     agreement: agreementBlocks,
     privacy: privacyBlocks,
     invoice: invoiceBlocks,
     receipt: receiptBlocks,
-    tos: tosBlocks
+    tos: tosBlocks,
+    refund: refundBlocks
 };
 
 export function createAgreementEditor(containerId) {
@@ -456,7 +458,6 @@ export function createAgreementEditor(containerId) {
         <option value="">
           + Insert Variable...
         </option>
-
 
         <optgroup label="🧑‍💼 Tenant Info">
 

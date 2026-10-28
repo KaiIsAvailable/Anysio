@@ -12,7 +12,8 @@
         $categories = [
             'agreement' => 'Agreement',
             'invoice'   => 'Invoice',
-            'receipt'   => 'Receipt'
+            'receipt'   => 'Receipt',
+            'refund'   => 'Refund'
         ];
         
         if ($isAdmin) {

@@ -28,13 +28,13 @@
                 <div class="p-5 border-b border-gray-100 bg-white">
                     <div class="flex justify-end">
                         <form method="GET" action="{{ route('admin.rooms.index') }}" class="flex items-stretch gap-2">
-                            <a href="{{ route('admin.roomAsset.index') }}" 
+                            <!--<a href="{{ route('admin.roomAsset.index') }}" 
                             class="inline-flex items-center px-4 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors">
                                 <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                                 </svg>
                                 View Room Assets
-                            </a>
+                            </a>-->
                             <div class="flex items-stretch">
                                 <div class="relative flex-1">
                                     <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">

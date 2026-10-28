@@ -732,6 +732,10 @@ class LeaseService
                 [
                     'leasable_name' => $this->getLeasableName($leasable),
                     'leasable_address' => $this->getLeasableAddress($leasable),
+                    'tenant_data' => [
+                        'name' => $lease->tenant?->user?->name ?? 'N/A',
+                        'ic_number' => $lease->tenant?->ic_number ?? $lease->tenant?->passport ?? 'N/A',
+                    ],
                     'owner_data' => $this->getOwnerData($leasable),
                     'cumulative_security' => $cumulativeSecurity,
                     'cumulative_utilities' => $cumulativeUtilities,
@@ -754,6 +758,21 @@ class LeaseService
             'user_id'
         )->get();
 
+        $refundTemplates = $this->applyOwnershipFilter(
+            DocumentTemplate::query()->where('category', 'refund')->where('status', 'active'),
+            $user,
+            'user_id'
+        )->get();
+
+        Log::channel('testing')->info('Lease form template data:', [
+            'user_id' => $user->id,
+            'user_role' => $user->role,
+            'template_count' => $templates->count(),
+            'templates' => $templates->toArray(),
+            'refund_template_count' => $refundTemplates->count(),
+            'refund_templates' => $refundTemplates->toArray(),
+        ]);
+
         $statuses = ['New', 'Renew', 'Check Out', 'End'];
 
         return compact(
@@ -765,6 +784,7 @@ class LeaseService
             'modalLeases', // <--- Pass this to your payload array
             'leasePreviewData',
             'templates',
+            'refundTemplates',
             'rentFeeTypes',
             'serviceFeeTypes',
             'depositFeeTypes',

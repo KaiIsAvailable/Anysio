@@ -312,6 +312,7 @@
                                                     </button>
                                                 @endif
                                             @endcanany
+                                            
                                             {{-- 5. Cancel Lease --}}
                                             @canany(['owner-admin', 'leases.cancel lease'])
                                                 @if($lease->status != 'cancelled')

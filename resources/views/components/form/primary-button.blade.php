@@ -18,7 +18,12 @@
 {{-- 兼容 Alpine 和原生 Blade 的 disabled 绑定 --}}
 @if($isAlpine)
     :disabled="{{ $loading }}"
-    @pageshow.window="{{ $loading }} = false"
+    {{-- Only add the pageshow reset if it's a direct variable name, not a comparison expression containing '===' --}}
+    @if(!str_contains($loading, '==='))
+        @pageshow.window="{{ $loading }} = false"
+    @else
+        @pageshow.window="subAction = ''"
+    @endif
 @else
     {{ $loading ? 'disabled' : '' }}
 @endif

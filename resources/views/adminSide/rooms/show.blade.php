@@ -256,6 +256,7 @@
                 :units="$units" 
                 :rooms="$rooms" 
                 :templates="$templates" 
+                :refundTemplates="$refundTemplates" 
                 :rentFeeTypes="$rentFeeTypes" 
                 :serviceFeeTypes="$serviceFeeTypes" 
                 :depositFeeTypes="$depositFeeTypes" 

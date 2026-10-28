@@ -17,11 +17,14 @@ class ProfileController extends Controller
      */
     public function edit(Request $request): View
     {
-        $userManagement = UserManagement::where('user_id', $request->user()->id)
-        ->first();
+        $user = $request->user();
+        $effectiveUser = get_effective_user();
+        $userManagement = $effectiveUser
+            ? UserManagement::where('user_id', $effectiveUser->id)->first()
+            : null;
 
         return view('profile.edit', [
-            'user' => $request->user(),
+            'user' => $user,
             'userManagement' => $userManagement,
         ]);
     }

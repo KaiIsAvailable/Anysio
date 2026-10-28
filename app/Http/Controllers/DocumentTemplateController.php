@@ -116,7 +116,8 @@ class DocumentTemplateController extends Controller
         $availableCategories = [
             'agreement' => 'Agreement',
             'invoice'   => 'Invoice',
-            'receipt'   => 'Receipt'
+            'receipt'   => 'Receipt',
+            'refund'   => 'Refund'
         ];
         if ($isAdmin) {
             $availableCategories = [

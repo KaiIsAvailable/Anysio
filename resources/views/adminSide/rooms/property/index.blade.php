@@ -30,13 +30,13 @@
                         <x-form.form method="GET" action="{{ route('admin.properties.index') }}" class="flex flex-wrap items-center gap-4">
                             <div class="flex items-stretch justify-between">
                                 @canany(['owner-admin', 'property.view room assets'])
-                                <a href="{{ route('admin.roomAsset.index') }}" 
+                                <!--<a href="{{ route('admin.roomAsset.index') }}" 
                                 class="inline-flex items-center px-5 py-2.5 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-lg hover:bg-indigo-100 transition-colors mr-4">
                                     <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                                     </svg>
                                     View Room Assets
-                                </a>
+                                </a>-->
                                 @endcanany
                                 <x-table.search placeholder="Search property name..." />
                             </div>

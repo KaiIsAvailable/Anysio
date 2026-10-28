@@ -99,6 +99,7 @@
                     :units="$units" 
                     :rooms="$rooms" 
                     :templates="$templates" 
+                    :refundTemplates="$refundTemplates" 
                     :rentFeeTypes="$rentFeeTypes" 
                     :serviceFeeTypes="$serviceFeeTypes" 
                     :depositFeeTypes="$depositFeeTypes" 
@@ -138,8 +139,6 @@
                         </div>
                     </x-form.form>
                 </x-modals.confirmation-modal>
-
-                <x-preview-agreement-modal />
 
                 {{-- Pagination --}}
                 @if($leases && method_exists($leases, 'hasPages') && $leases->hasPages())

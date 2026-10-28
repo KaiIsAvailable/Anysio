@@ -521,7 +521,7 @@ class InvoiceService
             $invoice->items()->create([
                 'fee_type_id' => $feeType->id,
                 'lease_charge_id' => $item['lease_charge_id'] ?? null,
-                'description' => $item['description'],
+                'description' => filled($item['description'] ?? null) ? $item['description'] : '',
                 'amount'      => $item['amount_cents'],
             ]);
         }

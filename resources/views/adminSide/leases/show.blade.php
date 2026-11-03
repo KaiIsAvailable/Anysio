@@ -409,9 +409,11 @@
                             }
                         }">
                             @canany(['owner-admin', 'leases.auto generate invoice'])
+                            @if($allowManualRecurringInvoice)
                             <x-form.primary-button type="button" loading="generating" @click="generateCharges()">
                                 Auto Generate Invoice
                             </x-form.primary-button>
+                            @endif
                             @endcanany
 
                             <!-- Add Manual Invoice Button -->

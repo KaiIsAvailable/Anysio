@@ -60,7 +60,7 @@ class UpdateLeaseStatuses extends Command
                         $query->where('created_by', $userMgmt->user_id);
                     })
                     ->whereIn('status', ['New', 'Renew'])
-                    ->where('end_date', '<', $now);
+                    ->whereDate('end_date', '<', $now->toDateString());
 
                 // Grab the actual records to log them
                 //$endedLeases = $endedLeasesQuery->get();

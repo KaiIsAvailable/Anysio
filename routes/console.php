@@ -8,3 +8,6 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('leases:update-statuses')->daily();
+
+Schedule::command('invoices:generate-recurring')->dailyAt('00:10')
+    ->timezone(config('app.timezone'))->withoutOverlapping();

@@ -30,7 +30,11 @@ class AppServiceProvider extends ServiceProvider
         Lease::observe(LeaseObserver::class);
         Invoice::observe(InvoiceObserver::class);
 
-        if (Schema::hasTable('permissions')) {
+        // Invoice previews must also remain read-only during application bootstrap.
+        $recurringPreview = $this->app->runningInConsole()
+            && in_array('invoices:generate-recurring', $_SERVER['argv'] ?? [], true)
+            && in_array('--dry-run', $_SERVER['argv'] ?? [], true);
+        if (!$recurringPreview && Schema::hasTable('permissions')) {
             // Optional: Delete old hyphenated permissions automatically on boot
             Permission::where('name', 'like', '%-%')->delete();
 

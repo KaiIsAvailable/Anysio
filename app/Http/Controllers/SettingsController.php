@@ -99,8 +99,15 @@ class SettingsController extends Controller
 
     public function update(Request $request, SettingService $settingService)
     {
+        if ($request->has('due_date_config')) {
+            if (Gate::denies('owner-admin') && Gate::denies('settings.edit recurring invoice')) {
+                return redirect()->back()->with('error', 'You have no permission.');
+            }
+            $request->validate(SettingService::recurringInvoiceRules());
+        }
         $request->validate([
             'settings' => ['nullable', 'array'],
+            'settings.due_date_config' => ['prohibited'],
             'fee_types_config' => ['nullable', 'array'],
             'due_date_config' => ['nullable', 'array'],
             'pending_renewal_config' => ['nullable', 'array'],

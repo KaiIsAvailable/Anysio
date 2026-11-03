@@ -283,12 +283,17 @@
 
                 <!-- 1. RECURRING INVOICE & DUE DATE FORM -->
                 @canany(['owner-admin', 'settings.recurring invoice setting'])
+                <div x-data="{
+                    editingDueDate: false,
+                    get editing() { return this.editingDueDate; },
+                    recurringTypes: @js([old('due_date_config.recurring_type', data_get($settings, 'due_date_config.value.recurring_type'))]),
+                    get recurringType() { return this.recurringTypes[0]; }
+                }">
                 <x-form.form 
                     method="POST" 
                     action="{{ route('admin.settings.update') }}" 
                     class="space-y-6" 
-                    x-data="{ loading: false, editingDueDate: false }" 
-                    @submit="loading = true"
+                    @keydown.enter.capture="if ($event.target.type === 'number') { $event.preventDefault(); $event.stopImmediatePropagation(); if (editingDueDate) $el.requestSubmit(); }"
                 >
                     @csrf
                     @method('PATCH')
@@ -307,30 +312,58 @@
 
                         <div class="grid grid-cols-1 md:grid-cols-1 gap-6 pt-2">
                             <div class="p-4 border border-gray-100 bg-gray-50 rounded-lg space-y-2">
-                                <x-form.input-label for="due_date_config[days]" :value="__('Due Date Days')" info="{!! __('Number of days given to tenants to settle invoices after issuance. <br><br> Example: The invoice will always be issued on the 1st of the month, if day = 7 mean that 1 + 7 = 8 so the due date will be the 8th of the month.') !!}"/>
+                                <x-form.input-label for="recurring_type" :value="__('Recurring Type')" />
+                                <x-form.input-select id="recurring_type" name="due_date_config[recurring_type]"
+                                    :options="['auto' => 'Auto', 'manual' => 'Manual', 'both' => 'Both']"
+                                    :value="old('due_date_config.recurring_type', data_get($settings, 'due_date_config.value.recurring_type'))"
+                                    x-model="recurringTypes" x-bind:disabled="!editingDueDate" />
+                                <x-form.input-error :messages="$errors->get('due_date_config.recurring_type')" />
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4" x-show="recurringType === 'auto' || recurringType === 'both'" x-cloak>
+                                <div class="p-4 border border-gray-100 bg-gray-50 rounded-lg space-y-2">
+                                    <x-form.input-label for="recurring_feq" :value="__('Auto Generate Frequency')" />
+                                    <x-form.input-select id="recurring_feq" name="due_date_config[recurring_feq]"
+                                        :options="['before' => 'Before', 'after' => 'After']"
+                                        :value="old('due_date_config.recurring_feq', data_get($settings, 'due_date_config.value.recurring_feq'))"
+                                        x-bind:disabled="!editingDueDate" />
+                                    <x-form.input-error :messages="$errors->get('due_date_config.recurring_feq')" />
+                                </div>
+                                <div class="p-4 border border-gray-100 bg-gray-50 rounded-lg space-y-2">
+                                    <x-form.input-label for="recurring_feq_days" :value="__('Days')" />
+                                    <x-form.text-input id="recurring_feq_days" type="number" name="due_date_config[recurring_feq_days]"
+                                        :value="old('due_date_config.recurring_feq_days', data_get($settings, 'due_date_config.value.recurring_feq_days'))"
+                                        min="0" max="31" step="1" class="block w-full" x-bind:disabled="!editingDueDate" />
+                                    <x-form.input-error :messages="$errors->get('due_date_config.recurring_feq_days')" />
+                                </div>
+                            </div>
+                            <div class="p-4 border border-gray-100 bg-gray-50 rounded-lg space-y-2">
+                                <x-form.input-label for="due_date_config[days]" :value="__('Due Date Days')" info="{{ __('Number of days given to tenants to settle invoices after issuance.') }}"/>
                                 <div class="flex items-center gap-2">
                                     <x-form.text-input type="number" 
                                         name="due_date_config[days]" 
-                                        value="{{ data_get($settings, 'due_date_config.value.days') }}" 
+                                        value="{{ old('due_date_config.days', data_get($settings, 'due_date_config.value.days')) }}"
                                         min="0" 
                                         max="365"
+                                        step="1"
                                         class="block w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-500"
                                         x-bind:disabled="!editingDueDate">
                                     </x-form.text-input>
                                     <span class="text-xs font-medium text-gray-600 shrink-0">Days</span>
                                 </div>
+                                <x-form.input-error :messages="$errors->get('due_date_config.days')" />
                             </div>
                         </div>
 
                         @canany(['owner-admin', 'settings.edit recurring invoice'])
                         <div class="flex items-center gap-4 pt-2" x-show="editingDueDate" x-cloak>
                             <x-form.primary-button x-bind:disabled="!editingDueDate" loading="loading">
-                                {{ __('Save Due Date Settings') }}
+                                {{ __('Save Recurring Invoice Settings') }}
                             </x-form.primary-button>
                         </div>
                         @endcanany
                     </div>
                 </x-form.form>
+                </div>
                 @endcanany
 
                 <!-- 2. PENDING RENEWAL SETTINGS FORM -->

@@ -529,6 +529,7 @@ class LeaseController extends Controller
             'feeTypes' => $feeTypes,
             'settings' => $settings,
             'dueDateDays' => $dueDateDays,
+            'allowManualRecurringInvoice' => data_get($settings, 'due_date_config.value.recurring_type') !== 'auto',
         ], $leaseModalData));
     }
 

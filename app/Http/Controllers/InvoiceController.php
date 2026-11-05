@@ -136,6 +136,12 @@ class InvoiceController extends Controller
         }
 
 
+        if (!app(\App\Services\SettingService::class)->allowsManualRecurringInvoice(get_effective_user())) {
+            $message = 'Manual recurring invoice generation is disabled in Auto mode.';
+            session()->flash('error', $message);
+            return response()->json(['success' => false, 'message' => $message], 403);
+        }
+
         try {
             $generatedCount = $this->invoiceService->generateRecurringInvoices($lease);
 

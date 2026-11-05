@@ -7,6 +7,22 @@ use Illuminate\Support\Facades\Log;
 
 class SettingService
 {
+    public static function recurringInvoiceRules(): array
+    {
+        return [
+            'due_date_config' => ['required', 'array:days,recurring_type,recurring_feq,recurring_feq_days'],
+            'due_date_config.days' => ['sometimes', 'required', 'integer', 'between:0,365'],
+            'due_date_config.recurring_type' => ['sometimes', 'required', 'in:auto,manual,both'],
+            'due_date_config.recurring_feq' => ['sometimes', 'required', 'in:before,after'],
+            'due_date_config.recurring_feq_days' => ['sometimes', 'required', 'integer', 'between:0,31'],
+        ];
+    }
+
+    public function allowsManualRecurringInvoice($user): bool
+    {
+        return data_get($this->getEffectiveSettings($user), 'due_date_config.value.recurring_type') !== 'auto';
+    }
+
     public function getEffectiveSettings($user = null): array
     {
         if ($user) {
@@ -109,6 +125,25 @@ class SettingService
      */
     public function saveSettings(string $userId, array $requestData, array $activeStates): void
     {
+        // This independent form may only write this account's due-date settings.
+        if (array_key_exists('due_date_config', $requestData)) {
+            $validated = \Illuminate\Support\Facades\Validator::make(
+                $requestData, self::recurringInvoiceRules()
+            )->validate()['due_date_config'];
+            \Illuminate\Support\Facades\DB::transaction(function () use ($userId, $validated) {
+                // Lock the owner as well: there may not be a settings row yet.
+                User::whereKey($userId)->lockForUpdate()->firstOrFail();
+                $setting = Setting::firstOrNew(['user_id' => $userId, 'key' => 'due_date_config']);
+                foreach (['days', 'recurring_feq_days'] as $key) {
+                    if (array_key_exists($key, $validated)) $validated[$key] = (int) $validated[$key];
+                }
+                $setting->value = array_replace(config('settings.due_date_config'), $setting->value ?? [], $validated);
+                $setting->is_active = $setting->exists ? $setting->is_active : true;
+                $setting->save();
+            });
+            return;
+        }
+
         // 1. Process standard settings
         if (isset($requestData['settings'])) {
             foreach ($requestData['settings'] as $key => $configValues) {
@@ -188,31 +223,6 @@ class SettingService
             Setting::updateOrCreate(
                 ['user_id' => $userId, 'key' => 'fee_types_config'],
                 ['value' => $feeTypesConfig, 'is_active' => $isActive]
-            );
-        }
-
-        // 3. Process due date config
-        if (isset($requestData['due_date_config'])) {
-            $isActive = filter_var($activeStates['due_date_config'] ?? true, FILTER_VALIDATE_BOOLEAN);
-            
-            $dueDateConfig = $requestData['due_date_config'];
-            
-            if (isset($dueDateConfig['days'])) {
-                $dueDateConfig['days'] = (int) $dueDateConfig['days'];
-            }
-            if (isset($dueDateConfig['auto_generate'])) {
-                $dueDateConfig['auto_generate'] = filter_var($dueDateConfig['auto_generate'], FILTER_VALIDATE_BOOLEAN);
-            }
-
-            Log::channel('testing')->info('Saving Due Date Config', [
-                'user_id' => $userId,
-                'value' => $dueDateConfig,
-                'is_active' => $isActive,
-            ]);
-
-            Setting::updateOrCreate(
-                ['user_id' => $userId, 'key' => 'due_date_config'],
-                ['value' => $dueDateConfig, 'is_active' => $isActive]
             );
         }
 

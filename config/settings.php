@@ -26,6 +26,9 @@ return [
     ],
     'due_date_config' => [
         'days' => 7,
+        'recurring_type' => 'manual',
+        'recurring_feq' => 'before',
+        'recurring_feq_days' => 1,
     ],
     'pending_renewal_config' => [
         'number' => 3,

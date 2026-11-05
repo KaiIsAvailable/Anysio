@@ -334,7 +334,7 @@
 
                         <div>
                             <x-form.input-label value="Reason for Voiding" class="mb-1" />
-                            <textarea name="reason" rows="3" required
+                            <textarea @keydown.enter.stop="if ($event.ctrlKey &amp;&amp; !$event.isComposing &amp;&amp; $event.keyCode !== 229) { $event.preventDefault(); if (!loading) $el.form.requestSubmit(); }" name="reason" rows="3" required
                                 class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"></textarea>
                         </div>
                     </div>

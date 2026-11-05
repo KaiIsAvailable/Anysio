@@ -100,6 +100,7 @@
             才能通过 open-invoice-preview 事件打开它。
         --}}
         @include('components.preview-invoice-modal')
+        @include('components.preview-agreement-modal')
 
 
         {{-- ========================================================= --}}
@@ -641,7 +642,7 @@
 
                 window.dispatchEvent(
                     new CustomEvent(
-                        'open-lease-preview', {
+                        'open-invoice-preview', {
                             detail: {
                                 title: title,
                                 content: content

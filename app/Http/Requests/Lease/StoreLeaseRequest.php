@@ -93,6 +93,16 @@ class StoreLeaseRequest extends FormRequest
                 'date',
             ],
 
+            'refund_document_id' => [
+                'required_if:status,Check Out',
+                'nullable',
+                Rule::exists('document_templates', 'id')->where(
+                    fn ($query) => $query
+                        ->where('category', 'refund')
+                        ->where('status', 'active')
+                ),
+            ],
+
             'agreement_ended_at' => [
                 'required_if:status,End Agreement',
                 'nullable',

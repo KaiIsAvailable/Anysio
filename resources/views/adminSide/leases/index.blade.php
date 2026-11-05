@@ -110,12 +110,12 @@
 
                 {{-- Cancel Confirmation Modal --}}
                 <x-modals.confirmation-modal id="lease-confirm-modal" title="Cancel Lease">
-                    <x-form.form x-data="{ targetAction: '', reason: '', loading: false }" 
+                    <div x-data="{ targetAction: '', reason: '', loading: false }"
+                        @open-lease-confirm-modal.window="targetAction = $event.detail.actionUrl; reason = ''">
+                    <x-form.form
                         x-bind:action="targetAction" 
                         method="POST" 
-                        class="p-6"
-                        @open-lease-confirm-modal.window="targetAction = $event.detail.actionUrl; reason = ''"
-                        @submit="loading = true">
+                        class="p-6">
                         @csrf
                         @method('PATCH')
                         
@@ -125,7 +125,7 @@
 
                         <div class="mb-4">
                             <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Cancellation Reason <span class="text-red-500">*</span></label>
-                            <textarea name="cancellation_reason" x-model="reason" rows="3" class="w-full text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl shadow-sm"></textarea>
+                            <textarea @keydown.enter.stop="if ($event.ctrlKey &amp;&amp; !$event.isComposing &amp;&amp; $event.keyCode !== 229) { $event.preventDefault(); if (!loading) $el.form.requestSubmit(); }" name="cancellation_reason" required x-model="reason" rows="3" class="w-full text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl shadow-sm"></textarea>
                         </div>
 
                         <div class="flex justify-end gap-2">
@@ -138,6 +138,7 @@
                             </x-form.primary-button>
                         </div>
                     </x-form.form>
+                    </div>
                 </x-modals.confirmation-modal>
 
                 {{-- Pagination --}}
@@ -163,11 +164,7 @@
 
         Object.keys(replacements).forEach(key => {
             const val = String(replacements[key] ?? 'N/A').replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
-            const safeVal = `<strong>${val}</strong>`;
-
-            // Replace GrapesJS data-variable elements
-            const dataVarRegex = new RegExp(`<[^>]+data-variable=["']${key}["'][^>]*>[\\s\\S]*?<\\/\\w+>`, 'gi');
-            content = content.replace(dataVarRegex, () => safeVal);
+            const safeVal = val;
 
             // Replace standard or encoded curly brackets variants
             const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${key}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
@@ -179,5 +176,50 @@
                 allowBreakdown: button.dataset.rentalBreakdown === 'true',
                 rentalBasis: JSON.parse(button.dataset.rentalBasis || 'null') }
         }));
+    };
+
+    window.viewRefund = async function(button) {
+        const templateId = button.dataset.templateId;
+        const leaseId = button.dataset.leaseId;
+
+        if (!templateId || !leaseId) {
+            console.error('Refund template or lease ID is missing');
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('template_id', templateId);
+        formData.set('category', 'refund');
+        formData.set('lease_id', leaseId);
+        if (button.dataset.checkOutDate) {
+            formData.set('check_out_date', button.dataset.checkOutDate);
+        }
+
+        try {
+            const response = await fetch('{{ route('admin.leases.preview-template') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.message || 'Unable to generate refund preview.');
+            }
+
+            const rendered = await response.json();
+            window.dispatchEvent(new CustomEvent('open-lease-preview', {
+                detail: {
+                    content: rendered.content,
+                    title: rendered.title
+                }
+            }));
+        } catch (error) {
+            console.error('Refund preview error:', error);
+            alert(error.message);
+        }
     };
 </script>

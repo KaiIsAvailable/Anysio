@@ -161,6 +161,19 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(CompanyUser::class, 'user_id');
     }
 
+    public function bankDetails(): BelongsToMany
+    {
+        return $this->belongsToMany(BankDetail::class, 'bank_user')
+            ->using(BankUser::class)
+            ->withPivot('is_default')
+            ->withTimestamps();
+    }
+
+    public function bankUsers(): HasMany
+    {
+        return $this->hasMany(BankUser::class, 'user_id');
+    }
+
     public function hasRole($role) 
     {
         return $this->role === $role;

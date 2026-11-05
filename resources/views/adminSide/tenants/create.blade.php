@@ -15,6 +15,17 @@
                 <x-form.form action="{{ route('admin.tenants.store') }}" method="POST" enctype="multipart/form-data">
                     @csrf
 
+                    @if($errors->any())
+                        <div role="alert" class="mb-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                            <p class="font-semibold">Please correct the following before saving:</p>
+                            <ul class="mt-2 list-disc pl-5">
+                                @foreach($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    @endif
+
                     <!-- Tenant Details -->
                     <div class="mb-6 border-b border-gray-100 pb-6">
                         <h2 class="text-xl font-semibold text-slate-800 mb-4">Tenant Details</h2>
@@ -36,7 +47,7 @@
                             <!-- Email (Owners Style) -->
                             <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 md:col-span-2">
                                 <div class="flex items-center justify-between mb-2">
-                                    <x-form.input-label value="Email Address" :required="true" class="mb-0" />
+                                    <x-form.input-label value="Login Email Address" :required="true" class="mb-0" />
                                     <label class="inline-flex items-center cursor-pointer">
                                         <input type="checkbox" name="random_email" id="random_email" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500" value="1" {{ old('random_email') ? 'checked' : '' }}>
                                         <span class="ml-2 text-xs font-medium text-indigo-600 tracking-wider">Generate Random</span>
@@ -52,7 +63,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                         <!-- Phone (Shared by both) -->
                         <div>
-                            <x-form.input-label for="phone" value="Phone" :required="true" class="mb-1" />
+                            <x-form.input-label for="phone" value="Tenant Phone" :required="true" class="mb-1" />
                             <x-form.text-input name="phone" id="phone" value="{{ old('phone') }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" inputmode="numeric" maxlength="20" class="w-full" required />
                             <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 01xxxxxxxxx</p>
                             <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
@@ -62,19 +73,53 @@
                         <!-- CORPORATE FIELDS CONTAINER (Shown for Corporate) -->
                         <!-- ========================================== -->
                         <div id="corporate_fields_container" class="contents hidden">
-                            <!-- SSM Number -->
-                            <div>
-                                <x-form.input-label for="ssm_number" value="SSM Registration Number" :required="true" class="mb-1" />
-                                <x-form.text-input name="ssm_number" id="ssm_number" value="{{ old('ssm_number') }}" class="w-full" placeholder="e.g. 202301012345" />
-                                <x-form.input-error :messages="$errors->get('ssm_number')" class="mt-1" />
+                            <h2 class="md:col-span-2 text-xl font-semibold text-slate-800">Company Details</h2>
+                            <div class="md:col-span-2">
+                                <x-form.input-label for="company_name" value="Company Name" class="mb-1" />
+                                <x-form.text-input type="text" name="company_name" id="company_name" value="{{ old('company_name') }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('company_name')" class="mt-1" />
                             </div>
-
-                            <!-- Company Address -->
-                            <div class="col-span-1 md:col-span-2">
-                                <x-form.input-label for="company_address" value="Company Address" :required="true" class="mb-1" />
-                                <x-form.text-input name="company_address" id="company_address" value="{{ old('company_address') }}" class="w-full" placeholder="Enter official business address" />
+                            <div class="">
+                                <x-form.input-label for="ssm_old_number" value="SSM Old Number" class="mb-1" />
+                                <x-form.text-input type="text" name="ssm_old_number" id="ssm_old_number" value="{{ old('ssm_old_number') }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('ssm_old_number')" class="mt-1" />
+                            </div>
+                            <div class="">
+                                <x-form.input-label for="ssm_new_number" value="SSM New Number" class="mb-1" />
+                                <x-form.text-input type="text" name="ssm_new_number" id="ssm_new_number" value="{{ old('ssm_new_number') }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('ssm_new_number')" class="mt-1" />
+                            </div>
+                            <div class="md:col-span-2">
+                                <x-form.input-label for="company_address" value="Company Address" class="mb-1" />
+                                <x-form.text-input type="text" name="company_address" id="company_address" value="{{ old('company_address') }}" class="w-full" />
                                 <x-form.input-error :messages="$errors->get('company_address')" class="mt-1" />
                             </div>
+                            <div class="">
+                                <x-form.input-label for="company_phone" value="Company Phone" class="mb-1" />
+                                <x-form.text-input type="text" name="company_phone" id="company_phone" value="{{ old('company_phone') }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('company_phone')" class="mt-1" />
+                            </div>
+                            <div class="">
+                                <x-form.input-label for="company_email" value="Company Email" class="mb-1" />
+                                <x-form.text-input type="email" name="company_email" id="company_email" value="{{ old('company_email') }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('company_email')" class="mt-1" />
+                            </div>
+                            <div class="md:col-span-2">
+                                <x-form.input-label for="company_logo" value="Company Logo" class="mb-1" />
+                                <x-form.file-input name="company_logo" id="company_logo" accept="image/jpeg,image/png,image/webp" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('company_logo')" class="mt-1" />
+                            </div>
+                    <!-- Corporate Certificate Upload Container (ssm_cert_path) -->
+                    <div id="corporate_photo_container" class="md:col-span-2 hidden">
+                        <x-form.input-label for="ssm_cert_path" value="SSM Certificate" class="mb-1" />
+                        <x-form.file-input name="ssm_cert_path" id="ssm_cert_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ssm_preview', 'ssm_preview_container')" class="w-full" />
+                        <p class="mt-2 text-xs text-gray-500 italic">Upload image (JPEG, PNG, GIF) or PDF (Max: 2MB)</p>
+                        <x-form.input-error :messages="$errors->get('ssm_cert_path')" class="mt-1" />
+                        
+                        <div id="ssm_preview_container" class="mt-3 hidden">
+                            <img id="ssm_preview" src="#" alt="SSM Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
+                        </div>
+                    </div>
                         </div>
 
                         <!-- ========================================== -->
@@ -135,6 +180,36 @@
                         </div>
                     </div>
 
+                    @canany(['owner-admin', 'tenant.modify bank details'])
+                    <!-- Bank Account -->
+                    <div class="mb-6 border-b border-gray-100 pb-6">
+                        <h2 class="text-xl font-semibold text-slate-800 mb-4">Bank Account</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div>
+                                <x-form.input-label for="bank_name" value="Bank Name" :required="true" class="mb-1" />
+                                <x-form.text-input name="bank_name" id="bank_name" value="{{ old('bank_name') }}" class="w-full" required />
+                                <x-form.input-error :messages="$errors->get('bank_name')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-form.input-label for="bank_code" value="Bank Code" class="mb-1" />
+                                <x-form.text-input name="bank_code" id="bank_code" value="{{ old('bank_code') }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('bank_code')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-form.input-label for="account_holder_name" value="Account Holder Name" :required="true" class="mb-1" />
+                                <x-form.text-input name="account_holder_name" id="account_holder_name" value="{{ old('account_holder_name', old('name')) }}" class="w-full" required />
+                                <x-form.input-error :messages="$errors->get('account_holder_name')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-form.input-label for="account_number" value="Account Number" :required="true" class="mb-1" />
+                                <x-form.text-input name="account_number" id="account_number" value="{{ old('account_number') }}" class="w-full" required autocomplete="off" />
+                                <x-form.input-error :messages="$errors->get('account_number')" class="mt-1" />
+                            </div>
+                        </div>
+                        <input type="hidden" name="is_default" value="1">
+                    </div>
+                    @endcanany
+
                     <!-- Emergency Contacts -->
                     <div class="mb-6 border-b border-gray-100 pb-6">
                         <div class="flex items-center justify-between mb-4">
@@ -159,17 +234,7 @@
                         </div>
                     </div>
 
-                    <!-- Corporate Certificate Upload Container (ssm_cert_path) -->
-                    <div id="corporate_photo_container" class="mb-6 hidden">
-                        <x-form.input-label for="ssm_cert_path" value="SSM Certificate" class="mb-1" />
-                        <x-form.file-input name="ssm_cert_path" id="ssm_cert_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ssm_preview', 'ssm_preview_container')" class="w-full" />
-                        <p class="mt-2 text-xs text-gray-500 italic">Upload image (JPEG, PNG, GIF) or PDF (Max: 2MB)</p>
-                        <x-form.input-error :messages="$errors->get('ssm_cert_path')" class="mt-1" />
-                        
-                        <div id="ssm_preview_container" class="mt-3 hidden">
-                            <img id="ssm_preview" src="#" alt="SSM Preview" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
-                        </div>
-                    </div>
+
 
                     <div class="flex justify-end pt-4 border-t border-gray-100">
                         <x-form.primary-button type="submit" loading="loading" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-lg shadow-md transition duration-150 ease-in-out">
@@ -195,7 +260,8 @@
             const corporatePhotoContainer = document.getElementById('corporate_photo_container');
 
             // Corporate Inputs
-            const ssmInput = document.getElementById('ssm_number');
+            const companyNameInput = document.getElementById('company_name');
+            const ssmInput = document.getElementById('ssm_new_number');
             const companyAddressInput = document.getElementById('company_address');
             const ssmCertInput = document.getElementById('ssm_cert_path');
 
@@ -210,7 +276,7 @@
 
             if (tenantTypeSelect.value === 'corporate') {
                 // Label & Placeholder
-                if (nameLabel) nameLabel.innerText = 'Company Name';
+                if (nameLabel) nameLabel.innerText = 'Full Name';
                 if (nameInput) nameInput.placeholder = '';
 
                 // Show Corporate / Hide Individual containers
@@ -220,6 +286,7 @@
                 if (individualPhotoContainer) individualPhotoContainer.classList.add('hidden');
 
                 // Set HTML5 required attributes
+                if (companyNameInput) companyNameInput.required = true;
                 if (ssmInput) ssmInput.required = true;
                 if (companyAddressInput) companyAddressInput.required = true;
                 if (ssmCertInput) ssmCertInput.required = false;
@@ -242,6 +309,7 @@
                 if (individualPhotoContainer) individualPhotoContainer.classList.remove('hidden');
 
                 // Set HTML5 required attributes
+                if (companyNameInput) companyNameInput.required = false;
                 if (ssmInput) ssmInput.required = false;
                 if (companyAddressInput) companyAddressInput.required = false;
                 if (ssmCertInput) ssmCertInput.required = false;
@@ -256,6 +324,13 @@
 
         // Identity Type Toggle
         function toggleIdentityInputs(isInit = false) {
+            if (document.getElementById('tenant_type')?.value === 'corporate') {
+                ['ic_number', 'passport', 'nationality', 'gender', 'occupation'].forEach(id => {
+                    const input = document.getElementById(id);
+                    if (input) input.required = false;
+                });
+                return;
+            }
             if (window.toggleIdentityInputs && window.toggleIdentityInputs !== toggleIdentityInputs) {
                 window.toggleIdentityInputs(isInit);
                 return;

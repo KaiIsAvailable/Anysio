@@ -168,8 +168,8 @@
                             {{-- Action Column --}}
                             @canany(['owner-admin', 'leases.upload stamping', 'leases.view agreement', 'leases.cancel lease', 'leases.renew lease', 'leases.check out lease'])
                             <td class="px-6 py-4" x-data="{ 
-                                openUpload: {{ $errors->any() && old('lease_id') == $lease->id ? 'true' : 'false' }}, 
-                                shake: {{ $errors->any() && old('lease_id') == $lease->id ? 'true' : 'false' }},
+                                openUpload: @js($errors->hasAny(['stamping_reference_no', 'stamping_cert']) && old('lease_id') == $lease->id),
+                                shake: @js($errors->hasAny(['stamping_reference_no', 'stamping_cert']) && old('lease_id') == $lease->id),
                                 errorMessage: '{{ $errors->first('error') }}',
                                 activeLease: JSON.parse(sessionStorage.getItem('lastActiveLease') || '{}')
                             }" @click.stop>
@@ -242,7 +242,7 @@
                                             x-transition:leave-start="transform opacity-100 scale-100"
                                             x-transition:leave-end="transform opacity-0 scale-95"
                                             :class="openUpwards ? 'bottom-full mb-2' : 'mt-1'"
-                                            class="absolute right-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 space-y-1 min-w-[160px]"
+                                            class="absolute right-0 z-50 bg-white border border-gray-200 rounded-lg shadow-lg py-1 space-y-1 min-w-[160px] whitespace-nowrap"
                                             style="display: none;">
 
                                             {{-- 1. Upload Stamping --}}
@@ -272,9 +272,23 @@
                                                 @endif
                                             @endcanany
 
+                                            {{-- 3. View Refund --}}
+                                            @canany(['owner-admin', 'leases.view agreement'])
+                                                @if(strtolower(trim($lease->status ?? '')) === 'refunded' && !empty($lease->refund_document_id))
+                                                    <button type="button"
+                                                        data-template-id="{{ $lease->refund_document_id }}"
+                                                        data-lease-id="{{ $lease->id }}"
+                                                        data-check-out-date="{{ $lease->checked_out_at?->format('Y-m-d') }}"
+                                                        @click="viewRefund($el); openDropdown = false;"
+                                                        class="w-full text-left px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-indigo-50 hover:text-indigo-600 transition-colors flex items-center">
+                                                        View Refund Statement
+                                                    </button>
+                                                @endif
+                                            @endcanany
+
                                             {{-- 3. Renew Lease --}}
                                             @canany(['owner-admin', 'leases.renew lease'])
-                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end']) || !$lease->is_current)
+                                                @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end', 'refunded']) || !$lease->is_current)
                                                     <button type="button" 
                                                         @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-emerald-600 hover:bg-emerald-50 transition-colors flex items-center">
@@ -301,7 +315,7 @@
                                                     $isCheckOut = $leaseStatus === 'check out';
                                                     $isPaid = $refundStatus === 'paid';
                                                     
-                                                    $canShowCheckout = (!in_array($leaseStatus, ['cancelled', 'end'])) && (!$isCheckOut || !$isPaid);
+                                                    $canShowCheckout = (!in_array($leaseStatus, ['cancelled', 'end', 'refunded'])) && (!$isCheckOut || !$isPaid);
                                                 @endphp
 
                                                 @if($canShowCheckout)

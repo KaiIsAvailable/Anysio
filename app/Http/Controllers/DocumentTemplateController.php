@@ -245,22 +245,23 @@ class DocumentTemplateController extends Controller
             return view('errors.403');
         }
 
-        $user = Auth::user();
+        $user = get_effective_user();
 
         $isOwnerAdmin = $user->role === 'ownerAdmin';
         $isAgentAdmin = $user->role === 'agentAdmin';
         $ownerAdmin = [$user->id, $user->name];
 
         if ($isOwnerAdmin) {
-            $ownerOptions = collect([$user]);
+            $ownerOptions = $this->getAuthorizedOwners();
         } elseif ($isAgentAdmin) {
             $ownerOptions = $this->getAuthorizedOwnersOnly();
         } else {
             $ownerOptions = $this->getAuthorizedOwners();
-            $ownerOptions->prepend((object) [
-                'id' => Auth::id(),
-                'name' => 'System Admin',
-            ]);
+        }
+
+        // Ensure the current user's account is always available as an option
+        if (!$ownerOptions->contains('id', $user->id)) {
+            $ownerOptions->prepend($user);
         }
 
         return view('adminSide.setting.document_template.edit', compact(

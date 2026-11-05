@@ -19,6 +19,7 @@ class Company extends Model
         'logo_path',
         'ssm_old_number',
         'ssm_new_number',
+        'ssm_cert_path',
         'address',
         'phone',
         'email',

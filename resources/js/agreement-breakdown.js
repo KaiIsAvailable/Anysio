@@ -47,7 +47,7 @@ export function setRentalLines(cell, lines) {
     return true;
 }
 
-export function agreementBreakdown() {
+export function agreementBreakdown(contentId = 'invoice-modal-content') {
     return {
         originalAgreement: '', rentalTotal: null, rentalFrequency: null, rentalBasisError: '', breakdownAllowed: false,
         formatRentalCents,
@@ -93,12 +93,14 @@ export function agreementBreakdown() {
                 this.breakdownError = 'The rental display could not be identified. The agreement has not been changed.';
                 return;
             }
-            document.getElementById('invoice-modal-content').innerHTML = copy.innerHTML;
+            document.getElementById(contentId).innerHTML = copy.innerHTML;
+            this.refreshPaper?.();
             this.appliedBreakdown = { basic: String(this.basicLease).trim(), service: String(this.serviceCharge).trim() };
             this.$dispatch('close-rental-breakdown');
         },
         removeBreakdown() {
-            document.getElementById('invoice-modal-content').innerHTML = this.originalAgreement;
+            document.getElementById(contentId).innerHTML = this.originalAgreement;
+            this.refreshPaper?.();
             this.appliedBreakdown = null;
             this.$dispatch('close-rental-breakdown');
         },

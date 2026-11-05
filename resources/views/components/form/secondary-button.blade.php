@@ -13,7 +13,12 @@
 {{-- 兼容 Alpine 和原生 Blade 的 disabled 绑定 --}}
 @if($isAlpine)
     :disabled="{{ $loading }}"
-    @pageshow.window="if ($event.persisted || window.performance?.getEntriesByType('navigation')[0]?.type === 'back_forward') { {{ $loading }} = false; }"
+    {{-- Comparison expressions cannot be assigned to; reset the owning Alpine state instead. --}}
+    @if(str_contains($loading, '==='))
+        @pageshow.window="if ($event.persisted || window.performance?.getEntriesByType('navigation')[0]?.type === 'back_forward') { subAction = ''; }"
+    @else
+        @pageshow.window="if ($event.persisted || window.performance?.getEntriesByType('navigation')[0]?.type === 'back_forward') { {{ $loading }} = false; }"
+    @endif
 @else
     {{ $loading ? 'disabled' : '' }}
 @endif

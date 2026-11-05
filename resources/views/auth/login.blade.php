@@ -2,8 +2,7 @@
     <!-- Session Status -->
     <x-auth-session-status class="mb-4" :status="session('status')" />
 
-    <form method="POST" action="{{ route('login') }}" x-data="{ loading: false }" @submit="loading = true">
-        @csrf
+    <x-form.form method="POST" action="{{ route('login') }}">
 
         <!-- Email Address -->
         <div>
@@ -52,5 +51,5 @@
                 Create an account
             </a>
         </div>
-    </form>
+    </x-form.form>
 </x-guest-layout>

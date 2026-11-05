@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\{Tenants, UserManagement};
+use App\Models\{BankUser, Tenants, UserManagement};
 use App\Services\{LeaseService};
 use App\Models\User;
 use App\Models\Room;
@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rule;
 use App\Traits\RoleBasedDataTrait;
 use App\Services\FileService;
+use App\Services\BankAccountService;
+use App\Services\CompanyService;
 use App\Models\Lease;
 use App\Models\Invoice;
 
@@ -99,7 +101,7 @@ class TenantsController extends Controller
         }
 
         // 1. 预加载关联
-        $query = Tenants::with(['user', 'emergencyContacts', 'leases.room'])
+        $query = Tenants::with(['user.companies', 'emergencyContacts', 'leases.room'])
             ->where('tenants.status', 'active');
 
         // --- 权限范围过滤重构 ---
@@ -164,7 +166,7 @@ class TenantsController extends Controller
         return view('adminSide.tenants.create');
     }
 
-    public function store(Request $request, FileService $fileService)
+    public function store(Request $request, FileService $fileService, BankAccountService $bankAccountService, CompanyService $companyService)
     {
         if (Gate::denies('owner-admin') && Gate::denies('tenant.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
@@ -176,12 +178,13 @@ class TenantsController extends Controller
         }
 
         // 2. 校验数据 (统一抛出 ValidationException)
-        $this->validateTenantData($request);
+        $canModifyBankDetails = Gate::allows('owner-admin') || Gate::allows('tenant.modify bank details');
+        $this->validateTenantData($request, null, null, $canModifyBankDetails);
 
         $effectiveUser = get_effective_user();
         $effectiveUserId = $effectiveUser ? $effectiveUser->id : Auth::id();
 
-        return DB::transaction(function () use ($request, $fileService, $effectiveUserId) {
+        return DB::transaction(function () use ($request, $fileService, $bankAccountService, $effectiveUserId, $canModifyBankDetails, $companyService) {
 
             // 4. 创建租客 User 账号
             $user = User::create([
@@ -203,9 +206,6 @@ class TenantsController extends Controller
 
             // 根据类型区分字段写入
             if ($tenantType === 'corporate') {
-                $data['company_name'] = $request->name; // 名字存在 name / 公司名
-                $data['ssm_number'] = $request->ssm_number;
-                $data['company_address'] = $request->company_address;
                 
                 // 清空个人字段
                 $data['ic_number'] = null;
@@ -215,14 +215,7 @@ class TenantsController extends Controller
                 $data['occupation'] = null;
 
                 // 公司 SSM 证书上传处理
-                if ($request->hasFile('ssm_cert_path')) {
-                    $userId = Auth::id();
-                    $data['ssm_cert_path'] = $fileService->upload(
-                        $request->file('ssm_cert_path'),
-                        $userId,
-                        'tenant_ssm'
-                    );
-                }
+                $companyService->saveForTenant($user, $request->only(['company_name', 'ssm_old_number', 'ssm_new_number', 'company_address', 'company_phone', 'company_email']), $request->file('ssm_cert_path'), $request->file('company_logo'));
             } else {
                 // 个人租客数据
                 $data['nationality'] = $request->nationality;
@@ -251,6 +244,16 @@ class TenantsController extends Controller
 
             $tenant = Tenants::create($data);
 
+            if ($canModifyBankDetails) {
+                $bankAccountService->saveForUser($user, $request->only([
+                    'bank_name',
+                    'bank_code',
+                    'account_holder_name',
+                    'account_number',
+                    'is_default',
+                ]));
+            }
+
             // 6. 紧急联系人处理
             if ($request->has('emergency_contacts')) {
                 foreach ($request->emergency_contacts as $contact) {
@@ -278,24 +281,27 @@ class TenantsController extends Controller
         }
 
         // No need to fetch users list as the user field is disabled/readonly
-        $tenant->load('emergencyContacts'); // Eager load contacts
+        $tenant->load(['emergencyContacts', 'user.companies']);
+        $bankDetail = app(BankAccountService::class)->getDefaultForUser($tenant->user);
         //dd($tenant->emergencyContacts->toArray());
-        return view('adminSide.tenants.edit', compact('tenant'));
+        return view('adminSide.tenants.edit', compact('tenant', 'bankDetail'));
     }
 
     /**
      * Update the specified resource in storage.
      */
-    public function update(Request $request, Tenants $tenant, FileService $fileService)
+    public function update(Request $request, Tenants $tenant, FileService $fileService, BankAccountService $bankAccountService, CompanyService $companyService)
     {
         if (Gate::denies('owner-admin') && Gate::denies('tenant.edit')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
         // 1. 执行验证（内部若失败会抛出异常，自动返回）
-        $this->validateTenantData($request, $tenant->id, $tenant->user_id);
+        $request->merge(['tenant_type' => $tenant->tenant_type]);
+        $canModifyBankDetails = Gate::allows('owner-admin') || Gate::allows('tenant.modify bank details');
+        $this->validateTenantData($request, $tenant->id, $tenant->user_id, $canModifyBankDetails);
 
-        return DB::transaction(function () use ($tenant, $request, $fileService) {
+        return DB::transaction(function () use ($tenant, $request, $fileService, $bankAccountService, $canModifyBankDetails, $companyService) {
 
             // 2. 更新关联的 User 账号
             $tenant->user->update([
@@ -313,9 +319,6 @@ class TenantsController extends Controller
 
             // 4. 根据租客类型分流更新字段
             if ($tenant->tenant_type === 'corporate') {
-                $data['company_name'] = $request->name;
-                $data['ssm_number'] = $request->ssm_number;
-                $data['company_address'] = $request->company_address;
 
                 // 清理个人字段
                 $data['ic_number'] = null;
@@ -325,19 +328,7 @@ class TenantsController extends Controller
                 $data['occupation'] = null;
 
                 // 公司 SSM 证书更新处理
-                if ($request->hasFile('ssm_cert_path')) {
-                    $userId = Auth::id();
-
-                    if (!empty($tenant->ssm_cert_path)) {
-                        $fileService->delete($tenant->ssm_cert_path);
-                    }
-
-                    $data['ssm_cert_path'] = $fileService->upload(
-                        $request->file('ssm_cert_path'),
-                        $userId,
-                        'tenant_ssm'
-                    );
-                }
+                $companyService->saveForTenant($tenant->user, $request->only(['company_name', 'ssm_old_number', 'ssm_new_number', 'company_address', 'company_phone', 'company_email']), $request->file('ssm_cert_path'), $request->file('company_logo'));
             } else {
                 // 个人租客数据
                 $data['nationality'] = $request->nationality;
@@ -365,6 +356,16 @@ class TenantsController extends Controller
             }
 
             $tenant->update($data);
+
+            if ($canModifyBankDetails) {
+                $bankAccountService->saveForUser($tenant->user, $request->only([
+                    'bank_name',
+                    'bank_code',
+                    'account_holder_name',
+                    'account_number',
+                    'is_default',
+                ]));
+            }
 
             // 5. 处理紧急联系人 (逻辑修正)
             if ($request->has('emergency_contacts')) {
@@ -452,7 +453,12 @@ class TenantsController extends Controller
             compact('invoices')
         );
     }
-    public function show(Tenants $tenant, LeaseService $leaseService, Request $request)
+    public function show(
+        Tenants $tenant,
+        LeaseService $leaseService,
+        BankAccountService $bankAccountService,
+        Request $request
+    )
     {
         if (Gate::denies('owner-admin') && Gate::denies('tenant.show')) {
             return view('errors.403');
@@ -461,8 +467,10 @@ class TenantsController extends Controller
         // 1. 先加载租户的基础关联（不需要分页的）
         $tenant->load([
             'emergencyContacts',
-            'user:id,name,email'
+            'user:id,name,email',
+            'user.companies',
         ]);
+        $bankDetail = $bankAccountService->getDefaultForUser($tenant->user);
 
         // 2. 单独处理 Lease 的分页查询 (核心修正点)
         $leases = $tenant->leases()
@@ -491,27 +499,27 @@ class TenantsController extends Controller
                 'tenant' => $tenant,
                 'leases' => $leases,
                 'latestLease' => $latestLease,
+                'bankDetail' => $bankDetail,
             ]
         ));
     }
 
     public function showIcPhoto(Request $request, $filename, FileService $fileService)
     {
-        // Search by filename in either ic_photo_path or ssm_cert_path
-        $tenant = Tenants::where('ic_photo_path', 'LIKE', '%' . $filename)
-            ->orWhere('ssm_cert_path', 'LIKE', '%' . $filename)
-            ->first();
-
-        if (!$tenant) {
-            abort(404, 'Tenant record not found.');
+        if (Gate::denies('owner-admin') && Gate::denies('tenant.view IC')) {
+            abort(403);
         }
 
-        // Determine which path matches the filename and stream it
-        $filePath = str_contains($tenant->ic_photo_path ?? '', $filename) 
-            ? $tenant->ic_photo_path 
-            : $tenant->ssm_cert_path;
+        $tenant = Tenants::with('user.companies')->where(function ($query) use ($filename) {
+            $query->where('ic_photo_path', 'LIKE', '%' . $filename)
+                ->orWhereHas('user.companies', fn ($company) => $company->where('ssm_cert_path', 'LIKE', '%' . $filename));
+        })->firstOrFail();
 
-        if (!$filePath) {
+        $filePath = $tenant->tenant_type === 'corporate'
+            ? $tenant->user->companies->first()?->ssm_cert_path
+            : $tenant->ic_photo_path;
+
+        if (!$filePath || basename($filePath) !== $filename) {
             abort(404, 'Document path not found.');
         }
 
@@ -525,7 +533,7 @@ class TenantsController extends Controller
         }
 
         // Check if neither document is uploaded
-        if (empty($tenant->ic_photo_path) && empty($tenant->ssm_cert_path)) {
+        if (empty($tenant->ic_photo_path) && empty($tenant->user->companies->first()?->ssm_cert_path)) {
             abort(404, 'No identity document or SSM certificate uploaded.');
         }
 
@@ -536,7 +544,7 @@ class TenantsController extends Controller
     /**
      * 统一处理 Tenant 和 Emergency Contacts 的验证逻辑 (支援 Individual 与 Corporate)
      */
-    private function validateTenantData(Request $request, $tenantId = null, $userId = null)
+    private function validateTenantData(Request $request, $tenantId = null, $userId = null, $canModifyBankDetails = false)
     {
         $tenantType = $request->input('tenant_type', 'individual');
 
@@ -562,7 +570,13 @@ class TenantsController extends Controller
 
         // 2. 根据类型动态追加验证规则
         if ($tenantType === 'corporate') {
-            $rules['ssm_number'] = 'required|string|max:50|unique:tenants,ssm_number,' . $tenantId;
+            $rules['company_name'] = 'required|string|max:255';
+            $companyId = $userId ? User::findOrFail($userId)->companies()->first()?->id : null;
+            $rules['ssm_new_number'] = ['required', 'string', 'max:50', Rule::unique('companies', 'ssm_new_number')->ignore($companyId)];
+            $rules['ssm_old_number'] = 'nullable|string|max:255';
+            $rules['company_phone'] = 'nullable|string|max:50';
+            $rules['company_email'] = 'nullable|email|max:255';
+            $rules['company_logo'] = 'nullable|image|mimes:jpeg,png,webp|max:2048';
             $rules['company_address'] = 'required|string|max:500';
             $rules['ssm_cert_path'] = self::IC_DOCUMENT_RULES; // 复用文件验证规则
         } else {
@@ -584,6 +598,21 @@ class TenantsController extends Controller
             $rules['gender'] = 'required|string|in:Male,Female,MALE,FEMALE';
             $rules['occupation'] = 'nullable|string|max:100';
             $rules['ic_photo_path'] = self::IC_DOCUMENT_RULES;
+        }
+
+        if ($canModifyBankDetails) {
+            $rules['bank_name'] = 'required|string|max:255';
+            $rules['bank_code'] = 'nullable|string|max:100';
+            $rules['account_holder_name'] = 'required|string|max:255';
+            $hasExistingBankAccount = $userId
+                ? BankUser::where('user_id', $userId)
+                    ->where('is_default', true)
+                    ->exists()
+                : false;
+            $rules['account_number'] = $hasExistingBankAccount
+                ? 'nullable|string|max:50'
+                : 'required|string|max:50';
+            $rules['is_default'] = 'nullable|boolean';
         }
 
         $request->validate($rules);

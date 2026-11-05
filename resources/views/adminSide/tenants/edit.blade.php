@@ -34,7 +34,7 @@
 
                             <!-- Full Name / Company Name -->
                             <div class="mb-4">
-                                <x-form.input-label for="name" id="name_label" value="{{ $tenant->tenant_type === 'corporate' ? 'Company Name' : 'Full Name' }}" class="mb-1" />
+                                <x-form.input-label for="name" id="name_label" value="Full Name" class="mb-1" />
                                 <x-form.text-input name="name" id="name" value="{{ old('name', $tenant->user->name) }}" class="w-full" required />
                                 <x-form.input-error :messages="$errors->get('name')" class="mt-1" />
                             </div>
@@ -42,7 +42,7 @@
                             <!-- Email Address -->
                             <div class="mb-4 col-span-1 md:col-span-2">
                                 <div class="flex items-center justify-between mb-1">
-                                    <x-form.input-label for="email" value="Email Address" required />
+                                    <x-form.input-label for="email" value="Login Email Address" required />
                                     
                                     {{-- Email Verification Status Badge --}}
                                     @if($tenant->user->email_verified_at)
@@ -78,26 +78,57 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <!-- Phone -->
                         <div class="mb-4">
-                            <x-form.input-label for="phone" value="Phone" class="mb-1" />
+                            <x-form.input-label for="phone" value="Tenant Phone" class="mb-1" />
                             <x-form.text-input name="phone" id="phone" value="{{ old('phone', $tenant->phone) }}" oninput="this.value = this.value.replace(/[^0-9]/g, '')" maxlength="20" inputmode="numeric" class="w-full" required />
                             <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
                         </div>
 
                         <!-- CORPORATE FIELDS CONTAINER -->
                         <div id="corporate_fields_container" class="{{ $tenant->tenant_type === 'corporate' ? 'contents' : 'contents hidden' }}">
-                            <!-- SSM Number -->
-                            <div class="mb-4">
-                                <x-form.input-label for="ssm_number" value="SSM Registration Number" class="mb-1" />
-                                <x-form.text-input name="ssm_number" id="ssm_number" value="{{ old('ssm_number', $tenant->ssm_number) }}" class="w-full" />
-                                <x-form.input-error :messages="$errors->get('ssm_number')" class="mt-1" />
+                            <h2 class="md:col-span-2 text-xl font-semibold text-slate-800">Company Details</h2>
+                            <div class="md:col-span-2">
+                                <x-form.input-label for="company_name" value="Company Name" class="mb-1" />
+                                <x-form.text-input type="text" name="company_name" id="company_name" value="{{ old('company_name', $tenant->user->companies->first()?->name) }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('company_name')" class="mt-1" />
                             </div>
-
-                            <!-- Company Address -->
-                            <div class="mb-4 col-span-1 md:col-span-2">
+                            <div class="">
+                                <x-form.input-label for="ssm_old_number" value="SSM Old Number" class="mb-1" />
+                                <x-form.text-input type="text" name="ssm_old_number" id="ssm_old_number" value="{{ old('ssm_old_number', $tenant->user->companies->first()?->ssm_old_number) }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('ssm_old_number')" class="mt-1" />
+                            </div>
+                            <div class="">
+                                <x-form.input-label for="ssm_new_number" value="SSM New Number" class="mb-1" />
+                                <x-form.text-input type="text" name="ssm_new_number" id="ssm_new_number" value="{{ old('ssm_new_number', $tenant->user->companies->first()?->ssm_new_number) }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('ssm_new_number')" class="mt-1" />
+                            </div>
+                            <div class="md:col-span-2">
                                 <x-form.input-label for="company_address" value="Company Address" class="mb-1" />
-                                <x-form.text-input name="company_address" id="company_address" value="{{ old('company_address', $tenant->company_address) }}" class="w-full" />
+                                <x-form.text-input type="text" name="company_address" id="company_address" value="{{ old('company_address', $tenant->user->companies->first()?->address) }}" class="w-full" />
                                 <x-form.input-error :messages="$errors->get('company_address')" class="mt-1" />
                             </div>
+                            <div class="">
+                                <x-form.input-label for="company_phone" value="Company Phone" class="mb-1" />
+                                <x-form.text-input type="text" name="company_phone" id="company_phone" value="{{ old('company_phone', $tenant->user->companies->first()?->phone) }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('company_phone')" class="mt-1" />
+                            </div>
+                            <div class="">
+                                <x-form.input-label for="company_email" value="Company Email" class="mb-1" />
+                                <x-form.text-input type="email" name="company_email" id="company_email" value="{{ old('company_email', $tenant->user->companies->first()?->email) }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('company_email')" class="mt-1" />
+                            </div>
+                            <div class="md:col-span-2">
+                                <x-form.input-label for="company_logo" value="Company Logo" class="mb-1" />
+                                <x-form.file-input name="company_logo" id="company_logo" accept="image/jpeg,image/png,image/webp" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('company_logo')" class="mt-1" />
+                                @if($tenant->user->companies->first()?->logo_path)
+                                    <img src="{{ asset('storage/' . $tenant->user->companies->first()->logo_path) }}" alt="Current company logo" class="mt-2 h-20 w-20 object-contain" />
+                                @endif
+                            </div>
+                            @if($tenant->tenant_type === 'corporate')
+                                <div class="md:col-span-2">
+                                    @include('adminSide.tenants.partials.document-fields')
+                                </div>
+                            @endif
                         </div>
 
                         <!-- INDIVIDUAL FIELDS CONTAINER -->
@@ -157,6 +188,39 @@
                         </div>
                     </div>
 
+                    @canany(['owner-admin', 'tenant.modify bank details'])
+                    <!-- Bank Account -->
+                    <div class="mb-6 border-b pb-4">
+                        <h2 class="text-xl font-semibold text-slate-800 mb-4">Bank Account</h2>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <x-form.input-label for="bank_name" value="Bank Name" :required="true" class="mb-1" />
+                                <x-form.text-input name="bank_name" id="bank_name" value="{{ old('bank_name', $bankDetail?->bank_name) }}" class="w-full" required />
+                                <x-form.input-error :messages="$errors->get('bank_name')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-form.input-label for="bank_code" value="Bank Code" class="mb-1" />
+                                <x-form.text-input name="bank_code" id="bank_code" value="{{ old('bank_code', $bankDetail?->bank_code) }}" class="w-full" />
+                                <x-form.input-error :messages="$errors->get('bank_code')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-form.input-label for="account_holder_name" value="Account Holder Name" :required="true" class="mb-1" />
+                                <x-form.text-input name="account_holder_name" id="account_holder_name" value="{{ old('account_holder_name', $bankDetail?->account_holder_name) }}" class="w-full" required />
+                                <x-form.input-error :messages="$errors->get('account_holder_name')" class="mt-1" />
+                            </div>
+                            <div>
+                                <x-form.input-label for="account_number" value="Account Number" :required="!$bankDetail" class="mb-1" />
+                                <x-form.text-input name="account_number" id="account_number" value="{{ old('account_number', $bankDetail?->account_number) }}" class="w-full" autocomplete="off" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required />
+                                @if($bankDetail?->account_number)
+                                    <p class="mt-1 text-xs text-gray-500">Current account: ******{{ substr($bankDetail->account_number, -4) }}</p>
+                                @endif
+                                <x-form.input-error :messages="$errors->get('account_number')" class="mt-1" />
+                            </div>
+                        </div>
+                        <input type="hidden" name="is_default" value="1">
+                    </div>
+                    @endcanany
+
                     <!-- Emergency Contacts -->
                     <div class="mb-6 border-b border-gray-100 pb-6 mt-6">
                         <div class="flex items-center justify-between mb-4">
@@ -206,67 +270,9 @@
                         </div>
                     </div>
 
-                    <!-- Photo / SSM Certificate -->
-                    <div class="mb-6">
-                        <x-form.input-label for="ic_photo_path" id="photo_label" value="{{ $tenant->tenant_type === 'corporate' ? 'SSM Certificate' : 'Upload photocopy IC (for rental purpose)' }}" class="mb-1" />
-                        <p class="text-xs text-gray-500 mb-2" id="photo_helper">Please ask user to scratch IC before upload.</p>
-                        
-                        @php
-                            $isCorporate = $tenant->tenant_type === 'corporate';
-                            $currentPath = $isCorporate ? $tenant->ssm_cert_path : $tenant->ic_photo_path;
-                            
-                            // Safely check mime type without crashing if file is missing from disk
-                            $isPdf = false;
-                            if ($currentPath) {
-                                if (str_ends_with(strtolower($currentPath), '.pdf')) {
-                                    $isPdf = true;
-                                } else {
-                                    try {
-                                        $mime = app(\App\Services\FileService::class)->getFileMimeType($currentPath);
-                                        $isPdf = ($mime === 'application/pdf');
-                                    } catch (\Exception $e) {
-                                        $isPdf = false;
-                                    }
-                                }
-                            }
-                        @endphp
-
-                        <!-- Individual Photo Preview -->
-                        <div id="individual_photo_preview_container" class="mb-2 {{ (!$isCorporate && $currentPath) ? '' : 'hidden' }}">
-                            @if(!$isCorporate && $currentPath)
-                                @if($isPdf)
-                                    <a href="{{ route('admin.tenants.ic_photo', basename($currentPath)) }}" target="_blank" rel="noopener" class="text-indigo-600 underline text-sm font-medium">Open current IC/Passport PDF</a>
-                                @else
-                                    <img src="{{ route('admin.tenants.ic_photo', basename($currentPath)) }}" alt="Current Photo" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
-                                @endif
-                            @endif
-                        </div>
-
-                        <!-- Corporate SSM Cert Preview -->
-                        <div id="corporate_photo_preview_container" class="mb-2 {{ ($isCorporate && $currentPath) ? '' : 'hidden' }}">
-                            @if($isCorporate && $currentPath)
-                                @if($isPdf)
-                                    <a href="{{ route('admin.tenants.ic_photo', basename($currentPath)) }}" target="_blank" rel="noopener" class="text-indigo-600 underline text-sm font-medium">Open current SSM Certificate PDF</a>
-                                @else
-                                    <img src="{{ route('admin.tenants.ic_photo', basename($currentPath)) }}" alt="Current SSM Cert" class="h-40 w-40 object-cover rounded-lg border border-gray-200">
-                                @endif
-                            @endif
-                        </div>
-
-                        <!-- Individual File Input -->
-                        <div id="individual_photo_input_container" class="{{ $isCorporate ? 'hidden' : '' }}">
-                            <x-form.file-input name="ic_photo_path" id="ic_photo_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ic_preview', 'individual_photo_preview_container')" class="w-full" />
-                        </div>
-
-                        <!-- Corporate File Input -->
-                        <div id="corporate_photo_input_container" class="{{ $isCorporate ? '' : 'hidden' }}">
-                            <x-form.file-input name="ssm_cert_path" id="ssm_cert_path" accept="image/jpeg,image/png,image/gif,application/pdf" onchange="previewImage(this, 'ssm_preview', 'corporate_photo_preview_container')" class="w-full" />
-                        </div>
-
-                        <p class="text-xs text-gray-500 mt-1">Leave empty to keep current file.</p>
-                        <x-form.input-error :messages="$errors->get('ic_photo_path')" class="mt-1" />
-                        <x-form.input-error :messages="$errors->get('ssm_cert_path')" class="mt-1" />
-                    </div>
+                    @if($tenant->tenant_type !== 'corporate')
+                        @include('adminSide.tenants.partials.document-fields')
+                    @endif
 
                     <div class="flex justify-end pt-4 border-t">
                         <x-form.primary-button loading="loading">

@@ -19,26 +19,10 @@
             <div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
                 <x-form.form method="POST" action="{{ route('admin.leases.store') }}">
                     @csrf
+                    <input type="hidden" name="status" value="New">
                     <div class="p-8 space-y-8">
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-                            <div class="md:col-span-1">
-                                <x-form.input-label value="Status" :required="true" class="mb-1" />
-                                <x-form.input-select
-                                    name="status"
-                                    id="lease-status"
-                                    :options="[
-                                        'New' => 'New',
-                                        //'Renew' => 'Renew',
-                                        //'Check Out' => 'Check Out',
-                                        //'End Agreement' => 'End Agreement'
-                                    ]"
-                                    ::value="old('status', request('status', 'New'))"
-                                    @change="toggleLeaseSelect()"
-                                />
-                                <x-form.input-error :messages="$errors->get('status')" class="mt-1" />
-                            </div>
-
-                            <div id="tenant_field" class="md:col-span-3">
+                            <div id="tenant_field" class="md:col-span-4">
                                 <x-form.input-label value="Select Tenant" :required="true" class="mb-1" />
                                 <x-form.input-select
                                     name="tenant_id"
@@ -59,7 +43,7 @@
                                         name="lease_id" 
                                         id="lease_id"
                                         value="{{ old('lease_id') }}"
-                                        :options="$leases"
+                                        :options="$modalLeases"
                                         value-field="id"
                                         label-field="computed_label"
                                         class="mt-1 block w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm"
@@ -165,7 +149,13 @@
                         <div id="agreement_template_section" class="mt-4">
                             <div class="flex justify-between items-center mb-1">
                                 <x-form.input-label value="Agreements Template" :required="true" />
-                                <button type="button" id="preview-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
+                                <button type="button" id="preview-btn" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
+                                    <span class="preview-loading-spinner hidden" aria-hidden="true">
+                                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </span>
                                     Preview Template
                                 </button>
                             </div>
@@ -183,7 +173,6 @@
                             <x-form.input-error :messages="$errors->get('document_id')" class="mt-1" />
                         </div>
 
-                        <x-preview-agreement-modal />
 
                         <div class="space-y-4 border-t border-gray-200 pt-6">
                             <div class="flex justify-between items-center">
@@ -312,7 +301,7 @@
         data-create-url="{{ route('admin.leases.create') }}"
         data-rent-fees="{{ json_encode($jsRentFees) }}"
         data-deposit-fees="{{ json_encode($jsDepositFees) }}"
-        data-all-leases="{{ json_encode($leases->keyBy('id')) }}"
+        data-all-leases="{{ json_encode($modalLeases->keyBy('id')) }}"
         data-preview-data="{{ json_encode($leasePreviewData->keyBy('id')) }}"
         data-tenants="{{ json_encode($jsTenants) }}"
         data-properties="{{ json_encode($jsProperties) }}"
@@ -441,12 +430,7 @@
             console.log("toggleLeaseSelect function executed successfully.");
 
             const statusSelect = document.getElementById('lease-status');
-            if (!statusSelect) {
-                console.log("Element with ID 'lease-status' not found.");
-                return;
-            }
-
-            const newStatus = statusSelect.value || 'New';
+            const newStatus = statusSelect?.value || 'New';
             console.log("Current selected status:", newStatus);
 
             const sections = {
@@ -525,7 +509,7 @@
 
             if (!previewBtn) return;
 
-            function generatePreviewContent() {
+            function generateLegacyPreviewContent() {
                 if (!agreementSelect || !agreementSelect.value) {
                     alert("⚠️ Please select a template first.");
                     return null;
@@ -691,25 +675,80 @@
                                 : 'N/A';
                     
                     const coreName = placeholder.replace(/[{}]/g, '').trim();
-                    const safeVal = `<strong>${val}</strong>`;
-
-                    const dataVarRegex = new RegExp(`<[^>]+data-variable=["']${coreName}["'][^>]*>[\\s\\S]*?<\\/\\w+>`, 'gi');
-                    content = content.replace(dataVarRegex, safeVal);
+                    const safeVal = String(val).replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
 
                     const safeCoreName = coreName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
                     const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${safeCoreName}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
-                    content = content.replace(textRegex, safeVal);
+                    content = content.replace(textRegex, () => safeVal);
                 });
 
                 return { content, title };
             }
 
-            previewBtn.addEventListener('click', function(e) {
+            async function generatePreviewContent() {
+                if (!agreementSelect || !agreementSelect.value) {
+                    alert("⚠️ Please select a template first.");
+                    return null;
+                }
+
+                const selectedTemplateId = String(agreementSelect.value);
+                const templateData = allTemplates[selectedTemplateId];
+                if (!templateData || !templateData.content || templateData.content.trim() === '') {
+                    alert("⚠️ The selected template has no content!");
+                    return null;
+                }
+
+                const form = agreementSelect.closest('form');
+                if (!form) {
+                    throw new Error('Unable to find the lease form.');
+                }
+
+                const formData = new FormData(form);
+                const leaseType = document.getElementById('lease_selection')?.value || '';
+                const assetSelect = document.getElementById(`${leaseType}_select_input`);
+                const assetId = assetSelect?.value || '';
+                const assetData = leaseType === 'property'
+                    ? allProperties[assetId]
+                    : leaseType === 'unit'
+                        ? allUnits[assetId]
+                        : allRooms[assetId];
+
+                formData.set('template_id', selectedTemplateId);
+                formData.set('category', 'agreement');
+                formData.set('owner_id', assetData?.owner_id || '');
+
+                const response = await fetch('{{ route('admin.leases.preview-template') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    },
+                    body: formData
+                });
+
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.message || 'Unable to generate preview.');
+                }
+
+                const rendered = await response.json();
+                return {
+                    content: rendered.content,
+                    title: rendered.title
+                };
+            }
+
+            previewBtn.addEventListener('click', async function(e) {
                 e.preventDefault();
                 e.stopPropagation(); 
-                
+
+                const spinner = previewBtn.querySelector('.preview-loading-spinner');
+                previewBtn.disabled = true;
+                previewBtn.classList.add('opacity-60', 'cursor-wait');
+                spinner?.classList.remove('hidden');
+
                 try {
-                    const result = generatePreviewContent();
+                    const result = await generatePreviewContent();
                     if (result) {
                         const modal = document.getElementById('preview-modal');
                         const modalContent = document.getElementById('modal-content');
@@ -720,6 +759,7 @@
                         if (modalContent) {
                             const resetStyles = `
                                 <style>
+                                    .grapes-preview-box { font-family: 'Times New Roman', serif !important; font-size: 16px !important; line-height: 1.6 !important; color: #0f172a !important; }
                                     .grapes-preview-box h1 { font-size: 2.2em !important; font-weight: bold !important; margin: 0.67em 0 !important; line-height: 1.2 !important; }
                                     .grapes-preview-box h2 { font-size: 1.6em !important; font-weight: bold !important; margin: 0.83em 0 !important; line-height: 1.3 !important; }
                                     .grapes-preview-box h3 { font-size: 1.2em !important; font-weight: bold !important; margin: 1em 0 !important; }
@@ -748,6 +788,10 @@
                 } catch (error) {
                     console.error("🚨 Preview Error: ", error);
                     alert("Something went wrong while generating the preview: " + error.message);
+                } finally {
+                    spinner?.classList.add('hidden');
+                    previewBtn.disabled = false;
+                    previewBtn.classList.remove('opacity-60', 'cursor-wait');
                 }
             });
         });

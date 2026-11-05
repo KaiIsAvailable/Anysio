@@ -5,7 +5,7 @@ return [
         'profile menu'      => ['view package', 'boost limit', 'setting'],
         'dashboard'         => ['tab', 'lease list', 'invoice list', 'property analysis', 'unit analysis', 'room analysis'],
         'owner'             => ['tab', 'create', 'edit', 'delete', 'show'],
-        'tenant'            => ['tab', 'create', 'edit', 'delete', 'show', 'view IC'],
+        'tenant'            => ['tab', 'create', 'edit', 'delete', 'show', 'view IC', 'modify bank details'],
         'property'          => ['tab', 'create', 'edit', 'delete', 'show unit'],
         'unit'              => ['create', 'edit', 'delete', 'show room'],
         'room'              => ['create', 'edit', 'delete', 'show'],

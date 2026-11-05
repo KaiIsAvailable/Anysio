@@ -16,7 +16,7 @@
                 Tenant: <span class="font-semibold text-slate-700">{{ $tenant->user->name }}</span> 
                 | Document: <span class="font-semibold text-slate-700">
                     @if($tenant->tenant_type === 'corporate')
-                        SSM Certificate ({{ $tenant->ssm_number }})
+                        SSM Certificate ({{ $tenant->user->companies->first()?->ssm_new_number }})
                     @elseif($tenant->ic_number)
                         IC ({{ $tenant->ic_number }})
                     @elseif($tenant->passport)
@@ -36,7 +36,7 @@
                 
                 @php
                     // Select the appropriate file path based on tenant type
-                    $filePath = $tenant->tenant_type === 'corporate' ? $tenant->ssm_cert_path : $tenant->ic_photo_path;
+                    $filePath = $tenant->tenant_type === 'corporate' ? $tenant->user->companies->first()?->ssm_cert_path : $tenant->ic_photo_path;
                     $filename = $filePath ? basename($filePath) : null;
                     $mimeType = $filePath ? app(\App\Services\FileService::class)->getFileMimeType($filePath) : '';
                 @endphp

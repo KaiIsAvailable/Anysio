@@ -1,4 +1,24 @@
 <style>
+    .template-preview-container {
+        max-height: 60vh;
+        overflow: auto;
+        padding: 24px;
+        background: #e5e7eb;
+        border: 1px solid #e2e8f0;
+        border-radius: 8px;
+    }
+
+    .template-preview-paper {
+        display: block;
+        width: 210mm;
+        min-width: 210mm;
+        height: 297mm;
+        min-height: 297mm;
+        margin: 0 auto;
+        border: 0;
+        background: white;
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+    }
     /* 重点：限制连续换行产生的空白高度 */
     .tos-content {
         display: block;
@@ -148,7 +168,7 @@
 
                             @canany(['owner-admin', 'document template.print'])
                             <button type="button"
-                                @click.stop="printContract($refs.content_{{ $agreement->id }}.innerHTML)"
+                                @click.stop="printContract(currentContent)"
                                 class="p-2 text-gray-400 hover:text-slate-600 hover:bg-gray-100 rounded-lg transition-colors" title="Print Document">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
@@ -213,10 +233,12 @@
                             </div>
                         </div>
                         {{-- 🌟 加入 max-h-[60vh] 和 overflow-y-auto 來限制高度並啟用獨立滾動條 --}}
-                        <div class="tos-content custom-scrollbar text-slate-700 leading-relaxed quill-content max-h-[60vh] overflow-y-auto pr-4 border border-gray-100 rounded-lg p-6 bg-white shadow-inner"
-                            x-ref="content_{{ $agreement->id }}"
-                            x-html="currentContent"
-                            style="font-family: 'Times New Roman', serif;">
+                        <div class="template-preview-container custom-scrollbar">
+                            <iframe class="template-preview-paper"
+                                title="Document template preview"
+                                sandbox="allow-same-origin"
+                                :srcdoc="documentTemplatePreviewHtml(currentContent)"
+                                @load="resizeDocumentTemplatePreview($el)"></iframe>
                         </div>
                     </div>
 
@@ -244,8 +266,42 @@
     </div>
 
     <script>
+        function documentTemplatePreviewHtml(content) {
+            const parsed = new DOMParser().parseFromString(content || '', 'text/html');
+            const styles = Array.from(parsed.querySelectorAll('style'));
+            const css = styles.map(style => style.textContent || '').join('\n');
+            styles.forEach(style => style.remove());
+
+            // Match the editor's iframe without the application's Tailwind reset.
+            return `<!DOCTYPE html><html><head><style>
+                html { overflow: hidden !important; }
+                html, body { width: 100%; margin: 0; padding: 0; }
+                body { box-sizing: border-box; min-height: 297mm; display: flow-root; padding: 20mm; font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.6; color: #0f172a; }
+                *, *::before, *::after { box-sizing: border-box; }
+            </style><style>${css}</style></head><body>${parsed.body.innerHTML}</body></html>`;
+        }
+
+        function resizeDocumentTemplatePreview(frame) {
+            frame.paperObserver?.disconnect();
+            const body = frame.contentDocument?.body;
+            if (!body) return;
+
+            const resize = () => {
+                frame.style.height = `${Math.ceil(Math.max(body.getBoundingClientRect().height, body.scrollHeight))}px`;
+            };
+            frame.paperObserver = new ResizeObserver(resize);
+            frame.paperObserver.observe(body);
+            resize();
+        }
+
         // 只需要保留原本的 printContract 函数即可
         function printContract(content) {
+            const parsedTemplate = new DOMParser().parseFromString(content, 'text/html');
+            const templateStyles = Array.from(parsedTemplate.querySelectorAll('style'))
+                .map(style => style.textContent || '')
+                .join('\n');
+            const templateHtml = parsedTemplate.body.innerHTML;
+
             const iframe = document.createElement('iframe');
             iframe.style.position = 'fixed';
             iframe.style.right = '0';
@@ -283,10 +339,12 @@
                                 }
                             }
                         </style>
+                        <style>${templateStyles}</style>
+                        @include('components.document-page-break-print')
                     </head>
                     <body>
                         <div class="quill-content">
-                            ${content}
+                            ${templateHtml}
                         </div>
                     </body>
                 </html>

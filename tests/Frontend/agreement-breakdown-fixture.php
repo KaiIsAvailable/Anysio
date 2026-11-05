@@ -16,4 +16,4 @@ if (($argv[1] ?? '') === 'descriptions') {
     echo json_encode($cases);
     exit;
 }
-echo Illuminate\Support\Facades\Blade::render('<x-preview-invoice-modal />');
+echo Illuminate\Support\Facades\Blade::render('<x-preview-agreement-modal />');

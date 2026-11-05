@@ -30,6 +30,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // 个人资料管理
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::patch('/profile/company', [ProfileController::class, 'updateCompany'])->name('profile.company.update');
+    Route::patch('/profile/bank-account', [ProfileController::class, 'updateBankAccount'])->name('profile.bank-account.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 
     // 3. 核心业务路由 (统一前缀 admin)

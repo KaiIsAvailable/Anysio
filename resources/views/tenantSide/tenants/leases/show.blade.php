@@ -615,6 +615,8 @@
 
                     <button type="button"
                         data-base-content="{{ $lease->documentTemplate?->html_template }}"
+                        data-rental-breakdown="{{ !$lease->stamping_status && !$lease->stamping_cert_path ? 'true' : 'false' }}"
+                        data-rental-basis="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementRentalBasis($lease)) }}"
                         data-title="{{ $lease->documentTemplate?->title }}"
                         data-replacements="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementVariables($lease), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
 
@@ -660,7 +662,6 @@
 
 
     {{-- Existing Agreement Preview Modal --}}
-    <x-preview-agreement-modal />
 
 
     <script>
@@ -681,21 +682,7 @@
 
                 const val = String(replacements[key] ?? 'N/A').replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
 
-                const safeVal = `<strong>${val}</strong>`;
-
-                /*
-                 * Replace GrapesJS data-variable elements
-                 */
-                const dataVarRegex = new RegExp(
-                    `<[^>]+data-variable=["']${key}["'][^>]*>[\\s\\S]*?<\\/\\w+>`,
-                    'gi'
-                );
-
-                content = content.replace(
-                    dataVarRegex,
-                    () => safeVal
-                );
-
+                const safeVal = val;
 
                 /*
                  * Replace  style placeholders
@@ -722,7 +709,9 @@
                     'open-lease-preview', {
                         detail: {
                             content: content,
-                            title: button.dataset.title
+                            title: button.dataset.title,
+                            allowBreakdown: button.dataset.rentalBreakdown === 'true',
+                            rentalBasis: JSON.parse(button.dataset.rentalBasis || 'null')
                         }
                     }
                 )

@@ -24,95 +24,44 @@ const refundAgreementBlocks = [
     },
 
     // ==========================================
-    // 2. Refund Calculation Elements (退款計算與扣除額表格)
+    // 2. Refund Statement Table
     // ==========================================
     {
-        id: 'refund-summary-table',
-        label: 'Refund Calculation Table',
+        id: 'refund-statement-table',
+        label: 'Professional Refund Statement',
         category: 'Refund Financials',
         content: `
-            <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-family: serif; font-size: 14px;">
+            <table style="width: 100%; border-collapse: collapse; margin: 24px 0; border: 1px solid #94a3b8; font-family: Arial, sans-serif; font-size: 13px; color: #1e293b;">
                 <thead>
-                    <tr style="background-color: #f8fafc;">
-                        <th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left;" data-gjs-type="text">Description</th>
-                        <th style="border: 1px solid #cbd5e1; padding: 10px; text-align: right; width: 30%;" data-gjs-type="text">Amount (RM)</th>
+                    <tr style="background-color: #1e3a5f; color: #ffffff;">
+                        <th colspan="3" style="padding: 13px 14px; text-align: left; font-size: 16px; letter-spacing: 0.3px;" data-gjs-type="text">REFUND SETTLEMENT SUMMARY</th>
+                        <th style="padding: 13px 14px; text-align: right; font-size: 13px;" data-gjs-type="text">AMOUNT (RM)</th>
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px;">Total Deposit Collected (Security & Utilities)</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: right; font-weight: bold;">RM ${makeVar('total_deposit_collected')}</td>
-                    </tr>
-                    <tr>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px;">Less: Auto-Detected Unpaid Invoices / Utilities</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: right; color: #dc2626;">- RM ${makeVar('auto_deductions_total')}</td>
-                    </tr>
-                    <tr>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px;">Less: Custom Deductions & Damages Charges</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: right; color: #dc2626;">- RM ${makeVar('custom_deductions_total')}</td>
-                    </tr>
-                    <tr style="background-color: #f1f5f9;">
-                        <td style="border: 1px solid #cbd5e1; padding: 12px; font-weight: bold;">Nett Refund Payout Amount</td>
-                        <td style="border: 1px solid #cbd5e1; padding: 12px; text-align: right; font-weight: bold; color: #2563eb; font-size: 16px;">RM ${makeVar('nett_refund_amount')}</td>
+                    <tr style="background-color: #f8fafc;">
+                        <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center; width: 8%;" data-gjs-type="text">No.</th>
+                        <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: left;" data-gjs-type="text">Description</th>
+                        <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: center; width: 10%;" data-gjs-type="text">Qty</th>
+                        <th style="padding: 8px 10px; border: 1px solid #cbd5e1; text-align: right; width: 20%;" data-gjs-type="text">Amount (RM)</th>
                     </tr>
                 </tbody>
-            </table>
-        `
-    },
-    {
-        id: 'refund-items-table',
-        label: 'Refund Items Table',
-        category: 'Refund Financials',
-        content: `
-            <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-family: serif; font-size: 14px;">
-                <thead>
-                    <tr style="background-color: #f8fafc; border-bottom: 2px solid #cbd5e1;">
-                        <th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left; width: 18%;" data-gjs-type="text">No.</th>
-                        <th style="border: 1px solid #cbd5e1; padding: 10px; text-align: left;" data-gjs-type="text">Item</th>
-                        <th style="border: 1px solid #cbd5e1; padding: 10px; text-align: center; width: 10%;" data-gjs-type="text">Qty</th>
-                        <th style="border: 1px solid #cbd5e1; padding: 10px; text-align: right; width: 18%;" data-gjs-type="text">Total (RM)</th>
-                    </tr>
-                </thead>
                 <tbody id="dynamic-refund-tbody">
-                    <tr style="background-color: #f0fdf4;">
-                        <td colspan="4" style="border: 1px dashed #bbf7d0; padding: 20px; text-align: center; color: #166534; font-weight: bold;" data-gjs-type="text">
-                            Dynamic Refund Items Will Appear Here
-                        </td>
+                    <tr>
+                        <td colspan="4" style="padding: 18px; border: 1px dashed #cbd5e1; text-align: center; color: #64748b;" data-gjs-type="text">No deductions recorded</td>
+                    </tr>
+                </tbody>
+                <tbody>
+                    <tr>
+                        <td colspan="3" style="padding: 10px 14px; border: 1px solid #cbd5e1; text-align: right; font-weight: bold;" data-gjs-type="text">Total deduction</td>
+                        <td style="padding: 10px 14px; border: 1px solid #cbd5e1; text-align: right; font-weight: bold; color: #b91c1c;">RM ${makeVar('total_deductions')}</td>
+                    </tr>
+                    <tr>
+                        <td colspan="3" style="padding: 13px 14px; border: 1px solid #cbd5e1; text-align: right; font-weight: bold; font-size: 15px;" data-gjs-type="text">Nett total refund</td>
+                        <td style="padding: 13px 14px; border: 1px solid #cbd5e1; text-align: right; font-weight: bold; font-size: 16px;">RM ${makeVar('nett_refund_amount')}</td>
                     </tr>
                 </tbody>
             </table>
-        `
-    },
-    {
-        id: 'deductions-breakdown-list',
-        label: 'Deductions Breakdown',
-        category: 'Refund Financials',
-        content: `
-            <div style="margin: 15px 0; padding: 15px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #fff;">
-                <h4 style="margin: 0 0 10px 0; font-size: 14px; color: #334155; text-transform: uppercase;">Deduction Items Breakdown:</h4>
-                <ul style="margin: 0; padding-left: 20px; line-height: 1.6; color: #475569;">
-                    <li>Unpaid Invoices: <strong>RM ${makeVar('unpaid_invoices_breakdown')}</strong></li>
-                    <li>Damage/Repair Charges: <strong>RM ${makeVar('custom_items_breakdown')}</strong></li>
-                </ul>
-            </div>
-        `
-    },
-
-    // ==========================================
-    // 3. Refund Dynamic Variables (退款專用動態變數方塊)
-    // ==========================================
-    {
-        id: 'var-refund-financials',
-        label: '💰 Refund Variables',
-        category: 'Refund Dynamic Variables',
-        content: `
-            <div style="padding: 10px; background-color: #f8fafc; border: 1px dashed #cbd5e1; font-family: monospace; font-size: 14px; margin: 10px 0;">
-                Total Deposit Collected: RM ${makeVar('total_deposit_collected')}<br>
-                Auto Deductions: RM ${makeVar('auto_deductions_total')}<br>
-                Custom Deductions: RM ${makeVar('custom_deductions_total')}<br>
-                Nett Refund Payout: RM ${makeVar('nett_refund_amount')}<br>
-                Check Out Date: ${makeVar('checkout_date')}
-            </div>
         `
     },
 
@@ -139,7 +88,7 @@ const refundAgreementBlocks = [
                     <td style="width: 50%; padding-right: 20px; vertical-align: bottom;">
                         <p style="margin: 0 0 10px 0; font-weight: bold;">Authorized By (Landlord / Agent):</p>
                         <hr style="border: 0; border-top: 1px solid #000; margin: 30px 0 10px 0;">
-                        <p style="margin: 5px 0; font-size: 14px;">Name: ${makeVar('owner_name')}</p>
+                        <p style="margin: 5px 0; font-size: 14px;">Name: </p>
                         <p style="margin: 5px 0; font-size: 14px;">Date: _________________</p>
                     </td>
                     <td style="width: 50%; padding-left: 20px; vertical-align: bottom;">

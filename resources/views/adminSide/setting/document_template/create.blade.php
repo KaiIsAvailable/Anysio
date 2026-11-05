@@ -112,8 +112,8 @@
                                     :disabled="$isOwnerAdmin"
                                     :value="$defaultOwner"
                                 />
+                                </div>
                             </div>
-                        </div>
                         <div class="w-64">
                             <x-form.input-label value="Template Title" class="mb-1" />
                             <x-form.text-input
@@ -193,6 +193,8 @@
     </style>
 
     <script>
+        window.documentTemplateLogoPlaceholder = @js(asset('image/anysio_logo.png'));
+
         document.addEventListener('DOMContentLoaded', () => {
             const categorySelect = document.getElementById('doc-category');
 
@@ -210,8 +212,14 @@
 
                     if (savedHtml && savedHtml.trim() !== '') {
                         try {
+                            const parsedTemplate = new DOMParser().parseFromString(savedHtml, 'text/html');
+                            const savedCss = Array.from(parsedTemplate.querySelectorAll('style'))
+                                .map(style => style.textContent || '')
+                                .join('\n');
+
                             window.editor.DomComponents.clear(); 
-                            window.editor.setComponents(savedHtml); 
+                            window.editor.setStyle(savedCss);
+                            window.editor.setComponents(parsedTemplate.body.innerHTML);
                         } catch (e) {
                             console.error('Error loading components:', e);
                         }
@@ -220,6 +228,12 @@
                     if (categorySelect && categorySelect.value && window.updateBlocks) {
                         window.updateBlocks(categorySelect.value);
                     }
+
+                    window.enableDocumentTemplateSessionDraft(
+                        window.editor,
+                        @js('document-template-draft:' . auth()->id() . ':' . request()->fullUrl()),
+                        @js(session()->hasOldInput('html_template'))
+                    );
                 }
             }, 100); 
         });

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\{Lease, Room, Unit, Property, Tenants, User, FeeType, Owners};
-use App\Services\{FileService, InvoiceService, LeaseService, SettingService};
+use App\Services\{DocumentTemplateService, FileService, InvoiceService, LeaseService, SettingService};
 use App\Http\Requests\Lease\{StoreLeaseRequest};
 use Illuminate\Support\Facades\{Auth, Gate, Log};
 use Illuminate\Http\Request;
@@ -189,6 +189,395 @@ class LeaseController extends Controller
         }
 
         return redirect()->route('admin.leases.index')->with('success', 'Lease processed successfully.');
+    }
+
+    public function previewTemplate(
+        Request $request,
+        DocumentTemplateService $documentTemplateService,
+        LeaseService $leaseService
+    ) {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.lease controller')) {
+            return response()->json(['message' => 'You have no permission.'], 403);
+        }
+
+        $category = $request->input('category', 'agreement');
+        abort_unless(in_array($category, ['agreement', 'refund'], true), 422);
+
+        $template = DocumentTemplate::query()
+            ->whereKey($request->input('template_id'))
+            ->where('category', $category)
+            ->where('status', 'active')
+            ->firstOrFail();
+        $requiredVariables = $documentTemplateService->extractVariableNames($template->html_template);
+        Log::channel('testing')->info('Lease preview request resolved:', [
+            'request' => $request->except(['_token']),
+            'category' => $category,
+            'template_id' => $template->id,
+            'template_title' => $template->title,
+            'template_html' => $template->html_template,
+            'required_variables' => $requiredVariables,
+        ]);
+        $needsUserVariables = collect($requiredVariables)
+            ->contains(fn (string $variable): bool => str_starts_with($variable, 'user_'));
+        $needsTenantVariables = collect($requiredVariables)
+            ->contains(fn (string $variable): bool => str_starts_with($variable, 'tenant_'));
+        $needsOwnerVariables = collect($requiredVariables)
+            ->contains(fn (string $variable): bool => str_starts_with($variable, 'owner_'));
+
+        $effectiveUser = get_effective_user();
+        $leaseId = trim((string) $request->input('lease_id', ''));
+        $lease = $leaseId !== ''
+            ? Lease::with(['tenant.user', 'leasable', 'charges.feeType'])->find($leaseId)
+            : null;
+        if ($leaseId !== '' && !$lease) {
+            return response()->json([
+                'message' => 'The selected lease could not be found.',
+            ], 422);
+        }
+        $tenantId = $request->input('tenant_id') ?: $lease?->tenant_id;
+        $ownerId = $this->resolvePreviewOwnerId($request, $lease);
+        abort_unless(
+            $template->user_id === null
+                || (string) $template->user_id === (string) $effectiveUser?->id
+                || (string) $template->user_id === (string) $ownerId,
+            403
+        );
+
+        $variables = $needsUserVariables
+            ? $documentTemplateService->userVariables($effectiveUser, 'user', $requiredVariables)
+            : [];
+        $tenant = $needsTenantVariables
+            ? ($lease?->tenant ?? Tenants::with('user')->find($tenantId))
+            : null;
+
+        if ($tenant?->user) {
+            $variables += $documentTemplateService->userVariables(
+                $tenant->user,
+                'tenant',
+                $requiredVariables
+            );
+            $variables['tenant_name'] = $tenant->user->name ?? 'N/A';
+            $variables['tenant_ic'] = $documentTemplateService->identificationValue($tenant, $tenant->user);
+        }
+
+        $owner = $needsOwnerVariables && $ownerId ? User::find($ownerId) : null;
+        if ($owner) {
+            $variables += $documentTemplateService->userVariables(
+                $owner,
+                'owner',
+                $requiredVariables
+            );
+            $variables['owner_name'] = $owner->name ?? 'N/A';
+            $variables['owner_ic'] = $documentTemplateService->identificationValue($owner->owner, $owner);
+        }
+
+        $refundContext = [];
+
+        if ($lease) {
+            $variables = array_merge(
+                $variables,
+                $leaseService->getAgreementVariables($lease)
+            );
+        }
+
+        $selectedAsset = $category === 'agreement' && !$lease
+            ? $this->resolvePreviewAsset($request)
+            : null;
+        if ($selectedAsset) {
+            $servicePackage = match (true) {
+                $selectedAsset instanceof Property => $selectedAsset->type,
+                $selectedAsset instanceof Unit => $selectedAsset->type,
+                $selectedAsset instanceof Room => $selectedAsset->room_type,
+                default => null,
+            };
+            $servicePackage = filled($servicePackage) ? $servicePackage : 'Not recorded';
+            $servicePackageDescription = match (strtoupper(trim($servicePackage))) {
+                'WIFI UNIT' => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER, FACILITY ALLOWANCE & HIGH SPEED WIFI',
+                'WIFI ZONE' => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER, FACILITY ALLOWANCE, CCTV, FACILITY ROOM & HIGH SPEED WIF',
+                'STANDARD UNIT' => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER & FACILITY ALLOWANCE',
+                'PREMIUM UNIT' => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER, FACILITY ALLOWANCE, CCTV, FACILITY ROOM & HIGH SPEED WIFI',
+                default => 'CUSTOMER SERVICE (9AM-5.30PM), INDAH WATER,FACILITY ALLOWANCE, CCTV, FACILITY ROOM &HIGH SPEED WIFI',
+            };
+
+            $variables['property_name'] = $selectedAsset->name
+                ?? $selectedAsset->unit_no
+                ?? $selectedAsset->room_no
+                ?? 'N/A';
+            $variables['property_address'] = $selectedAsset->full_address
+                ?? $selectedAsset->property?->full_address
+                ?? $selectedAsset->unit?->property?->full_address
+                ?? 'N/A';
+            $variables['property_type'] = class_basename($selectedAsset);
+            $variables['leasable_type'] = $servicePackage;
+            $variables['leasalable_type'] = $servicePackage;
+            $variables['service_package'] = $servicePackage;
+            $variables['service_package_description'] = $servicePackageDescription;
+        }
+
+        foreach ($category === 'agreement' ? [
+            'start_date',
+            'end_date',
+            'check_out_date',
+            'end_agreement_date',
+            'rent_price',
+            'security_deposit',
+            'utilities_deposit',
+            'combined_deposit',
+            'total_deposit',
+            'management_fee',
+        ] : ['check_out_date'] as $key) {
+            if (!$lease && $request->filled($key)) {
+                $variables[$key] = $request->input($key);
+            }
+        }
+
+        if ($category === 'refund') {
+            $submittedRefundContext = $request->input('refund_context');
+            if (is_string($submittedRefundContext)) {
+                $submittedRefundContext = json_decode($submittedRefundContext, true);
+            }
+
+            if (is_array($submittedRefundContext)) {
+                $refundContext = $submittedRefundContext;
+            } elseif ($lease) {
+                $refund = $lease->refunds()
+                    ->with('items.feeType')
+                    ->latest('created_at')
+                    ->first();
+
+                if (!$refund) {
+                    return response()->json([
+                        'message' => 'No saved refund was found for this lease.',
+                    ], 422);
+                }
+
+                $refundContext = [
+                    'total_deposit_collected_cents' => (int) $refund->deposit_collected_cents,
+                    'auto_deduction_total_cents' => (int) $refund->auto_deduction_cents,
+                    'active_refund' => [
+                        'id' => $refund->id,
+                        'status' => $refund->status?->value ?? $refund->status,
+                        'gross_amount_cents' => (int) $refund->gross_amount_cents,
+                        'manual_deduction_cents' => (int) $refund->manual_deduction_cents,
+                        'deduction_amount_cents' => (int) $refund->deduction_amount_cents,
+                        'net_amount_cents' => (int) $refund->net_amount_cents,
+                        'items' => $refund->items->map(function ($item) {
+                            return [
+                                'id' => $item->id,
+                                'type' => $item->type?->value ?? $item->type,
+                                'description' => $item->description
+                                    ?: $item->feeType?->name
+                                    ?: 'Refund deduction',
+                                'fee_type_id' => $item->fee_type_id,
+                                'qty' => (int) ($item->qty ?: 1),
+                                'unit_amount_cents' => (int) $item->unit_amount_cents,
+                                'amount_cents' => (int) $item->amount_cents,
+                            ];
+                        })->values()->all(),
+                    ],
+                ];
+            } else {
+                $refundContext = [];
+            }
+
+            $totalDeposit = (int) data_get($refundContext, 'total_deposit_collected_cents', 0);
+            $autoDeduction = (int) data_get($refundContext, 'auto_deduction_total_cents', 0);
+            $unpaidInvoiceItems = is_array($submittedRefundContext)
+                ? collect(data_get($refundContext, 'unpaid_invoices', []))
+                ->map(fn ($invoice) => [
+                    'description' => $invoice['description'] ?? 'Unpaid Invoice',
+                    'invoice_no' => $invoice['invoice_no'] ?? null,
+                    'type' => 'utility',
+                    'source' => 'Unpaid invoice',
+                    'qty' => 1,
+                    'amount_cents' => (int) ($invoice['balance_cents'] ?? 0),
+                ])
+                : collect();
+            $manualItems = collect(data_get($refundContext, 'active_refund.items', []))
+                ->map(fn ($item) => is_array($item) ? $item : $item->toArray())
+                ->map(function (array $item) {
+                    $type = $item['type'] ?? null;
+                    $item['type'] = is_array($type)
+                        ? ($type['value'] ?? null)
+                        : (is_object($type) && property_exists($type, 'value')
+                            ? $type->value
+                            : $type);
+                    $item['description'] = $item['description']
+                        ?? data_get($item, 'fee_type.name')
+                        ?? $item['fee_type_name']
+                        ?? 'Refund deduction';
+                    $item['qty'] = (int) ($item['qty'] ?? 1);
+                    $item['amount_cents'] = (int) ($item['amount_cents'] ?? 0);
+
+                    return $item;
+                })
+                ->map(fn ($item) => array_merge($item, [
+                    'source' => 'Manual deduction',
+                ]))
+                ->values()
+                ->all();
+            $isSavedRefundView = !is_array($submittedRefundContext);
+            $refundItems = $isSavedRefundView
+                ? $manualItems
+                : $unpaidInvoiceItems->concat($manualItems)->values()->all();
+            $customDeduction = $isSavedRefundView
+                ? (int) data_get($refundContext, 'active_refund.manual_deduction_cents', 0)
+                : collect($manualItems)->sum(fn ($item) => (int) ($item['amount_cents'] ?? 0));
+            $totalDeductions = $isSavedRefundView
+                ? (int) data_get($refundContext, 'active_refund.deduction_amount_cents', 0)
+                : $autoDeduction + $customDeduction;
+            $netRefund = max(
+                0,
+                (int) data_get(
+                    $refundContext,
+                    'active_refund.net_amount_cents',
+                    $totalDeposit - $totalDeductions
+                )
+            );
+            $amount = fn (int $cents) => number_format($cents / 100, 2);
+            $depositReceiptNo = $lease
+                ? $leaseService->getDepositReceiptNumbers($lease)
+                : 'N/A';
+
+            $variables += [
+                'checkout_date' => $request->input('check_out_date', 'N/A'),
+                'total_deposit_collected' => $amount($totalDeposit),
+                'deposit_receipt_no' => $depositReceiptNo,
+                'auto_deductions_total' => $amount($autoDeduction),
+                'custom_deductions_total' => $amount($customDeduction),
+                'total_deductions' => $amount($totalDeductions),
+                'nett_refund_amount' => $amount($netRefund),
+                'unpaid_invoices_breakdown' => $amount($autoDeduction),
+                'custom_items_breakdown' => $amount($customDeduction),
+            ];
+        }
+
+        $rent = 0;
+        $security = 0;
+        $utilities = 0;
+        $totalDeposit = 0;
+        $management = 0;
+        $feeTypes = $category === 'agreement'
+            ? FeeType::whereIn('id', collect($request->input('charges', []))
+                ->pluck('fee_type_id')
+                ->filter())
+                ->get()
+                ->keyBy('id')
+            : collect();
+
+        foreach ($category === 'agreement' ? $request->input('charges', []) : [] as $charge) {
+            $amount = (float) ($charge['amount'] ?? 0);
+            $feeType = $feeTypes->get($charge['fee_type_id']);
+            $categoryName = strtolower($feeType?->category?->value ?? '');
+            $description = strtolower((string) ($charge['description'] ?? $feeType?->name ?? ''));
+
+            if ($categoryName === 'rent') {
+                $rent += $amount;
+            } elseif ($categoryName === 'deposit') {
+                $totalDeposit += $amount;
+                if (str_contains($description, 'security')) {
+                    $security += $amount;
+                }
+                if (str_contains($description, 'utilities')) {
+                    $utilities += $amount;
+                }
+            } elseif ($categoryName === 'management') {
+                $management += $amount;
+            }
+        }
+
+        if ($category === 'agreement' && $request->has('charges')) {
+            $variables += [
+                'rent_price' => number_format($rent, 2),
+                'security_deposit' => number_format($security, 2),
+                'utilities_deposit' => number_format($utilities, 2),
+                'combined_deposit' => number_format($security + $utilities, 2),
+                'total_deposit' => number_format($totalDeposit, 2),
+                'management_fee' => number_format($management, 2),
+            ];
+        }
+
+        Log::channel('testing')->info('Lease preview variables before replacement:', [
+            'request_lease_id' => $leaseId,
+            'lease_found' => $lease !== null,
+            'lease' => $lease?->toArray(),
+            'category' => $category,
+            'variables' => $variables,
+        ]);
+        $content = $documentTemplateService->replaceData($template->html_template, $variables);
+        if ($category === 'refund') {
+            $content = $documentTemplateService->replaceRefundTable($content, $refundItems ?? [], [
+                'deposit_receipt_no' => $variables['deposit_receipt_no'] ?? 'N/A',
+                'total_deposit_collected' => $variables['total_deposit_collected'] ?? '0.00',
+            ]);
+        }
+
+        return response()->json([
+            'title' => $template->title,
+            'content' => $content,
+        ]);
+    }
+
+    public function checkoutPreview(Lease $lease, LeaseService $leaseService)
+    {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.lease controller')) {
+            return response()->json(['message' => 'You have no permission.'], 403);
+        }
+
+        $user = get_effective_user();
+        $query = Lease::query()->whereKey($lease->id);
+        if ($user->role !== 'admin') {
+            $query = $this->applyLeaseOwnershipFilter($query, $user);
+        }
+
+        $lease = $query->firstOrFail();
+
+        return response()->json($leaseService->getCheckoutPreviewData($lease));
+    }
+
+    private function resolvePreviewOwnerId(Request $request, ?Lease $lease = null): ?string
+    {
+        if ($request->filled('owner_id')) {
+            return (string) $request->input('owner_id');
+        }
+
+        if ($lease?->leasable) {
+            return $lease->leasable->owner_id
+                ?? $lease->owner_user_id;
+        }
+
+        foreach ([
+            ['property_id', Property::class],
+            ['unit_id', Unit::class],
+            ['room_id', Room::class],
+        ] as [$field, $model]) {
+            if (!$request->filled($field)) {
+                continue;
+            }
+
+            $record = $model::with($model === Room::class ? 'unit' : [])->find($request->input($field));
+            return $record?->owner_id
+                ?? ($model === Room::class ? $record?->unit?->owner_id : null);
+        }
+
+        return null;
+    }
+
+    private function resolvePreviewAsset(Request $request): Property|Unit|Room|null
+    {
+        if ($request->filled('property_id')) {
+            return Property::with('owner')->find($request->input('property_id'));
+        }
+
+        if ($request->filled('unit_id')) {
+            return Unit::with(['owner', 'property'])->find($request->input('unit_id'));
+        }
+
+        if ($request->filled('room_id')) {
+            return Room::with(['owner', 'unit.property'])->find($request->input('room_id'));
+        }
+
+        return null;
     }
 
     public function show(Request $request, Lease $lease, LeaseService $leaseService)
@@ -405,6 +794,12 @@ class LeaseController extends Controller
                 'property_address' => $item->leasable?->full_address ?? 'N/A',
                 'property_type' => strtolower(class_basename($item->leasable_type)),
                 'property_name' => $item->leasableName ?? 'N/A',
+                'leasable_url' => match (true) {
+                    $item->leasable instanceof Property => route('admin.properties.show', $item->leasable->id),
+                    $item->leasable instanceof Unit => route('admin.units.show', $item->leasable->id),
+                    $item->leasable instanceof Room => route('admin.rooms.show', $item->leasable->id),
+                    default => null,
+                },
                 'rent_mode' => strtoupper($item->term_type ?? 'N/A'),
                 'check_out_date' => $item->checked_out_at?->format('d/m/Y') ?? 'N/A',
                 'end_agreement_date' => $item->agreement_ended_at?->format('d/m/Y') ?? 'N/A',

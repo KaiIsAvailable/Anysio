@@ -9,6 +9,7 @@ export function invoiceStatement(endpoint) {
     };
     return {
         statementLoading: false, error: '', lastUrl: endpoint, request: null, opener: null,
+        skipNextOpen: false,
         filtersReady: false, recordKind: '',
         openStatement() {
             this.opener = document.activeElement;
@@ -25,8 +26,31 @@ export function invoiceStatement(endpoint) {
             this.request = null;
             this.statementLoading = false;
             this.filtersReady = false;
+            this.error = '';
+            this.recordKind = '';
+            this.lastUrl = endpoint;
             this.$refs.content.innerHTML = '';
             this.opener?.focus();
+            this.opener = null;
+        },
+        closeAndCloseModal() {
+            this.closeStatement();
+            this.$dispatch('close');
+        },
+        openPreloadedStatement(data) {
+            if (!data || typeof data.html !== 'string') return;
+
+            this.request?.abort();
+            this.request = null;
+            this.statementLoading = false;
+            this.error = '';
+            this.lastUrl = data.url || endpoint;
+            this.recordKind = '';
+            this.filtersReady = true;
+            this.$refs.content.innerHTML = data.html;
+            this.skipNextOpen = true;
+            window.dispatchEvent(new CustomEvent('open-modal', { detail: 'invoice-statement' }));
+            this.$nextTick(() => this.$refs.title?.focus());
         },
         async load(url) {
             if (this.statementLoading && this.lastUrl === url) return;

@@ -22,4 +22,8 @@ class RefundDisbursement extends Model {
     public function refund(): BelongsTo {
         return $this->belongsTo(Refund::class);
     }
+
+    public function bankDetail(): BelongsTo {
+        return $this->belongsTo(BankDetail::class);
+    }
 }

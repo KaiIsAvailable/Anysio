@@ -6,9 +6,3 @@ enum RefundType: string {
     case PAYMENT_REVERSAL = 'payment_reversal';
     case OVERPAYMENT = 'overpayment';
 }
-
-enum DisbursementStatus: string {
-    case PENDING = 'pending';
-    case SUCCESSFUL = 'successful';
-    case FAILED = 'failed';
-}

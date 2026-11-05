@@ -1,6 +1,7 @@
 <x-app-layout>
     @php
     $defaultActiveId = $leaseHistory->firstWhere('is_current', true)?->id ?? $leaseHistory->first()?->id ?? $lease->id;
+    $stampingErrors = $errors->hasAny(['stamping_reference_no', 'stamping_cert']);
     @endphp
     <div class="py-12 bg-gray-50 min-h-screen font-sans"
         x-data="{
@@ -12,9 +13,9 @@
             voidModalOpen: false, 
             actionUrl: '',
 
-            openUpload: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }},
-            shake: {{ $errors->any() ? 'true' : 'false' }},
-            
+            openUpload: @js($stampingErrors),
+            shake: @js($stampingErrors),
+
             get activeLease() {
                 return (this.source && this.activeId) ? (this.source[this.activeId] || {}) : {};
             },
@@ -146,7 +147,7 @@
                             {{-- 1. Renew Lease Button --}}
                             @canany(['owner-admin', 'leases.renew lease'])
                                 <button type="button" 
-                                    x-show="activeLease && activeLease.is_current && !['cancelled', 'check out', 'end'].includes((activeLease.status || '').toLowerCase())"
+                                    x-show="activeLease && activeLease.is_current && !['cancelled', 'check out', 'end', 'refunded'].includes((activeLease.status || '').toLowerCase())"
                                     x-cloak
                                     @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: activeId } }))"
                                     class="px-3 py-1.5 bg-emerald-50 text-emerald-600 text-xs font-black rounded-lg border border-emerald-100 hover:bg-emerald-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
@@ -173,7 +174,7 @@
                                         $isCheckOut = $leaseStatus === 'check out';
                                         $isPaid = $refundStatus === 'paid';
                                         
-                                        $canShowCheckout = (!in_array($leaseStatus, ['cancelled', 'end'])) && (!$isCheckOut || !$isPaid);
+                                        $canShowCheckout = (!in_array($leaseStatus, ['cancelled', 'end', 'refunded'])) && (!$isCheckOut || !$isPaid);
                                     @endphp
 
                                     @if($canShowCheckout)
@@ -237,25 +238,56 @@
             <div class="bg-white shadow-sm border border-gray-200 rounded-xl p-6 mb-6" x-show="activeLease && Object.keys(activeLease).length > 0">
                 <!-- Header Summary Bar -->
                 <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-gray-100 pb-4 mb-6 gap-3">
-                    <div>
-                        <span class="text-xs font-semibold tracking-wider text-gray-400 uppercase">Lease Profile</span>
-                        <h3 class="text-base font-bold text-gray-900" x-text="activeLease.property_name"></h3>
+                    <div class="space-y-1">
+                        <span class="block text-xs font-semibold tracking-wider text-gray-400 uppercase">Lease Profile</span>
+
+                        <template x-if="activeLease.leasable_url">
+                            <a :href="activeLease.leasable_url"
+                            class="block text-base font-bold text-indigo-600 hover:text-indigo-900 hover:underline"
+                            x-text="activeLease.property_name"></a>
+                        </template>
+
+                        <template x-if="!activeLease.leasable_url">
+                            <h3 class="block text-base font-bold text-gray-900" x-text="activeLease.property_name"></h3>
+                        </template>
                     </div>
                     <div class="flex items-center gap-2" x-data="{ 
-                        openUpload: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }},
-                        shake: {{ $errors->has('stamping_reference_no') || $errors->has('stamping_cert') ? 'true' : 'false' }}
+                        openUpload: @js($stampingErrors),
+                        shake: @js($stampingErrors),
+                        agreementLoading: false,
+                        refundLoading: false,
+                        statementLoading: false
                     }">
                         {{-- 左侧按钮：View Agreement --}}
                         @canany(['owner-admin', 'leases.view agreement'])
                         @if (!empty($lease->document_id))
-                            <button type="button"
+                            <x-form.primary-button type="button"
+                                loading="agreementLoading"
                                 data-base-content="{{ $lease->documentTemplate?->html_template }}"
+                                data-rental-breakdown="{{ !$lease->stamping_status && !$lease->stamping_cert_path ? 'true' : 'false' }}"
+                                data-rental-basis="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementRentalBasis($lease)) }}"
                                 data-title="{{ $lease->documentTemplate?->title }}"
                                 data-replacements="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementVariables($lease), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
-                                @click="viewAgreement($el)"
-                                class="px-3 py-2 bg-indigo-50 text-indigo-600 text-xs font-black rounded-xl border border-indigo-100 hover:bg-indigo-600 hover:text-white transition-all shadow-sm flex items-center justify-center text-center">
+                                @click="agreementLoading = true; viewAgreement($el)"
+                                @agreement-preview-finished="agreementLoading = false"
+                                class="ml-auto !text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50">
                                 VIEW AGREEMENT
-                            </button>
+                            </x-form.primary-button>
+                        @endif
+                        @endcanany
+
+                        @canany(['owner-admin', 'leases.view agreement'])
+                        @if (!empty($lease->refund_document_id))
+                            <x-form.primary-button type="button"
+                                loading="refundLoading"
+                                data-template-id="{{ $lease->refund_document_id }}"
+                                data-lease-id="{{ $lease->id }}"
+                                data-check-out-date="{{ $lease->checked_out_at?->format('Y-m-d') }}"
+                                @click="refundLoading = true; viewRefund($el)"
+                                @refund-preview-finished="refundLoading = false"
+                                class="ml-auto !text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50">
+                                VIEW REFUND STATEMENT
+                            </x-form.primary-button>
                         @endif
                         @endcanany
 
@@ -416,17 +448,17 @@
 
                             <!-- Add Manual Invoice Button -->
                             @canany(['owner-admin', 'leases.add manual invoice'])
-                            <button type="button"
+                            <x-form.primary-button type="button"
                                 @click="$dispatch('open-manual-modal', { 
                                     action: getManualInvoiceUrl(),
                                     defaultDueDate: '{{ now()->addDays($dueDateDays)->format('Y-m-d') }}'
                                 })"
-                                class="uppercase inline-flex items-center px-3 py-2 h-10 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 shadow-sm transition-all">
+                                class="!text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50 shadow-sm">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                                 </svg>
                                 Add Manual Invoice
-                            </button>
+                            </x-form.primary-button>
                             
                             <x-modals.manual-invoice-modal :feeTypes="$feeTypes" />
                             @endcanany
@@ -438,8 +470,12 @@
                             <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
                                 <span class="w-1.5 h-4 bg-emerald-500 rounded-full"></span>
                                 Invoices
-                                <button type="button" @click="$dispatch('open-modal', 'invoice-statement')"
-                                    class="ml-auto normal-case tracking-normal px-3 py-2 text-sm font-medium rounded-lg text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200">View Statement</button>
+                                <x-form.primary-button type="button"
+                                    loading="statementLoading"
+                                    data-statement-endpoint="{{ route('admin.leases.invoice-statement', $lease) }}"
+                                    @click="statementLoading = true; viewStatement($el)"
+                                    @statement-preview-finished="statementLoading = false"
+                                    class="ml-auto !text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50">View Statement</x-form.primary-button>
                             </h4>
                             <div class="overflow-x-auto border border-gray-100 rounded-xl">
                                 <table class="min-w-full divide-y divide-gray-200">
@@ -669,7 +705,7 @@
 
                                             <div>
                                                 <x-form.input-label value="Reason for Voiding" class="mb-1" />
-                                                <textarea name="reason" rows="3" required
+                                                <textarea @keydown.enter.stop="if ($event.ctrlKey &amp;&amp; !$event.isComposing &amp;&amp; $event.keyCode !== 229) { $event.preventDefault(); if (!loading) $el.form.requestSubmit(); }" name="reason" rows="3" required
                                                     class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"></textarea>
                                             </div>
                                         </div>
@@ -688,12 +724,12 @@
 
                             {{-- Cancel Confirmation Modal --}}
                             <x-modals.confirmation-modal id="lease-confirm-modal" title="Cancel Lease">
-                                <x-form.form x-data="{ targetAction: '', reason: '', loading: false }" 
+                                <div x-data="{ targetAction: '', reason: '', loading: false }"
+                                    @open-lease-confirm-modal.window="targetAction = $event.detail.actionUrl; reason = ''">
+                                <x-form.form
                                     x-bind:action="targetAction" 
                                     method="POST" 
-                                    class="p-6"
-                                    @open-lease-confirm-modal.window="targetAction = $event.detail.actionUrl; reason = ''"
-                                    @submit="loading = true">
+                                    class="p-6">
                                     @csrf
                                     @method('PATCH')
                                     
@@ -703,7 +739,7 @@
 
                                     <div class="mb-4">
                                         <label class="block text-xs font-bold text-gray-700 uppercase mb-1">Cancellation Reason <span class="text-red-500">*</span></label>
-                                        <textarea name="cancellation_reason" x-model="reason" rows="3" class="w-full text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl shadow-sm"></textarea>
+                                        <textarea @keydown.enter.stop="if ($event.ctrlKey &amp;&amp; !$event.isComposing &amp;&amp; $event.keyCode !== 229) { $event.preventDefault(); if (!loading) $el.form.requestSubmit(); }" name="cancellation_reason" required x-model="reason" rows="3" class="w-full text-sm border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-xl shadow-sm"></textarea>
                                     </div>
 
                                     <div class="flex justify-end gap-2">
@@ -716,6 +752,7 @@
                                         </x-form.primary-button>
                                     </div>
                                 </x-form.form>
+                                </div>
                             </x-modals.confirmation-modal>
 
                             <!-- Pagination -->
@@ -758,22 +795,28 @@
 </x-app-layout>
 
 <script>
-    window.viewAgreement = function(button) {
+    window.viewAgreement = async function(button) {
+        await new Promise(requestAnimationFrame);
+
         let content = button.dataset.baseContent;
         if (!content) {
             console.error('Agreement content is empty');
+            button.dispatchEvent(new CustomEvent('agreement-preview-finished', { bubbles: true }));
             return;
         }
 
-        const replacements = JSON.parse(button.dataset.replacements);
+        let replacements;
+        try {
+            replacements = JSON.parse(button.dataset.replacements);
+        } catch (error) {
+            console.error('Agreement replacement data is invalid:', error);
+            button.dispatchEvent(new CustomEvent('agreement-preview-finished', { bubbles: true }));
+            return;
+        }
 
         Object.keys(replacements).forEach(key => {
             const val = String(replacements[key] ?? 'N/A').replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
-            const safeVal = `<strong>${val}</strong>`;
-
-            // Replace GrapesJS data-variable elements
-            const dataVarRegex = new RegExp(`<[^>]+data-variable=["']${key}["'][^>]*>[\\s\\S]*?<\\/\\w+>`, 'gi');
-            content = content.replace(dataVarRegex, () => safeVal);
+            const safeVal = val;
 
             // Replace standard or encoded curly brackets variants
             const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${key}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
@@ -781,7 +824,99 @@
         });
 
         window.dispatchEvent(new CustomEvent('open-lease-preview', { 
-            detail: { content: content, title: button.dataset.title } 
+            detail: { content: content, title: button.dataset.title,
+                allowBreakdown: button.dataset.rentalBreakdown === 'true',
+                rentalBasis: JSON.parse(button.dataset.rentalBasis || 'null') }
         }));
+        await new Promise(requestAnimationFrame);
+        button.dispatchEvent(new CustomEvent('agreement-preview-finished', { bubbles: true }));
+    };
+
+    window.viewRefund = async function(button) {
+        const templateId = button.dataset.templateId;
+        const leaseId = button.dataset.leaseId;
+
+        if (!templateId || !leaseId) {
+            console.error('Refund template or lease ID is missing');
+            button.dispatchEvent(new CustomEvent('refund-preview-finished', { bubbles: true }));
+            return;
+        }
+
+        const formData = new FormData();
+        formData.set('template_id', templateId);
+        formData.set('category', 'refund');
+        formData.set('lease_id', leaseId);
+        if (button.dataset.checkOutDate) {
+            formData.set('check_out_date', button.dataset.checkOutDate);
+        }
+
+        try {
+            const response = await fetch('{{ route('admin.leases.preview-template') }}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
+                    'Accept': 'application/json'
+                },
+                body: formData
+            });
+
+            if (!response.ok) {
+                const error = await response.json().catch(() => ({}));
+                throw new Error(error.message || 'Unable to generate refund preview.');
+            }
+
+            const rendered = await response.json();
+            window.dispatchEvent(new CustomEvent('open-lease-preview', {
+                detail: {
+                    content: rendered.content,
+                    title: rendered.title
+                }
+            }));
+        } catch (error) {
+            console.error('Refund preview error:', error);
+            alert(error.message);
+        } finally {
+            button.dispatchEvent(new CustomEvent('refund-preview-finished', { bubbles: true }));
+        }
+    };
+
+    window.viewStatement = async function(button) {
+        const endpoint = button.dataset.statementEndpoint;
+
+        if (!endpoint) {
+            console.error('Invoice statement endpoint is missing');
+            button.dispatchEvent(new CustomEvent('statement-preview-finished', { bubbles: true }));
+            return;
+        }
+
+        await new Promise(requestAnimationFrame);
+
+        try {
+            const response = await fetch(endpoint, {
+                headers: {
+                    Accept: 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                credentials: 'same-origin'
+            });
+            const data = await response.json();
+
+            if (!response.ok || typeof data.html !== 'string') {
+                throw new Error(data.message || 'Unable to load invoice statement.');
+            }
+
+            window.dispatchEvent(new CustomEvent('open-preloaded-invoice-statement', {
+                detail: {
+                    html: data.html,
+                    url: endpoint
+                }
+            }));
+        } catch (error) {
+            console.error('Invoice statement error:', error);
+            alert(error.message);
+        } finally {
+            await new Promise(requestAnimationFrame);
+            button.dispatchEvent(new CustomEvent('statement-preview-finished', { bubbles: true }));
+        }
     };
 </script>

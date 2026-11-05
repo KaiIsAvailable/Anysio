@@ -8,6 +8,7 @@ use App\Models\Refund;
 use App\Services\RefundService;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Validation\Rule;
 
 class RefundController extends Controller
 {
@@ -23,6 +24,7 @@ class RefundController extends Controller
         //dd($request->all());
         $validated = $request->validate([
             'lease_id' => 'required|exists:leases,id',
+            ...$this->checkoutMetadataRules(),
             'type' => 'nullable|string',
             'reason' => 'nullable|string',
             'internal_notes' => 'nullable|string',
@@ -61,21 +63,6 @@ class RefundController extends Controller
             ];
         })->toArray();
 
-        // Also include auto-deductions into items if present
-        if (!empty($validated['auto_deductions'])) {
-            foreach ($validated['auto_deductions'] as $autoInv) {
-                $items[] = [
-                    'fee_type_id' => null,
-                    'type' => 'utility',
-                    'description' => 'Unpaid Invoice Auto-Deduction',
-                    'qty' => 1,
-                    'sell_price' => (float)($autoInv['amount'] ?? 0),
-                    'amount_cents' => (int)((float)($autoInv['amount'] ?? 0) * 100),
-                    'invoice_item_id' => null,
-                ];
-            }
-        }
-
         $refund = $this->refundService->saveAsDraft($lease, $validated, $items);
 
         return redirect()->back()->with('success', 'Refund settlement saved as draft successfully.');
@@ -89,6 +76,7 @@ class RefundController extends Controller
         $validated = $request->validate([
             'lease_id' => 'required|exists:leases,id',
             'refund_id' => 'nullable|exists:refunds,id',
+            ...$this->checkoutMetadataRules(),
             'type' => 'nullable|string',
             'reason' => 'nullable|string',
             'internal_notes' => 'nullable|string',
@@ -122,21 +110,6 @@ class RefundController extends Controller
             ];
         })->toArray();
 
-        // Include auto-deductions if present
-        if (!empty($validated['auto_deductions'])) {
-            foreach ($validated['auto_deductions'] as $autoInv) {
-                $items[] = [
-                    'fee_type_id' => null,
-                    'type' => 'utility',
-                    'description' => 'Unpaid Invoice Auto-Deduction',
-                    'qty' => 1,
-                    'sell_price' => (float)($autoInv['amount'] ?? 0),
-                    'amount_cents' => (int)((float)($autoInv['amount'] ?? 0) * 100),
-                    'invoice_item_id' => null,
-                ];
-            }
-        }
-
         // Call service method to update draft items and switch status to PENDING
         $this->refundService->submitForPending($lease, $validated, $items);
 
@@ -147,12 +120,13 @@ class RefundController extends Controller
     {
         $validated = $request->validate([
             'lease_id' => 'required|exists:leases,id',
+            ...$this->checkoutMetadataRules(),
         ]);
 
         $lease = Lease::findOrFail($validated['lease_id']);
 
         // Call your service method to change status back to draft
-        $this->refundService->rejectRefund($lease);
+        $this->refundService->rejectRefund($lease, $validated);
 
         return redirect()->back()->with('success', 'Refund rejected and sent back to draft.');
     }
@@ -164,13 +138,14 @@ class RefundController extends Controller
     {
         $validated = $request->validate([
             'refund_id' => 'required|exists:refunds,id',
+            ...$this->checkoutMetadataRules(),
         ]);
 
         $refund = Refund::findOrFail($validated['refund_id']);
         $effectiveUser = get_effective_user();
 
         // Call approve service method
-        $this->refundService->approveRefund($refund, $effectiveUser);
+        $this->refundService->approveRefund($refund, $effectiveUser, $validated);
 
         return redirect()->back()->with('success', 'Refund approved successfully.');
     }
@@ -182,11 +157,32 @@ class RefundController extends Controller
     {
         $validated = $request->validate([
             'refund_id' => 'required|exists:refunds,id',
+            'checked_out_at' => ['required', 'date'],
+            'refund_document_id' => [
+                'required',
+                Rule::exists('document_templates', 'id')->where(
+                    fn ($query) => $query
+                        ->where('category', 'refund')
+                        ->where('status', 'active')
+                ),
+            ],
+            'bank_detail_id' => 'required|exists:bank_details,id',
             'method' => 'required|string',
             'reference' => 'nullable|string',
         ]);
 
         $refund = Refund::findOrFail($validated['refund_id']);
+        $refund->loadMissing('tenant.user');
+        $bankBelongsToTenant = $refund->tenant?->user?->bankDetails()
+            ->whereKey($validated['bank_detail_id'])
+            ->exists();
+
+        if (!$bankBelongsToTenant) {
+            throw ValidationException::withMessages([
+                'bank_detail_id' => 'The selected bank account does not belong to this tenant.',
+            ]);
+        }
+
         $effectiveUser = get_effective_user();
 
         // Automatically convert the refund's net_amount_cents (stored as integer cents) to currency amount
@@ -194,6 +190,9 @@ class RefundController extends Controller
 
         $disbursementData = [
             'amount_cents' => $refund->net_amount_cents, // Use the exact calculated net cents from the database
+            'checked_out_at' => $validated['checked_out_at'],
+            'refund_document_id' => $validated['refund_document_id'],
+            'bank_detail_id' => $validated['bank_detail_id'],
             'method' => $validated['method'],
             'reference' => $validated['reference'] ?? null,
             'status' => 'successful',
@@ -202,5 +201,20 @@ class RefundController extends Controller
         $this->refundService->processDisbursement($refund, $disbursementData, $effectiveUser);
 
         return redirect()->back()->with('success', 'Refund disbursement processed successfully.');
+    }
+
+    private function checkoutMetadataRules(): array
+    {
+        return [
+            'checked_out_at' => ['nullable', 'date'],
+            'refund_document_id' => [
+                'nullable',
+                Rule::exists('document_templates', 'id')->where(
+                    fn ($query) => $query
+                        ->where('category', 'refund')
+                        ->where('status', 'active')
+                ),
+            ],
+        ];
     }
 }

@@ -4,7 +4,8 @@
         $isAdmin = in_array($userRole, ['admin', 'superadmin', 'super-admin']);$categories = [
             'agreement' => 'Agreement',
             'invoice'   => 'Invoice',
-            'receipt'   => 'Receipt'
+            'receipt'   => 'Receipt',
+            'refund'   => 'Refund'
         ];
         
         if ($isAdmin) {
@@ -92,7 +93,7 @@
                     </div>
                 @endif
 
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-3">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 mb-3">
                     <div class="px-8 py-4 border-b border-gray-100 bg-gray-50 flex gap-6 items-start">
                         <div class="w-56">
                             <x-form.input-label value="Owner" class="mb-1" />
@@ -140,6 +141,7 @@
                             />
                         </div>
                     </div>
+                    </div>
                 </div>
             </form>
 
@@ -170,8 +172,14 @@
 
                     if (savedHtml && savedHtml.trim() !== '') {
                         try {
+                            const parsedTemplate = new DOMParser().parseFromString(savedHtml, 'text/html');
+                            const savedCss = Array.from(parsedTemplate.querySelectorAll('style'))
+                                .map(style => style.textContent || '')
+                                .join('\n');
+
                             window.editor.DomComponents.clear(); 
-                            window.editor.setComponents(savedHtml); 
+                            window.editor.setStyle(savedCss);
+                            window.editor.setComponents(parsedTemplate.body.innerHTML);
                         } catch (e) {
                             console.error('Error loading components:', e);
                         }
@@ -180,6 +188,12 @@
                     if (categorySelect && categorySelect.value && window.updateBlocks) {
                         window.updateBlocks(categorySelect.value);
                     }
+
+                    window.enableDocumentTemplateSessionDraft(
+                        window.editor,
+                        @js('document-template-draft:' . auth()->id() . ':' . request()->fullUrl()),
+                        @js(session()->hasOldInput('html_template'))
+                    );
                 }
             }, 100); 
         });

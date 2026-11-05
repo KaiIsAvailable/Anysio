@@ -21,9 +21,9 @@ try {
             window.dispatchEvent(new CustomEvent('open-lease-preview', { detail }));
             await Alpine.nextTick();
         }, { content: original, title: 'Agreement', allowBreakdown, rentalBasis: { cents, frequency } });
-        await page.locator('#invoice-modal-content').waitFor({ state: 'visible' });
+        await page.getByTitle('A4 document preview').waitFor({ state: 'visible' });
     };
-    const content = () => page.locator('#invoice-modal-content').innerHTML();
+    const content = () => page.locator('#modal-content').innerHTML();
     const button = label => page.getByRole('button', { name: label, exact: true });
     const edit = async (basic, service) => {
         await button('Set Rental Breakdown').click();
@@ -98,7 +98,7 @@ try {
         assert.equal(await page.locator('#service-charge').inputValue(), '200');
         assert.equal(await page.locator('label[for="rental-total"]').innerText(), `Original ${frequency} rental (RM)`);
         await button('Apply').click();
-        const cell = page.locator('#invoice-modal-content tr').first().locator('td').last();
+        const cell = page.frameLocator('iframe[title="A4 document preview"]').locator('tr').first().locator('td').last();
         assert.equal(await cell.innerText(), '500\nBASIC LEASE (300)\nSERVICE CHARGE (200)');
         assert.equal(await cell.locator('strong').count(), 1);
         const printPromise = page.waitForEvent('popup');

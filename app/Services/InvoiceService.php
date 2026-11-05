@@ -330,6 +330,62 @@ class InvoiceService
     }
 
     /**
+     * Apply a collected deposit to outstanding lease invoices in chronological order.
+     *
+     * @return int The amount of deposit applied, in cents.
+     */
+    public function settleOutstandingInvoicesFromDeposit(
+        Lease $lease,
+        int $depositCents,
+        string $paymentDate,
+        string $transactionReference
+    ): int {
+        if ($depositCents <= 0) {
+            return 0;
+        }
+
+        $remainingCents = $depositCents;
+        $appliedCents = 0;
+
+        $invoices = $lease->invoices()
+            ->whereIn('status', [
+                Invoice::STATUS_UNPAID,
+                Invoice::STATUS_PARTIAL,
+                Invoice::STATUS_OVERDUE,
+            ])
+            ->where('amount_balance', '>', 0)
+            ->orderBy('period')
+            ->orderBy('created_at')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($invoices as $invoice) {
+            if ($remainingCents <= 0) {
+                break;
+            }
+
+            $paymentCents = min($remainingCents, (int) $invoice->amount_balance);
+            if ($paymentCents <= 0) {
+                continue;
+            }
+
+            $this->recordPayment($invoice, [
+                'amount_paid' => $paymentCents / 100,
+                'payment_method' => 'deposit',
+                'payment_date' => $paymentDate,
+                'transaction_ref' => $transactionReference,
+                'use_wallet' => false,
+                'remarks' => 'Used deposit to pay outstanding invoice '.$invoice->invoice_no,
+            ]);
+
+            $remainingCents -= $paymentCents;
+            $appliedCents += $paymentCents;
+        }
+
+        return $appliedCents;
+    }
+
+    /**
      * Soft-cancel an invoice while preserving the audit trail.
      */
     public function voidInvoice(Invoice $invoice, string $reason): void

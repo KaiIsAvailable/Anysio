@@ -24,6 +24,7 @@ class Lease extends Model
         'leasable_id',
         'parent_lease_id',
         'document_id',
+        'refund_document_id',
         'is_current',
         'tenant_id',
         'start_date',
@@ -123,6 +124,11 @@ class Lease extends Model
         // 参数 1: 关联的模型类名
         // 参数 2: 你 Lease 表里的外键名 (agreement_id)
         return $this->belongsTo(DocumentTemplate::class, 'document_id');
+    }
+
+    public function refundDocumentTemplate(): BelongsTo
+    {
+        return $this->belongsTo(DocumentTemplate::class, 'refund_document_id');
     }
 
     public function leasable()

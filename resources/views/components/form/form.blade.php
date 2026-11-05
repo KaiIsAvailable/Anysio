@@ -56,7 +56,10 @@
                 nextEl.focus();
 
                 // 核心逻辑：如果是输入框，定位到末尾
-                if (nextEl.tagName === 'INPUT' || nextEl.tagName === 'TEXTAREA') {
+                if (
+                    nextEl.tagName === 'TEXTAREA' ||
+                    (nextEl.tagName === 'INPUT' && !['file', 'hidden', 'checkbox', 'radio'].includes(nextEl.type))
+                ) {
                     const len = nextEl.value.length;
                     // 使用 setTimeout 确保在 focus 之后执行，兼容性更好
                     setTimeout(() => {
@@ -70,7 +73,7 @@
     {{-- Async callers own the submission lifecycle and publish its loading state. --}}
     @form-loading="loading = $event.detail"
     @else
-    @submit="loading = true"
+    @submit="loading = true; $dispatch('form-loading', true)"
     @endif
     @if($guardComposition)
     @compositionstart="composing = true"
@@ -100,7 +103,13 @@
 
         if (first) {
             first.focus();
-            if (typeof first.setSelectionRange === 'function') {
+            if (
+                typeof first.setSelectionRange === 'function' &&
+                (
+                    first.tagName === 'TEXTAREA' ||
+                    (first.tagName === 'INPUT' && !['file', 'hidden', 'checkbox', 'radio'].includes(first.type))
+                )
+            ) {
                 const len = first.value.length;
                 first.setSelectionRange(len, len);
             }

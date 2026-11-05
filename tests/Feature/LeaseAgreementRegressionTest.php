@@ -72,9 +72,9 @@ class LeaseAgreementRegressionTest extends TestCase
         $before = $lease->toArray();
         $vars = app(LeaseService::class)->getAgreementVariables($lease);
         $this->assertSame('A-12-08', $vars['unit_number']);
-        $this->assertSame('(A-12-08), Long Street, 50000 KL', $vars['property_address']);
+        $this->assertSame('Long Street, 50000 KL', $vars['property_address']);
         $this->assertSame('1,234.56', $vars['rent_price']);
-        $this->assertSame('2,469.12', $vars['security_deposit']);
+        $this->assertSame('2,969.12', $vars['security_deposit']);
         $this->assertSame('500.00', $vars['utilities_deposit']);
         $this->assertSame('Master Room', $vars['leasable_type']);
         $this->assertSame('Master Room', $vars['leasalable_type']);
@@ -137,17 +137,17 @@ class LeaseAgreementRegressionTest extends TestCase
         $this->assertSame('100.00 (daily)', $service->getAgreementVariables($lease)['rent_price']);
     }
 
-    public function test_agreement_address_normalizes_only_the_unit_prefix_without_changing_source_data(): void
+    public function test_agreement_address_does_not_add_unit_number_or_change_source_data(): void
     {
         $service = app(LeaseService::class);
         $street = 'JALAN KAMPAR BARAT (1), TAMAN KAMPAR BARAT';
-        $expected = '(51-2-4), '.$street.', 31900 KAMPAR, PERAK.';
         foreach (['51-2-4', '(51-2-4)', ' ((51-2-4)) '] as $number) {
             foreach (['', '(51-2-4), ', '51-2-4, ', 'Unit 51-2-4, ', '(51-2-4), 51-2-4, '] as $prefix) {
                 $lease = $this->lease();
                 $unit = $lease->leasable->unit;
                 $unit->unit_no = $number;
                 $unit->property->fill(['address' => $prefix.$street, 'postcode' => '31900', 'city' => 'KAMPAR', 'state' => 'PERAK.']);
+                $expected = $prefix.$street.', 31900 KAMPAR, PERAK.';
                 $before = $lease->toArray();
                 $this->assertSame($expected, $service->getAgreementVariables($lease)['property_address']);
                 $this->assertSame($before, $lease->toArray());
@@ -163,7 +163,7 @@ class LeaseAgreementRegressionTest extends TestCase
         }
         $unit->unit_no = '51-2-4';
         $unit->property->address = '51-2-40, JALAN (51-2-4)';
-        $this->assertSame('(51-2-4), 51-2-40, JALAN (51-2-4), 50000 KL', $service->getAgreementVariables($lease)['property_address']);
+        $this->assertSame('51-2-40, JALAN (51-2-4), 50000 KL', $service->getAgreementVariables($lease)['property_address']);
         $lease->setRelation('leasable', $unit->property->setRelation('owner', null));
         $this->assertSame('51-2-40, JALAN (51-2-4), 50000 KL', $service->getAgreementVariables($lease)['property_address']);
     }
@@ -225,14 +225,30 @@ class LeaseAgreementRegressionTest extends TestCase
         }
     }
 
-    public function test_combined_deposit_is_not_misrepresented_as_security_alone(): void
+    public function test_security_deposit_token_includes_combined_deposit_fee(): void
     {
         $lease = $this->lease()->setRelation('charges', collect([
             $this->charge('Security & Utilities Deposit', FeeTypeCategory::DEPOSIT, 30000),
         ]));
         $vars = app(LeaseService::class)->getAgreementVariables($lease);
-        $this->assertSame('Not recorded', $vars['security_deposit']);
+        $this->assertSame('300.00', $vars['security_deposit']);
         $this->assertSame('300.00', $vars['total_deposit']);
+    }
+
+    public function test_security_deposit_totals_all_deposit_categories_regardless_of_name(): void
+    {
+        $security = $this->charge('Security Deposit', FeeTypeCategory::DEPOSIT, 246912);
+        $security->description = 'Two months refundable deposit';
+        $utilities = $this->charge('Utilities Deposit', FeeTypeCategory::DEPOSIT, 50000);
+        $utilities->description = 'Electricity and water';
+        $otherDeposit = $this->charge('Access Card', FeeTypeCategory::DEPOSIT, 10000);
+        $rent = $this->charge('Rental', FeeTypeCategory::RENT, 123456);
+        $lease = $this->lease()->setRelation('charges', collect([$security, $utilities, $otherDeposit, $rent]));
+        $variables = app(LeaseService::class)->getAgreementVariables($lease);
+        $this->assertSame('3,069.12', $variables['security_deposit']);
+        $this->assertSame('3,069.12', $variables['deposit_amount']);
+        $this->assertSame('500.00', $variables['utilities_deposit']);
+        $this->assertSame('3,069.12', $variables['total_deposit']);
     }
 
     public function test_real_image_and_pdf_are_validated_stored_and_streamed_privately(): void

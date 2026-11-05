@@ -232,6 +232,7 @@ x-modelable="selectedValues"
 @click.away="open = false" 
 class="relative w-full" 
 {{ $attributes->whereStartsWith('x-model') }}
+{!! $attributes->whereStartsWith('x-effect') !!}
 {!! $attributes->only(['@change', 'x-on:change']) !!}
 >
 

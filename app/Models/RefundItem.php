@@ -14,17 +14,22 @@ class RefundItem extends Model {
 
     protected $fillable = [
         'refund_id',
+        'origin',
         'fee_type_id',
         'lease_charge_id',
+        'invoice_id',
         'invoice_item_id',
         'type',
         'description',
         'qty',
+        'unit_amount_cents',
         'amount_cents',
     ];
 
     protected $casts = [
         'type' => RefundItemType::class,
+        'qty' => 'integer',
+        'unit_amount_cents' => 'integer',
         'amount_cents' => 'integer',
     ];
 
@@ -38,6 +43,10 @@ class RefundItem extends Model {
 
     public function invoiceItem(): BelongsTo {
         return $this->belongsTo(InvoiceItem::class);
+    }
+
+    public function invoice(): BelongsTo {
+        return $this->belongsTo(Invoice::class);
     }
 
     public function feeType(): BelongsTo

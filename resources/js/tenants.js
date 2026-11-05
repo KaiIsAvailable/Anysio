@@ -75,6 +75,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // --- 3. Identity Document Logic ---
     // 关键：为了让 HTML 里的 onchange 能加到，必须挂载到 window
     window.toggleIdentityInputs = function(isInit = false) {
+        const tenantType = document.querySelector('[name="tenant_type"]')?.value;
+        if (tenantType === 'corporate') {
+            ['ic_number', 'passport', 'nationality', 'gender', 'occupation'].forEach(id => {
+                const input = document.getElementById(id);
+                if (input) input.required = false;
+            });
+            return;
+        }
         const icType = document.querySelector('input[name="identity_type"][value="ic"]');
         if (!icType) return;
 

@@ -1,10 +1,38 @@
 @props(['tenants', 'leases', 'properties', 'units', 'rooms', 'templates', 'refundTemplates','rentFeeTypes', 'serviceFeeTypes', 'depositFeeTypes', 'managementFeeTypes', 'itemFeeTypes', 'leasePreviewData'])
 
-<div x-data="{ 
-        open: @js($errors->any()), 
+@php
+    $leaseCreateErrorFields = [
+        'status',
+        'lease_id',
+        'lease_selection',
+        'property_id',
+        'unit_id',
+        'room_id',
+        'tenant_id',
+        'start_date',
+        'end_date',
+        'checked_out_at',
+        'refund_document_id',
+        'agreement_ended_at',
+        'charges',
+        'document_id',
+        'type',
+        'reason',
+        'internal_notes',
+        'items',
+        'auto_deductions',
+        'bank_detail_id',
+        'method',
+        'reference',
+    ];
+@endphp
+
+<div id="lease-create-modal-root" x-data="{
+        open: @js($errors->hasAny($leaseCreateErrorFields)),
         action: '{{ old('status') === 'Renew' ? 'renew' : (old('status') === 'Check Out' ? 'checkout' : 'create') }}', 
         formStatus: @js(old('status', 'New')), 
         formLeaseId: @js(old('lease_id', '')),
+        refundData: {},
         isEditMode: false,
         loading: false,
         shake: false,
@@ -15,8 +43,12 @@
 
         get refundStatus() {
             if (!this.formLeaseId || !window.leasePreviewData) return 'none';
-            const preview = window.leasePreviewData[this.formLeaseId];
-            return preview?.active_refund?.status || 'none';
+            const preview = this.refundData[this.formLeaseId]
+                || window.leasePreviewData[this.formLeaseId];
+            const status = preview?.active_refund?.status;
+            return typeof status === 'object'
+                ? String(status.value || 'none').toLowerCase()
+                : String(status || 'none').toLowerCase();
         },
         
         openModal(detail = {}) {
@@ -67,7 +99,9 @@
                 setTimeout(() => {
                     toggleLeaseSelect(this.formStatus);
                     if (this.formLeaseId && typeof handleLeaseChange === 'function') {
-                        handleLeaseChange(this.formLeaseId);
+                        if (this.action === 'checkout') {
+                            handleLeaseChange(this.formLeaseId);
+                        }
                     }
                 }, 50);
             });
@@ -153,7 +187,7 @@
                                         value-field="id"
                                         label-field="computed_label"
                                         x-bind:disabled="isCheckoutOrRenew"
-                                        @change="window.handleLeaseChange($event)"
+                                        @change="if (action === 'checkout') window.handleLeaseChange($event)"
                                     />
                                 </div>
                             </div>
@@ -242,7 +276,13 @@
                             <div id="agreement_template_section" class="mt-4">
                                 <div class="flex justify-between items-center mb-1">
                                     <x-form.input-label value="Agreements Template" :required="true" />
-                                    <button type="button" id="preview-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
+                                    <button type="button" id="preview-btn" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
+                                        <span class="preview-loading-spinner hidden" aria-hidden="true">
+                                            <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        </span>
                                         Preview Template
                                     </button>
                                 </div>
@@ -261,17 +301,19 @@
                                 <x-form.input-error :messages="$errors->get('document_id')" class="mt-1" />
                             </div>
 
-                            <x-preview-agreement-modal />
                             
                             <!-- CHECKOUT REFUND SECTION -->
                             <div id="checkout_refund_section" class="mt-4 hidden space-y-4"
                             x-data="{
                                 manualDeductions: [],
-                                availableFeeTypes: allFeeTypes,
+                                refundData: {},
+                                availableFeeTypes: window.allFeeTypes || [],
                                 checkoutDate: '',
                                 isEarlyCheckout: false,
                                 earlyDays: 0,
                                 autoDeductionTotal: 0,
+                                tenantBankDetails: [],
+                                selectedBankId: '',
 
                                 init() {
                                     this.$watch('checkoutDate', (value) => {
@@ -289,7 +331,7 @@
                                         return;
                                     }
 
-                                    const selectedLease = allLeases[leaseSelect.value];
+                                    const selectedLease = (window.allLeases || {})[leaseSelect.value];
                                     if (!selectedLease || !selectedLease.end_date) {
                                         this.isEarlyCheckout = false;
                                         this.earlyDays = 0;
@@ -365,16 +407,20 @@
                                 },
                                 get activeRefund() {
                                     if (!this.formLeaseId || !window.leasePreviewData) return null;
-                                    const preview = window.leasePreviewData[this.formLeaseId];
+                                    const preview = this.refundData[this.formLeaseId]
+                                        || window.leasePreviewData[this.formLeaseId];
                                     return preview?.active_refund || null;
                                 },
                                 get refundStatus() {
                                     if (!this.formLeaseId || !window.leasePreviewData) return 'none';
-                                    const preview = window.leasePreviewData[this.formLeaseId];
+                                    const preview = this.refundData[this.formLeaseId]
+                                        || window.leasePreviewData[this.formLeaseId];
                                     // Handle both string and Enum object serialization safely
                                     const status = preview?.active_refund?.status;
                                     if (!status) return 'none';
-                                    return typeof status === 'object' ? (status.value || 'none') : String(status).toLowerCase();
+                                    return typeof status === 'object'
+                                        ? String(status.value || 'none').toLowerCase()
+                                        : String(status).toLowerCase();
                                 }
                             }"
                             @fee-type-added.window="handleFeeTypeAdded($event.detail)">
@@ -403,7 +449,13 @@
                                 <div class="mb-4">
                                     <div class="flex justify-between items-center mb-1">
                                         <x-form.input-label value="Refund Agreement Template" :required="true" />
-                                        <button type="button" id="preview-refund-template-btn" class="text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
+                                        <button type="button" id="preview-refund-template-btn" class="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-800 transition-colors uppercase tracking-wider">
+                                            <span class="preview-loading-spinner hidden" aria-hidden="true">
+                                                <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-indigo-600" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                            </span>
                                             Preview Refund Template
                                         </button>
                                     </div>
@@ -419,6 +471,38 @@
                                     
                                     <x-form.input-error :messages="$errors->get('refund_document_id')" class="mt-1" />
                                 </div>
+
+                                <template x-if="refundStatus === 'approved'">
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <x-form.input-label value="Refund Bank Account" class="mb-1" :required="true" />
+                                            <x-form.input-select
+                                                name="bank_detail_id"
+                                                x-model="selectedBankId"
+                                                :options="[]"
+                                                placeholder="Select tenant bank account"
+                                                :ignore-checkout-or-renew="true"
+                                                x-effect="options = (tenantBankDetails || []).map(bank => ({
+                                                    value: String(bank.id),
+                                                    label: `${bank.bank_name} - ${bank.account_holder_name} (****${bank.account_last_four || 'N/A'})`
+                                                }))"
+                                            />
+                                        </div>
+
+                                        <div>
+                                            <x-form.input-label value="Payment Reference" class="mb-1" />
+                                            <x-form.text-input
+                                                type="text"
+                                                name="reference"
+                                                placeholder="Payment reference"
+                                                class="w-full"
+                                                aria-label="Refund payment reference"
+                                            />
+                                        </div>
+
+                                        <input type="hidden" name="method" value="bank_transfer">
+                                    </div>
+                                </template>
                                 
                                 {{-- Professional Process Stepper Header --}}
                                 <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs mb-4">
@@ -433,8 +517,8 @@
 
                                     <div class="grid grid-cols-9 gap-1 items-center text-center text-xs font-semibold w-full" x-data="{
                                         getCurrentStep() {
-                                            const map = { 'none': 1, 'draft': 2, 'pending': 3, 'approved': 4, 'paid': 5 };
-                                            return map[this.refundStatus] || 1;
+                                            const map = { none: 1, draft: 2, pending: 3, approved: 4, paid: 5 };
+                                            return map[String(this.refundStatus || 'none').toLowerCase()] || 1;
                                         }
                                     }">
                                         {{-- Step 1: Initial --}}
@@ -691,7 +775,8 @@
                             x-data="{
                                 get activeRefund() {
                                     if (!this.formLeaseId || !window.leasePreviewData) return null;
-                                    const preview = window.leasePreviewData[this.formLeaseId];
+                                    const preview = this.refundData?.[this.formLeaseId]
+                                        || window.leasePreviewData[this.formLeaseId];
                                     return preview?.active_refund || null;
                                 },
                                 get currentRefundId() {
@@ -768,13 +853,15 @@
 
                                         {{-- STEP 4: APPROVED -> Proceed to Final Refund Payout --}}
                                         <template x-if="refundStatus === 'approved'">
-                                            <x-form.primary-button 
-                                                type="button" 
-                                                loading="subAction === 'disburse'" 
-                                                @click="submitCheckout('{{ route('admin.refunds.disburse') }}', 'disburse')"
-                                                class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700">
-                                                <span>Proceed to Refund</span>
-                                            </x-form.primary-button>
+                                            <div class="flex items-center gap-2">
+                                                <x-form.primary-button
+                                                    type="button"
+                                                    loading="subAction === 'disburse'"
+                                                    @click="submitCheckout('{{ route('admin.refunds.disburse') }}', 'disburse')"
+                                                    class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700">
+                                                    <span>Proceed to Refund</span>
+                                                </x-form.primary-button>
+                                            </div>
                                         </template>
 
                                         {{-- STEP 5: PAID / REFUNDED (Finished State) --}}
@@ -887,17 +974,18 @@
 
     <script>
         const serverDataEl = document.getElementById('server-data');
-        const allFeeTypes = JSON.parse(serverDataEl.getAttribute('data-all-fee-types') || '[]');
+        const allFeeTypes = window.allFeeTypes = JSON.parse(serverDataEl.getAttribute('data-all-fee-types') || '[]');
         const createUrl = serverDataEl.getAttribute('data-create-url');
         const rentFeeTypes = JSON.parse(serverDataEl.getAttribute('data-rent-fees') || '[]');
         const depositFeeTypes = JSON.parse(serverDataEl.getAttribute('data-deposit-fees') || '[]');
-        const allLeases = JSON.parse(serverDataEl.getAttribute('data-all-leases') || '{}');
+        const allLeases = window.allLeases = JSON.parse(serverDataEl.getAttribute('data-all-leases') || '{}');
         window.leasePreviewData = JSON.parse(serverDataEl.getAttribute('data-preview-data') || '{}');
         
         const allTenants = JSON.parse(serverDataEl.getAttribute('data-tenants') || '{}');
         const allProperties = JSON.parse(serverDataEl.getAttribute('data-properties') || '{}');
         const allUnits = JSON.parse(serverDataEl.getAttribute('data-units') || '{}');
         const allRooms = JSON.parse(serverDataEl.getAttribute('data-rooms') || '{}');
+        window.leasePreviewRequests = window.leasePreviewRequests || {};
 
         const templatesJsonEl = document.getElementById('templates-json');
         const allTemplates = templatesJsonEl ? JSON.parse(templatesJsonEl.textContent) : {};
@@ -1033,7 +1121,7 @@
         // Modal Preview Event Listeners & Handlers
         // ==========================================
         document.addEventListener('DOMContentLoaded', function() {
-            function generatePreviewContent(selectElement, templateCollection) {
+            async function generatePreviewContent(selectElement, templateCollection) {
                 if (!selectElement || !selectElement.value) {
                     alert("⚠️ Please select a template first.");
                     return;
@@ -1047,233 +1135,99 @@
                     return null;
                 }
 
-                let content = templateData.content;
-                const title = templateData.title;
                 const isRefundTemplate = templateCollection === allRefundTemplates;
-                const selectedLeaseId = document.getElementById('lease_id')?.value || '';
+                const form = selectElement.closest('form');
+                const formData = new FormData(form);
+                const selectedLeaseId = String(formData.get('lease_id') || '');
                 const selectedLeaseData = selectedLeaseId
                     ? window.leasePreviewData?.[selectedLeaseId]
                     : null;
-                const activeRefund = selectedLeaseData?.active_refund || {};
-                const refundItems = Array.isArray(activeRefund.items) ? activeRefund.items : [];
-                const unpaidInvoiceItems = Array.isArray(selectedLeaseData?.unpaid_invoices)
-                    ? selectedLeaseData.unpaid_invoices.map(invoice => ({
-                        description: invoice.description || `Unpaid Invoice ${invoice.invoice_no || ''}`.trim(),
-                        type: 'utility',
-                        qty: 1,
-                        amount_cents: Number(invoice.balance_cents || 0)
-                    }))
-                    : [];
-                const dynamicRefundItems = refundItems.length ? refundItems : unpaidInvoiceItems;
-                const autoDeductionCents = Number(selectedLeaseData?.auto_deduction_total_cents || 0);
-                const totalDepositCents = Number(selectedLeaseData?.total_deposit_collected_cents || 0);
-                const customRefundItems = refundItems.filter(item => {
-                    const type = typeof item.type === 'object' ? item.type.value : item.type;
-                    return type !== 'utility' || !String(item.description || '').includes('Unpaid Invoice');
-                });
-                const customDeductionCents = customRefundItems.reduce(
-                    (total, item) => total + Number(item.amount_cents || 0),
-                    0
-                );
-                const nettRefundCents = Number(
-                    activeRefund.net_amount_cents
-                    ?? (totalDepositCents - autoDeductionCents - customDeductionCents)
-                );
-                const formatAmount = cents => (Number(cents || 0) / 100).toFixed(2);
-                const escapeHtml = value => String(value ?? '')
-                    .replace(/&/g, '&amp;')
-                    .replace(/</g, '&lt;')
-                    .replace(/>/g, '&gt;')
-                    .replace(/"/g, '&quot;')
-                    .replace(/'/g, '&#039;');
-                const itemDescription = item => escapeHtml(item.description || item.fee_type?.name || 'Refund deduction');
-                const itemType = item => {
-                    const type = typeof item.type === 'object' ? item.type.value : item.type;
-                    return escapeHtml(String(type || 'adjustment').replace(/_/g, ' '));
-                };
-                const dynamicRefundRows = dynamicRefundItems.length
-                    ? dynamicRefundItems.map((item, index) => `
-                        <tr>
-                            <td style="border: 1px solid #cbd5e1; padding: 10px;">${index + 1}</td>
-                            <td style="border: 1px solid #cbd5e1; padding: 10px;">
-                                ${itemDescription(item)} <span style="color: #64748b;">(${itemType(item)})</span>
-                            </td>
-                            <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: center;">${escapeHtml(item.qty || 1)}</td>
-                            <td style="border: 1px solid #cbd5e1; padding: 10px; text-align: right;">RM ${formatAmount(item.amount_cents)}</td>
-                        </tr>
-                    `).join('')
-                    : `<tr>
-                        <td colspan="4" style="border: 1px dashed #bbf7d0; padding: 20px; text-align: center; color: #166534; font-weight: bold;">
-                            No refund deduction items
-                        </td>
-                    </tr>`;
+                const ownerId = selectedLeaseData?.owner_data?.id
+                    || String(formData.get('owner_id') || '');
 
-                const replacements = {
-                    '{tenant_name}': 'N/A',
-                    '{tenant_ic}': 'N/A',
-                    '{owner_name}': 'N/A',
-                    '{owner_ic}': 'N/A',
-                    '{owner_id}': 'N/A', 
-                    '{property_name}': 'N/A',
-                    '{property_type}': 'N/A',
-                    '{property_address}': 'N/A',
-                    '{start_date}': 'N/A',
-                    '{end_date}': 'N/A',
-                    '{check_out_date}': 'N/A',
-                    '{end_agreement_date}': 'N/A',
-                    '{rent_price}': '0.00',
-                    '{security_deposit}': '0.00',
-                    '{utilities_deposit}': '0.00',
-                    '{combined_deposit}': '0.00',
-                    '{total_deposit}': '0.00',
-                    '{management_fee}': '0.00'
-                };
+                formData.set('template_id', selectedTemplateId);
+                formData.set('category', isRefundTemplate ? 'refund' : 'agreement');
+                formData.set('owner_id', ownerId);
+                if (selectedLeaseId) {
+                    formData.set('lease_id', selectedLeaseId);
+                }
+
+                const checkoutDate = document.getElementById('check-out-date')?.value || '';
+                if (checkoutDate) {
+                    formData.set('check_out_date', checkoutDate);
+                }
 
                 if (isRefundTemplate) {
-                    replacements['{checkout_date}'] = document.getElementById('check-out-date')?.value || 'N/A';
-                    replacements['{total_deposit_collected}'] = formatAmount(totalDepositCents);
-                    replacements['{auto_deductions_total}'] = formatAmount(autoDeductionCents);
-                    replacements['{custom_deductions_total}'] = formatAmount(customDeductionCents);
-                    replacements['{nett_refund_amount}'] = formatAmount(nettRefundCents);
-                    replacements['{unpaid_invoices_breakdown}'] = formatAmount(autoDeductionCents);
-                    replacements['{custom_items_breakdown}'] = formatAmount(customDeductionCents);
+                    const refundSection = document.getElementById('checkout_refund_section');
+                    const checkoutData = refundSection && window.Alpine
+                        ? window.Alpine.$data(refundSection)
+                        : null;
+                    const refundContext = {
+                        total_deposit_collected_cents: Number(
+                            selectedLeaseData?.total_deposit_collected_cents || 0
+                        ),
+                        auto_deduction_total_cents: Number(
+                            selectedLeaseData?.auto_deduction_total_cents || 0
+                        ),
+                        unpaid_invoices: selectedLeaseData?.unpaid_invoices || [],
+                        active_refund: {
+                            items: (checkoutData?.manualDeductions || []).map(item => ({
+                                description: item.description
+                                    || checkoutData.availableFeeTypes?.find(feeType =>
+                                        String(feeType.id) === String(item.fee_type_id)
+                                    )?.name
+                                    || '',
+                                type: item.type || 'adjustment',
+                                qty: Number(item.qty || 1),
+                                amount_cents: Math.round(
+                                    Number(item.qty || 1) * Number(item.sell_price || 0) * 100
+                                ),
+                            })).filter(item => item.amount_cents > 0),
+                        },
+                    };
+                    formData.set('refund_context', JSON.stringify(refundContext));
                 }
 
-                const sd = document.getElementById('start-date');
-                if (sd && sd.value) replacements['{start_date}'] = sd.value;
+                console.groupCollapsed('[Lease Preview Debug]');
+                console.log('Selected template:', {
+                    id: selectedTemplateId,
+                    category: isRefundTemplate ? 'refund' : 'agreement',
+                });
+                console.log('Selected lease ID:', selectedLeaseId);
+                console.log('Selected lease preview data:', selectedLeaseData);
+                console.log('Lease inputs in DOM:', Array.from(
+                    document.querySelectorAll('input[name="lease_id"]')
+                ).map(input => ({
+                    id: input.id,
+                    value: input.value,
+                    disabled: input.disabled,
+                })));
+                console.log('Preview FormData:', Array.from(formData.entries()).map(([key, value]) => [
+                    key,
+                    value instanceof File ? `[File: ${value.name}]` : value,
+                ]));
+                console.log('Template variable names:', Array.from(
+                    templateData.content.matchAll(/data-variable=["']([^"']+)["']|\x7B\x7B\s*([a-zA-Z0-9_]+)\s*\x7D\x7D/g)
+                ).map(match => match[1] || match[2]));
+                console.groupEnd();
 
-                const ed = document.getElementById('end-date');
-                if (ed && ed.value) replacements['{end_date}'] = ed.value;
-
-                const cod = document.getElementById('check-out-date');
-                if (cod && cod.value) replacements['{check_out_date}'] = cod.value;
-
-                const aed = document.getElementById('agreement-end-date');
-                if (aed && aed.value) replacements['{end_agreement_date}'] = aed.value;
-
-                const firstAmountInput = document.querySelector('input[name="charges[0][amount]"]');
-                if (firstAmountInput && firstAmountInput.value) {
-                    replacements['{rent_price}'] = firstAmountInput.value;
-                }
-
-                let securitySum = 0;
-                let utilitiesSum = 0;
-                let combinedSum = 0;
-                let totalDepositSum = 0;
-                let managementSum = 0;
-
-                document.querySelectorAll('.charge-row').forEach(row => {
-                    const select = row.querySelector('select');
-                    const amountInput = row.querySelector('input[name$="[amount]"]');
-                    
-                    if (select && amountInput && amountInput.value) {
-                        const opt = select.options[select.selectedIndex];
-                        if(opt) {
-                            const text = opt.text.toLowerCase(); 
-                            const amount = parseFloat(amountInput.value || 0);
-
-                            if (text.includes('(deposit)')) {
-                                totalDepositSum += amount;
-                                
-                                if (text.includes('security and utilities')) {
-                                    combinedSum += amount;
-                                } else if (text.includes('security')) {
-                                    securitySum += amount;
-                                } else if (text.includes('utilities')) {
-                                    utilitiesSum += amount;
-                                }
-                            }
-
-                            if (text.includes('(management)')) {
-                                managementSum += amount;
-                            }
-                        }
-                    }
+                const response = await fetch('{{ route('admin.leases.preview-template') }}', {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
+                        'Accept': 'application/json'
+                    },
+                    body: formData
                 });
 
-                replacements['{security_deposit}'] = securitySum.toFixed(2);
-                replacements['{utilities_deposit}'] = utilitiesSum.toFixed(2);
-                replacements['{combined_deposit}'] = combinedSum.toFixed(2);
-                replacements['{total_deposit}'] = totalDepositSum.toFixed(2);
-                replacements['{management_fee}'] = managementSum.toFixed(2);
-
-                const statusSelect = document.getElementById('lease-status');
-                const isRenew = statusSelect && statusSelect.value !== 'New';
-
-                if (isRenew) {
-                    const leaseIdSelect = document.getElementById('lease_id');
-                    if (leaseIdSelect && leaseIdSelect.value) {
-                        const leaseId = leaseIdSelect.value;
-                        const previewData = leasePreviewData[leaseId];
-
-                        if (previewData) {
-                            replacements['{property_name}'] = previewData.leasable_name || 'N/A';
-                            replacements['{property_address}'] = previewData.leasable_address || 'N/A';
-                            replacements['{owner_name}'] = previewData.owner_data?.name || 'N/A';
-                            replacements['{owner_ic}'] = previewData.owner_data?.ic_number || 'N/A';
-                            replacements['{owner_id}'] = previewData.owner_data?.id || 'N/A';
-                            replacements['{property_type}'] = (previewData.leasable_type_label || previewData.leasable_type || '').toUpperCase();
-                            replacements['{tenant_name}'] = previewData.tenant_data?.name || previewData.tenant_name || 'N/A';
-                            replacements['{tenant_ic}'] = previewData.tenant_data?.ic_number || previewData.tenant_ic || 'N/A';
-                        }
-                    }
-                } else {
-                    const tenantSelect = document.getElementById('tenant_id');
-                    if (tenantSelect && tenantSelect.value && allTenants[tenantSelect.value]) {
-                        const t = allTenants[tenantSelect.value];
-                        replacements['{tenant_name}'] = t.name || 'N/A';
-                        replacements['{tenant_ic}'] = t.ic_number || 'N/A';
-                    }
-
-                    const leaseSelectionEl = document.getElementById('lease_selection');
-                    if (leaseSelectionEl) {
-                        const leaseType = leaseSelectionEl.value;
-                        replacements['{property_type}'] = leaseType.toUpperCase();
-
-                        const activeSelect = document.getElementById(`${leaseType}_select_input`);
-                        if (activeSelect && activeSelect.value) {
-                            const targetId = activeSelect.value;
-                            let targetData = null;
-
-                            if (leaseType === 'property') targetData = allProperties[targetId];
-                            else if (leaseType === 'unit') targetData = allUnits[targetId];
-                            else if (leaseType === 'room') targetData = allRooms[targetId];
-
-                            if (targetData) {
-                                replacements['{property_name}'] = targetData.name || 'N/A';
-                                replacements['{property_address}'] = targetData.full_address || 'N/A';
-                                replacements['{owner_name}'] = targetData.owner_name || 'N/A';
-                                replacements['{owner_ic}'] = targetData.owner_ic || 'N/A';
-                                replacements['{owner_id}'] = targetData.owner_id || 'N/A';
-                            }
-                        }
-                    }
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.message || 'Unable to generate preview.');
                 }
 
-                Object.keys(replacements).forEach(placeholder => {
-                    const val = replacements[placeholder] && replacements[placeholder].trim() !== '' 
-                                ? replacements[placeholder] 
-                                : 'N/A';
-                    
-                    const coreName = placeholder.replace(/[{}]/g, '').trim();
-                    const safeVal = `<strong>${val}</strong>`;
-
-                    const dataVarRegex = new RegExp(`<[^>]+data-variable=["']${coreName}["'][^>]*>[\\s\\S]*?<\\/\\w+>`, 'gi');
-                    content = content.replace(dataVarRegex, safeVal);
-
-                    const safeCoreName = coreName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-                    const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${safeCoreName}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
-                    content = content.replace(textRegex, safeVal);
-                });
-
-                if (isRefundTemplate) {
-                    content = content.replace(
-                        /<tbody\b[^>]*id=["']dynamic-refund-tbody["'][^>]*>[\s\S]*?<\/tbody>/i,
-                        `<tbody id="dynamic-refund-tbody">${dynamicRefundRows}</tbody>`
-                    );
-                }
-
-                return { content, title };
+                const rendered = await response.json();
+                console.log('[Lease Preview Debug] Backend response:', rendered);
+                return { content: rendered.content, title: rendered.title };
             }
 
             function showPreview(result) {
@@ -1285,20 +1239,16 @@
                 if (modalTitle) modalTitle.innerText = "Preview: " + result.title;
                 
                 if (modalContent) {
-                    const resetStyles = `
-                        <style>
-                            .grapes-preview-box h1 { font-size: 2.2em !important; font-weight: bold !important; margin: 0.67em 0 !important; line-height: 1.2 !important; }
-                            .grapes-preview-box h2 { font-size: 1.6em !important; font-weight: bold !important; margin: 0.83em 0 !important; line-height: 1.3 !important; }
-                            .grapes-preview-box h3 { font-size: 1.2em !important; font-weight: bold !important; margin: 1em 0 !important; }
-                            .grapes-preview-box p { margin: 1em 0 !important; }
-                            .grapes-preview-box ul { list-style-type: disc !important; padding-left: 40px !important; margin: 1em 0 !important; }
-                            .grapes-preview-box ol { list-style-type: decimal !important; padding-left: 40px !important; margin: 1em 0 !important; }
-                            .grapes-preview-box li { display: list-item !important; margin-bottom: 0.5em !important; }
-                            .grapes-preview-box strong, .grapes-preview-box b { font-weight: bold !important; color: #000 !important; }
-                            .grapes-preview-box hr { margin: 1.5em 0 !important; border-top: 1px solid #ccc !important; }
-                        </style>
+                    const parsedTemplate = new DOMParser().parseFromString(result.content, 'text/html');
+                    const templateStyles = Array.from(parsedTemplate.querySelectorAll('style'))
+                        .map(style => style.textContent || '')
+                        .join('\n');
+                    const templateHtml = parsedTemplate.body.innerHTML;
+
+                    modalContent.innerHTML = `
+                        <style>${templateStyles}</style>
+                        <div class="grapes-preview-box">${templateHtml}</div>
                     `;
-                    modalContent.innerHTML = `<div class="grapes-preview-box">${resetStyles}${result.content}</div>`;
                 }
 
                 document.body.style.overflow = 'hidden';
@@ -1307,15 +1257,30 @@
                 }));
             }
 
-            function handlePreviewClick(event, selectElement, templateCollection) {
+            async function handlePreviewClick(event, selectElement, templateCollection) {
                 event.preventDefault();
                 event.stopPropagation();
 
+                const button = event.target.closest('#preview-btn, #preview-refund-template-btn');
+                const spinner = button?.querySelector('.preview-loading-spinner');
+
+                if (button) {
+                    button.disabled = true;
+                    button.classList.add('opacity-60', 'cursor-wait');
+                }
+                spinner?.classList.remove('hidden');
+
                 try {
-                    showPreview(generatePreviewContent(selectElement, templateCollection));
+                    showPreview(await generatePreviewContent(selectElement, templateCollection));
                 } catch (error) {
                     console.error("🚨 Preview Error: ", error);
                     alert("Something went wrong while generating the preview: " + error.message);
+                } finally {
+                    spinner?.classList.add('hidden');
+                    if (button) {
+                        button.disabled = false;
+                        button.classList.remove('opacity-60', 'cursor-wait');
+                    }
                 }
             }
 
@@ -1410,7 +1375,46 @@
             }
         }
 
-        function handleLeaseChange(eventOrId) {
+        function applyStoredCheckoutFields(leaseData) {
+            if (!leaseData) return;
+
+            const checkoutDateInput = document.getElementById('check-out-date');
+            const storedCheckoutDate = leaseData.checked_out_at || '';
+
+            if (checkoutDateInput && storedCheckoutDate && !checkoutDateInput.value) {
+                if (checkoutDateInput._flatpickr) {
+                    checkoutDateInput._flatpickr.setDate(storedCheckoutDate, true);
+                } else {
+                    checkoutDateInput.value = storedCheckoutDate;
+                    checkoutDateInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    checkoutDateInput.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+            }
+
+            const storedRefundDocumentId = leaseData.refund_document_id
+                ? String(leaseData.refund_document_id)
+                : '';
+            const refundDocumentInput = document.getElementById('refund_document_id');
+
+            if (storedRefundDocumentId && refundDocumentInput && !refundDocumentInput.value) {
+                const refundDocumentComponent = refundDocumentInput.closest('[x-data]');
+                const refundDocumentData = refundDocumentComponent && window.Alpine
+                    ? window.Alpine.$data(refundDocumentComponent)
+                    : null;
+
+                if (refundDocumentData) {
+                    refundDocumentData.selectedValues = [storedRefundDocumentId];
+                }
+            }
+        }
+
+        async function handleLeaseChange(eventOrId) {
+            const actionRoot = document.getElementById('lease-create-modal-root');
+            const modalData = actionRoot && window.Alpine
+                ? window.Alpine.$data(actionRoot)
+                : null;
+            if (modalData && modalData.action !== 'checkout') return;
+
             let leaseId = eventOrId;
             if (typeof eventOrId === 'object') {
                 leaseId = eventOrId.detail?.value || eventOrId.target?.value || eventOrId.value || null;
@@ -1420,9 +1424,107 @@
                 if (leaseSelectInput) leaseId = leaseSelectInput.value;
             }
 
-            if (!leaseId || !window.leasePreviewData || !window.leasePreviewData[leaseId]) return;
+            if (!leaseId) return;
+
+            const initialLeaseData = window.leasePreviewData[leaseId];
+            const initialBankDetails = initialLeaseData?.tenant_bank_details || [];
+            const initialRefundSection = document.getElementById('checkout_refund_section');
+            const initialCheckoutData = initialRefundSection && window.Alpine
+                ? window.Alpine.$data(initialRefundSection)
+                : null;
+
+            if (initialCheckoutData && initialBankDetails.length) {
+                initialCheckoutData.tenantBankDetails = initialBankDetails;
+                initialCheckoutData.selectedBankId = initialBankDetails.find(bank => bank.is_default)?.id
+                    || initialBankDetails[0]?.id
+                    || '';
+            }
+
+            if (!window.leasePreviewData[leaseId]?.unpaid_invoices) {
+                let previewRequest = window.leasePreviewRequests[leaseId];
+                if (!previewRequest) {
+                    previewRequest = fetch(
+                        `{{ url('admin/leases') }}/${encodeURIComponent(leaseId)}/checkout-preview`,
+                        { headers: { Accept: 'application/json' } }
+                    ).then(async response => {
+                        if (!response.ok) {
+                            throw new Error('Unable to load checkout refund details.');
+                        }
+                        return response.json();
+                    });
+                    window.leasePreviewRequests[leaseId] = previewRequest;
+                }
+
+                let loadedLeaseData;
+                try {
+                    loadedLeaseData = await previewRequest;
+                } finally {
+                    delete window.leasePreviewRequests[leaseId];
+                }
+
+                console.group('[Checkout Refund] Backend tenant bank details');
+                console.log('Lease ID:', leaseId);
+                console.log('Full checkout preview response:', loadedLeaseData);
+                console.log('Tenant bank details:', loadedLeaseData.tenant_bank_details || []);
+                console.groupEnd();
+                window.leasePreviewData[leaseId] = loadedLeaseData;
+
+                const refundSection = document.getElementById('checkout_refund_section');
+                if (refundSection && window.Alpine) {
+                    const checkoutData = window.Alpine.$data(refundSection);
+                    const modalRoot = document.getElementById('lease-create-modal-root');
+                    const rootData = modalRoot ? window.Alpine.$data(modalRoot) : null;
+                    if (checkoutData) {
+                        checkoutData.refundData = {
+                            ...checkoutData.refundData,
+                            [leaseId]: loadedLeaseData,
+                        };
+                        checkoutData.tenantBankDetails = loadedLeaseData.tenant_bank_details || [];
+                        checkoutData.selectedBankId = checkoutData.tenantBankDetails.find(bank => bank.is_default)?.id
+                            || checkoutData.tenantBankDetails[0]?.id
+                            || '';
+                    }
+                    if (rootData) {
+                        rootData.refundData = {
+                            ...rootData.refundData,
+                            [leaseId]: loadedLeaseData,
+                        };
+                    }
+                }
+            }
 
             const leaseData = window.leasePreviewData[leaseId];
+            console.log('[Checkout Refund] Bank details used by frontend:', {
+                leaseId,
+                tenantBankDetails: leaseData?.tenant_bank_details || [],
+            });
+            const refundSection = document.getElementById('checkout_refund_section');
+            const checkoutData = refundSection && window.Alpine
+                ? window.Alpine.$data(refundSection)
+                : null;
+            const modalRoot = document.getElementById('lease-create-modal-root');
+            const rootData = modalRoot && window.Alpine
+                ? window.Alpine.$data(modalRoot)
+                : null;
+
+            if (checkoutData) {
+                checkoutData.refundData = {
+                    ...checkoutData.refundData,
+                    [leaseId]: leaseData,
+                };
+                checkoutData.tenantBankDetails = leaseData.tenant_bank_details || [];
+                checkoutData.selectedBankId = checkoutData.tenantBankDetails.find(bank => bank.is_default)?.id
+                    || checkoutData.tenantBankDetails[0]?.id
+                    || '';
+            }
+            if (rootData) {
+                rootData.refundData = {
+                    ...rootData.refundData,
+                    [leaseId]: leaseData,
+                };
+            }
+
+            applyStoredCheckoutFields(leaseData);
 
             // 1. Total Deposit Collected from Backend
             const totalDeposit = (leaseData.total_deposit_collected_cents || 0) / 100;

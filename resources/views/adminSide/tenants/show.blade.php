@@ -77,153 +77,110 @@
                         </div>
                         <div class="ml-6">
                             <h2 class="text-2xl font-bold text-slate-900 tracking-tight">{{ $tenant->user->name }}</h2>
-                            <p class="text-sm text-gray-500 font-medium">{{ $tenant->user->email }}</p>
+                            @if(filled($tenant->user->email))
+                                <p class="text-sm text-gray-500 font-medium">{{ $tenant->user->email }}</p>
+                            @endif
                         </div>
                     </div>
                 </div>
 
                 <div class="px-8 py-10 bg-white">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-12">
-
-                        @if($tenant->tenant_type === 'corporate')
-                            <!-- ================= CORPORATE TENANT VIEW ================= -->
-                            <div class="space-y-4">
-                                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Corporate Info</h3>
-                                <div class="pl-4">
-                                    <label class="text-xs font-medium text-gray-400">Company Name</label>
-                                    <p class="text-sm font-bold text-slate-900 mt-0.5 tracking-tight">{{ $tenant->user->name ?? '—' }}</p>
-                                </div>
-                                <div class="pl-4">
-                                    <label class="text-xs font-medium text-gray-400">SSM Registration Number</label>
-                                    <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $tenant->ssm_number ?? '—' }}</p>
-                                </div>
-                            </div>
-
-                            <div class="space-y-4">
-                                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Contact & SSM Document</h3>
-                                <div class="pl-4">
-                                    <label class="text-xs font-medium text-gray-400">Phone Number</label>
-                                    <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $tenant->phone ?? '—' }}</p>
-                                </div>
-                                <div class="pl-4">
-                                    <label class="text-xs font-medium text-gray-400">Company Address</label>
-                                    <p class="text-sm font-semibold text-slate-700 mt-0.5">{{ $tenant->company_address ?? '—' }}</p>
-                                </div>
-                                <div class="mt-2 pl-4">
-                                    @if($tenant->ssm_cert_path)
-                                    <a href="{{ route('admin.tenants.view-ic', $tenant->id) }}"
-                                        class="group inline-flex items-center gap-3 px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200">
-                                        <div class="flex-shrink-0 w-8 h-8 bg-slate-100 group-hover:bg-white rounded-full flex items-center justify-center transition-colors">
-                                            <svg class="w-4 h-4 text-slate-500 group-hover:text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm5 3a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                                            </svg>
+                    <div class="space-y-8">
+                        <section>
+                            <h3 class="mb-4 text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Tenant Details</h3>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                @foreach(['tenant_type' => 'Tenant Type', 'phone' => 'Tenant Phone', 'occupation' => 'Occupation', 'gender' => 'Gender', 'nationality' => 'Nationality', 'ic_number' => 'IC Number', 'passport' => 'Passport'] as $field => $label)
+                                    @if(filled($tenant->{$field}))
+                                        <div class="pl-4">
+                                            <p class="text-xs font-medium text-gray-400">{{ $label }}</p>
+                                            <p class="mt-1 text-sm font-semibold text-slate-900">{{ $field === 'tenant_type' ? ucfirst($tenant->{$field}) : $tenant->{$field} }}</p>
                                         </div>
-                                        <div class="flex flex-col">
-                                            <span class="text-[12px] font-bold text-slate-700 group-hover:text-indigo-800 uppercase tracking-tight">SSM Certificate</span>
-                                            <span class="text-[10px] text-slate-400 group-hover:text-indigo-500 font-medium">Click to Preview</span>
-                                        </div>
-                                        <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                                        </svg>
-                                    </a>
-                                    @else
-                                    <div class="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-400 italic text-sm">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                        </svg>
-                                        No SSM certificate uploaded
-                                    </div>
                                     @endif
-                                </div>
-                            </div>
-
-                        @else
-                            <!-- ================= INDIVIDUAL TENANT VIEW ================= -->
-                            <div class="space-y-4">
-                                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Personal Info</h3>
-                                <div class="pl-4">
-                                    <label class="text-xs font-medium text-gray-400">Occupation</label>
-                                    <p class="text-sm font-bold text-slate-900 mt-0.5 tracking-tight">{{ $tenant->occupation ?? '—' }}</p>
-                                </div>
-                                <div class="pl-4">
-                                    <label class="text-xs font-medium text-gray-400">Gender</label>
-                                    <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $tenant->gender ?? '—' }}</p>
-                                </div>
-                                <div class="pl-4">
-                                    <label class="text-xs font-medium text-gray-400">Nationality</label>
-                                    <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $tenant->nationality ?? '—' }}</p>
-                                </div>
-                            </div>
-
-                            <div class="space-y-4">
-                                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Contact & Identity</h3>
-                                <div class="pl-4">
-                                    <label class="text-xs font-medium text-gray-400">Phone Number</label>
-                                    <p class="text-sm font-bold text-slate-900 mt-0.5">{{ $tenant->phone ?? '—' }}</p>
-                                </div>
-                                <div class="pl-4">
-                                    <label class="text-xs font-medium text-gray-400">Identity Document</label>
-                                    <p class="text-sm font-semibold text-slate-700 mt-0.5">
-                                        @if($tenant->ic_number)
-                                        IC: {{ $tenant->ic_number }}
-                                        @elseif($tenant->passport)
-                                        Passport: {{ $tenant->passport }}
-                                        @else
-                                        —
-                                        @endif
-                                    </p>
-                                </div>
-                                <div class="mt-2 pl-4">
-                                    @if($tenant->ic_photo_path)
-                                    <a href="{{ route('admin.tenants.view-ic', $tenant->id) }}"
-                                        class="group inline-flex items-center gap-3 px-4 py-2 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:border-indigo-300 hover:bg-indigo-50 transition-all duration-200">
-                                        <div class="flex-shrink-0 w-8 h-8 bg-slate-100 group-hover:bg-white rounded-full flex items-center justify-center transition-colors">
-                                            <svg class="w-4 h-4 text-slate-500 group-hover:text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm5 3a2 2 0 11-4 0 2 2 0 014 0z"></path>
-                                            </svg>
-                                        </div>
-                                        <div class="flex flex-col">
-                                            <span class="text-[12px] font-bold text-slate-700 group-hover:text-indigo-800 uppercase tracking-tight">Identity Document (IC)</span>
-                                            <span class="text-[10px] text-slate-400 group-hover:text-indigo-500 font-medium">Click to Preview</span>
-                                        </div>
-                                        <svg class="w-4 h-4 text-slate-300 group-hover:text-indigo-400 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
-                                        </svg>
-                                    </a>
-                                    @else
-                                    <div class="inline-flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-gray-400 italic text-sm">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
-                                        </svg>
-                                        No document uploaded
+                                @endforeach
+                                @if($tenant->created_at)
+                                    <div class="pl-4">
+                                        <p class="text-xs font-medium text-gray-400">Joined Date</p>
+                                        <p class="mt-1 text-sm font-semibold text-slate-900">{{ $tenant->created_at->format('d M Y, H:i') }}</p>
                                     </div>
-                                    @endif
-                                </div>
+                                @endif
+                                @if($tenant->tenant_type !== 'corporate' && filled($tenant->ic_photo_path))
+                                    <div class="pl-4">
+                                        <a href="{{ route('admin.tenants.view-ic', $tenant->id) }}" class="text-sm font-semibold text-indigo-600 hover:underline">Preview IC / Passport Document</a>
+                                    </div>
+                                @endif
                             </div>
+                        </section>
+
+                        @if($tenant->emergencyContacts->isNotEmpty())
+                            <section>
+                                <h3 class="mb-4 text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Emergency Contacts</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                    @foreach($tenant->emergencyContacts as $contact)
+                                        <div class="pl-4">
+                                            @if(filled($contact->name))
+                                                <p class="text-sm font-semibold text-slate-900">{{ $contact->name }}</p>
+                                            @endif
+                                            @if(filled($contact->relationship))
+                                                <p class="text-xs text-gray-500">{{ $contact->relationship }}</p>
+                                            @endif
+                                            @if(filled($contact->phone))
+                                                <p class="text-sm text-slate-700">{{ $contact->phone }}</p>
+                                            @endif
+                                        </div>
+                                    @endforeach
+                                </div>
+                            </section>
                         @endif
 
-                        <!-- ================= SHARED COLUMN (Emergency Contacts & Joined Date) ================= -->
-                        <div class="space-y-4">
-                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Emergency Contacts</h3>
-                            @forelse($tenant->emergencyContacts as $contact)
-                            <div class="pl-4 mb-3 last:mb-0">
-                                <p class="text-sm font-bold text-slate-900">{{ $contact->name }}</p>
-                                <p class="text-xs text-gray-500">{{ $contact->relationship }} • {{ $contact->phone }}</p>
-                            </div>
-                            @empty
-                            <div class="pl-4">
-                                <p class="text-sm text-gray-400 italic">No emergency contacts listed.</p>
-                            </div>
-                            @endforelse
+                        @if($tenant->user->companies->isNotEmpty())
+                            <section class="space-y-4 border-t border-gray-100 pt-6">
+                                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Company Details</h3>
+                                @foreach($tenant->user->companies as $company)
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 rounded-xl border border-gray-200 bg-slate-50 p-5">
+                                        @if(filled($company->logo_path))
+                                            <div class="md:col-span-2 lg:col-span-3">
+                                                <img src="{{ asset('storage/' . $company->logo_path) }}" alt="{{ $company->name }} logo" class="h-20 w-20 object-contain" />
+                                            </div>
+                                        @endif
+                                        @foreach(['name' => 'Company Name', 'ssm_old_number' => 'SSM Old Number', 'ssm_new_number' => 'SSM New Number', 'phone' => 'Company Phone', 'email' => 'Company Email', 'address' => 'Company Address'] as $field => $label)
+                                            @if(filled($company->{$field}))
+                                                <div class="min-w-0">
+                                                    <p class="text-xs font-medium text-gray-400">{{ $label }}</p>
+                                                    <p class="mt-1 text-sm font-semibold text-slate-900 break-words">{{ $company->{$field} }}</p>
+                                                </div>
+                                            @endif
+                                        @endforeach
+                                        @if(filled($company->ssm_cert_path))
+                                            <div class="md:col-span-2 lg:col-span-3">
+                                                <a href="{{ route('admin.tenants.ic_photo', basename($company->ssm_cert_path)) }}" target="_blank" rel="noopener" class="inline-flex rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50">Preview SSM Certificate</a>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endforeach
+                            </section>
+                        @endif
 
-                            <div class="pt-4 mt-2">
-                                <label class="text-xs font-medium text-gray-400 border-l-4 border-indigo-500 pl-3 block mb-2 uppercase tracking-widest">Joined Date</label>
-                                <p class="text-sm font-semibold text-slate-700 pl-4 mt-0.5">
-                                    {{ $tenant->created_at ? $tenant->created_at->format('d M Y, H:i') : 'N/A' }}
-                                </p>
-                            </div>
-                        </div>
-
+                        @if($bankDetail)
+                            <section class="space-y-4 border-t border-gray-100 pt-6">
+                                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Bank Details</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 rounded-xl border border-gray-200 bg-slate-50 p-5">
+                                    @foreach(['bank_name' => 'Bank Name', 'bank_code' => 'Bank Code', 'account_holder_name' => 'Account Holder'] as $field => $label)
+                                        @if(filled($bankDetail->{$field}))
+                                            <div>
+                                                <p class="text-xs font-medium text-gray-400">{{ $label }}</p>
+                                                <p class="mt-1 text-sm font-semibold text-slate-900">{{ $bankDetail->{$field} }}</p>
+                                            </div>
+                                        @endif
+                                    @endforeach
+                                    @if(filled($bankDetail->account_number))
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-400">Account Number</p>
+                                            <p class="mt-1 text-sm font-semibold text-slate-900">******{{ substr($bankDetail->account_number, -4) }}</p>
+                                        </div>
+                                    @endif
+                                </div>
+                            </section>
+                        @endif
                     </div>
 
                     <!-- Lease Section -->

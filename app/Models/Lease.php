@@ -80,6 +80,11 @@ class Lease extends Model
         return $this->hasMany(Refund::class, 'lease_id');
     }
 
+    public function latestRefund(): HasOne
+    {
+        return $this->hasOne(Refund::class)->latestOfMany('created_at');
+    }
+
     protected function ownerUserId(): Attribute
     {
         return Attribute::make(

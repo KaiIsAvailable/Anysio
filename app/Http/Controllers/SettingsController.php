@@ -138,6 +138,7 @@ class SettingsController extends Controller
     public function calculatePenaltyPreview(Request $request, Invoice $invoice, \App\Services\InvoicePenaltyService $penalties)
     {
         $data = $request->validate(['payment_date' => ['required', 'date', 'before_or_equal:today']]);
+        \Illuminate\Support\Facades\DB::transaction(fn () => app(\App\Services\RefundService::class)->assertInvoicePaymentAllowed($invoice));
         return response()->json($penalties->quote($invoice, $data['payment_date']));
     }
 

@@ -312,6 +312,7 @@
                                 isEarlyCheckout: false,
                                 earlyDays: 0,
                                 autoDeductionTotal: 0,
+                                walletRefundAmount: 0,
                                 tenantBankDetails: [],
                                 selectedBankId: '',
 
@@ -606,6 +607,14 @@
                                         </div>
 
                                         {{-- 1. Auto-detected Unpaid Invoices Container --}}
+                                        <div x-show="walletRefundAmount > 0" x-cloak class="space-y-2 pb-3 border-b border-slate-100">
+                                            <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">{{ __('Auto-Detected Wallet Balance') }}</span>
+                                            <div class="flex justify-between items-center bg-white p-2 rounded border border-gray-200 text-xs">
+                                                <span>{{ __('Wallet Balance to Refund') }}</span>
+                                                <span class="font-semibold text-gray-900" x-text="'+ RM ' + walletRefundAmount.toFixed(2)"></span>
+                                            </div>
+                                        </div>
+
                                         <div id="auto-deductions-container" class="hidden space-y-2 pb-3 border-b border-slate-100">
                                             <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block">{{ __('Auto-Detected Unpaid Invoices') }}</span>
                                             <div id="auto-deductions-list" class="space-y-2 text-xs">
@@ -703,7 +712,7 @@
 
                                             <div class="flex justify-between items-center text-base font-bold text-gray-900 pt-1">
                                                 <span>{{ __('Nett Refund Amount:') }}</span>
-                                                <span id="checkout-net-refund" class="text-indigo-600 text-lg font-bold" x-text="'RM ' + Math.max(0, (parseFloat(window.checkoutTotalDepositValue || 0) - (autoDeductionTotal + calculateManualTotal()))).toFixed(2)">RM 0.00</span>
+                                                <span id="checkout-net-refund" class="text-indigo-600 text-lg font-bold" x-text="'RM ' + Math.max(0, (parseFloat(window.checkoutTotalDepositValue || 0) + walletRefundAmount - (autoDeductionTotal + calculateManualTotal()))).toFixed(2)">RM 0.00</span>
                                             </div>
                                         </div>
 
@@ -1153,7 +1162,7 @@
                 }
 
                 const checkoutDate = document.getElementById('check-out-date')?.value || '';
-                if (checkoutDate) {
+                if (checkoutDate || isRefundTemplate) {
                     formData.set('check_out_date', checkoutDate);
                 }
 
@@ -1163,6 +1172,7 @@
                         ? window.Alpine.$data(refundSection)
                         : null;
                     const refundContext = {
+                        wallet_refund_cents: Math.round(Number(checkoutData?.walletRefundAmount || 0) * 100),
                         total_deposit_collected_cents: Number(
                             selectedLeaseData?.total_deposit_collected_cents || 0
                         ),
@@ -1569,6 +1579,7 @@
                 let alpineData = window.Alpine.$data(refundSectionEl);
                 if (alpineData) {
                     alpineData.autoDeductionTotal = autoDeductionSum;
+                    alpineData.walletRefundAmount = Number(leaseData.wallet_refund_cents || 0) / 100;
 
                     // 🌟 3. POPULATE SAVED MANUAL DEDUCTIONS IF A DRAFT REFUND EXISTS
                     if (leaseData.active_refund && leaseData.active_refund.items) {

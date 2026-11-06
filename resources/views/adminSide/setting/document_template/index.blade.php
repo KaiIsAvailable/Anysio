@@ -267,95 +267,13 @@
 
     <script>
         function documentTemplatePreviewHtml(content) {
-            const parsed = new DOMParser().parseFromString(content || '', 'text/html');
-            const styles = Array.from(parsed.querySelectorAll('style'));
-            const css = styles.map(style => style.textContent || '').join('\n');
-            styles.forEach(style => style.remove());
-
-            // Match the editor's iframe without the application's Tailwind reset.
-            return `<!DOCTYPE html><html><head><style>
-                html { overflow: hidden !important; }
-                html, body { width: 100%; margin: 0; padding: 0; }
-                body { box-sizing: border-box; min-height: 297mm; display: flow-root; padding: 20mm; font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.6; color: #0f172a; }
-                *, *::before, *::after { box-sizing: border-box; }
-            </style><style>${css}</style></head><body>${parsed.body.innerHTML}</body></html>`;
+            return window.documentLayout.documentHtml(content);
         }
-
         function resizeDocumentTemplatePreview(frame) {
-            frame.paperObserver?.disconnect();
-            const body = frame.contentDocument?.body;
-            if (!body) return;
-
-            const resize = () => {
-                frame.style.height = `${Math.ceil(Math.max(body.getBoundingClientRect().height, body.scrollHeight))}px`;
-            };
-            frame.paperObserver = new ResizeObserver(resize);
-            frame.paperObserver.observe(body);
-            resize();
+            window.documentLayout.resizeDocumentPaper(frame);
         }
-
-        // 只需要保留原本的 printContract 函数即可
         function printContract(content) {
-            const parsedTemplate = new DOMParser().parseFromString(content, 'text/html');
-            const templateStyles = Array.from(parsedTemplate.querySelectorAll('style'))
-                .map(style => style.textContent || '')
-                .join('\n');
-            const templateHtml = parsedTemplate.body.innerHTML;
-
-            const iframe = document.createElement('iframe');
-            iframe.style.position = 'fixed';
-            iframe.style.right = '0';
-            iframe.style.bottom = '0';
-            iframe.style.width = '0';
-            iframe.style.height = '0';
-            iframe.style.border = '0';
-            document.body.appendChild(iframe);
-
-            const doc = iframe.contentWindow.document;
-            doc.open();
-            doc.write(`
-                <html>
-                    <head>
-                        <title>Print Document</title>
-                        <style>
-                            /* 基礎字體與排版 */
-                            body { font-family: 'Times New Roman', serif; padding: 20px; line-height: 1.6; color: #0f172a; }
-                            h1, h2, h3 { text-align: center; text-transform: uppercase; }
-                            
-                            /* 💡 修正 1：移除全局的 border: 1px solid black，只保留基礎的寬度和無縫貼合 */
-                            table { width: 100%; border-collapse: collapse; margin: 0; border-spacing: 0; }
-                            td, th { padding: 0; } 
-                            
-                            .quill-content p { margin-bottom: 1em; }
-
-                            /* 💡 修正 2：專屬列印優化 */
-                            @media print {
-                                body { padding: 0; }
-                                /* 強制瀏覽器列印出背景顏色（例如 Receipt 的綠色背景），否則預設會是全白 */
-                                * {
-                                    -webkit-print-color-adjust: exact !important;
-                                    print-color-adjust: exact !important;
-                                    color-adjust: exact !important;
-                                }
-                            }
-                        </style>
-                        <style>${templateStyles}</style>
-                        @include('components.document-page-break-print')
-                    </head>
-                    <body>
-                        <div class="quill-content">
-                            ${templateHtml}
-                        </div>
-                    </body>
-                </html>
-            `);
-            doc.close();
-
-            iframe.contentWindow.focus();
-            setTimeout(() => {
-                iframe.contentWindow.print();
-                document.body.removeChild(iframe);
-            }, 500);
+            return window.documentLayout.printDocument(content, 'Print Document');
         }
     </script>
 </x-app-layout>

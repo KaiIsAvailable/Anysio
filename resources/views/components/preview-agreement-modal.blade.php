@@ -1,29 +1,16 @@
 {{-- Preview Agreement Modal Component --}}
 <script>
     function renderAgreementPaper(frame) {
-        const content = document.getElementById('modal-content').innerHTML;
-        const parsed = new DOMParser().parseFromString(content, 'text/html');
-        const styles = Array.from(parsed.querySelectorAll('style'));
-        const css = styles.map(style => style.textContent || '').join('\n');
-        styles.forEach(style => style.remove());
-        frame.srcdoc = `<!DOCTYPE html><html><head><style>
-            html { overflow: hidden !important; }
-            html, body { width: 100%; margin: 0; padding: 0; }
-            body { box-sizing: border-box; min-height: 297mm; display: flow-root; padding: 20mm; font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.6; color: #0f172a; }
-            *, *::before, *::after { box-sizing: border-box; }
-        </style><style>${css}</style></head><body>${parsed.body.innerHTML}</body></html>`;
+        frame.srcdoc = window.documentLayout.documentHtml(document.getElementById('modal-content').innerHTML);
     }
-
+    function printAgreementPaper() {
+        return window.documentLayout.printDocument(
+            document.getElementById('modal-content').innerHTML,
+            document.getElementById('modal-title')?.innerText || 'Document Preview'
+        );
+    }
     function resizeAgreementPaper(frame) {
-        frame.paperObserver?.disconnect();
-        const body = frame.contentDocument?.body;
-        if (!body) return;
-        const resize = () => {
-            frame.style.height = `${Math.ceil(Math.max(body.getBoundingClientRect().height, body.scrollHeight))}px`;
-        };
-        frame.paperObserver = new ResizeObserver(resize);
-        frame.paperObserver.observe(body);
-        resize();
+        window.documentLayout.resizeDocumentPaper(frame);
     }
 </script>
 <div x-data="{ 
@@ -38,43 +25,7 @@
             this.openPreview = false;
             document.body.style.overflow = ''; // Restores background scrolling
         },
-        printDocument() {
-            const parsedContent = new DOMParser().parseFromString(
-                document.getElementById('modal-content').innerHTML,
-                'text/html'
-            );
-            const templateStyles = Array.from(parsedContent.querySelectorAll('style'))
-                .map(style => style.textContent || '')
-                .join('\n');
-            const contentHtml = parsedContent.body.innerHTML;
-            let titleText = document.getElementById('modal-title') ? document.getElementById('modal-title').innerText : 'Document Preview';
-
-            let printWindow = window.open('', '_blank', 'height=600,width=800');
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                    <head>
-                        <title>${titleText}</title>
-                        <style>
-                            body { font-family: 'Times New Roman', serif; font-size: 16px; padding: 20px; line-height: 1.6; color: #0f172a; margin: 0; }
-                            table { width: 100%; border-collapse: collapse; margin: 0; border-spacing: 0; }
-                            td, th { padding: 0; }
-                        </style>
-                        <style>${templateStyles}</style>
-                        @include('components.document-page-break-print')
-                    </head>
-                    <body>
-                        ${contentHtml}
-                    </body>
-                </html>
-            `);
-            printWindow.document.close();
-            printWindow.focus();
-            setTimeout(() => {
-                printWindow.print();
-                printWindow.close();
-            }, 500);
-        }
+        printDocument() { return printAgreementPaper(); }
      }" 
      @open-preview-modal.window="resetBreakdown(); openPreview = true; refreshPaper()"
      @open-lease-preview.window="

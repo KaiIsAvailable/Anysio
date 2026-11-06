@@ -1,0 +1,54 @@
+{
+   "action": {
+      "default_icon": {
+         "19": "icons/19.png",
+         "38": "icons/38.png"
+      },
+      "default_popup": "index.html",
+      "default_title": "Stands AdBlocker"
+   },
+   "background": {
+      "service_worker": "background.js"
+   },
+   "content_scripts": [ {
+      "all_frames": true,
+      "js": [ "browser-polyfill.js", "common/debug.js", "common/constants/block-css-value.js", "common/constants/block-types.js", "common/constants/message-types.js", "common/platform/runtime.js", "common/platform/storage-service.js", "common/platform/messages.js", "common/helpers.js", "content/helpers.js", "content/custom-blocking/dialog.js", "content/custom-blocking/overlay.js", "content/custom-blocking/block-elements.js", "content/extended-rules.js", "content/matched-nodes-counter.js", "content/set-css.js", "content/messaging.js", "content/popups.js", "content/start.js" ],
+      "match_about_blank": false,
+      "matches": [ "\u003Call_urls>" ],
+      "run_at": "document_start"
+   } ],
+   "declarative_net_request": {
+      "rule_resources": [ {
+         "enabled": true,
+         "id": "requests",
+         "path": "declarative_net_request/requests.json"
+      }, {
+         "enabled": true,
+         "id": "cookie-banners-requests",
+         "path": "declarative_net_request/cookie-banners-requests.json"
+      }, {
+         "enabled": true,
+         "id": "filter1-requests",
+         "path": "declarative_net_request/filter1-requests.json"
+      } ]
+   },
+   "default_locale": "en",
+   "description": "__MSG_appDesc__",
+   "host_permissions": [ "\u003Call_urls>" ],
+   "icons": {
+      "128": "icons/128.png",
+      "16": "icons/19.png",
+      "48": "icons/38.png"
+   },
+   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAm9jWH//lemcSLLZInzKSMd7sD6qIh7W0mQXhM8sPkix47L9/jQhouOr7SRB/egUbrJZLm6s3kmxlQzLLwRXRx5TEgNKcPMz2SCtjnsppXAgaBADIMvfqlUb0Vy5gA2qJYVDhVwJiwUGq7y38B2X3sNE3yogD94xXWEyFqp2TghGL8Jcn3CmN+/iav0RswhBD0I4PRzQpfApc/HBTCZTeBcEXG60BOVabablVP1rehvBS3uHGg60eC4sMKbzLeC2cQAjIa0k5dpVHI7MVGDrZAAT2YbIsCZhjQPYw4ioOYKl0osAiveSpI/KlWW3A1uGV0J9O5zCJ0d8yZp/BYktfQQIDAQAB",
+   "manifest_version": 3,
+   "name": "__MSG_appName__",
+   "optional_permissions": [ "management" ],
+   "permissions": [ "storage", "unlimitedStorage", "activeTab", "scripting", "contextMenus", "alarms", "notifications", "tabs", "webNavigation", "declarativeNetRequest", "declarativeNetRequestFeedback" ],
+   "update_url": "https://edge.microsoft.com/extensionwebstorebase/v1/crx",
+   "version": "2.1.72",
+   "web_accessible_resources": [ {
+      "matches": [ "\u003Call_urls>" ],
+      "resources": [ "content/popups-script.js", "views/web_accessible/*" ]
+   } ]
+}

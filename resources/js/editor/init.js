@@ -9,6 +9,9 @@ import receiptBlocks from './receipt';
 import tosBlocks from './term_of_service';
 import refundBlocks from './refund';
 import { enableSessionDraft } from './session-draft';
+import { documentBaseCss, documentHtml, printDocument, resizeDocumentPaper } from './document-layout';
+
+window.documentLayout = { documentHtml, printDocument, resizeDocumentPaper };
 
 window.enableDocumentTemplateSessionDraft = enableSessionDraft;
 
@@ -53,10 +56,8 @@ export function createAgreementEditor(containerId) {
         // Inline iframe styles belong in canvasCss; canvas.styles expects stylesheet URLs.
         canvasCss: [
                 'html { overflow: hidden !important; }',
-                'html, body { width: 100%; margin: 0; padding: 0; }',
-                'body { box-sizing: border-box; min-height: 297mm; display: flow-root; padding: 20mm; font-family: "Times New Roman", serif; font-size: 12pt; line-height: 1.6; color: #0f172a; }',
+                documentBaseCss,
                 'body[data-gjs-type="wrapper"] { height: auto !important; min-height: 297mm !important; }',
-                '*, *::before, *::after { box-sizing: border-box; }'
             ].join('\n'),
 
         storageManager: false
@@ -793,6 +794,7 @@ export function createAgreementEditor(containerId) {
           <option value="start_date_formatted">Start Date Formatted</option>
           <option value="end_date">End Date</option>
           <option value="lease_period">Period</option>
+          <option value="check_out_status">Check Out Status</option>
           <option value="check_out_date">Check Out Date</option>
           <option value="rent_price">Monthly Rent Price</option>
         </optgroup>

@@ -1,0 +1,59 @@
+2026/11/06-12:28:23.901 8978 Creating DB C:\xampp\htdocs\dashboard\Anysio\.tmp\edge-print-inspect\Default\Local Extension Settings\jccfboncbdccgbgcbhickioeailgpkgb since it was missing.
+2026/11/06-12:28:23.913 8978 Reusing MANIFEST C:\xampp\htdocs\dashboard\Anysio\.tmp\edge-print-inspect\Default\Local Extension Settings\jccfboncbdccgbgcbhickioeailgpkgb/MANIFEST-000001
+2026/11/06-12:28:27.032 c798 Level-0 table #5: started
+2026/11/06-12:28:27.071 c798 Level-0 table #5: 2521261 bytes OK
+2026/11/06-12:28:27.076 c798 Delete type=0 #3
+2026/11/06-12:28:29.054 c798 Level-0 table #7: started
+2026/11/06-12:28:29.087 c798 Level-0 table #7: 2522943 bytes OK
+2026/11/06-12:28:29.091 c798 Delete type=0 #4
+2026/11/06-12:28:31.249 c798 Level-0 table #9: started
+2026/11/06-12:28:31.272 c798 Level-0 table #9: 2524934 bytes OK
+2026/11/06-12:28:31.276 c798 Delete type=0 #6
+2026/11/06-12:28:33.356 c798 Level-0 table #11: started
+2026/11/06-12:28:33.394 c798 Level-0 table #11: 2529314 bytes OK
+2026/11/06-12:28:33.399 c798 Delete type=0 #8
+2026/11/06-12:28:36.453 c798 Level-0 table #13: started
+2026/11/06-12:28:36.489 c798 Level-0 table #13: 2532738 bytes OK
+2026/11/06-12:28:36.495 c798 Delete type=0 #10
+2026/11/06-12:28:39.525 c798 Level-0 table #15: started
+2026/11/06-12:28:39.552 c798 Level-0 table #15: 2533325 bytes OK
+2026/11/06-12:28:39.556 c798 Delete type=0 #12
+2026/11/06-12:28:39.557 8978 Compacting 4@0 + 1@1 files
+2026/11/06-12:28:39.605 8978 Generated table #16@0: 3 keys, 845451 bytes
+2026/11/06-12:28:39.605 8978 Compacted 4@0 + 1@1 files => 845451 bytes
+2026/11/06-12:28:39.608 8978 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/11/06-12:28:39.609 8978 Delete type=2 #7
+2026/11/06-12:28:39.609 8978 Delete type=2 #9
+2026/11/06-12:28:39.609 8978 Delete type=2 #11
+2026/11/06-12:28:39.609 8978 Delete type=2 #13
+2026/11/06-12:28:39.609 8978 Delete type=2 #15
+2026/11/06-12:28:42.688 c798 Level-0 table #18: started
+2026/11/06-12:28:42.718 c798 Level-0 table #18: 2538571 bytes OK
+2026/11/06-12:28:42.721 c798 Delete type=0 #14
+2026/11/06-12:28:45.709 8978 Level-0 table #20: started
+2026/11/06-12:28:45.732 8978 Level-0 table #20: 2541445 bytes OK
+2026/11/06-12:28:45.735 8978 Delete type=0 #17
+2026/11/06-12:28:48.232 8978 Level-0 table #22: started
+2026/11/06-12:28:48.257 8978 Level-0 table #22: 2544308 bytes OK
+2026/11/06-12:28:48.260 8978 Delete type=0 #19
+2026/11/06-12:28:50.830 8978 Level-0 table #24: started
+2026/11/06-12:28:50.915 8978 Level-0 table #24: 2546910 bytes OK
+2026/11/06-12:28:50.927 8978 Delete type=0 #21
+2026/11/06-12:28:50.928 bb30 Compacting 4@0 + 1@1 files
+2026/11/06-12:28:51.000 bb30 Generated table #25@0: 3 keys, 849923 bytes
+2026/11/06-12:28:51.000 bb30 Compacted 4@0 + 1@1 files => 849923 bytes
+2026/11/06-12:28:51.025 bb30 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/11/06-12:28:51.026 bb30 Delete type=2 #16
+2026/11/06-12:28:51.026 bb30 Delete type=2 #18
+2026/11/06-12:28:51.026 bb30 Delete type=2 #20
+2026/11/06-12:28:51.026 bb30 Delete type=2 #22
+2026/11/06-12:28:51.026 bb30 Delete type=2 #24
+2026/11/06-12:28:54.169 8978 Level-0 table #27: started
+2026/11/06-12:28:54.195 8978 Level-0 table #27: 2550667 bytes OK
+2026/11/06-12:28:54.197 8978 Delete type=0 #23
+2026/11/06-12:28:57.065 8978 Level-0 table #29: started
+2026/11/06-12:28:57.116 8978 Level-0 table #29: 2554499 bytes OK
+2026/11/06-12:28:57.120 8978 Delete type=0 #26
+2026/11/06-12:29:00.472 8978 Level-0 table #31: started
+2026/11/06-12:29:00.496 8978 Level-0 table #31: 2559971 bytes OK
+2026/11/06-12:29:00.500 8978 Delete type=0 #28

@@ -11,9 +11,12 @@ try {
     page.on('pageerror', error => errors.push(error.message));
     const fixture = execFileSync('php', ['tests/Frontend/agreement-breakdown-fixture.php'], { encoding: 'utf8' });
     const logic = readFileSync('resources/js/agreement-breakdown.js', 'utf8').replaceAll('export function', 'function');
+    const layout = readFileSync('resources/js/editor/document-layout.js', 'utf8')
+        .replaceAll('export const', 'const').replaceAll('export async function', 'async function').replaceAll('export function', 'function')
+        + '\nwindow.documentLayout = { documentHtml, printDocument, resizeDocumentPaper };';
     const manifest = JSON.parse(readFileSync('public/build/manifest.json', 'utf8'));
     const css = readFileSync('public/build/' + manifest['resources/css/app.css'].file, 'utf8');
-    await page.route('http://agreement.test/**', route => route.fulfill({ contentType: 'text/html', body: `<style>${css}</style><script>${logic}</script>${fixture}<script>${readFileSync('node_modules/alpinejs/dist/cdn.js', 'utf8')}</script>` }));
+    await page.route('http://agreement.test/**', route => route.fulfill({ contentType: 'text/html', body: `<style>${css}</style><script>${logic}\n${layout}</script>${fixture}<script>${readFileSync('node_modules/alpinejs/dist/cdn.js', 'utf8')}</script>` }));
     await page.goto('http://agreement.test/');
     const original = '<p>Other rent: 1,234.56</p><table><tbody><tr><td>5</td><td>Rental per Month<br>Ringgit Malaysia</td><td><strong>1,234.56</strong></td></tr><tr><td>Deposit</td><td>2,469.12</td></tr></tbody></table>';
     const open = async (allowBreakdown = true, cents = 123456, frequency = 'monthly') => {

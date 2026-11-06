@@ -78,12 +78,14 @@ class DocumentTemplateService
             'end_date',
             'lease_period',
             'check_out_date',
+            'check_out_status',
             'rent_price',
             
             'total_deposit',
             'deposit_receipt_no',
             'total_deductions',
             'total_deposit_collected',
+            'wallet_refund_amount',
             'auto_deductions_total',
             'custom_deductions_total',
             'nett_refund_amount',
@@ -360,12 +362,22 @@ class DocumentTemplateService
         $depositReceiptNo = e((string) ($summary['deposit_receipt_no'] ?? 'N/A'));
         $depositAmount = e((string) ($summary['total_deposit_collected'] ?? '0.00'));
         $depositCents = (int) round((float) str_replace(',', '', $depositAmount) * 100);
-        $statementItems = array_merge([[
+        $creditItems = [[
             'description' => 'Deposit Collected ('.$depositReceiptNo.')',
             'type' => 'deposit',
             'qty' => 1,
             'amount_cents' => $depositCents,
-        ]], $items);
+        ]];
+        $walletCents = (int) round((float) str_replace(',', '', (string) ($summary['wallet_refund_amount'] ?? '0.00')) * 100);
+        if ($walletCents > 0) {
+            $creditItems[] = [
+                'description' => 'Wallet Balance to Refund',
+                'type' => 'wallet',
+                'qty' => 1,
+                'amount_cents' => $walletCents,
+            ];
+        }
+        $statementItems = array_merge($creditItems, $items);
         $rows = collect($statementItems)->values()->map(function ($item, $index): string {
             $description = trim((string) ($item['description'] ?? ''));
             if ($description === '') {
@@ -442,11 +454,44 @@ class DocumentTemplateService
             }
         }
 
+        $data['check_out_status'] = $this->checkOutStatus(
+            $data['check_out_date'] ?? null, $data['end_date'] ?? null
+        );
+
         return $data;
+    }
+
+    public function checkOutStatus(mixed $checkOutDate, mixed $endDate): string
+    {
+        $parse = static function (mixed $value): ?\Carbon\Carbon {
+            if ($value instanceof \DateTimeInterface) {
+                return \Carbon\Carbon::instance($value)->startOfDay();
+            }
+            if (!is_string($value)) return null;
+            foreach (['Y-m-d', 'd/m/Y'] as $format) {
+                try {
+                    $date = \Carbon\Carbon::createFromFormat('!'.$format, $value);
+                    if ($date && $date->format($format) === $value) return $date;
+                } catch (\InvalidArgumentException $exception) {
+                    // Missing or invalid dates do not produce a status label.
+                }
+            }
+            return null;
+        };
+        $checkout = $parse($checkOutDate);
+        $end = $parse($endDate);
+        if (!$checkout || !$end || !$checkout->lt($end)) return '';
+
+        $days = (int) $checkout->diffInDays($end);
+
+        return 'Early Check Out ('.$days.' '.($days === 1 ? 'day' : 'days').')';
     }
 
     private function formatReplacementValue(string $variable, mixed $value, array $trustedHtml): string
     {
+        if ($variable === 'check_out_status') {
+            return ($value === null || $value === 'N/A') ? '' : e((string) $value);
+        }
         if ($value === null || $value === '') {
             return 'N/A';
         }

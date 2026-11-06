@@ -7,6 +7,30 @@ use Tests\TestCase;
 
 class DocumentTemplateTypographyTest extends TestCase
 {
+    public function test_checkout_status_is_early_by_calendar_days_or_empty(): void
+    {
+        config(['logging.channels.testing' => ['driver' => 'null']]);
+        $service = app(DocumentTemplateService::class);
+        foreach ([
+            ['2026-11-01', '2026-11-30', 'Early Check Out (29 days)'],
+            ['29/11/2026', '30/11/2026', 'Early Check Out (1 day)'],
+            ['2026-11-30', '2026-11-30', ''],
+            ['2026-12-01', '2026-11-30', ''],
+            [null, '2026-11-30', ''],
+            ['2026-11-01', null, ''],
+            ['2026-02-30', '2026-03-01', ''],
+        ] as [$checkout, $end, $expected]) {
+            $this->assertSame($expected, $service->replaceData('{{ check_out_status }}', [
+                'check_out_date' => $checkout, 'end_date' => $end,
+            ]));
+            $this->assertSame('<span data-variable="check_out_status">'.$expected.'</span>',
+                $service->replaceData('<span data-variable="check_out_status">{{ check_out_status }}</span>', [
+                    'check_out_date' => $checkout, 'end_date' => $end,
+                ]));
+        }
+        $this->assertSame('', $service->replaceData('{{ check_out_status }}', []));
+    }
+
     public function test_identification_prefers_ic_then_passport_then_company_registration(): void
     {
         $service = app(DocumentTemplateService::class);

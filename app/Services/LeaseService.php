@@ -512,12 +512,17 @@ class LeaseService
             'end_date' => $lease->end_date?->format('d/m/Y') ?? 'N/A',
             'lease_period' => $leasePeriod,
             'check_out_date' => $lease->checked_out_at?->format('d/m/Y') ?? 'N/A',
+            'check_out_status' => app(DocumentTemplateService::class)->checkOutStatus($lease->checked_out_at, $lease->end_date),
             'end_agreement_date' => $lease->agreement_ended_at?->format('d/m/Y') ?? 'N/A',
         ];
     }
 
     public function cancelLease(Lease $lease, ?string $reason = null): void
     {
+        if (strtolower(trim($lease->status ?? '')) === 'check out') {
+            throw new Exception('Cannot cancel a lease that has already checked out.');
+        }
+
         // Guardrail: Check for outstanding unpaid invoices
         if ($lease->invoices()
             ->where('amount_balance', '>', 0)
@@ -774,26 +779,7 @@ class LeaseService
                             || $category === FeeTypeCategory::DEPOSIT->value;
                     });
                 });
-        $paidInvoiceChargeIds = $paidDepositInvoices
-                ->flatMap(fn ($invoice) => $invoice->items->pluck('lease_charge_id'))
-                ->filter()
-                ->unique();
-
-        $totalDepositCents = $charges
-            ->filter(function ($charge) use ($paidInvoiceChargeIds) {
-                $category = $charge->feeType?->category;
-                $isDeposit = $category === FeeTypeCategory::DEPOSIT
-                    || $category === FeeTypeCategory::DEPOSIT->value;
-                $invoiceStatus = strtolower($charge->invoice?->status ?? '');
-                $chargeStatus = strtolower($charge->status ?? '');
-
-                return $isDeposit
-                    && ($invoiceStatus === 'paid'
-                        || $chargeStatus === 'paid'
-                        || $charge->is_paid === true
-                        || $paidInvoiceChargeIds->contains($charge->id));
-            })
-            ->sum('amount');
+        $totalDepositCents = app(RefundService::class)->getDepositCollectedCents($lease);
         $depositReceiptNumbers = $paidDepositInvoices
             ->flatMap(fn ($invoice) => $invoice->transactions)
             ->pluck('receipt_no')
@@ -821,6 +807,11 @@ class LeaseService
             ];
         })->values()->all();
 
+        $activeRefund = $lease->refunds->sortByDesc('created_at')->first();
+        $walletRefundCents = $activeRefund?->status === \App\Enums\RefundStatus::PAID
+            ? (int) $activeRefund->wallet_refund_cents
+            : app(RefundService::class)->getWalletRefundCents($lease, $activeRefund?->id);
+
         return array_merge($lease->toArray(), [
             'leasable_name' => $this->getLeasableName($lease->leasable),
             'leasable_address' => $this->getLeasableAddress($lease->leasable),
@@ -835,13 +826,14 @@ class LeaseService
             'charges' => $lease->charges,
             'invoices' => $lease->invoices,
             'total_deposit_collected_cents' => $totalDepositCents,
+            'wallet_refund_cents' => $walletRefundCents,
             'total_deposit_collected_formatted' => number_format($totalDepositCents / 100, 2),
             'deposit_receipt_no' => $depositReceiptNumbers ?: 'N/A',
             'unpaid_invoices' => $formattedUnpaidInvoices,
             'auto_deduction_total_cents' => $unpaidInvoices->sum(
                 fn ($invoice) => $invoice->amount_balance ?? $invoice->total_amount ?? 0
             ),
-            'active_refund' => $lease->refunds->sortByDesc('created_at')->first(),
+            'active_refund' => $activeRefund,
         ]);
     }
 

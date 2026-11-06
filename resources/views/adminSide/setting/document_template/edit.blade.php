@@ -24,7 +24,7 @@
             
             {{-- 💡 完美結合 Alpine.js 的表單提交邏輯 --}}
             <form x-data="{
-                      loading: false,
+                      savingTemplate: false,
                       submitForm(e) {
                           const versionInputEl = document.getElementById('doc-version');
                           const errorMsgEl = document.getElementById('version-error-msg');
@@ -49,7 +49,7 @@
                           document.getElementById('hidden_html_template').value = `<style>${window.editor.getCss()}</style>\n${window.editor.getHtml()}`;
                           
                           // 確保表單已經觸發提交後，才顯示轉圈圈 (避免攔截)
-                          this.loading = true;
+                          this.savingTemplate = true;
                       }
                   }" 
                   id="templateForm" 
@@ -79,8 +79,8 @@
                     </div>
                     <div class="flex gap-3">
                         {{-- 💡 已經移除了 @click="loading=true"，由表單接管 --}}
-                        <x-form.primary-button type="submit" loading="loading" class="px-6 py-2.5 flex items-center">
-                            <svg x-show="!loading" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        <x-form.primary-button type="submit" loading="savingTemplate" class="px-6 py-2.5 flex items-center">
+                            <svg x-show="!savingTemplate" class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                             Save New Version
                         </x-form.primary-button>
                     </div>

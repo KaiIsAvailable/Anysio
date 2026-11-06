@@ -157,34 +157,13 @@
 
                             {{-- 2. Check Out Lease Button --}}
                             @canany(['owner-admin', 'leases.check out lease'])
-                                @canany(['owner-admin', 'leases.check out lease'])
-                                    @php
-                                        // Get the latest refund status safely
-                                        $latestRefund = $lease->refunds()->latest()->first();
-                                        
-                                        // Extract string value whether it's an Enum instance, a string, or null
-                                        $rawStatus = $latestRefund?->status;
-                                        if ($rawStatus instanceof \BackedEnum) {
-                                            $rawStatus = $rawStatus->value;
-                                        }
-                                        $refundStatus = strtolower(trim($rawStatus ?? 'none'));
-                                        
-                                        // Allow if not cancelled/ended, AND (it's not check out OR the refund is NOT paid yet)
-                                        $leaseStatus = strtolower(trim($lease->status ?? ''));
-                                        $isCheckOut = $leaseStatus === 'check out';
-                                        $isPaid = $refundStatus === 'paid';
-                                        
-                                        $canShowCheckout = (!in_array($leaseStatus, ['cancelled', 'end', 'refunded'])) && (!$isCheckOut || !$isPaid);
-                                    @endphp
-
-                                    @if($canShowCheckout)
-                                        <button type="button" 
-                                            @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
+                                        <button type="button"
+                                            x-show="activeId && !['cancelled', 'end', 'refunded'].includes((activeLease.status || '').toLowerCase()) && !((activeLease.status || '').toLowerCase() === 'check out' && activeLease.refund_status === 'paid')"
+                                            x-cloak
+                                            x-text="activeLease.refund_id ? 'CONTINUE REFUND' : 'CHECK OUT'"
+                                            @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: activeId } }))"
                                             class="px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-black rounded-lg border border-amber-100 hover:bg-amber-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
-                                            CHECK OUT
                                         </button>
-                                    @endif
-                                @endcanany
                             @endcanany
 
                             {{-- 3. Cancel Lease Button --}}
@@ -207,6 +186,17 @@
                             @foreach($leaseHistory as $history)
                             @php
                                 $hStatus = strtolower((string)$history->status);
+                                $hIsCheckout = in_array($hStatus, ['check out', 'refunded'], true);
+                                $hRefundStatus = $history->latestRefund?->status?->value;
+                                $hRefundLabel = match ($hRefundStatus) {
+                                    'draft' => 'REFUND: DRAFT',
+                                    'pending' => 'REFUND: PENDING APPROVE',
+                                    'approved' => 'REFUND: APPROVED, AWAITING PAYMENT',
+                                    'paid' => 'REFUNDED',
+                                    'rejected' => 'REFUND: REJECTED',
+                                    'cancelled' => 'REFUND: CANCELLED',
+                                    default => $hStatus === 'refunded' ? 'REFUNDED' : 'REFUND: NOT STARTED',
+                                };
                                 $statusColor = match($hStatus) {
                                     'new' => 'indigo', 'renew' => 'emerald', 'check out' => 'amber', 'end' => 'gray', default => 'slate'
                                 };
@@ -214,14 +204,19 @@
                             <div @click="activeId = '{{ $history->id }}'"
                                 class="relative p-4 rounded-xl border-2 transition-all duration-200 cursor-pointer group"
                                 :class="activeId == '{{ $history->id }}' ? 'border-{{ $statusColor }}-500 bg-{{ $statusColor }}-50 ring-4 ring-{{ $statusColor }}-100 z-10' : 'border-gray-100 bg-white hover:border-indigo-300 hover:shadow-md hover-translate-y-1'">
-                                <div class="flex justify-between items-start mb-3">
+                                <div class="flex flex-col items-start gap-2 mb-3">
                                     <span class="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded"
                                         :class="activeId == '{{ $history->id }}' ? 'bg-{{ $statusColor }}-200 text-{{ $statusColor }}-800' : 'bg-gray-100 text-gray-500'">
-                                        @if($history->is_current)
+                                        @if($hIsCheckout)
+                                            CHECK OUT
+                                        @elseif($history->is_current)
                                             {{ in_array($hStatus, ['new', 'renew']) ? 'CURRENT' : strtoupper($history->status) }}
                                         @endif
                                         @if($history->is_pending_renewal) (PENDING ACTION) @endif
                                     </span>
+                                    @if($hIsCheckout)
+                                        <span class="text-xs font-medium leading-relaxed text-black">{{ $hRefundLabel }}</span>
+                                    @endif
                                 </div>
                                 <div class="flex items-center gap-1.5">
                                     <p class="text-xs font-bold text-slate-900">

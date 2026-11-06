@@ -8,6 +8,10 @@
 
 <div>
     @if($leases && $leases->count() > 0)
+        @php
+            (new \Illuminate\Database\Eloquent\Collection($leases->all()))
+                ->loadMissing('latestRefund');
+        @endphp
         <table class="w-full min-w-[1100px] divide-y divide-gray-200 text-left">
             <thead class="bg-gray-50">
                 <tr>
@@ -38,6 +42,17 @@
                 @foreach($leases as $lease)
                     @php
                         $status = strtolower((string) ($lease->status ?? ''));
+                        $isCheckout = in_array($status, ['check out', 'refunded'], true);
+                        $refundStatus = $lease->latestRefund?->status?->value ?? 'none';
+                        $refundLabel = match ($refundStatus) {
+                            'draft' => 'REFUND: DRAFT',
+                            'pending' => 'REFUND: PENDING APPROVE',
+                            'approved' => 'REFUND: APPROVED, AWAITING PAYMENT',
+                            'paid' => 'REFUNDED',
+                            'rejected' => 'REFUND: REJECTED',
+                            'cancelled' => 'REFUND: CANCELLED',
+                            default => $status === 'refunded' ? 'REFUNDED' : 'REFUND: NOT STARTED',
+                        };
                         $badge = get_status_badge($lease->status ?? null);
                         $type = basename(str_replace('\\', '/', $lease->leasable_type));
                     @endphp
@@ -143,15 +158,17 @@
                         {{-- Status --}}
                         <td class="px-6 py-4">
                             @php
-                                $statusKey = $lease->is_pending_renewal 
+                                $statusKey = $isCheckout ? 'Check Out' : ($lease->is_pending_renewal
                                     ? 'pending action' 
-                                    : (in_array(strtolower($lease->status ?? ''), ['new', 'renew']) ? 'current' : ($lease->status ?? 'N/A'));
+                                    : (in_array(strtolower($lease->status ?? ''), ['new', 'renew']) ? 'current' : ($lease->status ?? 'N/A')));
                                 
                                 $badge = get_status_badge($statusKey);
                             @endphp
 
                             <span class="whitespace-nowrap px-2.5 py-0.5 rounded-full text-sm font-medium {{ $badge }}">
-                                @if($lease->is_pending_renewal)
+                                @if($isCheckout)
+                                    CHECK OUT
+                                @elseif($lease->is_pending_renewal)
                                     PENDING ACTION
                                 @else
                                     {{ 
@@ -161,6 +178,11 @@
                                     }}
                                 @endif
                             </span>
+                            @if($isCheckout)
+                                <div class="mt-2 max-w-[220px] text-xs font-medium leading-relaxed text-black">
+                                    {{ $refundLabel }}
+                                </div>
+                            @endif
                         </td>
 
                         {{-- Actions (Conditional) --}}
@@ -274,7 +296,7 @@
 
                                             {{-- 3. View Refund --}}
                                             @canany(['owner-admin', 'leases.view agreement'])
-                                                @if(strtolower(trim($lease->status ?? '')) === 'refunded' && !empty($lease->refund_document_id))
+                                                @if(!empty($lease->refund_document_id))
                                                     <button type="button"
                                                         data-template-id="{{ $lease->refund_document_id }}"
                                                         data-lease-id="{{ $lease->id }}"
@@ -301,7 +323,7 @@
                                             @canany(['owner-admin', 'leases.check out lease'])
                                                 @php
                                                     // Get the latest refund status safely
-                                                    $latestRefund = $lease->refunds()->latest()->first();
+                                                    $latestRefund = $lease->latestRefund;
                                                     
                                                     // Extract string value whether it's an Enum instance, a string, or null
                                                     $rawStatus = $latestRefund?->status;
@@ -322,14 +344,14 @@
                                                     <button type="button" 
                                                         @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50 transition-colors flex items-center">
-                                                        Check Out Lease
+                                                        {{ $latestRefund ? 'Continue Refund' : 'Check Out Lease' }}
                                                     </button>
                                                 @endif
                                             @endcanany
                                             
                                             {{-- 5. Cancel Lease --}}
                                             @canany(['owner-admin', 'leases.cancel lease'])
-                                                @if($lease->status != 'cancelled')
+                                                @if(!in_array(strtolower(trim($lease->status ?? '')), ['cancelled', 'check out']))
                                                     <button type="button"
                                                         @click="
                                                             openDropdown = false;

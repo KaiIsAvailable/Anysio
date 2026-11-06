@@ -326,7 +326,10 @@ class LeaseController extends Controller
             'total_deposit',
             'management_fee',
         ] : ['check_out_date'] as $key) {
-            if (!$lease && $request->filled($key)) {
+            // Refund preview describes the pending checkout, not only the date
+            // already persisted on the selected lease.
+            if ((!$lease && $request->filled($key))
+                || ($category === 'refund' && $key === 'check_out_date' && $request->has($key))) {
                 $variables[$key] = $request->input($key);
             }
         }
@@ -353,6 +356,7 @@ class LeaseController extends Controller
 
                 $refundContext = [
                     'total_deposit_collected_cents' => (int) $refund->deposit_collected_cents,
+                    'wallet_refund_cents' => (int) $refund->wallet_refund_cents,
                     'auto_deduction_total_cents' => (int) $refund->auto_deduction_cents,
                     'active_refund' => [
                         'id' => $refund->id,
@@ -381,6 +385,7 @@ class LeaseController extends Controller
             }
 
             $totalDeposit = (int) data_get($refundContext, 'total_deposit_collected_cents', 0);
+            $walletRefund = (int) data_get($refundContext, 'wallet_refund_cents', 0);
             $autoDeduction = (int) data_get($refundContext, 'auto_deduction_total_cents', 0);
             $unpaidInvoiceItems = is_array($submittedRefundContext)
                 ? collect(data_get($refundContext, 'unpaid_invoices', []))
@@ -431,7 +436,7 @@ class LeaseController extends Controller
                 (int) data_get(
                     $refundContext,
                     'active_refund.net_amount_cents',
-                    $totalDeposit - $totalDeductions
+                    $totalDeposit + $walletRefund - $totalDeductions
                 )
             );
             $amount = fn (int $cents) => number_format($cents / 100, 2);
@@ -442,6 +447,7 @@ class LeaseController extends Controller
             $variables += [
                 'checkout_date' => $request->input('check_out_date', 'N/A'),
                 'total_deposit_collected' => $amount($totalDeposit),
+                'wallet_refund_amount' => $amount($walletRefund),
                 'deposit_receipt_no' => $depositReceiptNo,
                 'auto_deductions_total' => $amount($autoDeduction),
                 'custom_deductions_total' => $amount($customDeduction),
@@ -509,6 +515,7 @@ class LeaseController extends Controller
             $content = $documentTemplateService->replaceRefundTable($content, $refundItems ?? [], [
                 'deposit_receipt_no' => $variables['deposit_receipt_no'] ?? 'N/A',
                 'total_deposit_collected' => $variables['total_deposit_collected'] ?? '0.00',
+                'wallet_refund_amount' => $variables['wallet_refund_amount'] ?? '0.00',
             ]);
         }
 
@@ -744,6 +751,7 @@ class LeaseController extends Controller
             ->onEachSide(1);
 
         $leaseHistory = $leaseHistory->reverse();
+        (new \Illuminate\Database\Eloquent\Collection($leaseHistory->all()))->loadMissing('latestRefund');
 
         $historyJson = $leaseHistory->keyBy('id')->map(function ($item) use ($latePenaltyConfig) {
             $chargesSum = $item->charges->sum('amount');
@@ -751,6 +759,8 @@ class LeaseController extends Controller
 
             return [
                 'status' => $item->status,
+                'refund_id' => $item->latestRefund?->id,
+                'refund_status' => $item->latestRefund?->status?->value,
                 'is_current' => (bool) $item->is_current,
                 'checked_out_at' => $item->checked_out_at ? $item->checked_out_at_formatted : null,
                 'agreement_ended_at' => $item->agreement_ended_at ? $item->agreement_ended_at_formatted : null,

@@ -19,6 +19,7 @@ class Refund extends Model {
         'status' => RefundStatus::class,
         'gross_amount_cents' => 'integer',
         'deposit_collected_cents' => 'integer',
+        'wallet_refund_cents' => 'integer',
         'auto_deduction_cents' => 'integer',
         'manual_deduction_cents' => 'integer',
         'deduction_amount_cents' => 'integer',

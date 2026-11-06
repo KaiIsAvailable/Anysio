@@ -16,6 +16,7 @@ class Wallet extends Model
     protected $fillable = [
         'user_id',
         'balance',
+        'reserved_refund_id',
     ];
 
     /**

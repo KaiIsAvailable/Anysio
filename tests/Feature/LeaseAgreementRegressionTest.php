@@ -12,6 +12,14 @@ use Tests\TestCase;
 
 class LeaseAgreementRegressionTest extends TestCase
 {
+    public function test_checked_out_lease_cannot_be_cancelled(): void
+    {
+        $lease = new Lease(['status' => 'Check Out']);
+        $this->expectException(\Exception::class);
+        $this->expectExceptionMessage('Cannot cancel a lease that has already checked out.');
+        app(LeaseService::class)->cancelLease($lease, 'Created by mistake');
+    }
+
     private function lease(): Lease
     {
         $property = new Property(['address' => 'Long Street', 'city' => 'KL', 'postcode' => '50000', 'type' => 'Condo']);

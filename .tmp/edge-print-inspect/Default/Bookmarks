@@ -1,0 +1,128 @@
+{
+   "checksum": "40d56589ce5bac0ba0a79e1b26f042cc",
+   "roots": {
+      "bookmark_bar": {
+         "children": [ {
+            "date_added": "13346248902425289",
+            "date_last_used": "13429098471457666",
+            "guid": "c405c3a5-110b-4981-9fda-3be1e95cecae",
+            "id": "11",
+            "name": "YouTube",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://www.youtube.com/",
+            "visit_count": 7
+         }, {
+            "date_added": "13346254918406727",
+            "date_last_used": "0",
+            "guid": "909e2a9b-9867-42e1-a040-16826f815e5e",
+            "id": "12",
+            "name": "ChatGPT",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://chat.openai.com/",
+            "visit_count": 0
+         }, {
+            "date_added": "13346606765170980",
+            "date_last_used": "13427054918092882",
+            "guid": "c7fcec83-7d43-4661-9fab-3de000587269",
+            "id": "13",
+            "name": "Zombie to Shoot 🕹️ Two Player Games",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://www.twoplayergames.org/game/zombie-to-shoot",
+            "visit_count": 3
+         }, {
+            "date_added": "13438412889625401",
+            "date_last_used": "0",
+            "guid": "e745136c-03dc-4cf3-90d6-eb84014123b8",
+            "id": "9",
+            "name": "ASUS Software Portal - Exclusive technology",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://www.asus.com/Software-and-Innovations-Portal/",
+            "visit_count": 0
+         }, {
+            "date_added": "13438412889625182",
+            "date_last_used": "0",
+            "guid": "2c168a57-ff33-4302-8cce-babab26aece1",
+            "id": "8",
+            "name": "MyASUS Software - Get the best from ASUS PC",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://www.asus.com/ASUS-Software/",
+            "visit_count": 0
+         }, {
+            "date_added": "13438412889624533",
+            "date_last_used": "0",
+            "guid": "5bb548f1-3832-4290-9349-31ca5d66d852",
+            "id": "7",
+            "name": "McAfee LiveSafe",
+            "show_icon": false,
+            "source": "oem_preload",
+            "type": "url",
+            "url": "https://home.mcafee.com/root/campaign.aspx?cid=247829",
+            "visit_count": 0
+         } ],
+         "date_added": "13438412889432586",
+         "date_last_used": "0",
+         "date_modified": "13438412889625401",
+         "guid": "0bc5d13f-2cba-5d74-951f-3f233fe6c908",
+         "id": "1",
+         "name": "Favorites bar",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "other": {
+         "children": [ {
+            "date_added": "13346905584386382",
+            "date_last_used": "0",
+            "guid": "c50ab4e6-89fb-47e2-8b38-621a44796a1e",
+            "id": "10",
+            "name": "ChatGPT",
+            "show_icon": false,
+            "source": "sync",
+            "type": "url",
+            "url": "https://chat.openai.com/c/aac66207-ca74-4fa6-a6b1-8f767a404363",
+            "visit_count": 0
+         } ],
+         "date_added": "13438412889432586",
+         "date_last_used": "0",
+         "date_modified": "13346905584386382",
+         "guid": "82b081ec-3dd3-529c-8475-ab6c344590dd",
+         "id": "2",
+         "name": "Other favorites",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "synced": {
+         "children": [  ],
+         "date_added": "13438412889432586",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "4cf2e351-0e85-532b-bb37-df045d8f8d0f",
+         "id": "3",
+         "name": "Mobile favorites",
+         "source": "unknown",
+         "type": "folder"
+      },
+      "workspaces_v2": {
+         "children": [  ],
+         "date_added": "13438412889432586",
+         "date_last_used": "0",
+         "date_modified": "0",
+         "guid": "75aa6670-344f-549d-b742-660f029506ab",
+         "id": "5",
+         "name": "Workspaces",
+         "source": "unknown",
+         "type": "folder"
+      }
+   },
+   "sync_metadata": "CjEKDgiIgQISCP///66hAQAAEgAqGFZPMlpWYkxhN2F2VkEzR0tuSFNZQVE9PUgDoAYHEowBCAMShwEKHG5qZ0R1ODhlQ3J2WHA4NnBEN2ZIR2NxRnA4OD0SJDMxY2M4Y2ZlLWZhZDMtNWIzMy1iMjRmLTcwODQ4MmYzMThhNhgAIAAoADCSxcPMwzE4yc7DzMMxQMnOw8zDMUoceXpOQjAxY241NEE3Y1JVMHVUKy9QZ21UdFVvPWUAAAAAwj4CYAASjAEIBRKHAQocd1JCclpMKzZQQTlhdktnak5QN0pYRExjZnZzPRIkY2Q5ZmZmYzUtMTBlNy01MTJkLTkwMjItNjRlNWE1Y2RmY2MzGAAgACgAMI7j+OSmMzi95fjkpjNAveX45KYzShxubXg2NXNRRHZ4SThUZ0VlditBK250dG9TbjQ9ZQAAAADCPgJgABKtAQgMEqgBChx4ZXpqd3pvUUZLdHFqK2gvMFduY1dDcTF1ZEU9EiQ5MDllMmE5Yi05ODY3LTQyZTEtYTA0MC0xNjgyNmY4MTVlNWUYACAAKAAw/uu31tMxOK3Lsf3DMUCty7H9wzFKHGxZSTlVcWthbzNSczRNNGJuRXhJY0MrME14cz1aHyIdtmdZZ2N6aFZPWjdZRTg0ek1PaXFxam1NMjM2Zz1laRsi88I+AmAFEowBCAEShwEKHHl4Si82ZnZrZWNyN2twNUVRekI0dFdMcGRiRT0SJDYyZmZjMjg2LWQxYzUtNTZkZC04ZmFmLTJiMmYxNDc0NzNhZBgAIAAoADCMxcPMwzE47c3DzMMxQO3Nw8zDMUocYVJDV0xnaEY5YjVJbnFLSUR2dUovanZRa0ZjPWUAAAAAwj4CYAASrAEIChKnAQocdWNTVTFmL3MyWlpnWG42K2RsRldIbytPQjdzPRIkYzUwYWI0ZTYtODlmYi00N2UyLThiMzgtNjIxYTQ0Nzk2YTFlGAAgACgAMPvrt9bTMTjgj4qHxjFA4I+Kh8YxShxvaHBtWTJrYjkzVStnSzk4b3BSNWVnN2lpMlk9Wh4iHGxadkFlS0VmUGQ4WTArL2grK3pxQUhTMXJXND1laRsi88I+AmAFEqwBCAsSpwEKHDhlTDdqNno4QUNVbjhVbVJIOGNmSjJKdS96Zz0SJGM0MDVjM2E1LTExMGItNDk4MS05ZmRhLTNiZTFlOTVjZWNhZRgAIAAoADDEirqf+DM40Mux/cMxQNDLsf3DMUocd3JFcys2NTVxVjd3Vzk5aU9RU3M4ZmVQS2djPVoeIhxtYnNPakkrUmtOUkpjV0NGVUgrVUZrYWU1c1E9ZVBCw9LCPgJgBRKtAQgNEqgBChwycU16NHlPdE1lTjdseDhIcVBWRHEvTjB3b2M9EiRjN2ZjZWM4My03ZDQzLTQ2NjEtOWZhYi0zZGUwMDA1ODcyNjkYACAAKAAwt+iB0fAzOLCbgY/FMUCwm4GPxTFKHFpLOXZ4dkdZaVRFWHR5Y1kyenJMQ2xqT1krcz1aHyId+1JoTFJiQktTaEZIQW9TMFR4Sy9vRktreSswYz1l7RNhOsI+AmAFEowBCAIShwEKHFljU1RvbnZFU1B3cUNzNEwyY3JWaHY2OEw5OD0SJGE1YWVkNzEyLWEyOWItNWU3Mi04MWUyLTg1NWM4MzI3NGE3ZBgAIAAoADCNxcPMwzE4j87DzMMxQI/Ow8zDMUocb1BWa2h3QlJiVjY1S0NXUjIrSU9OSFdvT3U4PWUAAAAAwj4CYAAwADgA",
+   "version": 1
+}

@@ -67,12 +67,13 @@ class InvoiceController extends Controller
         try {
             $this->invoiceService->recordPayment($invoice, $request->validated());
         } catch (\Illuminate\Validation\ValidationException $e) {
-            if ($request->expectsJson() || !isset($e->errors()['penalty'])) {
+            $blockingError = isset($e->errors()['refund']) ? 'refund' : 'penalty';
+            if ($request->expectsJson() || !isset($e->errors()[$blockingError])) {
                 throw $e;
             }
             // The payment modal closes after a form redirect; also show the error in the page alert.
             return back()->withErrors($e->errors())->withInput()
-                ->with('error', implode(' ', $e->errors()['penalty']));
+                ->with('error', implode(' ', $e->errors()[$blockingError]));
         }
         //dd($request->all());
         return back()->with('success', 'Payment recorded successfully.');

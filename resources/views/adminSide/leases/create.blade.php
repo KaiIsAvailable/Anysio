@@ -757,21 +757,7 @@
                        if (modalTitle) modalTitle.innerText = "Preview: " + result.title;
                         
                         if (modalContent) {
-                            const resetStyles = `
-                                <style>
-                                    .grapes-preview-box { font-family: 'Times New Roman', serif !important; font-size: 16px !important; line-height: 1.6 !important; color: #0f172a !important; }
-                                    .grapes-preview-box h1 { font-size: 2.2em !important; font-weight: bold !important; margin: 0.67em 0 !important; line-height: 1.2 !important; }
-                                    .grapes-preview-box h2 { font-size: 1.6em !important; font-weight: bold !important; margin: 0.83em 0 !important; line-height: 1.3 !important; }
-                                    .grapes-preview-box h3 { font-size: 1.2em !important; font-weight: bold !important; margin: 1em 0 !important; }
-                                    .grapes-preview-box p { margin: 1em 0 !important; }
-                                    .grapes-preview-box ul { list-style-type: disc !important; padding-left: 40px !important; margin: 1em 0 !important; }
-                                    .grapes-preview-box ol { list-style-type: decimal !important; padding-left: 40px !important; margin: 1em 0 !important; }
-                                    .grapes-preview-box li { display: list-item !important; margin-bottom: 0.5em !important; }
-                                    .grapes-preview-box strong, .grapes-preview-box b { font-weight: bold !important; color: #000 !important; }
-                                    .grapes-preview-box hr { margin: 1.5em 0 !important; border-top: 1px solid #ccc !important; }
-                                </style>
-                            `;
-                            modalContent.innerHTML = `<div class="grapes-preview-box">${resetStyles}${result.content}</div>`;
+                            modalContent.innerHTML = result.content;
                         }
                         
                         if (modal) {

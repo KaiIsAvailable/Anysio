@@ -172,10 +172,15 @@ class InvoiceService
     /**
      * Record a payment against an invoice.
      */
-    public function recordPayment(Invoice $invoice, array $data): void
+    public function recordPayment(Invoice $invoice, array $data, bool $refreshRefund = true): void
     {
-        DB::transaction(function () use ($invoice, $data) {
+        DB::transaction(function () use ($invoice, $data, $refreshRefund) {
+            $refundService = app(RefundService::class);
+            $refunds = $refreshRefund ? $refundService->assertInvoicePaymentAllowed($invoice) : collect();
             $this->paymentProcessor->process($invoice, $data, $this);
+            foreach ($refunds as $refund) {
+                $refundService->refreshSettlement($refund);
+            }
         });
     }
 
@@ -188,13 +193,14 @@ class InvoiceService
         Lease $lease,
         int $depositCents,
         string $paymentDate,
-        string $transactionReference
+        string $transactionReference,
+        int $walletCents = 0
     ): int {
-        if ($depositCents <= 0) {
+        if ($depositCents + $walletCents <= 0) {
             return 0;
         }
 
-        $remainingCents = $depositCents;
+        $remainingCents = $depositCents + $walletCents;
         $appliedCents = 0;
 
         $invoices = $lease->invoices()
@@ -221,12 +227,12 @@ class InvoiceService
 
             $this->recordPayment($invoice, [
                 'amount_paid' => $paymentCents / 100,
-                'payment_method' => 'deposit',
+                'payment_method' => $walletCents > 0 ? 'checkout_settlement' : 'deposit',
                 'payment_date' => $paymentDate,
                 'transaction_ref' => $transactionReference,
                 'use_wallet' => false,
-                'remarks' => 'Used deposit to pay outstanding invoice '.$invoice->invoice_no,
-            ]);
+                'remarks' => ($walletCents > 0 ? 'Used checkout deposit and wallet funds' : 'Used deposit').' to pay outstanding invoice '.$invoice->invoice_no,
+            ], false); // Keep the approved settlement snapshot while applying its deposit.
 
             $remainingCents -= $paymentCents;
             $appliedCents += $paymentCents;

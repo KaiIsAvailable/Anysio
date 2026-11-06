@@ -23,7 +23,7 @@ class LatePenaltyPaymentTest extends TestCase
         foreach ([
             'users' => ['name', 'role', 'email'], 'tenants' => ['user_id'],
             'owners' => ['user_id', 'agent_id'], 'properties' => ['owner_id', 'created_by'],
-            'leases' => ['tenant_id', 'leasable_type', 'leasable_id'],
+            'leases' => ['tenant_id', 'leasable_type', 'leasable_id', 'parent_lease_id'],
             'invoices' => ['parent_id', 'lease_id', 'user_id', 'context', 'type', 'billable_type', 'billable_id', 'invoice_no', 'document_template_id', 'period', 'due_date', 'status', 'remarks'],
             'invoice_items' => ['invoice_id', 'fee_type_id', 'lease_charge_id', 'description'],
             'fee_types' => ['user_id', 'name', 'category'],
@@ -46,6 +46,16 @@ class LatePenaltyPaymentTest extends TestCase
         }
         Schema::create('settings', function (Blueprint $t) {
             $t->id(); $t->string('user_id'); $t->string('key'); $t->text('value'); $t->boolean('is_active'); $t->timestamps();
+        });
+        Schema::create('refunds', function (Blueprint $t) {
+            $t->string('id')->primary(); $t->string('lease_id'); $t->string('status');
+            foreach (['deposit_collected_cents', 'wallet_refund_cents', 'gross_amount_cents', 'auto_deduction_cents', 'manual_deduction_cents', 'deduction_amount_cents', 'net_amount_cents'] as $column) {
+                $t->bigInteger($column)->default(0);
+            }
+            $t->string('approved_by')->nullable(); $t->timestamp('approved_at')->nullable(); $t->timestamps();
+        });
+        Schema::table('wallets', function (Blueprint $t) {
+            $t->string('reserved_refund_id')->nullable();
         });
         Carbon::setTestNow(Carbon::parse('2026-10-30 12:00:00', 'Asia/Kuala_Lumpur'));
         DB::table('users')->insert([
@@ -373,5 +383,411 @@ class LatePenaltyPaymentTest extends TestCase
             $php = app('blade.compiler')->compileString(file_get_contents(view($view)->getPath()));
             $this->assertNotEmpty(token_get_all($php, TOKEN_PARSE));
         }
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('refundPaymentStages')]
+    public function test_later_invoice_payment_refreshes_active_refunds_only(string $stage, int $payment): void
+    {
+        $this->refundFixture($stage);
+        $this->pay(Invoice::findOrFail('original'), $payment / 100);
+
+        $refund = \App\Models\Refund::findOrFail('refund');
+        $completed = $stage === 'paid';
+        $balance = $completed ? 10000 : 10000 - $payment;
+        $this->assertSame($balance, $refund->auto_deduction_cents);
+        $this->assertSame(5000, $refund->manual_deduction_cents);
+        $this->assertSame(100000 - 5000 - $balance, $refund->net_amount_cents);
+        $this->assertSame($stage === 'approved' ? 'pending' : $stage, $refund->status->value);
+        $this->assertSame(5000, (int) DB::table('refund_items')->where('id', 'manual')->value('amount_cents'));
+        $automatic = DB::table('refund_items')->where('refund_id', 'refund')->where('origin', 'automatic_invoice');
+        $this->assertSame($balance > 0 ? 1 : 0, $automatic->count());
+        $this->assertSame($balance, (int) $automatic->sum('amount_cents'));
+        if ($stage === 'approved') {
+            $this->assertNull($refund->approved_by);
+            $this->assertNull($refund->approved_at);
+        }
+    }
+
+    public static function refundPaymentStages(): array
+    {
+        $cases = [];
+        foreach (['draft', 'pending', 'paid'] as $stage) {
+            foreach ([4000, 10000] as $amount) {
+                $cases[$stage.'-'.$amount] = [$stage, $amount];
+            }
+        }
+        return $cases;
+    }
+
+    public function test_approved_refund_blocks_external_and_wallet_payments_without_changing_records(): void
+    {
+        $this->refundFixture('approved');
+        DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 100000]);
+        foreach ([
+            ['amount_paid' => 100, 'payment_method' => 'Cash', 'use_wallet' => false],
+            ['amount_paid' => 0, 'payment_method' => 'Wallet', 'use_wallet' => true],
+        ] as $data) {
+            try {
+                $this->pay(Invoice::findOrFail('original'), $data['amount_paid'], extra: $data);
+                $this->fail('Approved refund must block separate invoice payments.');
+            } catch (ValidationException $exception) {
+                $this->assertSame(
+                    'This invoice is approved for deduction in the refund and cannot be paid separately.',
+                    $exception->errors()['refund'][0]
+                );
+            }
+        }
+        $this->assertSame(10000, Invoice::findOrFail('original')->amount_balance);
+        $this->assertSame(0, DB::table('transactions')->count());
+        $this->assertSame(0, DB::table('wallet_transactions')->count());
+        $this->assertSame(100000, (int) DB::table('wallets')->value('balance'));
+        $this->assertSame('approved', \App\Models\Refund::findOrFail('refund')->status->value);
+        $this->assertSame(10000, (int) DB::table('refund_items')->where('origin', 'automatic_invoice')->sum('amount_cents'));
+    }
+
+    public function test_payment_modal_preview_reports_approved_refund_lock_before_collecting_payment(): void
+    {
+        $this->refundFixture('approved');
+        $request = Request::create('/preview', 'POST', ['payment_date' => '2026-10-20']);
+        try {
+            app(SettingsController::class)->calculatePenaltyPreview($request, Invoice::findOrFail('original'), app(InvoicePenaltyService::class));
+            $this->fail('Opening the payment modal must report the approved refund lock.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('refund', $exception->errors());
+        }
+        $this->assertSame(0, DB::table('transactions')->count());
+        $this->assertSame('approved', \App\Models\Refund::findOrFail('refund')->status->value);
+    }
+
+    public function test_deposit_paid_after_pending_updates_collected_deposit_and_removes_deduction(): void
+    {
+        $this->refundFixture('pending');
+        DB::table('invoices')->where('id', 'original')->update(['status' => 'paid', 'amount_balance' => 0]);
+        DB::table('invoices')->where('id', 'deposit-invoice')->update(['status' => 'unpaid', 'amount_balance' => 100000, 'amount_paid' => 0]);
+        DB::table('refunds')->where('id', 'refund')->update([
+            'deposit_collected_cents' => 0, 'gross_amount_cents' => 0,
+            'auto_deduction_cents' => 100000, 'deduction_amount_cents' => 105000, 'net_amount_cents' => 0,
+        ]);
+        DB::table('refund_items')->where('id', 'automatic')->update([
+            'invoice_id' => 'deposit-invoice', 'invoice_item_id' => 'deposit-item',
+            'amount_cents' => 100000, 'unit_amount_cents' => 100000,
+        ]);
+
+        $this->pay(Invoice::findOrFail('deposit-invoice'), 1000);
+
+        $refund = \App\Models\Refund::findOrFail('refund');
+        $this->assertSame(100000, $refund->deposit_collected_cents);
+        $this->assertSame(0, $refund->auto_deduction_cents);
+        $this->assertSame(95000, $refund->net_amount_cents);
+        $this->assertSame(0, DB::table('refund_items')->where('origin', 'automatic_invoice')->count());
+        $this->assertSame(1, DB::table('refund_items')->where('id', 'manual')->count());
+    }
+
+    public function test_payout_recheck_commits_updated_settlement_and_requires_approval_again(): void
+    {
+        $this->refundFixture('approved');
+        DB::table('invoices')->where('id', 'original')->update(['status' => 'paid', 'amount_balance' => 0]);
+        try {
+            Model::withoutEvents(fn () => app(\App\Services\RefundService::class)->processDisbursement(
+                \App\Models\Refund::findOrFail('refund'), [], User::findOrFail('admin')
+            ));
+            $this->fail('A changed settlement must not be paid.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('status', $exception->errors());
+        }
+        $refund = \App\Models\Refund::findOrFail('refund');
+        $this->assertSame('pending', $refund->status->value);
+        $this->assertSame(95000, $refund->net_amount_cents);
+        $this->assertSame(0, $refund->auto_deduction_cents);
+        $this->assertSame(0, DB::table('transactions')->count());
+    }
+
+    public function test_approval_rechecks_old_pending_figures_before_approving(): void
+    {
+        $this->refundFixture('pending');
+        DB::table('invoices')->where('id', 'original')->update(['status' => 'paid', 'amount_balance' => 0]);
+        try {
+            Model::withoutEvents(fn () => app(\App\Services\RefundService::class)->approveRefund(
+                \App\Models\Refund::findOrFail('refund'), User::findOrFail('admin')
+            ));
+            $this->fail('Updated figures must be reviewed before approval.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('status', $exception->errors());
+        }
+        $refund = \App\Models\Refund::findOrFail('refund');
+        $this->assertSame('pending', $refund->status->value);
+        $this->assertSame(95000, $refund->net_amount_cents);
+    }
+
+    public function test_unchanged_settlement_can_be_approved_and_paid_without_rewriting_its_deductions(): void
+    {
+        $this->refundFixture('pending');
+        Schema::table('leases', function (Blueprint $t) {
+            $t->string('status')->nullable(); $t->date('checked_out_at')->nullable(); $t->string('refund_document_id')->nullable();
+        });
+        Schema::table('refunds', function (Blueprint $t) {
+            $t->string('paid_by')->nullable(); $t->timestamp('paid_at')->nullable();
+        });
+        Schema::create('refund_disbursements', function (Blueprint $t) {
+            $t->string('id')->primary(); $t->string('refund_id'); $t->bigInteger('amount_cents');
+            $t->string('bank_detail_id')->nullable(); $t->string('method'); $t->string('reference')->nullable();
+            $t->string('status'); $t->timestamp('processed_at'); $t->timestamps();
+        });
+        DB::table('leases')->where('id', 'lease')->update(['leasable_type' => null, 'leasable_id' => null]);
+        DB::table('invoices')->where('id', 'original')->update(['due_date' => null]);
+        Model::withoutEvents(function () {
+            $service = app(\App\Services\RefundService::class);
+            $refund = $service->approveRefund(\App\Models\Refund::findOrFail('refund'), User::findOrFail('admin'));
+            $this->assertSame('approved', $refund->status->value);
+            $service->processDisbursement($refund, [
+                // Payout must use the server's approved net amount.
+                'amount_cents' => 1, 'checked_out_at' => '2026-10-30',
+                'refund_document_id' => 'template', 'method' => 'bank_transfer',
+            ], User::findOrFail('admin'));
+        });
+        $this->assertSame('paid', \App\Models\Refund::findOrFail('refund')->status->value);
+        $this->assertSame('paid', Invoice::findOrFail('original')->status);
+        $this->assertSame(85000, (int) DB::table('refund_disbursements')->sum('amount_cents'));
+        $this->assertSame(10000, (int) DB::table('refund_items')->where('origin', 'automatic_invoice')->sum('amount_cents'));
+    }
+
+    public function test_payment_on_parent_lease_refreshes_deposit_on_renewed_lease_refund(): void
+    {
+        $this->refundFixture('pending');
+        DB::table('leases')->insert(['id' => 'renewed', 'parent_lease_id' => 'lease']);
+        DB::table('refunds')->where('id', 'refund')->update(['lease_id' => 'renewed']);
+        // The earlier lease's outstanding invoice is not a deduction on the renewal.
+        DB::table('refund_items')->where('id', 'automatic')->delete();
+        DB::table('refunds')->where('id', 'refund')->update([
+            'auto_deduction_cents' => 0, 'deduction_amount_cents' => 5000, 'net_amount_cents' => 95000,
+        ]);
+        DB::table('invoices')->where('id', 'original')->update(['status' => 'paid', 'amount_balance' => 0]);
+        DB::table('invoices')->where('id', 'deposit-invoice')->update(['status' => 'unpaid', 'amount_balance' => 100000, 'amount_paid' => 0]);
+        DB::table('refunds')->where('id', 'refund')->update([
+            'deposit_collected_cents' => 0, 'gross_amount_cents' => 0, 'net_amount_cents' => 0,
+        ]);
+
+        $this->pay(Invoice::findOrFail('deposit-invoice'), 1000);
+
+        $refund = \App\Models\Refund::findOrFail('refund');
+        $this->assertSame(100000, $refund->deposit_collected_cents);
+        $this->assertSame(95000, $refund->net_amount_cents);
+        $this->assertSame('pending', $refund->status->value);
+    }
+
+    public function test_wallet_is_added_to_draft_without_spending_it(): void
+    {
+        $this->refundFixture('draft');
+        Schema::table('leases', function (Blueprint $t) { $t->string('status')->nullable(); });
+        Schema::table('refunds', function (Blueprint $t) {
+            $t->string('type')->nullable(); $t->string('reason')->nullable(); $t->string('internal_notes')->nullable();
+        });
+        DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 20000]);
+        $refund = Model::withoutEvents(fn () => app(\App\Services\RefundService::class)->saveAsDraft(
+            \App\Models\Lease::findOrFail('lease'), [], [
+                ['type' => 'cleaning', 'amount_cents' => 5000, 'qty' => 1, 'description' => 'Cleaning'],
+            ]
+        ));
+        $this->assertSame(20000, $refund->wallet_refund_cents);
+        $this->assertSame(120000, $refund->gross_amount_cents);
+        $this->assertSame(105000, $refund->net_amount_cents);
+        $this->assertSame(20000, (int) DB::table('wallets')->value('balance'));
+        $this->assertSame(0, DB::table('wallet_transactions')->count());
+    }
+
+    public function test_approval_reserves_wallet_and_blocks_spending_on_other_invoices(): void
+    {
+        $this->refundFixture('pending');
+        DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 20000]);
+        Model::withoutEvents(function () {
+            $service = app(\App\Services\RefundService::class);
+            $service->refreshSettlement(\App\Models\Refund::findOrFail('refund'));
+            $service->approveRefund(\App\Models\Refund::findOrFail('refund'), User::findOrFail('admin'));
+        });
+        $this->assertSame('refund', DB::table('wallets')->value('reserved_refund_id'));
+        $this->assertSame(20000, app(\App\Services\WalletService::class)->refundableBalance('tenant', 'refund'));
+        $this->assertSame(0, app(\App\Services\WalletService::class)->refundableBalance('tenant', 'another-refund'));
+        try {
+            Model::withoutEvents(fn () => app(\App\Services\WalletService::class)->debit('tenant', 10000, 'invoice_payment', 'other-invoice'));
+            $this->fail('Reserved wallet funds must not be spent.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('use_wallet', $exception->errors());
+        }
+        $this->assertSame(20000, (int) DB::table('wallets')->value('balance'));
+    }
+
+    public function test_wallet_change_before_payout_returns_refund_for_review_and_releases_reservation(): void
+    {
+        $this->refundFixture('pending');
+        DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 20000]);
+        Model::withoutEvents(function () {
+            $service = app(\App\Services\RefundService::class);
+            $service->refreshSettlement(\App\Models\Refund::findOrFail('refund'));
+            $service->approveRefund(\App\Models\Refund::findOrFail('refund'), User::findOrFail('admin'));
+            app(\App\Services\WalletService::class)->credit('tenant', 5000, 'overpayment_credit', 'other-invoice');
+            try {
+                $service->processDisbursement(\App\Models\Refund::findOrFail('refund'), [], User::findOrFail('admin'));
+                $this->fail('Changed wallet funds must be reviewed before payout.');
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('status', $exception->errors());
+            }
+        });
+        $refund = \App\Models\Refund::findOrFail('refund');
+        $this->assertSame('pending', $refund->status->value);
+        $this->assertSame(25000, $refund->wallet_refund_cents);
+        $this->assertSame(110000, $refund->net_amount_cents);
+        $this->assertNull(DB::table('wallets')->value('reserved_refund_id'));
+        $this->assertSame(25000, (int) DB::table('wallets')->value('balance'));
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('walletSettlementAmounts')]
+    public function test_checkout_pays_wallet_once_and_can_use_it_to_settle_invoices(int $deposit, int $wallet, int $expectedRefund): void
+    {
+        $this->refundFixture('pending');
+        DB::table('lease_charges')->where('id', 'deposit-charge')->update(['amount' => $deposit]);
+        DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => $wallet]);
+        Schema::table('leases', function (Blueprint $t) {
+            $t->string('status')->nullable(); $t->date('checked_out_at')->nullable(); $t->string('refund_document_id')->nullable();
+        });
+        Schema::table('refunds', function (Blueprint $t) {
+            $t->string('paid_by')->nullable(); $t->timestamp('paid_at')->nullable();
+        });
+        Schema::create('refund_disbursements', function (Blueprint $t) {
+            $t->string('id')->primary(); $t->string('refund_id'); $t->bigInteger('amount_cents');
+            $t->string('bank_detail_id')->nullable(); $t->string('method'); $t->string('reference')->nullable();
+            $t->string('status'); $t->timestamp('processed_at'); $t->timestamps();
+        });
+        DB::table('leases')->where('id', 'lease')->update(['leasable_type' => null, 'leasable_id' => null]);
+        DB::table('invoices')->where('id', 'original')->update(['due_date' => null]);
+        Model::withoutEvents(function () use ($expectedRefund) {
+            $service = app(\App\Services\RefundService::class);
+            $service->refreshSettlement(\App\Models\Refund::findOrFail('refund'));
+            $refund = $service->approveRefund(\App\Models\Refund::findOrFail('refund'), User::findOrFail('admin'));
+            $this->assertSame($expectedRefund, $refund->net_amount_cents);
+            $service->processDisbursement($refund, [
+                'checked_out_at' => '2026-10-30', 'refund_document_id' => 'template', 'method' => 'bank_transfer',
+            ], User::findOrFail('admin'));
+            try {
+                $service->processDisbursement($refund, [], User::findOrFail('admin'));
+                $this->fail('Duplicate payout must fail.');
+            } catch (ValidationException $exception) {
+                $this->assertArrayHasKey('status', $exception->errors());
+            }
+        });
+        $this->assertSame('paid', \App\Models\Refund::findOrFail('refund')->status->value);
+        $this->assertSame('paid', Invoice::findOrFail('original')->status);
+        $this->assertSame(0, (int) DB::table('wallets')->value('balance'));
+        $this->assertNull(DB::table('wallets')->value('reserved_refund_id'));
+        $this->assertSame(-$wallet, (int) DB::table('wallet_transactions')->where('type', 'checkout_refund')->sum('amount'));
+        $this->assertSame(1, DB::table('wallet_transactions')->where('type', 'checkout_refund')->count());
+        $this->assertSame($expectedRefund, (int) DB::table('refund_disbursements')->sum('amount_cents'));
+        Model::withoutEvents(fn () => app(\App\Services\WalletService::class)->credit('tenant', 1000, 'manual_credit', 'later'));
+        Model::withoutEvents(fn () => app(\App\Services\RefundService::class)->refreshSettlement(\App\Models\Refund::findOrFail('refund')));
+        $this->assertSame($wallet, \App\Models\Refund::findOrFail('refund')->wallet_refund_cents);
+    }
+
+    public static function walletSettlementAmounts(): array
+    {
+        return ['deposit-and-wallet' => [100000, 20000, 105000], 'wallet-covers-invoice' => [0, 20000, 5000]];
+    }
+
+    public function test_refund_statement_table_includes_wallet_credit_and_checkout_blade_compiles(): void
+    {
+        $html = app(\App\Services\DocumentTemplateService::class)->replaceRefundTable(
+            '<table><tbody id="dynamic-refund-tbody"></tbody></table>', [],
+            ['total_deposit_collected' => '1,000.00', 'wallet_refund_amount' => '200.00']
+        );
+        $this->assertStringContainsString('Wallet Balance to Refund', $html);
+        $this->assertStringContainsString('RM 200.00', $html);
+        $php = app('blade.compiler')->compileString(file_get_contents(view('components.modals.lease-create-modal')->getPath()));
+        $this->assertNotEmpty(token_get_all($php, TOKEN_PARSE));
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('walletOffsetExamples')]
+    public function test_refund_preview_offsets_wallet_against_deductions_without_showing_amount_owed(int $walletCents, string $net): void
+    {
+        Schema::table('document_templates', function (Blueprint $t) {
+            $t->string('title')->nullable(); $t->text('html_template')->nullable();
+        });
+        DB::table('document_templates')->insert([
+            'id' => 'refund-template', 'user_id' => 'admin', 'category' => 'refund', 'status' => 'active', 'title' => 'Refund',
+            'html_template' => '<table><tbody id="dynamic-refund-tbody"></tbody></table><p>Deductions: {{total_deductions}}</p><p>Net: {{nett_refund_amount}}</p>',
+        ]);
+        \Illuminate\Support\Facades\Gate::shouldReceive('denies')->with('owner-admin')->andReturn(false);
+        $request = Request::create('/preview', 'POST', [
+            'template_id' => 'refund-template', 'category' => 'refund',
+            'refund_context' => [
+                'total_deposit_collected_cents' => 0, 'wallet_refund_cents' => $walletCents,
+                'auto_deduction_total_cents' => 600000,
+                'unpaid_invoices' => [
+                    ['description' => 'Monthly rental', 'balance_cents' => 100000],
+                    ['description' => 'Deposit', 'balance_cents' => 500000],
+                ],
+                'active_refund' => ['items' => []],
+            ],
+        ]);
+        $response = app(\App\Http\Controllers\LeaseController::class)->previewTemplate(
+            $request, app(\App\Services\DocumentTemplateService::class), app(\App\Services\LeaseService::class)
+        );
+        $html = $response->getData(true)['content'];
+        $this->assertStringContainsString('Deductions: 6,000.00', $html);
+        $this->assertStringContainsString('Net: '.$net, $html);
+        $this->assertStringNotContainsString('Remaining Amount Owed by Tenant', $html);
+        $this->assertStringNotContainsString('data-refund-amount-owed', $html);
+    }
+
+    public static function walletOffsetExamples(): array
+    {
+        return ['insufficient-credit' => [37300, '0.00'], 'sufficient-credit' => [650000, '500.00']];
+    }
+
+    private function refundFixture(string $stage): void
+    {
+        $this->setting([], false);
+        Schema::create('lease_charges', function (Blueprint $t) {
+            $t->string('id')->primary(); $t->string('lease_id'); $t->string('fee_type_id');
+            $t->string('invoice_id')->nullable(); $t->string('charge_type'); $t->bigInteger('amount');
+            $t->timestamps(); $t->softDeletes();
+        });
+        Schema::create('transaction_allocations', function (Blueprint $t) {
+            $t->id(); $t->string('invoice_item_id'); $t->bigInteger('amount_cents');
+        });
+        Schema::create('refund_items', function (Blueprint $t) {
+            $t->string('id')->primary(); $t->string('refund_id'); $t->string('origin');
+            foreach (['invoice_id', 'invoice_item_id', 'lease_charge_id', 'fee_type_id', 'description'] as $column) $t->string($column)->nullable();
+            $t->string('type'); $t->integer('qty')->default(1); $t->bigInteger('unit_amount_cents');
+            $t->bigInteger('amount_cents'); $t->timestamps();
+        });
+        DB::table('fee_types')->insert(['id' => 'deposit-fee', 'name' => 'Deposit', 'category' => 'deposit']);
+        DB::table('lease_charges')->insert([
+            'id' => 'deposit-charge', 'lease_id' => 'lease', 'fee_type_id' => 'deposit-fee',
+            'charge_type' => 'refundable', 'amount' => 100000,
+        ]);
+        DB::table('invoices')->insert([
+            'id' => 'deposit-invoice', 'lease_id' => 'lease', 'type' => 'deposit', 'status' => 'paid',
+            'document_template_id' => 'invoice-template', 'invoice_no' => 'DEP-1',
+            'total_amount' => 100000, 'amount_paid' => 100000, 'amount_balance' => 0,
+            'period' => '2026-09-01', 'due_date' => '2026-10-20', 'created_at' => '2026-09-01',
+        ]);
+        DB::table('invoice_items')->insert([
+            'id' => 'deposit-item', 'invoice_id' => 'deposit-invoice', 'lease_charge_id' => 'deposit-charge',
+            'fee_type_id' => 'deposit-fee', 'amount' => 100000,
+        ]);
+        DB::table('refunds')->insert([
+            'id' => 'refund', 'lease_id' => 'lease', 'status' => $stage,
+            'deposit_collected_cents' => 100000, 'gross_amount_cents' => 100000,
+            'auto_deduction_cents' => 10000, 'manual_deduction_cents' => 5000,
+            'deduction_amount_cents' => 15000, 'net_amount_cents' => 85000,
+            'approved_by' => $stage === 'approved' ? 'admin' : null,
+            'approved_at' => $stage === 'approved' ? '2026-10-19' : null,
+        ]);
+        DB::table('refund_items')->insert([
+            ['id' => 'automatic', 'refund_id' => 'refund', 'origin' => 'automatic_invoice',
+                'type' => 'utility', 'description' => 'Unpaid Invoice Auto-Deduction: INV-TEST',
+                'invoice_id' => 'original', 'invoice_item_id' => 'item', 'amount_cents' => 10000, 'unit_amount_cents' => 10000],
+            ['id' => 'manual', 'refund_id' => 'refund', 'origin' => 'manual',
+                'type' => 'cleaning', 'description' => 'Cleaning',
+                'invoice_id' => null, 'invoice_item_id' => null, 'amount_cents' => 5000, 'unit_amount_cents' => 5000],
+        ]);
     }
 }

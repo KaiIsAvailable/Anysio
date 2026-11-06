@@ -1,0 +1,24 @@
+"use strict";
+
+jsonEditXhrRequest('[?..userAgent*="channel"]..client[?.clientName=="WEB"]+={"clientScreen":"CHANNEL"}', 'propsToMatch', '/player?');
+jsonEditXhrRequest('[?..userAgent=/adunit|channel|lactmilli|instream|eafg/]..referer=repl({"regex":"$","replacement":"#reloadxhr"})', 'propsToMatch', '/player?');
+modifySetTimeout('[native code]', '17000', '0.001');
+jsonPruneFetchResponse('adPlacements adSlots playerResponse.adPlacements playerResponse.adSlots [].playerResponse.adPlacements [].playerResponse.adSlots', '', 'propsToMatch', '/player?');
+jsonPruneFetchResponse('adPlacements adSlots playerResponse.adPlacements playerResponse.adSlots', '', 'propsToMatch', '/playlist?');
+jsonPruneXhrResponse('adPlacements adSlots playerResponse.adPlacements playerResponse.adSlots [].playerResponse.adPlacements [].playerResponse.adSlots', '', 'propsToMatch', '/\\/player(?:\\?.+)?$/');
+replaceXhrResponseContent('/"adPlacements.*?([A-Z]"\\}|"\\}{2,4})\\}\\],/', '', '/playlist\\?list=|\\/player(?:\\?.+)?$|watch\\?[tv]=/');
+replaceXhrResponseContent('/"adPlacements.*?("adSlots"|"adBreakHeartbeatParams")/gms', '$1', '/\\/player(?:\\?.+)?$/');
+replaceFetchResponseContent('"adPlacements"', '"no_ads"', 'player?');
+replaceFetchResponseContent('"adSlots"', '"no_ads"', 'player?');
+replaceFetchResponseContent('"adSlots"', '"no_ads"', '/^\\W+$/');
+preventDomBypass('Node.prototype.appendChild', 'fetch');
+preventDomBypass('Node.prototype.appendChild', 'Request');
+preventDomBypass('Node.prototype.appendChild', 'JSON.parse');
+pruneJson('entries.[-].command.reelWatchEndpoint.adClientParams.isAd');
+replaceFetchResponseContent('"adSlots"', '"no_ads"', '/get_watch?');
+defineConstant('ytInitialPlayerResponse.playerAds', 'undefined');
+defineConstant('ytInitialPlayerResponse.adPlacements', 'undefined');
+defineConstant('ytInitialPlayerResponse.adSlots', 'undefined');
+defineConstant('playerResponse.adPlacements', 'undefined');
+defineConstant('ytcfg.data_.EXPERIMENT_FLAGS.web_streaming_watch', 'false');
+jsonPruneFetchResponse('reelWatchSequenceResponse.entries.[-].command.reelWatchEndpoint.adClientParams.isAd entries.[-].command.reelWatchEndpoint.adClientParams.isAd', '', 'propsToMatch', 'url:/reel_watch_sequence?');

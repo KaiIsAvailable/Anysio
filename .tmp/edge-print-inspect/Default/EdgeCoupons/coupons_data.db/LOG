@@ -1,0 +1,5 @@
+2026/11/06-12:28:11.717 a900 Creating DB C:\xampp\htdocs\dashboard\Anysio\.tmp\edge-print-inspect\Default\EdgeCoupons/coupons_data.db since it was missing.
+2026/11/06-12:28:11.731 a900 Reusing MANIFEST C:\xampp\htdocs\dashboard\Anysio\.tmp\edge-print-inspect\Default\EdgeCoupons/coupons_data.db/MANIFEST-000001
+2026/11/06-12:28:27.050 c898 Level-0 table #5: started
+2026/11/06-12:28:27.058 c898 Level-0 table #5: 683284 bytes OK
+2026/11/06-12:28:27.063 c898 Delete type=0 #3

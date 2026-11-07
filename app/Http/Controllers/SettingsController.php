@@ -12,7 +12,11 @@ class SettingsController extends Controller
 {
     public function index(SettingService $settingService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('profile menu.setting')) {
+        if (Gate::allows('super-admin')) {
+            return app(AccountPermissionController::class)->index(request());
+        }
+
+        if (Gate::denies('super-admin') && Gate::denies('profile menu.setting')) {
             return view('errors.403');
         }
 
@@ -100,13 +104,13 @@ class SettingsController extends Controller
     public function update(Request $request, SettingService $settingService)
     {
         if ($request->has('due_date_config')) {
-            if (Gate::denies('owner-admin') && Gate::denies('settings.edit recurring invoice')) {
+            if (Gate::denies('super-admin') && Gate::denies('settings.edit recurring invoice')) {
                 return redirect()->back()->with('error', 'You have no permission.');
             }
             $request->validate(SettingService::recurringInvoiceRules());
         }
         $request->validate([
-            'settings' => ['nullable', 'array'],
+            'settings' => ['nullable', 'array:late_penalty_config'],
             'settings.due_date_config' => ['prohibited'],
             'fee_types_config' => ['nullable', 'array'],
             'due_date_config' => ['nullable', 'array'],
@@ -114,6 +118,18 @@ class SettingsController extends Controller
             'payment_config' => ['nullable', 'array'],
             'is_active' => ['nullable', 'array'],
         ]);
+
+        // Check every submitted section, including requests sent without the UI.
+        foreach ([
+            'settings.late_penalty_config' => 'settings.edit late payment',
+            'fee_types_config' => 'settings.edit lease configuration',
+            'pending_renewal_config' => 'settings.edit pending renewal',
+            'payment_config' => 'settings.edit payment collection',
+        ] as $field => $permission) {
+            if ($request->has($field) && Gate::denies('super-admin') && Gate::denies($permission)) {
+                return redirect()->back()->with('error', 'You have no permission.');
+            }
+        }
 
         $userId = get_effective_user()->id;
         $activeStates = $request->input('is_active', []);
@@ -144,15 +160,12 @@ class SettingsController extends Controller
 
     public function userRolePermissions()
     {
-        $roles = Role::all();
-        $modules = config('permissions.modules', []);
-
-        return view('adminSide.settings.user-role-permissions', compact('roles', 'modules'));
+        return redirect()->route('admin.settings.index', ['tab' => 'permissions']);
     }
 
     public function updateRolePermissions(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('settings.edit user role')) {
+        if (Gate::denies('super-admin') && Gate::denies('settings.edit user role')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -193,6 +206,6 @@ class SettingsController extends Controller
         $previousUrl = strtok(url()->previous(), '?');
         
         return redirect()->to($previousUrl . '?tab=' . $activeTab . '&role_tab=' . $roleTab)
-            ->with('status', 'permissions-updated');
+            ->with('success', 'Staff role permissions updated successfully.');
     }
 }

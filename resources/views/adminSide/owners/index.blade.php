@@ -23,7 +23,7 @@
                         </x-form.primary-button>
                     @endcan
 
-                    @canany(['agent-admin', 'owner.create'])
+                    @canany(['super-admin', 'owner.create'])
                         <x-form.primary-button
                             type="button"
                             loading="loading"
@@ -96,7 +96,7 @@
                                     <x-table.th name="Address" />
                                     <x-table.th name="Status" />
                                     <x-table.th name="Joined Date" sortField="jd" />
-                                    @canany(['agent-admin', 'owner.edit', 'owner.delete'])
+                                    @canany(['super-admin', 'owner.edit', 'owner.delete'])
                                         <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                     @endcan
                                 </tr>
@@ -104,7 +104,7 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($owners as $owner)
                                     <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                                        @canany(['agent-admin', 'owner.show'])
+                                        @canany(['super-admin', 'owner.show'])
                                         onclick="window.location='{{ route('admin.owners.show', $owner->id) }}'"
                                         @endcanany>
                                         
@@ -149,7 +149,7 @@
                                             </span>
                                         </td>
                                         
-                                        @canany(['agent-admin', 'owner.edit', 'owner.delete'])
+                                        @canany(['super-admin', 'owner.edit', 'owner.delete'])
                                             <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                                 <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
                                                     <!-- Edit Button -->

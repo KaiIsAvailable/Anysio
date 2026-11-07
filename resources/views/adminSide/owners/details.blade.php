@@ -15,7 +15,7 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Owner Details</h1>
                 </div>
 
-                @canany(['agent-admin', 'owner.edit', 'owner.delete'])
+                @canany(['super-admin', 'owner.edit', 'owner.delete'])
                 <div class="flex items-center gap-3">
                     @can('owner.edit')
                     <a href="{{ route('admin.owners.edit', $owner->id) }}"

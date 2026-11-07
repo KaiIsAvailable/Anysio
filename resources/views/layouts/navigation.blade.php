@@ -6,16 +6,7 @@
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     @php
-                        // 根据角色确定跳转的路由
-                        $dashboardRoute = route('dashboard'); // 默认路由
-
-                        if (\Illuminate\Support\Facades\Gate::allows('is-owner')) {
-                            $dashboardRoute = route('admin.owners.dashboard');
-                        } elseif (\Illuminate\Support\Facades\Gate::allows('is-tenant')) {
-                            $dashboardRoute = route('tenants.dashboard');
-                        } elseif (\Illuminate\Support\Facades\Gate::allows('owner-admin')) {
-                            $dashboardRoute = route('dashboard');
-                        }
+                        $dashboardRoute = route(app(\App\Services\LandingPageService::class)->routeFor(Auth::user()));
                     @endphp
 
                     <a href="{{ $dashboardRoute }}">
@@ -26,7 +17,7 @@
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
                     <!--Admin, Owner and Tenant dashboard-->
-                    @canany(['owner-admin', 'dashboard.tab'])
+                    @canany(['super-admin', 'dashboard.tab'])
                         <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                             {{ __('Dashboard') }}
                         </x-nav-link>
@@ -47,19 +38,19 @@
                         </x-nav-link>
                     @endcan
 
-                    @canany(['agent-admin', 'owner.tab'])
+                    @canany(['super-admin', 'owner.tab'])
                         <x-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*') && !request()->routeIs('admin.owners.dashboard')">
                             {{ __('Owners') }}
                         </x-nav-link>
                     @endcan
 
-                    @canany(['owner-admin', 'tenant.tab'])
+                    @canany(['super-admin', 'tenant.tab'])
                         <x-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*') && !request()->routeIs('admin.tenants.dashboard')">
                             {{ __('Tenants') }}
                         </x-nav-link>
                     @endcanany
 
-                    @canany(['owner-admin', 'property.tab'])
+                    @canany(['super-admin', 'property.tab'])
                         <x-nav-link :href="route('admin.properties.index')" 
                             :active="request()->routeIs('admin.properties.*') || request()->routeIs('admin.units.*') || request()->routeIs('admin.rooms.*') || request()->routeIs('admin.roomAsset.*')">
                             {{ __('Properties') }}
@@ -70,13 +61,13 @@
                         {{ __('Rooms') }}
                     </x-nav-link>-->
 
-                    @canany(['owner-admin', 'leases.tab'])
+                    @canany(['super-admin', 'leases.tab'])
                         <x-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*', 'admin.document-templates.*')">
                             {{ __('Leases') }}
                         </x-nav-link>
                     @endcanany
 
-                    @canany(['owner-admin', 'invoice.tab'])
+                    @canany(['super-admin', 'invoice.tab'])
                         <x-nav-link :href="route('admin.invoices.index')" :active="request()->routeIs('admin.invoices.*')">
                             {{ __('Invoices') }}
                         </x-nav-link>
@@ -106,7 +97,7 @@
                         </x-nav-link>
                     @endcan
 
-                    @canany(['owner-admin', 'staff.tab'])
+                    @canany(['super-admin', 'staff.tab'])
                         <x-nav-link :href="route('admin.staff.index')" :active="request()->routeIs('admin.staff.*')">
                             {{ __('Staff') }}
                         </x-nav-link>
@@ -171,11 +162,11 @@
                     <x-slot name="content">
                         <x-dropdown-link :href="route('profile.edit')">{{ __('Profile') }}</x-dropdown-link>
 
-                        @canany(['owner-admin', 'profile menu.boost limit', 'profile menu.view package', 'document template.create', 'profile menu.setting'])
+                        @canany(['super-admin', 'profile menu.boost limit', 'profile menu.view package', 'document template.create', 'profile menu.setting'])
                             <div class="border-t border-gray-100"></div>
 
                             {{-- 2. 直接使用父级的 openSetting 控制显示 --}}
-                            @canany(['owner-admin', 'profile menu.boost limit', 'profile menu.view package', 'document template.create'])
+                            @canany(['super-admin', 'profile menu.boost limit', 'profile menu.view package', 'document template.create'])
                             <div class="relative"> 
                                 <div @click.stop="openSetting = !openSetting" 
                                     class="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
@@ -193,7 +184,7 @@
                                     x-transition 
                                     class="bg-gray-50 border-l-4 border-indigo-400">
 
-                                    @canany(['owner-admin', 'profile menu.view package'])
+                                    @canany(['super-admin', 'profile menu.view package'])
                                     <button type="button" 
                                             @click.prevent="openPackage = true; openSetting = false;" 
                                             class="block w-full pl-8 py-2 text-xs text-left text-gray-700 hover:bg-gray-100">
@@ -202,7 +193,7 @@
                                     @endcanany
 
                                     {{-- 直接触发父级的 openBoost --}}
-                                    @canany(['owner-admin', 'profile menu.boost limit'])
+                                    @canany(['super-admin', 'profile menu.boost limit'])
                                     <button type="button" 
                                             @click.prevent="openBoost = true; openSetting = false;" 
                                             class="block w-full pl-8 py-2 text-xs text-left text-gray-700 hover:bg-gray-100">
@@ -210,7 +201,7 @@
                                     </button>
                                     @endcanany
 
-                                    @canany(['owner-admin', 'document template.create'])
+                                    @canany(['super-admin', 'document template.create'])
                                     <x-dropdown-link :href="route('admin.document-templates.create')" class="pl-8 py-2 text-xs">
                                         {{ __('+ Add Document Template') }}
                                     </x-dropdown-link>
@@ -219,7 +210,7 @@
                             </div>
                             @endcanany
 
-                            @canany(['owner-admin', 'profile menu.setting'])
+                            @canany(['super-admin', 'profile menu.setting'])
                             <x-dropdown-link :href="route('admin.settings.index')">{{ __('Setting') }}</x-dropdown-link>
                             @endcanany
                         @endcan
@@ -260,7 +251,7 @@
                     {{ __('Maintenance') }}
                 </x-responsive-nav-link>
             @endcan
-            @can('owner-admin')
+            @can('dashboard.tab')
                 <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
                     {{ __('Dashboard') }}
                 </x-responsive-nav-link>
@@ -281,30 +272,37 @@
                 </x-responsive-nav-link>
             @endcan
 
-            @can('agent-admin')
+            @can('owner.tab')
                 <x-responsive-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*') && !request()->routeIs('admin.owners.dashboard')">
                     {{ __('Owners') }}
                 </x-responsive-nav-link>
             @endcan
 
-            @can('owner-admin')
+            @can('tenant.tab')
                 <x-responsive-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*') && !request()->routeIs('admin.tenants.dashboard')">
                     {{ __('Tenants') }}
                 </x-responsive-nav-link>
 
+            @endcan
+
+            @can('property.tab')
                 <x-responsive-nav-link :href="route('admin.properties.index')"
                     :active="request()->routeIs('admin.properties.*') || request()->routeIs('admin.units.*') || request()->routeIs('admin.rooms.*') || request()->routeIs('admin.roomAsset.*')">
                     {{ __('Properties') }}
                 </x-responsive-nav-link>
             @endcan
 
+            @can('leases.tab')
             <x-responsive-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*') || request()->routeIs('admin.document-templates.*')">
                 {{ __('Leases') }}
             </x-responsive-nav-link>
+            @endcan
 
+            @can('invoice.tab')
             <x-responsive-nav-link :href="route('admin.invoices.index')" :active="request()->routeIs('admin.invoices.*')">
                 {{ __('Invoices') }}
             </x-responsive-nav-link>
+            @endcan
 
             @can('super-admin')
                 <x-responsive-nav-link :href="route('admin.packages.index')" :active="request()->routeIs('admin.packages.*')">
@@ -332,6 +330,10 @@
                 <x-responsive-nav-link :href="route('profile.edit')">
                     {{ __('Profile') }}
                 </x-responsive-nav-link>
+
+                @can('profile menu.setting')
+                    <x-responsive-nav-link :href="route('admin.settings.index')" :active="request()->routeIs('admin.settings.*')">{{ __('Settings') }}</x-responsive-nav-link>
+                @endcan
 
                 <!-- Authentication -->
                 <form method="POST" action="{{ route('logout') }}">

@@ -3,6 +3,8 @@ use App\Http\Controllers\SettingsController; // Or wherever your controller is
 use Illuminate\Support\Facades\Route;
 
 Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+Route::put('/settings/accounts/{user}/permissions', [\App\Http\Controllers\AccountPermissionController::class, 'update'])
+    ->middleware('can:super-admin')->name('settings.account-permissions.update');
 Route::match(['put', 'patch'], '/settings', [SettingsController::class, 'update'])->name('settings.update');
 Route::post('/settings/{invoice}/calculate-penalty', [SettingsController::class, 'calculatePenaltyPreview'])->name('setting.calculate-penalty');
 Route::get('/settings/user-role-permissions', [SettingsController::class, 'userRolePermissions'])->name('settings.user-role-permissions');

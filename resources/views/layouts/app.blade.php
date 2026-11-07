@@ -119,9 +119,7 @@
             ['invoice' => $latestSubscriptionInvoice]
             )
 
-            <x-auth-session-status
-                class="mb-4"
-                :status="session('status')" />
+            <x-auth-session-status class="mb-4" :status="session('status')" />
 
             @isset($header)
             <header class="bg-white shadow">

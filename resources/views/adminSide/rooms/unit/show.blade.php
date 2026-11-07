@@ -15,7 +15,7 @@
                     <p class="mt-2 text-sm text-gray-500 italic">Manage and organize rooms within this unit.</p>
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
-                    @canany(['owner-admin', 'room.create'])
+                    @canany(['super-admin', 'room.create'])
                     <x-form.primary-button
                         type="button"
                         loading="loading"
@@ -237,7 +237,7 @@
                                 <x-table.th name="Assets" />
                                 <x-table.th name="Created" sortField="c" />
 
-                                @canany(['owner-admin', 'room.edit', 'room.delete'])
+                                @canany(['super-admin', 'room.edit', 'room.delete'])
                                 <x-table.th name="Actions" />
                                 @endcanany
                             </tr>
@@ -252,7 +252,7 @@
                             @endphp
                             <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
                                 data-href="{{ route('admin.rooms.show', $room->id) }}"
-                                @canany(['owner-admin', 'room.show' ])
+                                @canany(['super-admin', 'room.show' ])
                                 onclick="window.location=this.dataset.href"
                                 @endcanany>
 
@@ -300,10 +300,10 @@
 
                                 <td class="px-6 py-4 text-sm text-slate-900">{{ optional($room->created_at)->format('d M Y') }}</td>
 
-                                @canany(['owner-admin', 'room.edit', 'room.delete'])
+                                @canany(['super-admin', 'room.edit', 'room.delete'])
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                     <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
-                                        @canany(['owner-admin', 'room.edit'])
+                                        @canany(['super-admin', 'room.edit'])
                                         <a href="{{ route('admin.rooms.edit', $room->id) }}"
                                             class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition-colors"
                                             title="Edit">
@@ -313,7 +313,7 @@
                                         </a>
                                         @endcanany
 
-                                        @canany(['owner-admin', 'room.delete'])
+                                        @canany(['super-admin', 'room.delete'])
                                         @if(strtolower($room->status ?? '') !== 'inactive')
 
                                         <form action="{{ route('admin.rooms.destroy', $room->id) }}" method="POST"

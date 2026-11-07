@@ -145,7 +145,7 @@
                         
                         <div class="flex items-center gap-2">
                             {{-- 1. Renew Lease Button --}}
-                            @canany(['owner-admin', 'leases.renew lease'])
+                            @canany(['super-admin', 'leases.renew lease'])
                                 <button type="button" 
                                     x-show="activeLease && activeLease.is_current && !['cancelled', 'check out', 'end', 'refunded'].includes((activeLease.status || '').toLowerCase())"
                                     x-cloak
@@ -156,7 +156,7 @@
                             @endcanany
 
                             {{-- 2. Check Out Lease Button --}}
-                            @canany(['owner-admin', 'leases.check out lease'])
+                            @canany(['super-admin', 'leases.check out lease'])
                                         <button type="button"
                                             x-show="activeId && !['cancelled', 'end', 'refunded'].includes((activeLease.status || '').toLowerCase()) && !((activeLease.status || '').toLowerCase() === 'check out' && activeLease.refund_status === 'paid')"
                                             x-cloak
@@ -167,7 +167,7 @@
                             @endcanany
 
                             {{-- 3. Cancel Lease Button --}}
-                            @canany(['owner-admin', 'leases.cancel lease'])
+                            @canany(['super-admin', 'leases.cancel lease'])
                                 @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end']))
                                     <button type="button" 
                                         @click="$dispatch('open-lease-confirm-modal', { 
@@ -251,7 +251,7 @@
                         shake: @js($stampingErrors)
                     }">
                         {{-- 左侧按钮：View Agreement --}}
-                        @canany(['owner-admin', 'leases.view agreement'])
+                        @canany(['super-admin', 'leases.view agreement'])
                         @if (!empty($lease->document_id))
                             <x-form.primary-button type="button"
                                 data-base-content="{{ $lease->documentTemplate?->html_template }}"
@@ -266,7 +266,7 @@
                         @endif
                         @endcanany
 
-                        @canany(['owner-admin', 'leases.view agreement'])
+                        @canany(['super-admin', 'leases.view agreement'])
                         @if (!empty($lease->refund_document_id))
                             <x-form.primary-button type="button"
                                 data-template-id="{{ $lease->refund_document_id }}"
@@ -280,7 +280,7 @@
                         @endcanany
 
                         {{-- 右侧按钮：Upload Stamping (条件渲染) --}}
-                        @canany(['owner-admin', 'leases.upload stamping'])
+                        @canany(['super-admin', 'leases.upload stamping'])
                         @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['check out', 'end agreement']))
                             <button @click="openUpload = true"
                                 class="flex-1 px-4 py-2.5 bg-indigo-600 text-white text-xs font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-sm text-center">
@@ -428,7 +428,7 @@
                                     });
                             }
                         }">
-                            @canany(['owner-admin', 'leases.auto generate invoice'])
+                            @canany(['super-admin', 'leases.auto generate invoice'])
                             @if($allowManualRecurringInvoice)
                             <x-form.primary-button type="button" loading="generating" @click="generateCharges()">
                                 Auto Generate Invoice
@@ -437,7 +437,7 @@
                             @endcanany
 
                             <!-- Add Manual Invoice Button -->
-                            @canany(['owner-admin', 'leases.add manual invoice'])
+                            @canany(['super-admin', 'leases.add manual invoice'])
                             <x-form.primary-button type="button"
                                 @click="$dispatch('open-manual-modal', { 
                                     action: getManualInvoiceUrl(),
@@ -469,7 +469,7 @@
                                     <thead class="bg-gray-50">
                                         <tr>
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice No</th>
-                                            @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt'])
+                                            @canany(['super-admin', 'invoice.view invoice', 'invoice.view receipt'])
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Documents</th>
                                             @endcanany
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
@@ -477,7 +477,7 @@
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount Details</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Remarks</th>
                                             <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                            @canany(['owner-admin', 'invoice.record payment', 'invoice.void'])
+                                            @canany(['super-admin', 'invoice.record payment', 'invoice.void'])
                                             <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                             @endcanany
                                         </tr>
@@ -488,11 +488,11 @@
                                                 <td class="px-4 py-4 whitespace-nowrap text-sm font-bold text-indigo-600" x-text="invoice.invoice_no"></td>
 
                                                 <!-- 💡 Alpine Loop Document Preview (Using Component) -->
-                                                @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt'])
+                                                @canany(['super-admin', 'invoice.view invoice', 'invoice.view receipt'])
                                                 <td class="px-4 py-4 whitespace-nowrap">
                                                     <!-- Invoice Component -->
                                                     <div class="flex flex-col items-start gap-1.5">
-                                                        @canany(['owner-admin', 'invoice.view invoice'])
+                                                        @canany(['super-admin', 'invoice.view invoice'])
                                                         <template x-if="invoice.document_template_id && invoice.document_template_id !== '—' && invoice.template_title">
                                                             <div>
                                                                 <x-buttons.preview-doc
@@ -508,7 +508,7 @@
                                                         @endcanany
 
                                                         <!-- Receipt Component Loop -->
-                                                        @canany(['owner-admin', 'invoice.view receipt'])
+                                                        @canany(['super-admin', 'invoice.view receipt'])
                                                         <template x-if="invoice.receipts && invoice.receipts.length > 0">
                                                             <template x-for="receipt in invoice.receipts" :key="receipt.id">
                                                                 <div class="mt-1">
@@ -605,10 +605,10 @@
                                                     }" x-text="invoice.status">
                                                     </span>
                                                 </td>
-                                                @canany(['owner-admin', 'invoice.record payment', 'invoice.void'])
+                                                @canany(['super-admin', 'invoice.record payment', 'invoice.void'])
                                                 <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
                                                     <!-- Record Payment Button -->
-                                                    @canany(['owner-admin', 'invoice.record payment'])
+                                                    @canany(['super-admin', 'invoice.record payment'])
                                                     <template x-if="invoice.status !== 'paid' && invoice.status !== 'void'">
                                                         <button type="button"
                                                             @click="
@@ -634,7 +634,7 @@
                                                     @endcanany
 
                                                     <!-- Void Button -->
-                                                    @canany(['owner-admin', 'invoice.void'])
+                                                    @canany(['super-admin', 'invoice.void'])
                                                     <template x-if="invoice.status !== 'void'">
                                                         <button type="button"
                                                             @click="

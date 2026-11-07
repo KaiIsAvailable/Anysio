@@ -31,7 +31,7 @@ class UnitController extends Controller
      */
     public function create(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('unit.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('unit.create')) {
             return view('errors.403');
         }
 
@@ -70,7 +70,7 @@ class UnitController extends Controller
      */
     public function store(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('unit.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('unit.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -199,7 +199,7 @@ class UnitController extends Controller
      */
     public function show(Request $request, Unit $unit)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('unit.show room')) {
+        if (Gate::denies('super-admin') && Gate::denies('unit.show room')) {
             return view('errors.403');
         }
 
@@ -258,7 +258,7 @@ class UnitController extends Controller
      */
     public function edit(string $id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('unit.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('unit.edit')) {
             return view('errors.403');
         }
 
@@ -296,7 +296,7 @@ class UnitController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('unit.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('unit.edit')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -357,7 +357,7 @@ class UnitController extends Controller
      */
     public function destroy($id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('unit.delete')) {
+        if (Gate::denies('super-admin') && Gate::denies('unit.delete')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
         try {
@@ -385,7 +385,7 @@ class UnitController extends Controller
 
     public function restore($id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('unit.delete')) {
+        if (Gate::denies('super-admin') && Gate::denies('unit.delete')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 

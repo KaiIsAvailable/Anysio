@@ -14,7 +14,7 @@ class PropertyController extends Controller
     use RoleBasedDataTrait;
     public function index(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('property.tab')) {
+        if (Gate::denies('super-admin') && Gate::denies('property.tab')) {
             return view('errors.403');
         }
 
@@ -92,7 +92,7 @@ class PropertyController extends Controller
 
     public function create()
     {
-        if (Gate::denies('owner-admin') && Gate::denies('property.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('property.create')) {
             return view('errors.403');
         }
 
@@ -122,7 +122,7 @@ class PropertyController extends Controller
 
     public function store(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('property.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('property.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -157,7 +157,7 @@ class PropertyController extends Controller
     public function show(Request $request, Property $property)
     {
 
-        if (Gate::denies('owner-admin') && Gate::denies('property.show unit')) {
+        if (Gate::denies('super-admin') && Gate::denies('property.show unit')) {
             return view('errors.403');
         }
         
@@ -216,7 +216,7 @@ class PropertyController extends Controller
 
     public function edit(Property $property)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('property.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('property.edit')) {
             return view('errors.403');
         }
 
@@ -241,7 +241,7 @@ class PropertyController extends Controller
 
     public function update(Request $request, Property $property)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('property.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('property.edit')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -268,7 +268,7 @@ class PropertyController extends Controller
 
     public function destroy($id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('property.delete')) {
+        if (Gate::denies('super-admin') && Gate::denies('property.delete')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -295,7 +295,7 @@ class PropertyController extends Controller
 
     public function restore($id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('property.delete')) {
+        if (Gate::denies('super-admin') && Gate::denies('property.delete')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 

@@ -16,7 +16,7 @@ class OwnersController extends Controller
 {
     public function index(Request $request)
     {
-        if (Gate::denies('agent-admin') && Gate::denies('owner.tab')) {
+        if (Gate::denies('super-admin') && Gate::denies('owner.tab')) {
             return view('errors.403');
         }
 
@@ -75,7 +75,7 @@ class OwnersController extends Controller
 
     public function create()
     {
-        if (Gate::denies('agent-admin') && Gate::denies('owner.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('owner.create')) {
             return view('errors.403');
         }
 
@@ -86,7 +86,7 @@ class OwnersController extends Controller
 
     public function store(StoreOwnerRequest $request)
     {
-        if (Gate::denies('agent-admin') && Gate::denies('owner.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('owner.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -142,7 +142,7 @@ class OwnersController extends Controller
 
     public function edit(Owners $owner)
     {
-        if (Gate::denies('agent-admin') && Gate::denies('owner.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('owner.edit')) {
             return view('errors.403');
         }
 
@@ -153,7 +153,7 @@ class OwnersController extends Controller
     public function update(UpdateOwnerRequest $request, Owners $owner)
     {
 
-        if (Gate::denies('agent-admin') && Gate::denies('owner.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('owner.edit')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -188,7 +188,7 @@ class OwnersController extends Controller
 
     public function destroy(Owners $owner)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('owner.delete')) {
+        if (Gate::denies('super-admin') && Gate::denies('owner.delete')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -204,7 +204,7 @@ class OwnersController extends Controller
 
     public function restore($id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('owner.delete')) {
+        if (Gate::denies('super-admin') && Gate::denies('owner.delete')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -222,7 +222,7 @@ class OwnersController extends Controller
 
     public function show(Owners $owner)
     {
-        if (Gate::denies('agent-admin') && Gate::denies('owner.show')) {
+        if (Gate::denies('super-admin') && Gate::denies('owner.show')) {
             return view('errors.403');
         }
 

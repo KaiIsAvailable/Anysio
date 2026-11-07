@@ -19,7 +19,7 @@
                     </div>
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
-                    @canany(['owner-admin', 'unit.create'])
+                    @canany(['super-admin', 'unit.create'])
                     <x-form.primary-button
                         type="button"
                         loading="loading"
@@ -155,7 +155,7 @@
                                 <x-table.th name="Unit Info" />
                                 <x-table.th name="Utilities Info" />
                                 <x-table.th name="Status" sortField="s" />
-                                @canany(['owner-admin', 'unit.edit', 'unit.delete'])
+                                @canany(['super-admin', 'unit.edit', 'unit.delete'])
                                 <x-table.th name="Action" />
                                 @endcanany
                             </tr>
@@ -167,7 +167,7 @@
                             $uStatus = $unit->status;
                             @endphp
                             <tr class="hover:bg-indigo-50 transition-colors cursor-pointer group"
-                                @canany(['owner-admin', 'unit.show room' ])
+                                @canany(['super-admin', 'unit.show room' ])
                                 onclick="window.location='{{ route('admin.units.show', $unit->id) }}'"
                                 @endcanany
                                 style="cursor: pointer;">
@@ -241,10 +241,10 @@
                                     </span>
                                 </td>
 
-                                @canany(['owner-admin', 'unit.edit', 'unit.delete'])
+                                @canany(['super-admin', 'unit.edit', 'unit.delete'])
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                     <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
-                                        @canany(['owner-admin', 'unit.edit'])
+                                        @canany(['super-admin', 'unit.edit'])
                                         <a href="{{ route('admin.units.edit', $unit->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 rounded-lg" title="Edit Unit">
                                             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
@@ -252,7 +252,7 @@
                                         </a>
                                         @endcanany
 
-                                        @canany(['owner-admin', 'unit.delete'])
+                                        @canany(['super-admin', 'unit.delete'])
                                         @if($unit->status == 'Removed' && $property->status != 'Removed')
                                         {{-- Restore Unit 按钮 --}}
                                         <form action="{{ route('admin.units.restore', $unit->id) }}" method="POST" class="inline-block"

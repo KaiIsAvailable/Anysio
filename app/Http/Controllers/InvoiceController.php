@@ -18,7 +18,7 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('invoice.tab')) {
+        if (Gate::denies('super-admin') && Gate::denies('invoice.tab')) {
             return view('errors.403');
         }
 
@@ -34,7 +34,7 @@ class InvoiceController extends Controller
 
     public function statement(Request $request, ?Lease $lease = null)
     {
-        abort_unless(Gate::allows('owner-admin') || Gate::allows($lease ? 'leases.show' : 'invoice.tab'), 403);
+        abort_unless(Gate::allows('super-admin') || Gate::allows($lease ? 'leases.show' : 'invoice.tab'), 403);
         $actualId = Auth::id();
         $effectiveId = get_effective_user()?->id;
         $superAdmin = Gate::allows('super-admin');
@@ -52,6 +52,10 @@ class InvoiceController extends Controller
 
     public function show(Lease $lease, Invoice $invoice)
     {
+        if (Gate::allows('owner-admin') || Gate::allows('is-staff')) {
+            Gate::authorize('invoice.view invoice');
+        }
+
         //Gate::authorize('owner-admin', $lease);
         $invoice->load(['items.feeType', 'transactions.approver', 'lease.tenant.user']);
         return view('invoices.show', compact('lease', 'invoice'));
@@ -59,7 +63,7 @@ class InvoiceController extends Controller
 
     public function recordPayment(RecordPaymentRequest $request, Invoice $invoice)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('invoice.record payment')) {
+        if (Gate::denies('super-admin') && Gate::denies('invoice.record payment')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -81,7 +85,7 @@ class InvoiceController extends Controller
 
     public function void(VoidInvoiceRequest $request, Invoice $invoice)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('invoice.void')) {
+        if (Gate::denies('super-admin') && Gate::denies('invoice.void')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -92,7 +96,7 @@ class InvoiceController extends Controller
 
     public function storeManualInvoice(StoreInvoiceRequest $request, Lease $lease)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.add manual invoice')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.add manual invoice')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -132,7 +136,7 @@ class InvoiceController extends Controller
 
     public function generateAutoInvoice(Request $request, Lease $lease)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.auto generate invoice')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.auto generate invoice')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 

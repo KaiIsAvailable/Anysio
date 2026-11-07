@@ -180,7 +180,7 @@
                         </div>
                     </div>
 
-                    @canany(['owner-admin', 'tenant.modify bank details'])
+                    @canany(['super-admin', 'tenant.modify bank details'])
                     <!-- Bank Account -->
                     <div class="mb-6 border-b border-gray-100 pb-6">
                         <h2 class="text-xl font-semibold text-slate-800 mb-4">Bank Account</h2>

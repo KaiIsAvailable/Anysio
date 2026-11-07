@@ -3,11 +3,10 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
-use Illuminate\Support\Facades\{Gate, Auth, Log};
-use App\Models\{User, Lease, Invoice, Staff, UserManagement};
+use Illuminate\Support\Facades\Gate;
+use App\Models\{User, Lease, Invoice};
 use App\Observers\{LeaseObserver, InvoiceObserver};
 use Spatie\Permission\Models\Permission;
-use Spatie\Permission\PermissionRegistrar;
 use Illuminate\Support\Facades\Schema;
 
 class AppServiceProvider extends ServiceProvider
@@ -64,43 +63,13 @@ class AppServiceProvider extends ServiceProvider
                 return null; 
             }
 
-            try {
-                $effectiveBossId = get_effective_user()?->id;
-                if (!$effectiveBossId) {
-                    Log::channel('testing')->warning('Gate::before Denied: No effective boss ID', [
-                        'user_id' => $user->id,
-                        'ability' => $ability,
-                    ]);
-                    return false;
-                }
-
-                // Direct, foolproof multi-tenant permission check:
-                $hasPermission = \App\Models\Role::where('team_id', $effectiveBossId)
-                    ->whereHas('permissions', function ($q) use ($ability) {
-                        $q->where('name', $ability);
-                    })
-                    ->whereHas('users', function ($q) use ($user, $effectiveBossId) {
-                        $q->where('model_id', $user->id)
-                        ->where('team_id', $effectiveBossId);
-                    })
-                    ->exists();
-
-                return $hasPermission;
-
-            } catch (\Throwable $e) {
-                Log::channel('testing')->error('Gate::before Exception', [
-                    'user_id' => $user->id ?? null,
-                    'ability' => $ability,
-                    'error' => $e->getMessage(),
-                ]);
-                return false;
-            }
+            return app(\App\Services\AccountPermissionService::class)->allows($user, $ability);
         });
 
         Gate::define('maintenance-tickets', function (User $user) {
             $gate = Gate::forUser($user);
             return $gate->denies('is-tenant')
-                && $gate->any(['owner-admin', 'is-owner', 'maintenance.tab']);
+                && $gate->any(['is-owner', 'maintenance.tab']);
         });
 
         Gate::define('super-admin', function (User $user) {

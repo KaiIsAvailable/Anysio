@@ -34,7 +34,7 @@
                     <x-table.th name="Status" sortField="s"/>
 
                     @if($showAction)
-                        @canany(['owner-admin', 'leases.upload stamping', 'leases.view agreement', 'leases.cancel lease'])
+                        @canany(['super-admin', 'leases.upload stamping', 'leases.view agreement', 'leases.cancel lease'])
                         <x-table.th name="Action" />
                         @endcanany
                     @endif
@@ -59,7 +59,7 @@
                         $type = basename(str_replace('\\', '/', $lease->leasable_type));
                     @endphp
                     <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                        @canany(['owner-admin', 'leases.show'])
+                        @canany(['super-admin', 'leases.show'])
                         onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'"
                         @endcanany>
 
@@ -190,7 +190,7 @@
                         {{-- Actions (Conditional) --}}
                         @if($showAction)
                             {{-- Action Column --}}
-                            @canany(['owner-admin', 'leases.upload stamping', 'leases.view agreement', 'leases.cancel lease', 'leases.renew lease', 'leases.check out lease'])
+                            @canany(['super-admin', 'leases.upload stamping', 'leases.view agreement', 'leases.cancel lease', 'leases.renew lease', 'leases.check out lease'])
                             <td class="px-6 py-4" x-data="{ 
                                 openUpload: @js($errors->hasAny(['stamping_reference_no', 'stamping_cert']) && old('lease_id') == $lease->id),
                                 shake: @js($errors->hasAny(['stamping_reference_no', 'stamping_cert']) && old('lease_id') == $lease->id),
@@ -201,7 +201,7 @@
                                 <div class="flex flex-col gap-3">
                                     
                                     {{-- Stamping Status Badge --}}
-                                    @canany(['owner-admin', 'leases.upload stamping'])
+                                    @canany(['super-admin', 'leases.upload stamping'])
                                     <div class="min-h-[24px] flex items-center">
                                         @if($lease->stamping_status)
                                             <div class="flex items-center gap-2">
@@ -270,7 +270,7 @@
                                             style="display: none;">
 
                                             {{-- 1. Upload Stamping --}}
-                                            @canany(['owner-admin', 'leases.upload stamping'])
+                                            @canany(['super-admin', 'leases.upload stamping'])
                                                 @if(!$lease->stamping_status && !in_array(strtolower($lease->status), ['cancelled']))
                                                     <button type="button" 
                                                         @click="openUpload = true; openDropdown = false;"
@@ -281,7 +281,7 @@
                                             @endcanany
 
                                             {{-- 2. View Agreement --}}
-                                            @canany(['owner-admin', 'leases.view agreement'])
+                                            @canany(['super-admin', 'leases.view agreement'])
                                                 @if (!empty($lease->document_id))
                                                     <button type="button"
                                                         data-base-content="{{ $lease->documentTemplate?->html_template }}"
@@ -297,7 +297,7 @@
                                             @endcanany
 
                                             {{-- 3. View Refund --}}
-                                            @canany(['owner-admin', 'leases.view agreement'])
+                                            @canany(['super-admin', 'leases.view agreement'])
                                                 @if(!empty($lease->refund_document_id))
                                                     <button type="button"
                                                         data-template-id="{{ $lease->refund_document_id }}"
@@ -311,7 +311,7 @@
                                             @endcanany
 
                                             {{-- 3. Renew Lease --}}
-                                            @canany(['owner-admin', 'leases.renew lease'])
+                                            @canany(['super-admin', 'leases.renew lease'])
                                                 @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end', 'refunded']) || !$lease->is_current)
                                                     <button type="button" 
                                                         @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
@@ -322,7 +322,7 @@
                                             @endcanany
 
                                             {{-- 4. Check Out --}}
-                                            @canany(['owner-admin', 'leases.check out lease'])
+                                            @canany(['super-admin', 'leases.check out lease'])
                                                 @php
                                                     // Get the latest refund status safely
                                                     $latestRefund = $lease->latestRefund;
@@ -352,7 +352,7 @@
                                             @endcanany
                                             
                                             {{-- 5. Cancel Lease --}}
-                                            @canany(['owner-admin', 'leases.cancel lease'])
+                                            @canany(['super-admin', 'leases.cancel lease'])
                                                 @if(!in_array(strtolower(trim($lease->status ?? '')), ['cancelled', 'check out']))
                                                     <button type="button"
                                                         @click="
@@ -370,7 +370,7 @@
                                     </div>
 
                                     {{-- The Stamping Modal component --}}
-                                    @canany(['owner-admin', 'leases.upload stamping'])
+                                    @canany(['super-admin', 'leases.upload stamping'])
                                         <div x-show="openUpload" style="display: none;">
                                             <x-modals.lease-stamping-modal :lease="$lease" />
                                         </div>

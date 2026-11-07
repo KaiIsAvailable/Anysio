@@ -19,7 +19,7 @@ class FeeTypeController extends Controller
      */
     public function store(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.add fee type')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.add fee type')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
         $validated = $request->validate([

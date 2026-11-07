@@ -606,12 +606,12 @@
 
                                         {{-- Action Buttons --}}
                                         <div class="flex items-center gap-3" x-show="['none', 'draft'].includes(refundStatus)">
-                                            @canany(['owner-admin', 'leases.add fee type'])
+                                            @canany(['super-admin', 'leases.add fee type'])
                                             <button type="button" @click="$dispatch('open-fee-type-modal', { category: 'item' })" class="inline-flex items-center text-xs font-bold text-gray-600 hover:text-indigo-600 transition-colors">
                                                 + Add Fee Type
                                             </button>
                                             @endcanany
-                                            @canany(['owner-admin', 'leases.add deduction item'])
+                                            @canany(['super-admin', 'leases.add deduction item'])
                                             <button type="button" @click="addDeductionRow()" class="inline-flex items-center text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
                                                 + Add Deduction Item
                                             </button>
@@ -655,7 +655,7 @@
                                                     <div class="flex items-center gap-2 mb-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
                                                         
                                                         {{-- Remove Button (Hidden if not in Draft/None) --}}
-                                                        @canany(['owner-admin', 'leases.add deduction item'])
+                                                        @canany(['super-admin', 'leases.add deduction item'])
                                                         <button type="button" 
                                                                 x-show="['none', 'draft'].includes(refundStatus)"
                                                                 @click="manualDeductions.splice(index, 1)"
@@ -844,7 +844,7 @@
                                         <template x-if="refundStatus === 'none' || refundStatus === 'draft'">
                                             <div class="flex items-center gap-2">
                                                 {{-- Save as Draft Button --}}
-                                                @canany(['owner-admin', 'leases.save draft'])
+                                                @canany(['super-admin', 'leases.save draft'])
                                                 <x-form.secondary-button 
                                                     type="button" 
                                                     loading="subAction === 'draft'" 
@@ -855,7 +855,7 @@
                                                 @endcanany
 
                                                 {{-- Confirm & Set as Pending Button (Direct Action) --}}
-                                                @canany(['owner-admin', 'leases.set as pending'])
+                                                @canany(['super-admin', 'leases.set as pending'])
                                                 <x-form.primary-button 
                                                     type="button" 
                                                     loading="subAction === 'pending'" 
@@ -871,7 +871,7 @@
                                         <template x-if="refundStatus === 'pending'">
                                             <div class="flex items-center gap-2">
                                                 {{-- Reject / Send Back Button --}}
-                                                @canany(['owner-admin', 'leases.reject refund'])
+                                                @canany(['super-admin', 'leases.reject refund'])
                                                 <x-form.secondary-button 
                                                     loading="subAction === 'reject'" 
                                                     @click="submitCheckout('{{ route('admin.refunds.reject') }}', 'reject')"
@@ -881,7 +881,7 @@
                                                 @endcanany
 
                                                 {{-- Approve Button --}}
-                                                @canany(['owner-admin', 'leases.approve refund'])
+                                                @canany(['super-admin', 'leases.approve refund'])
                                                 <x-form.primary-button 
                                                     type="button" 
                                                     loading="subAction === 'approve'" 
@@ -896,7 +896,7 @@
                                         {{-- STEP 4: APPROVED -> Proceed to Final Refund Payout --}}
                                         <template x-if="refundStatus === 'approved'">
                                             <div class="flex items-center gap-2">
-                                                @canany(['owner-admin', 'leases.proceed refund'])
+                                                @canany(['super-admin', 'leases.proceed refund'])
                                                 <x-form.primary-button
                                                     type="button"
                                                     loading="subAction === 'disburse'"

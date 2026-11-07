@@ -20,6 +20,8 @@ class RoomAssetController extends Controller
     use RoleBasedDataTrait;
     public function index(Request $request) 
     {
+        Gate::authorize('property.view room assets');
+
         $user = get_effective_user();
         $search = $request->input('search');
 

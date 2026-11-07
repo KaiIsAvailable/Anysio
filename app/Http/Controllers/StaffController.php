@@ -13,7 +13,7 @@ class StaffController extends Controller
 {
     public function index(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('staff.tab')) {
+        if (Gate::denies('super-admin') && Gate::denies('staff.tab')) {
             return view('errors.403');
         }
 
@@ -45,7 +45,7 @@ class StaffController extends Controller
 
     public function create(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('staff.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('staff.create')) {
             return view('errors.403');
         }
 
@@ -67,7 +67,7 @@ class StaffController extends Controller
 
     public function store(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('staff.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('staff.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -160,7 +160,7 @@ class StaffController extends Controller
      */
     public function show(string $id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('staff.show')) {
+        if (Gate::denies('super-admin') && Gate::denies('staff.show')) {
             return view('errors.403');
         }
 
@@ -179,7 +179,7 @@ class StaffController extends Controller
      */
     public function edit(string $id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('staff.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('staff.edit')) {
             return view('errors.403');
         }
 
@@ -212,7 +212,7 @@ class StaffController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('staff.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('staff.edit')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -292,7 +292,7 @@ class StaffController extends Controller
      */
     public function destroy($id)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('staff.delete')) {
+        if (Gate::denies('super-admin') && Gate::denies('staff.delete')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 

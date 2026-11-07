@@ -40,14 +40,14 @@
                         <thead class="bg-gray-50">
                             <tr>
                                 <x-table.th name="Invoice No" sortField="inv" />
-                                @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt', 'invoice.view payment proof'])
+                                @canany(['super-admin', 'invoice.view invoice', 'invoice.view receipt', 'invoice.view payment proof'])
                                 <x-table.th name="Documents" />
                                 @endcanany
                                 <x-table.th name="Tenant Details" sortField="t" />
                                 <x-table.th name="Period / Due Date" />
                                 <x-table.th name="Amount Details" />
                                 <x-table.th name="Status" sortField="s" />
-                                @canany(['owner-admin', 'invoice.record payment', 'invoice.void'])
+                                @canany(['super-admin', 'invoice.record payment', 'invoice.void'])
                                 <x-table.th name="Actions" />
                                 @endcanany
                                 <x-table.th name="Remarks" />
@@ -65,7 +65,7 @@
                                 </td>
 
                                 <!-- Document -->
-                                @canany(['owner-admin', 'invoice.view invoice', 'invoice.view receipt', 'invoice.view payment proof'])
+                                @canany(['super-admin', 'invoice.view invoice', 'invoice.view receipt', 'invoice.view payment proof'])
                                 <td class="px-6 py-4 whitespace-nowrap">
                                     <div class="flex flex-col items-start gap-1.5" 
                                     x-data="{ 
@@ -83,7 +83,7 @@
                                         }
                                     }">
                                         <!-- Loop through payments to display receipt proof buttons -->
-                                        @canany(['owner-admin', 'invoice.view payment proof'])
+                                        @canany(['super-admin', 'invoice.view payment proof'])
                                             @foreach($invoice->payments as $payment)
                                                 @php
                                                     $receiptUrl = is_array($payment) ? ($payment['receipt_url'] ?? null) : ($payment->receipt_url ?? null);
@@ -121,7 +121,7 @@
                                         @endphp
 
                                         <!-- 1. Invoice Template Component -->
-                                        @canany(['owner-admin', 'invoice.view invoice'])
+                                        @canany(['super-admin', 'invoice.view invoice'])
                                         @if(data_get($invoice, 'document_template_id') && $templateTitle)
                                         <div x-data="{
                                                 invNo: @js($invoice->invoice_no),
@@ -143,7 +143,7 @@
                                         @endcanany
 
                                         <!-- 2. Loop Through Multiple Receipts Components -->
-                                        @canany(['owner-admin', 'invoice.view receipt'])
+                                        @canany(['super-admin', 'invoice.view receipt'])
                                         @if(!empty($receipts))
                                             @foreach($receipts as $receipt)
                                             @php
@@ -241,11 +241,11 @@
                                 </td>
 
                                 <!-- Actions -->
-                                @canany(['owner-admin', 'invoice.record payment', 'invoice.void'])
+                                @canany(['super-admin', 'invoice.record payment', 'invoice.void'])
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                     <div class="flex flex-col gap-1.5 w-full">
                                         {{-- Record Payment Button --}}
-                                        @canany(['owner-admin', 'invoice.record payment'])
+                                        @canany(['super-admin', 'invoice.record payment'])
                                         @if(in_array($invoice->status, ['unpaid', 'partial']))
                                         @php
                                         $paymentPayload = json_encode([
@@ -270,7 +270,7 @@
                                         @endcanany
 
                                         {{-- Void Button --}}
-                                        @canany(['owner-admin', 'invoice.void'])
+                                        @canany(['super-admin', 'invoice.void'])
                                         @if(!in_array($invoice->status, ['void']))
                                         <button type="button"
                                             @click="$dispatch('open-void-modal', { actionUrl: '{{ route('admin.invoices.void', $invoice->id) }}', invoiceNumber: '{{ $invoice->invoice_no }}' })"

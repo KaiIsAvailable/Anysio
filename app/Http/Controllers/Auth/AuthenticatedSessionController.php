@@ -71,7 +71,7 @@ class AuthenticatedSessionController extends Controller
                 }
             }
             
-            return redirect()->route('dashboard');
+            return redirect()->route(app(\App\Services\LandingPageService::class)->routeFor(Auth::user()));
         }
 
         // 2. 角色分流 (确保每个角色去正确的地方)
@@ -88,7 +88,7 @@ class AuthenticatedSessionController extends Controller
             case 'agentAdmin':
             case 'admin':
             case 'staff':
-                return redirect()->route('dashboard');
+                return redirect()->route(app(\App\Services\LandingPageService::class)->routeFor(Auth::user()));
 
             default:
                 // 其他未知角色去首页

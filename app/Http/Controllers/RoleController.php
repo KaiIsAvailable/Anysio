@@ -12,7 +12,7 @@ class RoleController extends Controller
 {
     public function store(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('settings.create new role')) {
+        if (Gate::denies('super-admin') && Gate::denies('settings.create new role')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -74,7 +74,7 @@ class RoleController extends Controller
 
     public function destroy(Request $request, Role $role)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('settings.delete user role')) {
+        if (Gate::denies('super-admin') && Gate::denies('settings.delete user role')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 

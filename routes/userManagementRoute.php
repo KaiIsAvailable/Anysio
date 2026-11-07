@@ -2,7 +2,7 @@
 use App\Http\Controllers\UserManagementController;
 use Illuminate\Support\Facades\Route;
 
-Route::resource('userManagement', UserManagementController::class);
+Route::resource('userManagement', UserManagementController::class)->middleware('can:super-admin');
 Route::get('display-receipt/{filename}', [UserManagementController::class, 'displayReceipt'])
     ->name('receipt.display')
     ->where('filename', '.*');

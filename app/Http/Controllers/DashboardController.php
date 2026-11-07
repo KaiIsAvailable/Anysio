@@ -18,8 +18,8 @@ class DashboardController extends Controller
 
     public function index(SetupCheckerService $checker, Request $request, LeaseService $leaseService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('dashboard.tab')) {
-            return view('errors.403');
+        if (Gate::denies('super-admin') && Gate::denies('dashboard.tab')) {
+            return redirect()->route(app(\App\Services\LandingPageService::class)->routeFor(Auth::user()));
         }
 
         $user = get_effective_user();

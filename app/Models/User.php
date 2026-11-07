@@ -65,6 +65,7 @@ class User extends Authenticatable implements MustVerifyEmail
     protected function casts(): array
     {
         return [
+            'account_permissions' => 'array',
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
         ];

@@ -67,9 +67,9 @@
     isMultiple: @js($multiple),
     selectedValues: @js($selectedValues),
     selectedLabels: @js($initialLabels),
-    selectedLabel: '{{ $selectedLabel }}',
-    selectedValue: '{{ $selectedValues[0] ?? '' }}',
-    lastValidLabel: '{{ $selectedLabel }}',
+    selectedLabel: @js($selectedLabel),
+    selectedValue: @js($selectedValues[0] ?? ''),
+    lastValidLabel: @js($selectedLabel),
     dropUp: false,
     options: @js($parsedOptions),
 

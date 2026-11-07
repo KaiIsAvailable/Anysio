@@ -21,7 +21,7 @@ class RefundController extends Controller
      */
     public function storeDraft(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.save draft')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.save draft')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
         //dd($request->all());
@@ -79,7 +79,7 @@ class RefundController extends Controller
      */
     public function pending(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.set as pending')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.set as pending')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
         $validated = $request->validate([
@@ -130,7 +130,7 @@ class RefundController extends Controller
 
     public function reject(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.reject refund')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.reject refund')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
         $validated = $request->validate([
@@ -151,7 +151,7 @@ class RefundController extends Controller
      */
     public function approve(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.approve refund')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.approve refund')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
         $validated = $request->validate([
@@ -173,7 +173,7 @@ class RefundController extends Controller
      */
     public function disburse(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.proceed refund')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.proceed refund')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
         $validated = $request->validate([
@@ -226,7 +226,7 @@ class RefundController extends Controller
 
     private function authorizeDeductionChanges(Lease $lease, array $items): bool
     {
-        if (Gate::allows('owner-admin') || Gate::allows('leases.add deduction item')) {
+        if (Gate::allows('super-admin') || Gate::allows('leases.add deduction item')) {
             return true;
         }
 

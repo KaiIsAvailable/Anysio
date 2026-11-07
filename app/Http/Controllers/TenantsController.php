@@ -89,7 +89,7 @@ class TenantsController extends Controller
 
     public function index(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('tenant.tab')) {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.tab')) {
             return view('errors.403');
         }
 
@@ -159,7 +159,7 @@ class TenantsController extends Controller
      */
     public function create()
     {
-        if (Gate::denies('owner-admin') && Gate::denies('tenant.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -168,7 +168,7 @@ class TenantsController extends Controller
 
     public function store(Request $request, FileService $fileService, BankAccountService $bankAccountService, CompanyService $companyService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('tenant.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -178,7 +178,7 @@ class TenantsController extends Controller
         }
 
         // 2. 校验数据 (统一抛出 ValidationException)
-        $canModifyBankDetails = Gate::allows('owner-admin') || Gate::allows('tenant.modify bank details');
+        $canModifyBankDetails = Gate::allows('super-admin') || Gate::allows('tenant.modify bank details');
         $this->validateTenantData($request, null, null, $canModifyBankDetails);
 
         $effectiveUser = get_effective_user();
@@ -276,7 +276,7 @@ class TenantsController extends Controller
      */
     public function edit(Tenants $tenant)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('tenant.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.edit')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -292,13 +292,13 @@ class TenantsController extends Controller
      */
     public function update(Request $request, Tenants $tenant, FileService $fileService, BankAccountService $bankAccountService, CompanyService $companyService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('tenant.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.edit')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
         // 1. 执行验证（内部若失败会抛出异常，自动返回）
         $request->merge(['tenant_type' => $tenant->tenant_type]);
-        $canModifyBankDetails = Gate::allows('owner-admin') || Gate::allows('tenant.modify bank details');
+        $canModifyBankDetails = Gate::allows('super-admin') || Gate::allows('tenant.modify bank details');
         $this->validateTenantData($request, $tenant->id, $tenant->user_id, $canModifyBankDetails);
 
         return DB::transaction(function () use ($tenant, $request, $fileService, $bankAccountService, $canModifyBankDetails, $companyService) {
@@ -397,7 +397,7 @@ class TenantsController extends Controller
      */
     public function destroy(Tenants $tenant)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('tenant.delete')) {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.delete')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
         // 1. 检查是否还有正在进行的有效租约
@@ -460,7 +460,7 @@ class TenantsController extends Controller
         Request $request
     )
     {
-        if (Gate::denies('owner-admin') && Gate::denies('tenant.show')) {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.show')) {
             return view('errors.403');
         }
 
@@ -506,7 +506,7 @@ class TenantsController extends Controller
 
     public function showIcPhoto(Request $request, $filename, FileService $fileService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('tenant.view IC')) {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.view IC')) {
             abort(403);
         }
 
@@ -528,7 +528,7 @@ class TenantsController extends Controller
 
     public function viewIc(Tenants $tenant)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('tenant.view IC')) {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.view IC')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 

@@ -28,7 +28,7 @@ class LeaseController extends Controller
 
     public function index(Request $request, LeaseService $leaseService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.tab')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.tab')) {
             return view('errors.403');
         }
 
@@ -160,7 +160,7 @@ class LeaseController extends Controller
 
     public function create(Request $request, LeaseService $leaseService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.lease controller')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.lease controller')) {
             return view('errors.403');
         }
 
@@ -175,7 +175,7 @@ class LeaseController extends Controller
 
     public function store(StoreLeaseRequest $request, LeaseService $leaseService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.lease controller')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.lease controller')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -196,7 +196,7 @@ class LeaseController extends Controller
         DocumentTemplateService $documentTemplateService,
         LeaseService $leaseService
     ) {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.lease controller')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.lease controller')) {
             return response()->json(['message' => 'You have no permission.'], 403);
         }
 
@@ -527,7 +527,7 @@ class LeaseController extends Controller
 
     public function checkoutPreview(Lease $lease, LeaseService $leaseService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.lease controller')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.lease controller')) {
             return response()->json(['message' => 'You have no permission.'], 403);
         }
 
@@ -589,7 +589,7 @@ class LeaseController extends Controller
 
     public function show(Request $request, Lease $lease, LeaseService $leaseService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.show')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.show')) {
             return view('errors.403');
         }
 
@@ -962,7 +962,7 @@ class LeaseController extends Controller
 
     public function uploadStamping(Request $request, Lease $lease, FileService $fileService)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.upload stamping')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.upload stamping')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -1017,6 +1017,8 @@ class LeaseController extends Controller
 
     public function cancel(Request $request, Lease $lease, LeaseService $leaseService)
     {
+        Gate::authorize('leases.cancel lease');
+
         $request->validate([
             'cancellation_reason' => ['required', 'string', 'max:1000'],
         ]);

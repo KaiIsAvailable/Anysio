@@ -24,7 +24,7 @@
                         </x-form.primary-button>
                     @endcan
 
-                    @canany(['owner-admin', 'tenant.create'])
+                    @canany(['super-admin', 'tenant.create'])
                         <x-form.primary-button
                             type="button"
                             loading="loading"
@@ -99,7 +99,7 @@
                                     <x-table.th name="Emergency" />
                                     <x-table.th name="Document" />
                                     <x-table.th name="Joined Date" sortField="jd" />
-                                    @canany(['owner-admin', 'tenant.edit', 'tenant.delete'])
+                                    @canany(['super-admin', 'tenant.edit', 'tenant.delete'])
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                     @endcanany
                                 </tr>
@@ -107,7 +107,7 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                                 @foreach($tenants as $tenant)
                                     <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                                        @canany(['owner-admin', 'tenant.show'])
+                                        @canany(['super-admin', 'tenant.show'])
                                         onclick="window.location='{{ route('admin.tenants.show', $tenant->id) }}'"
                                         @endcan>
                                         
@@ -212,7 +212,7 @@
                                         </td>
 
                                         <!-- Actions -->
-                                        @canany(['owner-admin', 'tenant.edit', 'tenant.delete'])
+                                        @canany(['super-admin', 'tenant.edit', 'tenant.delete'])
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
                                                 @can('tenant.edit')

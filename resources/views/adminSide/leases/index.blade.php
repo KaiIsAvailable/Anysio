@@ -9,7 +9,7 @@
                     <p class="mt-2 text-sm text-gray-500">Manage and review tenant leases.</p>
                 </div>
                 <div class="flex-shrink-0 flex gap-2">
-                    @canany(['owner-admin', 'leases.agreement template'])
+                    @canany(['super-admin', 'leases.agreement template'])
                     <div x-data="{ loading: false }">
                         <x-form.primary-button
                             type="button"
@@ -24,7 +24,7 @@
                     </div>
                     @endcanany
 
-                    @canany(['owner-admin', 'leases.lease controller'])
+                    @canany(['super-admin', 'leases.lease controller'])
                     <div x-data="{ loading: false }">
                         <x-form.primary-button
                             type="button"

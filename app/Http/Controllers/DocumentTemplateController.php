@@ -24,7 +24,7 @@ class DocumentTemplateController extends Controller
 
     public function index(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('leases.agreement template')) {
+        if (Gate::denies('super-admin') && Gate::denies('leases.agreement template')) {
             return view('errors.403');
         }
 
@@ -131,7 +131,7 @@ class DocumentTemplateController extends Controller
 
     public function create(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('document template.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('document template.create')) {
             return view('errors.403');
         }
 
@@ -189,7 +189,7 @@ class DocumentTemplateController extends Controller
 
     public function store(Request $request)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('document template.create')) {
+        if (Gate::denies('super-admin') && Gate::denies('document template.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -211,6 +211,8 @@ class DocumentTemplateController extends Controller
 
     public function activate(DocumentTemplate $documentTemplate)
     {
+        Gate::authorize('document template.set active document');
+
         try {
             DB::transaction(function () use ($documentTemplate) {
                 
@@ -241,7 +243,7 @@ class DocumentTemplateController extends Controller
 
     public function edit(DocumentTemplate $documentTemplate)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('document template.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('document template.edit')) {
             return view('errors.403');
         }
 
@@ -276,7 +278,7 @@ class DocumentTemplateController extends Controller
 
     public function update(Request $request, DocumentTemplate $documentTemplate)
     {
-        if (Gate::denies('owner-admin') && Gate::denies('document template.edit')) {
+        if (Gate::denies('super-admin') && Gate::denies('document template.edit')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 

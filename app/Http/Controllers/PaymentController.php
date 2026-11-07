@@ -33,6 +33,10 @@ class PaymentController extends Controller
 
     public function viewReceipt(Payment $payment)
     {
+        if (\Illuminate\Support\Facades\Gate::allows('owner-admin') || \Illuminate\Support\Facades\Gate::allows('is-staff')) {
+            \Illuminate\Support\Facades\Gate::authorize('invoice.view payment proof');
+        }
+
         abort_unless($payment->receipt_path, 404);
 
         $fullPath = storage_path('app/private/' . $payment->receipt_path);

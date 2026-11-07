@@ -136,7 +136,7 @@
                         <div class="flex items-center gap-3">
                             <x-form.secondary-button x-show="breakdownAllowed && !previewLoading && !previewError" @click="editBreakdown()">Set Rental Breakdown</x-form.secondary-button>
                             {{-- Print Button --}}
-                            @canany(['owner-admin', 'document template.print'])
+                            @canany(['super-admin', 'document template.print'])
                             <button type="button" 
                                     @click="printDocument()" 
                                     :disabled="previewLoading || !!previewError"

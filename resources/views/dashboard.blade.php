@@ -85,7 +85,7 @@
 
                     <!-- LEFT SIDE: Pending Renewal & Ended Leases List (Takes up 2 columns on large screens) -->
                     <div class="lg:col-span-2 space-y-6">
-                        @canany(['owner-admin', 'dashboard.lease list'])
+                        @canany(['super-admin', 'dashboard.lease list'])
                         <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
                             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                                 <h3 class="font-bold text-slate-900 text-base uppercase tracking-wider">Leases Needing Attention</h3>
@@ -146,7 +146,7 @@
                                             <th class="py-3 px-4">Phone Number</th>
                                             <th class="py-3 px-4">End Date</th>
                                             <th class="py-3 px-4">Status</th>
-                                            @canany(['owner-admin', 'leases.renew lease', 'leases.check out lease'])
+                                            @canany(['super-admin', 'leases.renew lease', 'leases.check out lease'])
                                             <th class="py-3 px-4">Actions</th>
                                             @endcanany
                                         </tr>
@@ -154,7 +154,7 @@
                                     <tbody class="divide-y divide-slate-50 text-sm">
                                         @forelse($pendingOrEndedLeases ?? [] as $lease)
                                             <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                                                @canany(['owner-admin', 'leases.show'])
+                                                @canany(['super-admin', 'leases.show'])
                                                 onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'"
                                                 @endcanany
                                                 >
@@ -214,11 +214,11 @@
                                                         {{ $displayText }}
                                                     </span>
                                                 </td>
-                                                @canany(['owner-admin', 'leases.renew lease', 'leases.check out lease'])
+                                                @canany(['super-admin', 'leases.renew lease', 'leases.check out lease'])
                                                 <td class="py-3 px-4" @click.stop>
                                                     <div class="flex flex-col gap-1.5 w-full">
                                                         {{-- Renew Button (Emerald Theme) --}}
-                                                        @canany(['owner-admin', 'leases.renew lease'])
+                                                        @canany(['super-admin', 'leases.renew lease'])
                                                         @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end']))
                                                             <button type="button" 
                                                                 @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Renew', leaseId: '{{ $lease->id }}' } }))"
@@ -229,7 +229,7 @@
                                                         @endcanany
 
                                                         {{-- Check Out Button (Amber Theme) --}}
-                                                        @canany(['owner-admin', 'leases.check out lease'])
+                                                        @canany(['super-admin', 'leases.check out lease'])
                                                         @if(!in_array(strtolower($lease->status), ['cancelled', 'check out', 'end']))
                                                             <button type="button" 
                                                                 @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } }))"
@@ -261,7 +261,7 @@
                         </div>
                         @endcanany
 
-                        @canany(['owner-admin', 'dashboard.pending refund list'])
+                        @canany(['super-admin', 'dashboard.pending refund list'])
                         <div id="refund-section" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
                             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                                 <h3 class="font-bold text-slate-900 text-base uppercase tracking-wider">Leases Pending Refund</h3>
@@ -278,7 +278,7 @@
                                             <th class="py-3 px-4">Phone Number</th>
                                             <th class="py-3 px-4">End Date</th>
                                             <th class="py-3 px-4">Refund Status</th>
-                                            @canany(['owner-admin', 'leases.check out lease'])
+                                            @canany(['super-admin', 'leases.check out lease'])
                                             <th class="py-3 px-4">Actions</th>
                                             @endcanany
                                         </tr>
@@ -295,7 +295,7 @@
                                                 };
                                             @endphp
                                             <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
-                                                @canany(['owner-admin', 'leases.show'])
+                                                @canany(['super-admin', 'leases.show'])
                                                 onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'"
                                                 @endcanany>
                                                 <td class="py-3 px-4">
@@ -334,7 +334,7 @@
                                                 <td class="py-3 px-4">
                                                     <span class="px-2.5 py-1 text-xs font-bold uppercase rounded-full {{ get_status_badge($refundStatus) }}">{{ $refundLabel }}</span>
                                                 </td>
-                                                @canany(['owner-admin', 'leases.check out lease'])
+                                                @canany(['super-admin', 'leases.check out lease'])
                                                 <td class="py-3 px-4">
                                                     <button type="button"
                                                         @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } }))"
@@ -346,7 +346,7 @@
                                             </tr>
                                         @empty
                                             <tr>
-                                                <td colspan="{{ Gate::any(['owner-admin', 'leases.check out lease']) ? 5 : 4 }}" class="py-8 text-center text-slate-400 text-sm font-medium">
+                                                <td colspan="{{ Gate::any(['super-admin', 'leases.check out lease']) ? 5 : 4 }}" class="py-8 text-center text-slate-400 text-sm font-medium">
                                                     No leases have an incomplete refund.
                                                 </td>
                                             </tr>
@@ -363,7 +363,7 @@
                         </div>
                         @endcanany
 
-                        @canany(['owner-admin', 'dashboard.lease list', 'dashboard.pending refund list'])
+                        @canany(['super-admin', 'dashboard.lease list', 'dashboard.pending refund list'])
                         <x-modals.lease-create-modal
                             :tenants="$tenants"
                             :leases="$modalLeases"
@@ -381,7 +381,7 @@
                         />
                         @endcanany
 
-                        @canany(['owner-admin', 'dashboard.invoice list'])
+                        @canany(['super-admin', 'dashboard.invoice list'])
                         <div class="lg:col-span-2 space-y-6" id="overdue-section">
                             <div class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
                                 
@@ -482,11 +482,11 @@
                                                     </td>
 
                                                     <!-- Actions -->
-                                                    @canany(['owner-admin', 'invoice.record payment', 'invoice.void'])
+                                                    @canany(['super-admin', 'invoice.record payment', 'invoice.void'])
                                                     <td class="py-3 px-4" @click.stop>
                                                         <div class="flex flex-col gap-1.5 w-full">
                                                             {{-- Record Payment Button --}}
-                                                            @canany(['owner-admin', 'invoice.record payment'])
+                                                            @canany(['super-admin', 'invoice.record payment'])
                                                             @if(in_array($invoice->status, ['unpaid', 'partial']))
                                                             @php
                                                             $paymentPayload = json_encode([
@@ -511,7 +511,7 @@
                                                             @endcanany
 
                                                             {{-- Void Button --}}
-                                                            @canany(['owner-admin', 'invoice.void'])
+                                                            @canany(['super-admin', 'invoice.void'])
                                                             @if(!in_array($invoice->status, ['void']))
                                                             <button type="button"
                                                                 @click.stop="$dispatch('open-void-modal', { actionUrl: '{{ route('admin.invoices.void', $invoice->id) }}', invoiceNumber: '{{ $invoice->invoice_no }}' })"
@@ -604,7 +604,7 @@
                             ['title' => 'Rooms',      'permission' => 'dashboard.room analysis', 'total' => $counts['total_rooms'] ?? 0,      'vacant' =>$counts['vacant_rooms'] ?? 0,      'occ' => $counts['occ_rooms'] ?? 0,      'main' =>$counts['main_rooms'] ?? 0,      'clean' => $counts['clean_rooms'] ?? 0],                     
                         ] as $stat)
 
-                        @canany(['owner-admin', $stat['permission']])
+                        @canany(['super-admin', $stat['permission']])
                         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100" x-cloak
                             x-data="{ view: 'stats' }">
                             

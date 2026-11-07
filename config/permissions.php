@@ -6,7 +6,7 @@ return [
         'dashboard'         => ['tab', 'lease list', 'pending refund list', 'invoice list', 'property analysis', 'unit analysis', 'room analysis'],
         'owner'             => ['tab', 'create', 'edit', 'delete', 'show'],
         'tenant'            => ['tab', 'create', 'edit', 'delete', 'show', 'view IC', 'modify bank details'],
-        'property'          => ['tab', 'create', 'edit', 'delete', 'show unit'],
+        'property'          => ['tab', 'create', 'edit', 'delete', 'show unit', 'view room assets'],
         'unit'              => ['create', 'edit', 'delete', 'show room'],
         'room'              => ['create', 'edit', 'delete', 'show'],
         'leases'            => ['tab', 'agreement template', 'lease controller', 'upload stamping', 'view agreement', 'renew lease', 'check out lease' => ['add fee type', 'add deduction item', 'save draft', 'set as pending', 'reject refund', 'approve refund', 'proceed refund'], 'cancel lease', 'show', 'auto generate invoice', 'add manual invoice'],

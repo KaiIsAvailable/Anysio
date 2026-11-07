@@ -208,12 +208,12 @@
                                                     <span class="text-xs font-bold text-amber-900">+ RM</span>
                                                     <input type="number" step="0.01" 
                                                         x-model.number="overridePenaltyAmount"
-                                                        class="w-24 px-2 py-1 text-sm font-bold text-amber-900 bg-white border border-amber-300 rounded-md focus:ring-1 focus:ring-amber-500 focus:outline-none text-right @canany(['owner-admin', 'invoice.edit penalty']) @else bg-gray-100 text-gray-500 cursor-not-allowed opacity-75 @endcanany"
+                                                        class="w-24 px-2 py-1 text-sm font-bold text-amber-900 bg-white border border-amber-300 rounded-md focus:ring-1 focus:ring-amber-500 focus:outline-none text-right @canany(['super-admin', 'invoice.edit penalty']) @else bg-gray-100 text-gray-500 cursor-not-allowed opacity-75 @endcanany"
                                                         @wheel="$event.preventDefault()"
-                                                        @canany(['owner-admin', 'invoice.edit penalty']) @else readonly @endcanany />
+                                                        @canany(['super-admin', 'invoice.edit penalty']) @else readonly @endcanany />
                                                 </div>
                                                 
-                                                @canany(['owner-admin', 'invoice.remove penalty'])
+                                                @canany(['super-admin', 'invoice.remove penalty'])
                                                 <button type="button" @click="penaltyCancelled = true" class="text-amber-700 hover:text-red-600 p-1 transition-colors" title="Cancel/Remove Penalty">
                                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>

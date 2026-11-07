@@ -29,7 +29,7 @@ class RefundPermissionTest extends TestCase
     #[DataProvider('protectedActions')]
     public function test_direct_requests_without_permission_redirect_with_error_before_processing(string $controller, string $method, string $permission): void
     {
-        Gate::shouldReceive('denies')->once()->with('owner-admin')->andReturn(true);
+        Gate::shouldReceive('denies')->once()->with('super-admin')->andReturn(true);
         Gate::shouldReceive('denies')->once()->with($permission)->andReturn(true);
         $response = $this->controller($controller)->$method(Request::create('/action', 'POST'));
         $this->assertSame(302, $response->getStatusCode());
@@ -39,16 +39,16 @@ class RefundPermissionTest extends TestCase
     #[DataProvider('protectedActions')]
     public function test_action_permission_allows_request_to_reach_normal_validation(string $controller, string $method, string $permission): void
     {
-        Gate::shouldReceive('denies')->once()->with('owner-admin')->andReturn(true);
+        Gate::shouldReceive('denies')->once()->with('super-admin')->andReturn(true);
         Gate::shouldReceive('denies')->once()->with($permission)->andReturn(false);
         $this->expectException(ValidationException::class);
         $this->controller($controller)->$method(Request::create('/action', 'POST'));
     }
 
     #[DataProvider('protectedActions')]
-    public function test_owner_admin_can_bypass_individual_action_permission(string $controller, string $method, string $permission): void
+    public function test_system_admin_can_bypass_individual_action_permission(string $controller, string $method, string $permission): void
     {
-        Gate::shouldReceive('denies')->once()->with('owner-admin')->andReturn(false);
+        Gate::shouldReceive('denies')->once()->with('super-admin')->andReturn(false);
         $this->expectException(ValidationException::class);
         $this->controller($controller)->$method(Request::create('/action', 'POST'));
     }
@@ -57,9 +57,9 @@ class RefundPermissionTest extends TestCase
     public function test_saving_or_submitting_changed_deductions_requires_deduction_permission(string $method, int $rowCount): void
     {
         $this->deductionFixture();
-        Gate::shouldReceive('denies')->with('owner-admin')->andReturn(true);
+        Gate::shouldReceive('denies')->with('super-admin')->andReturn(true);
         Gate::shouldReceive('denies')->with($method === 'storeDraft' ? 'leases.save draft' : 'leases.set as pending')->andReturn(false);
-        Gate::shouldReceive('allows')->with('owner-admin')->andReturn(false);
+        Gate::shouldReceive('allows')->with('super-admin')->andReturn(false);
         Gate::shouldReceive('allows')->with('leases.add deduction item')->andReturn(false);
         $items = array_fill(0, $rowCount, ['fee_type_id' => 'fee', 'qty' => 1, 'sell_price' => 20]);
         $response = $this->controller(RefundController::class)->$method(Request::create('/action', 'POST', ['lease_id' => 'lease', 'items' => $items]));
@@ -79,9 +79,9 @@ class RefundPermissionTest extends TestCase
     public function test_save_permission_can_save_existing_unchanged_deductions(): void
     {
         $this->deductionFixture();
-        Gate::shouldReceive('denies')->with('owner-admin')->andReturn(true);
+        Gate::shouldReceive('denies')->with('super-admin')->andReturn(true);
         Gate::shouldReceive('denies')->with('leases.save draft')->andReturn(false);
-        Gate::shouldReceive('allows')->with('owner-admin')->andReturn(false);
+        Gate::shouldReceive('allows')->with('super-admin')->andReturn(false);
         Gate::shouldReceive('allows')->with('leases.add deduction item')->andReturn(false);
         $service = $this->mock(RefundService::class);
         $service->shouldReceive('saveAsDraft')->once()->andReturn(new Refund());

@@ -7,7 +7,7 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Staff</h1>
                     <p class="mt-2 text-sm text-gray-500">Staff linked to your account.</p>
                 </div>
-                @canany(['owner-admin', 'staff.create'])
+                @canany(['super-admin', 'staff.create'])
                 <div class="flex-shrink-0" x-data="{loading: false}">
                     <x-form.primary-button
                         type="button"
@@ -52,7 +52,7 @@
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Role</th>
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Managed By</th>
                                     <th class="px-6 py-4 text-xs font-semibold text-gray-500 uppercase">Joined Date</th>
-                                    @canany(['owner-admin', 'staff.edit', 'staff.delete'])
+                                    @canany(['super-admin', 'staff.edit', 'staff.delete'])
                                     <th class="px-6 py-4 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
                                     @endcanany
                                 </tr>
@@ -64,7 +64,7 @@
                                         $manager = optional($member->user_management)->user;
                                     @endphp
                                     <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150" 
-                                        @canany(['owner-admin', 'staff.show'])
+                                        @canany(['super-admin', 'staff.show'])
                                         onclick="window.location='{{ route('admin.staff.show', $member->id) }}'"
                                         @endcanany
                                     >
@@ -111,16 +111,16 @@
                                                 </span>
                                             </div>
                                         </td>
-                                        @canany(['owner-admin', 'staff.edit', 'staff.delete'])
+                                        @canany(['super-admin', 'staff.edit', 'staff.delete'])
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
                                             <div class="flex items-center justify-center space-x-2">
-                                                @canany(['owner-admin', 'staff.edit'])
+                                                @canany(['super-admin', 'staff.edit'])
                                                 <a href="{{ route('admin.staff.edit', $member->id) }}" class="p-2 text-indigo-600 hover:text-indigo-900 bg-indigo-50 rounded-lg">
                                                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path></svg>
                                                 </a>
                                                 @endcanany
 
-                                                @canany(['owner-admin', 'staff.delete'])
+                                                @canany(['super-admin', 'staff.delete'])
                                                 <form action="{{ route('admin.staff.destroy', $member->id) }}" method="POST" onsubmit="return confirm('Delete this staff?');" class="inline">
                                                     @csrf @method('DELETE')
                                                     <button type="submit" class="p-2 text-red-600 hover:text-red-900 bg-red-50 rounded-lg">

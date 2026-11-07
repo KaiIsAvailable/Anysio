@@ -105,7 +105,9 @@ return [
      * Set this to false if you want to implement custom logic for checking permissions.
      */
 
-    'register_permission_check_method' => true,
+    // AppServiceProvider checks account grants and staff roles together. A second
+    // Gate callback from Spatie could otherwise allow staff before that check.
+    'register_permission_check_method' => false,
 
     /*
      * When set to true, Laravel\Octane\Events\OperationTerminated event listener will be registered

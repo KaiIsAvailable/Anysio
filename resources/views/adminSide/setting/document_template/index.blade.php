@@ -59,7 +59,7 @@
                     <p class="mt-2 text-sm text-gray-500">View and manage your document templates (Agreements, Invoices, Receipts, etc).</p>
                 </div>
                 <div class="flex-shrink-0" x-data="{loading: false}">
-                    @canany(['owner-admin', 'document template.create'])
+                    @canany(['super-admin', 'document template.create'])
                     <x-form.primary-button
                         type="button"
                         loading="loading"
@@ -155,7 +155,7 @@
                         </div>
 
                         <div class="flex items-center gap-4">
-                            @canany(['owner-admin', 'document template.preview'])
+                            @canany(['super-admin', 'document template.preview'])
                             <span class="text-sm font-medium text-indigo-600 flex items-center cursor-pointer select-none" @click="expanded = !expanded">
                                 <span x-text="expanded ? 'Click to collapse' : 'Click to preview'"></span>
                                 <svg class="w-4 h-4 ml-1 transition-transform duration-300"
@@ -166,7 +166,7 @@
                             </span>
                             @endcanany
 
-                            @canany(['owner-admin', 'document template.print'])
+                            @canany(['super-admin', 'document template.print'])
                             <button type="button"
                                 @click.stop="printContract(currentContent)"
                                 class="p-2 text-gray-400 hover:text-slate-600 hover:bg-gray-100 rounded-lg transition-colors" title="Print Document">
@@ -176,7 +176,7 @@
                             </button>
                             @endcanany
 
-                            @canany(['owner-admin', 'document template.edit'])
+                            @canany(['super-admin', 'document template.edit'])
                             <a :href="'{{ route('admin.document-templates.edit', 'PLACEHOLDER') }}'.replace('PLACEHOLDER', currentId)"
                                 class="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
                                 title="Edit and create a new version">
@@ -216,7 +216,7 @@
                                 </template>
 
                                 {{-- 🌟 情況 B：不是 Active 版本 -> 顯示 Checkbox 讓用戶打勾啟用 --}}
-                                @canany(['owner-admin', 'document template.set active document'])
+                                @canany(['super-admin', 'document template.set active document'])
                                 <template x-if="currentStatus !== 'active'">
                                     <label class="inline-flex items-center cursor-pointer group hover:bg-gray-50 px-2 py-1 rounded transition-colors">
                                         <input type="checkbox"

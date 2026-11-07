@@ -64,6 +64,22 @@ class DashboardController extends Controller
             });
         }
 
+        // Reuse the same ownership scope before applying the attention filters.
+        $incompleteRefundLeases = (clone $pendingOrEndedLeasesQuery)
+            ->with('latestRefund')
+            ->whereHas('latestRefund', fn ($query) => $query->whereIn('status', [
+                \App\Enums\RefundStatus::DRAFT,
+                \App\Enums\RefundStatus::PENDING,
+                \App\Enums\RefundStatus::APPROVED,
+                \App\Enums\RefundStatus::REJECTED,
+            ]))
+            ->orderBy('end_date')
+            ->orderBy('id')
+            ->paginate(5, ['*'], 'refund_page')
+            ->onEachSide(1)
+            ->appends($request->query())
+            ->fragment('refund-section');
+
         // 3. Filter specifically for "Leases Needing Attention" 
         $pendingOrEndedLeases = $pendingOrEndedLeasesQuery
             ->where('is_current', true)
@@ -182,7 +198,7 @@ class DashboardController extends Controller
             ->mapWithKeys(fn ($name) => [$name => $name])
             ->toArray();
         
-        $leaseModalData = $leaseService->getLeaseFormPayload($user, $request);
+        $leaseModalData = $leaseService->getLeaseFormPayload($user, $request, $incompleteRefundLeases->pluck('id')->all());
 
         return view('dashboard', array_merge([
             'overdueInvoices' => $overdueInvoices,
@@ -190,6 +206,7 @@ class DashboardController extends Controller
             'counts' => $counts,
             'seeders' => $seeders,
             'pendingOrEndedLeases' => $pendingOrEndedLeases,
+            'incompleteRefundLeases' => $incompleteRefundLeases,
         ], $leaseModalData));
     }
 }

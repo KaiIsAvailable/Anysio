@@ -252,22 +252,6 @@
                                     </tbody>
                                 </table>
 
-                                <x-modals.lease-create-modal 
-                                    :tenants="$tenants" 
-                                    :leases="$modalLeases" {{-- Use unfiltered modal leases here --}}
-                                    :properties="$properties" 
-                                    :units="$units" 
-                                    :rooms="$rooms" 
-                                    :templates="$templates" 
-                                    :refundTemplates="$refundTemplates" 
-                                    :rentFeeTypes="$rentFeeTypes" 
-                                    :serviceFeeTypes="$serviceFeeTypes" 
-                                    :depositFeeTypes="$depositFeeTypes" 
-                                    :managementFeeTypes="$managementFeeTypes" 
-                                    :itemFeeTypes="$itemFeeTypes" 
-                                    :leasePreviewData="$leasePreviewData" 
-                                />
-                                
                                 @if($pendingOrEndedLeases->hasPages())
                                     <div class="px-4 py-3 border-t border-slate-100">
                                         {{ $pendingOrEndedLeases->links() }}
@@ -275,6 +259,126 @@
                                 @endif
                             </div>
                         </div>
+                        @endcanany
+
+                        @canany(['owner-admin', 'dashboard.pending refund list'])
+                        <div id="refund-section" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
+                            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                                <h3 class="font-bold text-slate-900 text-base uppercase tracking-wider">Leases Pending Refund</h3>
+                                <span class="text-sm bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold whitespace-nowrap">
+                                    {{ $incompleteRefundLeases->total() }} Total
+                                </span>
+                            </div>
+
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr class="border-b border-slate-100 text-xs uppercase tracking-wider font-bold text-slate-400">
+                                            <th class="py-3 px-4">Tenant / Property</th>
+                                            <th class="py-3 px-4">Phone Number</th>
+                                            <th class="py-3 px-4">End Date</th>
+                                            <th class="py-3 px-4">Refund Status</th>
+                                            @canany(['owner-admin', 'leases.check out lease'])
+                                            <th class="py-3 px-4">Actions</th>
+                                            @endcanany
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-50 text-sm">
+                                        @forelse($incompleteRefundLeases as $lease)
+                                            @php
+                                                $leasable = $lease->leasable;
+                                                $refundStatus = $lease->latestRefund->status->value;
+                                                $refundLabel = match ($refundStatus) {
+                                                    'pending' => 'Pending Approval',
+                                                    'approved' => 'Awaiting Payment',
+                                                    default => ucfirst($refundStatus),
+                                                };
+                                            @endphp
+                                            <tr class="hover:!bg-indigo-50 transition-colors cursor-pointer group duration-150"
+                                                @canany(['owner-admin', 'leases.show'])
+                                                onclick="window.location='{{ route('admin.leases.show', $lease->id) }}'"
+                                                @endcanany>
+                                                <td class="py-3 px-4">
+                                                    <p class="font-bold text-slate-800">
+                                                        @if($lease->tenant)
+                                                            <a href="{{ route('admin.tenants.show', $lease->tenant->id) }}" onclick="event.stopPropagation()" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                                {{ $lease->tenant->user?->name ?? 'N/A' }}
+                                                            </a>
+                                                        @else
+                                                            N/A
+                                                        @endif
+                                                    </p>
+                                                    <p class="text-sm text-slate-400">
+                                                        @if($leasable instanceof \App\Models\Property)
+                                                            Property:
+                                                            <a href="{{ route('admin.properties.show', $leasable->id) }}" onclick="event.stopPropagation()" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                                {{ $leasable->name }}
+                                                            </a>
+                                                        @elseif($leasable instanceof \App\Models\Unit)
+                                                            Unit:
+                                                            <a href="{{ route('admin.units.show', $leasable->id) }}" onclick="event.stopPropagation()" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                                {{ $leasable->name ?? $leasable->unit_no }}
+                                                            </a>
+                                                        @elseif($leasable instanceof \App\Models\Room)
+                                                            Room:
+                                                            <a href="{{ route('admin.rooms.show', $leasable->id) }}" onclick="event.stopPropagation()" class="font-semibold text-indigo-600 hover:text-indigo-900 hover:underline">
+                                                                {{ $leasable->room_no }}
+                                                            </a>
+                                                        @else
+                                                            N/A
+                                                        @endif
+                                                    </p>
+                                                </td>
+                                                <td class="py-3 px-4">{{ $lease->tenant?->phone ?? 'N/A' }}</td>
+                                                <td class="py-3 px-4 text-slate-600 font-medium">{{ $lease->end_date?->format('d/m/Y') ?? 'N/A' }}</td>
+                                                <td class="py-3 px-4">
+                                                    <span class="px-2.5 py-1 text-xs font-bold uppercase rounded-full {{ get_status_badge($refundStatus) }}">{{ $refundLabel }}</span>
+                                                </td>
+                                                @canany(['owner-admin', 'leases.check out lease'])
+                                                <td class="py-3 px-4">
+                                                    <button type="button"
+                                                        @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } }))"
+                                                        class="px-3 py-1.5 bg-amber-50 text-amber-600 text-sm font-black rounded-lg border border-amber-100 hover:bg-amber-600 hover:text-white transition-all shadow-sm flex items-center justify-center whitespace-nowrap">
+                                                        Continue Refund
+                                                    </button>
+                                                </td>
+                                                @endcanany
+                                            </tr>
+                                        @empty
+                                            <tr>
+                                                <td colspan="{{ Gate::any(['owner-admin', 'leases.check out lease']) ? 5 : 4 }}" class="py-8 text-center text-slate-400 text-sm font-medium">
+                                                    No leases have an incomplete refund.
+                                                </td>
+                                            </tr>
+                                        @endforelse
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            @if($incompleteRefundLeases->hasPages())
+                                <div class="px-4 py-3 border-t border-slate-100">
+                                    {{ $incompleteRefundLeases->links() }}
+                                </div>
+                            @endif
+                        </div>
+                        @endcanany
+
+                        @canany(['owner-admin', 'dashboard.lease list', 'dashboard.pending refund list'])
+                        <x-modals.lease-create-modal
+                            :tenants="$tenants"
+                            :leases="$modalLeases"
+                            :properties="$properties"
+                            :units="$units"
+                            :rooms="$rooms"
+                            :templates="$templates"
+                            :refundTemplates="$refundTemplates"
+                            :rentFeeTypes="$rentFeeTypes"
+                            :serviceFeeTypes="$serviceFeeTypes"
+                            :depositFeeTypes="$depositFeeTypes"
+                            :managementFeeTypes="$managementFeeTypes"
+                            :itemFeeTypes="$itemFeeTypes"
+                            :leasePreviewData="$leasePreviewData"
+                        />
                         @endcanany
 
                         @canany(['owner-admin', 'dashboard.invoice list'])

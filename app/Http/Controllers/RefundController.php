@@ -21,6 +21,9 @@ class RefundController extends Controller
      */
     public function storeDraft(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.save draft')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
         //dd($request->all());
         $validated = $request->validate([
             'lease_id' => 'required|exists:leases,id',
@@ -63,6 +66,9 @@ class RefundController extends Controller
             ];
         })->toArray();
 
+        if (!$this->authorizeDeductionChanges($lease, $items)) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
         $refund = $this->refundService->saveAsDraft($lease, $validated, $items);
 
         return redirect()->back()->with('success', 'Refund settlement saved as draft successfully.');
@@ -73,6 +79,9 @@ class RefundController extends Controller
      */
     public function pending(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.set as pending')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
         $validated = $request->validate([
             'lease_id' => 'required|exists:leases,id',
             'refund_id' => 'nullable|exists:refunds,id',
@@ -111,6 +120,9 @@ class RefundController extends Controller
         })->toArray();
 
         // Call service method to update draft items and switch status to PENDING
+        if (!$this->authorizeDeductionChanges($lease, $items)) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
         $this->refundService->submitForPending($lease, $validated, $items);
 
         return redirect()->back()->with('success', 'Refund settlement submitted for approval successfully.');
@@ -118,6 +130,9 @@ class RefundController extends Controller
 
     public function reject(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.reject refund')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
         $validated = $request->validate([
             'lease_id' => 'required|exists:leases,id',
             ...$this->checkoutMetadataRules(),
@@ -136,6 +151,9 @@ class RefundController extends Controller
      */
     public function approve(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.approve refund')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
         $validated = $request->validate([
             'refund_id' => 'required|exists:refunds,id',
             ...$this->checkoutMetadataRules(),
@@ -155,6 +173,9 @@ class RefundController extends Controller
      */
     public function disburse(Request $request)
     {
+        if (Gate::denies('owner-admin') && Gate::denies('leases.proceed refund')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
         $validated = $request->validate([
             'refund_id' => 'required|exists:refunds,id',
             'checked_out_at' => ['required', 'date'],
@@ -201,6 +222,27 @@ class RefundController extends Controller
         $this->refundService->processDisbursement($refund, $disbursementData, $effectiveUser);
 
         return redirect()->back()->with('success', 'Refund disbursement processed successfully.');
+    }
+
+    private function authorizeDeductionChanges(Lease $lease, array $items): bool
+    {
+        if (Gate::allows('owner-admin') || Gate::allows('leases.add deduction item')) {
+            return true;
+        }
+
+        // Saving or submitting unchanged deductions does not require permission to edit them.
+        $draft = $lease->refunds()->where('status', 'draft')->with('items')->first();
+        $existingItems = $draft?->items->reject(fn ($item) => $item->origin === 'automatic_invoice'
+            || ($item->type?->value === 'utility'
+                && str_starts_with((string) $item->description, 'Unpaid Invoice Auto-Deduction:'))) ?? collect();
+        $normalize = fn ($rows) => collect($rows)->map(fn ($item) => [
+            'fee_type_id' => (string) ($item['fee_type_id'] ?? ''),
+            'type' => ($item['type'] ?? null) instanceof \BackedEnum ? $item['type']->value : ($item['type'] ?? 'adjustment'),
+            'qty' => (int) ($item['qty'] ?? 1),
+            'amount_cents' => (int) ($item['amount_cents'] ?? 0),
+        ])->sortBy(fn ($item) => json_encode($item))->values()->all();
+
+        return $normalize($items) === $normalize($existingItems);
     }
 
     private function checkoutMetadataRules(): array

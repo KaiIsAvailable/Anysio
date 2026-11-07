@@ -6,6 +6,8 @@
     'showAction' => true,
 ])
 
+<x-lease-preview-actions />
+
 <div>
     @if($leases && $leases->count() > 0)
         @php

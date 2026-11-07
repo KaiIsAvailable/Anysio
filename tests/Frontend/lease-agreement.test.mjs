@@ -10,24 +10,24 @@ const previews = [
 ];
 
 for (const packageValue of ['Condo', 'Studio', 'Master Room', 'Not recorded']) {
-test(`all agreement entry points consistently render package ${packageValue}`, () => {
+test(`all agreement entry points consistently render package ${packageValue}`, async () => {
     const html = '<h1>{{ UNIT_NUMBER }}</h1><table><tr><td>{{ rent_price }}</td><td>{{ SECURITY_DEPOSIT }}</td><td>{{ LEASABLE_TYPE }}</td><td>{{ leasalable_type }}</td><td>&#123;&#123; service_package &#125;&#125;</td></tr></table><span data-variable="property_address">{{ property_address }}</span>';
     const replacements = { unit_number: 'A-12-08', rent_price: '1,234.56', security_deposit: '2,469.12', leasable_type: packageValue, leasalable_type: packageValue, service_package: packageValue, property_address: 'Unit A-12-08, <Street> & $&' };
-    const outputs = previews.map(([file, name]) => {
-        const source = readFileSync(file, 'utf8');
-        const start = source.indexOf(`window.${name} = function`);
+    const outputs = await Promise.all(previews.map(async ([file, name]) => {
+        const source = readFileSync(name === 'viewAgreement' ? 'resources/views/components/lease-preview-actions.blade.php' : file, 'utf8');
+        const start = source.search(new RegExp(`window\\.${name} = (?:async )?function`));
         let output;
-        const context = { window: { dispatchEvent: event => { output = event.detail.content; } }, CustomEvent: class { constructor(type, args) { this.detail = args.detail; } }, console };
+        const context = { window: { dispatchEvent: event => { if (event.type === 'open-lease-preview') output = event.detail.content; } }, CustomEvent: class { constructor(type, args) { this.type = type; this.detail = args.detail; } }, requestAnimationFrame: callback => callback(), console };
         vm.createContext(context);
-        vm.runInContext(source.slice(start, source.indexOf('</script>', start)), context);
-        context.window[name]({ dataset: { baseContent: html, replacements: JSON.stringify(replacements), title: 'Test' } });
+        vm.runInContext(source.slice(start, source.indexOf('</script>', start)).replace(/\{\{[\s\S]*?\}\}/g, 'fixture'), context);
+        await context.window[name]({ dataset: { baseContent: html, replacements: JSON.stringify(replacements), title: 'Test' } });
         assert(!output.includes('{{'));
         assert(output.includes('1,234.56'));
         assert(output.includes('2,469.12'));
         assert.equal(output.split(packageValue).length - 1, 3);
         assert(output.includes('&lt;Street&gt; &amp; $&amp;'));
         return output;
-    });
+    }));
     assert.equal(outputs[0], outputs[1]);
     assert.equal(outputs[0], outputs[2]);
 });

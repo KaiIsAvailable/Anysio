@@ -646,7 +646,7 @@
                                 </div>
                             </div>
                         @else
-                            <form action="{{ route('admin.settings.user-role-permissions.update') }}" method="POST" class="space-y-6" x-data="{ loading: false }" @submit="loading = true">
+                            <form action="{{ route('admin.settings.user-role-permissions.update') }}" method="POST" class="space-y-6" x-data="{ savingPermissions: false }" @submit="savingPermissions = true">
                                 @csrf
                                 @method('PUT')
 
@@ -838,7 +838,7 @@
                                         <span class="text-xs text-gray-500 font-medium hidden sm:inline">
                                             {{ __('You have unsaved changes.') }}
                                         </span>
-                                        <x-form.primary-button x-bind:disabled="!editingPermissions" loading="loading">
+                                        <x-form.primary-button x-bind:disabled="!editingPermissions || savingPermissions" loading="savingPermissions">
                                             {{ __('Save Permission Settings') }}
                                         </x-form.primary-button>
                                     </div>

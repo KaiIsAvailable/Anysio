@@ -37,9 +37,11 @@ try {
             const close = page.getByRole('button', { name: 'Close Invoice Statement' });
             await page.waitForFunction(() => document.querySelector('[aria-busy="true"]'));
             assert.equal(await close.isVisible(), true);
-            assert.equal(await dialog.locator('table, [role="status"]').count(), 0);
-            assert.equal(await dialog.getByText('Loading statement', { exact: false }).count(), 0);
+            assert.equal(await dialog.locator('table').count(), 0);
+            assert.equal(await dialog.getByRole('status').isVisible(), true);
+            assert.equal(await dialog.getByRole('status').textContent().then(text => text.includes('Loading statement')), true);
             await page.locator('#page-marker').waitFor();
+            assert.equal(await dialog.getByRole('status').isVisible(), false);
             delay = 0;
             assert.equal(await dialog.getByText('Fixture records', { exact: true }).count(), 0);
             await page.waitForFunction(() => document.activeElement.id === 'statement-modal-title');

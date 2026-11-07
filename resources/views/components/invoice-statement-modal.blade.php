@@ -20,6 +20,7 @@
                 <x-invoice-statement-filters :endpoint="$endpoint" />
             </template>
             --}}
+            <x-loading-skeleton variant="statement" label="Loading statement..." x-show="statementLoading &amp;&amp; !filtersReady" x-cloak />
             <div x-show="error" x-cloak role="alert" class="p-4 text-red-700">
                 <p x-text="error"></p>
                 <button type="button" @click="load(lastUrl)" class="mt-2 underline">Retry</button>

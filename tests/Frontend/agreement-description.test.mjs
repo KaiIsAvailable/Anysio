@@ -15,15 +15,15 @@ const entries = [
 ];
 for (const entry of entries) {
     for (const item of cases) {
-        test(`${entry[0]} description ${JSON.stringify(item.type)} and legacy template`, () => {
-            const source = readFileSync(entry[0], 'utf8');
-            const start = source.indexOf(`window.${entry[1]} = function`);
+        test(`${entry[0]} description ${JSON.stringify(item.type)} and legacy template`, async () => {
+            const source = readFileSync(entry[1] === 'viewAgreement' ? 'resources/views/components/lease-preview-actions.blade.php' : entry[0], 'utf8');
+            const start = source.search(new RegExp(`window\\.${entry[1]} = (?:async )?function`));
             let output;
-            const context = { window: { dispatchEvent: e => { output = e.detail.content; } }, CustomEvent: class { constructor(type, args) { this.detail = args.detail; } }, console };
+            const context = { window: { dispatchEvent: e => { if (e.type === 'open-lease-preview') output = e.detail.content; } }, CustomEvent: class { constructor(type, args) { this.type = type; this.detail = args.detail; } }, requestAnimationFrame: callback => callback(), console };
             vm.createContext(context);
-            vm.runInContext(source.slice(start, source.indexOf('</script>', start)), context);
+            vm.runInContext(source.slice(start, source.indexOf('</script>', start)).replace(/\{\{[\s\S]*?\}\}/g, 'fixture'), context);
             for (const old of [false, true]) {
-                context.window[entry[1]]({ dataset: { baseContent: old ? template.replace('{{ service_package_description }}', legacy) : template, replacements: JSON.stringify(item.variables), title: 'Test' } });
+                await context.window[entry[1]]({ dataset: { baseContent: old ? template.replace('{{ service_package_description }}', legacy) : template, replacements: JSON.stringify(item.variables), title: 'Test' } });
                 assert(!output.includes('{{'));
                 const description = output.match(/<td id="i75opp">([\s\S]*?)<\/td>/)[1];
                 const expected = old ? legacy : `<strong>${item.variables.service_package_description.replaceAll('&', '&amp;')}</strong>`;

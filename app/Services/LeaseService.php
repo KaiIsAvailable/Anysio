@@ -551,7 +551,7 @@ class LeaseService
         });
     }
 
-    public function getLeaseFormPayload($user, Request $request): array
+    public function getLeaseFormPayload($user, Request $request, array $additionalModalLeaseIds = []): array
     {
         // 1. Properties
         $properties = $this->getAuthorizedProperties($user)
@@ -658,9 +658,9 @@ class LeaseService
             ->get()
             ->each($formatLeaseCallback);
 
-        // 6b. ALL Current Leases (For Modals so checkout/renew selections never fail)
+        // Include historical leases with unfinished refunds supplied by the dashboard.
         $modalLeases = Lease::with($leaseRelations)
-            ->where('is_current', true)
+            ->where(fn ($query) => $query->where('is_current', true)->orWhereIn('id', $additionalModalLeaseIds))
             ->when($user->role !== 'admin', fn($query) => $this->applyLeaseOwnershipFilter($query, $user))
             ->get()
             ->each($formatLeaseCallback);

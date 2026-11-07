@@ -130,13 +130,13 @@ try {
     // Exercise the repository's full template through the actual index replacement function.
     const seed = readFileSync('database/seeders/AntzCustomTemplate.php', 'utf8');
     const template = seed.match(/\$agreementHtml = <<<'HTML'\s*([\s\S]*?)\s*HTML;/)[1];
-    const index = readFileSync('resources/views/adminSide/leases/index.blade.php', 'utf8');
-    const start = index.indexOf('window.viewAgreement = function');
-    await page.addScriptTag({ content: index.slice(start, index.indexOf('</script>', start)) });
+    const index = readFileSync('resources/views/components/lease-preview-actions.blade.php', 'utf8');
+    const start = index.indexOf('window.viewAgreement = async function');
+    await page.addScriptTag({ content: index.slice(start, index.indexOf('</script>', start)).replace(/\{\{[\s\S]*?\}\}/g, 'fixture') });
     await page.evaluate(async template => {
         const replacements = Object.fromEntries([...template.matchAll(/{{\s*(\w+)\s*}}/g)].map(m => [m[1], 'Sample']));
         replacements.rent_price = '1,234.56';
-        window.viewAgreement({ dataset: { baseContent: template, replacements: JSON.stringify(replacements), title: 'Template test', rentalBreakdown: 'true', rentalBasis: JSON.stringify({ cents: 123456, frequency: 'monthly' }) } });
+        await window.viewAgreement({ dataset: { baseContent: template, replacements: JSON.stringify(replacements), title: 'Template test', rentalBreakdown: 'true', rentalBasis: JSON.stringify({ cents: 123456, frequency: 'monthly' }) } });
         await Alpine.nextTick();
     }, template);
     const amountStyle = () => page.locator('#igw53k strong').evaluate(el => {
@@ -157,7 +157,7 @@ try {
     for (const item of descriptionCases.filter(item => ['WIFI UNIT', 'STANDARD UNIT', 'Other'].includes(item.type))) {
         await page.evaluate(async ({ template, variables }) => {
             variables.rent_price = '500.00';
-            window.viewAgreement({ dataset: { baseContent: template, replacements: JSON.stringify(variables), title: 'Description test', rentalBreakdown: 'true', rentalBasis: JSON.stringify({ cents: 50000, frequency: 'monthly' }) } });
+            await window.viewAgreement({ dataset: { baseContent: template, replacements: JSON.stringify(variables), title: 'Description test', rentalBreakdown: 'true', rentalBasis: JSON.stringify({ cents: 50000, frequency: 'monthly' }) } });
             await Alpine.nextTick();
         }, { template, variables: item.variables });
         const description = page.locator('#i75opp');

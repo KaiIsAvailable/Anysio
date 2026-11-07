@@ -33,6 +33,10 @@
         formStatus: @js(old('status', 'New')), 
         formLeaseId: @js(old('lease_id', '')),
         refundData: {},
+        refundLoading: false,
+        refundReady: false,
+        refundLoadError: '',
+        refundLoadSequence: 0,
         isEditMode: false,
         loading: false,
         shake: false,
@@ -60,6 +64,10 @@
             else rawStatus = 'New';
 
             this.formStatus = rawStatus;
+            this.refundLoadSequence++;
+            this.refundReady = false;
+            this.refundLoading = rawStatus === 'Check Out';
+            this.refundLoadError = '';
             this.formLeaseId = (detail.leaseId && detail.leaseId !== '0') ? String(detail.leaseId) : '';
             this.open = true;
 
@@ -108,6 +116,7 @@
         }
      }"
      @open-lease-modal.window="openModal($event.detail)"
+     x-init="if (open && action === 'checkout' && formLeaseId) $nextTick(() => { toggleLeaseSelect(formStatus); handleLeaseChange(formLeaseId); })"
      @keydown.escape.window="open = false"
      x-show="open" 
      class="fixed inset-0 z-50 overflow-y-auto" 
@@ -143,7 +152,7 @@
 
                 {{-- Modal Body --}}
                 <div class="max-h-[80vh] overflow-y-auto">
-                    <x-form.form method="POST" action="{{ route('admin.leases.store') }}" @submit="loading = true">
+                    <x-form.form method="POST" action="{{ route('admin.leases.store') }}" @submit="if (action === 'checkout' && !refundReady) { $event.preventDefault(); } else { loading = true; }">
                         @csrf
                         
                         <input type="hidden" name="redirect_to" value="{{ request()->routeIs('admin.dashboard') ? 'dashboard' : 'index' }}">
@@ -303,7 +312,16 @@
 
                             
                             <!-- CHECKOUT REFUND SECTION -->
+                            <div x-show="action === 'checkout' && !refundReady" x-cloak class="mt-4">
+                                <x-loading-skeleton variant="checkout" label="Preparing checkout settlement" x-show="refundLoading" ::aria-busy="refundLoading" />
+                                <div x-show="refundLoadError && !refundLoading" role="alert" class="rounded-xl border border-slate-200 bg-slate-50 p-6 text-center">
+                                    <p class="text-sm font-semibold text-slate-900">Unable to open settlement</p>
+                                    <p class="mt-2 text-sm text-slate-600" x-text="refundLoadError"></p>
+                                    <button type="button" @click="handleLeaseChange(formLeaseId)" class="mt-4 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">Try again</button>
+                                </div>
+                            </div>
                             <div id="checkout_refund_section" class="mt-4 hidden space-y-4"
+                            x-show="refundReady" :inert="!refundReady"
                             x-data="{
                                 manualDeductions: [],
                                 refundData: {},
@@ -588,12 +606,16 @@
 
                                         {{-- Action Buttons --}}
                                         <div class="flex items-center gap-3" x-show="['none', 'draft'].includes(refundStatus)">
+                                            @canany(['owner-admin', 'leases.add fee type'])
                                             <button type="button" @click="$dispatch('open-fee-type-modal', { category: 'item' })" class="inline-flex items-center text-xs font-bold text-gray-600 hover:text-indigo-600 transition-colors">
                                                 + Add Fee Type
                                             </button>
+                                            @endcanany
+                                            @canany(['owner-admin', 'leases.add deduction item'])
                                             <button type="button" @click="addDeductionRow()" class="inline-flex items-center text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
                                                 + Add Deduction Item
                                             </button>
+                                            @endcanany
                                         </div>
                                     </div>
 
@@ -633,6 +655,7 @@
                                                     <div class="flex items-center gap-2 mb-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
                                                         
                                                         {{-- Remove Button (Hidden if not in Draft/None) --}}
+                                                        @canany(['owner-admin', 'leases.add deduction item'])
                                                         <button type="button" 
                                                                 x-show="['none', 'draft'].includes(refundStatus)"
                                                                 @click="manualDeductions.splice(index, 1)"
@@ -642,6 +665,7 @@
                                                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                                                             </svg>
                                                         </button>
+                                                        @endcanany
 
                                                         <!-- Fee Type Select -->
                                                         <div class="flex-1">
@@ -804,10 +828,11 @@
                                     Cancel
                                 </button>
                                 
-                                <template x-if="action === 'checkout'">
+                                <template x-if="action === 'checkout' && refundReady">
                                     <div class="flex items-center gap-2" x-data="{ 
                                         subAction: '',
                                         submitCheckout(routeUrl, actionName) {
+                                            if (!this.refundReady || this.refundLoading || this.refundLoadError) return;
                                             this.subAction = actionName;
                                             const form = $el.closest('form');
                                             form.action = routeUrl;
@@ -819,6 +844,7 @@
                                         <template x-if="refundStatus === 'none' || refundStatus === 'draft'">
                                             <div class="flex items-center gap-2">
                                                 {{-- Save as Draft Button --}}
+                                                @canany(['owner-admin', 'leases.save draft'])
                                                 <x-form.secondary-button 
                                                     type="button" 
                                                     loading="subAction === 'draft'" 
@@ -826,8 +852,10 @@
                                                     class="px-4 py-2.5">
                                                     <span>Save as Draft</span>
                                                 </x-form.secondary-button>
+                                                @endcanany
 
                                                 {{-- Confirm & Set as Pending Button (Direct Action) --}}
+                                                @canany(['owner-admin', 'leases.set as pending'])
                                                 <x-form.primary-button 
                                                     type="button" 
                                                     loading="subAction === 'pending'" 
@@ -835,6 +863,7 @@
                                                     class="px-4 py-2.5 bg-amber-600 hover:bg-amber-700">
                                                     <span>Confirm & Set as Pending</span>
                                                 </x-form.primary-button>
+                                                @endcanany
                                             </div>
                                         </template>
 
@@ -842,14 +871,17 @@
                                         <template x-if="refundStatus === 'pending'">
                                             <div class="flex items-center gap-2">
                                                 {{-- Reject / Send Back Button --}}
+                                                @canany(['owner-admin', 'leases.reject refund'])
                                                 <x-form.secondary-button 
                                                     loading="subAction === 'reject'" 
                                                     @click="submitCheckout('{{ route('admin.refunds.reject') }}', 'reject')"
                                                     class="!bg-red-600 !text-white !border-red-600 hover:!bg-red-700 focus:!ring-red-500">
                                                     Reject / Send Back
                                                 </x-form.secondary-button>
+                                                @endcanany
 
                                                 {{-- Approve Button --}}
+                                                @canany(['owner-admin', 'leases.approve refund'])
                                                 <x-form.primary-button 
                                                     type="button" 
                                                     loading="subAction === 'approve'" 
@@ -857,12 +889,14 @@
                                                     class="px-4 py-2.5 bg-blue-600 hover:bg-blue-700">
                                                     <span>Approve Refund</span>
                                                 </x-form.primary-button>
+                                                @endcanany
                                             </div>
                                         </template>
 
                                         {{-- STEP 4: APPROVED -> Proceed to Final Refund Payout --}}
                                         <template x-if="refundStatus === 'approved'">
                                             <div class="flex items-center gap-2">
+                                                @canany(['owner-admin', 'leases.proceed refund'])
                                                 <x-form.primary-button
                                                     type="button"
                                                     loading="subAction === 'disburse'"
@@ -870,6 +904,7 @@
                                                     class="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700">
                                                     <span>Proceed to Refund</span>
                                                 </x-form.primary-button>
+                                                @endcanany
                                             </div>
                                         </template>
 
@@ -1423,7 +1458,7 @@
             const modalData = actionRoot && window.Alpine
                 ? window.Alpine.$data(actionRoot)
                 : null;
-            if (modalData && modalData.action !== 'checkout') return;
+            if (!modalData || modalData.action !== 'checkout') return;
 
             let leaseId = eventOrId;
             if (typeof eventOrId === 'object') {
@@ -1435,6 +1470,16 @@
             }
 
             if (!leaseId) return;
+
+            const loadSequence = ++modalData.refundLoadSequence;
+            const isCurrentLoad = () => modalData.refundLoadSequence === loadSequence
+                && String(modalData.formLeaseId) === String(leaseId)
+                && modalData.action === 'checkout';
+            modalData.refundLoading = true;
+            modalData.refundReady = false;
+            modalData.refundLoadError = '';
+
+            try {
 
             const initialLeaseData = window.leasePreviewData[leaseId];
             const initialBankDetails = initialLeaseData?.tenant_bank_details || [];
@@ -1470,6 +1515,11 @@
                     loadedLeaseData = await previewRequest;
                 } finally {
                     delete window.leasePreviewRequests[leaseId];
+                }
+
+                if (!isCurrentLoad()) return;
+                if (!Array.isArray(loadedLeaseData?.unpaid_invoices) || !Object.hasOwn(loadedLeaseData, 'active_refund')) {
+                    throw new Error('Incomplete checkout preview response.');
                 }
 
                 console.group('[Checkout Refund] Backend tenant bank details');
@@ -1605,6 +1655,16 @@
             const selectedLease = allLeases[leaseId];
             if (typeof filterTemplates === 'function' && selectedLease) {
                 filterTemplates(selectedLease.owner_id || null);
+            }
+            if (isCurrentLoad()) modalData.refundReady = true;
+            } catch (error) {
+                if (isCurrentLoad()) {
+                    modalData.refundReady = false;
+                    modalData.refundLoadError = 'The settlement could not be retrieved. Please try again.';
+                }
+                console.error('[Checkout Refund] Preview failed:', error);
+            } finally {
+                if (isCurrentLoad()) modalData.refundLoading = false;
             }
         }
     </script>

@@ -16,22 +16,53 @@
 <div x-data="{ 
         ...agreementBreakdown('modal-content'),
         openPreview: false, 
+        previewLoading: false,
+        previewRendering: false,
+        previewError: '',
+        previewRequestId: null,
         shakeModal: false,
         refreshPaper() {
-            this.$nextTick(() => renderAgreementPaper(this.$refs.agreementPaper));
+            this.previewRendering = true;
+            this.$nextTick(() => {
+                if (this.openPreview) renderAgreementPaper(this.$refs.agreementPaper);
+            });
         },
         closeModal() {
             this.resetBreakdown();
             this.openPreview = false;
+            this.previewRequestId = null;
+            this.previewLoading = false;
+            this.previewRendering = false;
+            this.previewError = '';
             document.body.style.overflow = ''; // Restores background scrolling
         },
         printDocument() { return printAgreementPaper(); }
      }" 
-     @open-preview-modal.window="resetBreakdown(); openPreview = true; refreshPaper()"
+     @open-preview-modal.window="resetBreakdown(); previewRequestId = null; previewError = ''; previewLoading = false; openPreview = true; refreshPaper()"
+     @open-lease-preview-loading.window="
+        resetBreakdown();
+        previewRequestId = $event.detail.requestId;
+        previewLoading = true;
+        previewRendering = false;
+        previewError = '';
+        openPreview = true;
+        document.getElementById('modal-content').innerHTML = '';
+        document.getElementById('modal-title').innerText = $event.detail.title || 'Document Preview';
+        document.body.style.overflow = 'hidden';
+     "
+     @lease-preview-error.window="
+        if ($event.detail.requestId !== previewRequestId) return;
+        previewLoading = false;
+        previewRendering = false;
+        previewError = $event.detail.message;
+     "
      @open-lease-preview.window="
+        if ($event.detail.requestId && $event.detail.requestId !== previewRequestId) return;
         resetBreakdown($event.detail);
+        previewError = '';
         openPreview = true;
         $nextTick(() => {
+            if (!openPreview || ($event.detail.requestId && $event.detail.requestId !== previewRequestId)) return;
             document.getElementById('modal-content').innerHTML = $event.detail.content;
             document.getElementById('modal-title').innerText = $event.detail.title || 'Document Preview';
             document.body.style.overflow = 'hidden';
@@ -73,7 +104,7 @@
                                 Please review the document carefully
                             </p>
                         </div>
-                        <button @click="closeModal()" class="p-2 rounded-full hover:bg-gray-200 text-gray-400 transition-colors">
+                        <button type="button" aria-label="Close document preview" @click="closeModal()" class="p-2 rounded-full hover:bg-gray-200 text-gray-400 transition-colors">
                             <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                             </svg>
@@ -81,10 +112,12 @@
                     </div>
 
                     {{-- 内容区 --}}
-                    <div style="max-height: 65vh; overflow: auto; padding: 24px; background: #e5e7eb;">
-                        <iframe x-ref="agreementPaper" title="A4 document preview"
+                    <div :aria-busy="previewLoading" style="max-height: 65vh; overflow: auto; padding: 24px; background: #e5e7eb;">
+                        <x-loading-skeleton variant="document" label="Loading document preview..." x-show="previewLoading" class="max-w-3xl mx-auto bg-white p-6 sm:p-12 shadow-sm" />
+                        <div x-show="previewError" role="alert" class="max-w-3xl mx-auto rounded-lg bg-white p-6 text-red-700" x-text="previewError"></div>
+                        <iframe x-ref="agreementPaper" x-show="!previewLoading && !previewError" title="A4 document preview"
                             sandbox="allow-same-origin"
-                            @load="resizeAgreementPaper($el)"
+                            @load="resizeAgreementPaper($el); if (previewRendering && openPreview) { previewLoading = false; previewRendering = false; }"
                             style="display: block; width: 210mm; min-width: 210mm; height: 297mm; min-height: 297mm; margin: 0 auto; border: 0; background: white; box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);"></iframe>
                     </div>
                     <div id="modal-content" hidden>
@@ -101,12 +134,13 @@
                     <div class="px-8 py-6 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
                         <span class="text-xs text-slate-400 font-bold uppercase tracking-widest">End of Document</span>
                         <div class="flex items-center gap-3">
-                            <x-form.secondary-button x-show="breakdownAllowed" @click="editBreakdown()">Set Rental Breakdown</x-form.secondary-button>
+                            <x-form.secondary-button x-show="breakdownAllowed && !previewLoading && !previewError" @click="editBreakdown()">Set Rental Breakdown</x-form.secondary-button>
                             {{-- Print Button --}}
                             @canany(['owner-admin', 'document template.print'])
                             <button type="button" 
                                     @click="printDocument()" 
-                                    class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98]">
+                                    :disabled="previewLoading || !!previewError"
+                                    class="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 text-white rounded-xl font-bold text-sm hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                 </svg>

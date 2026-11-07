@@ -248,23 +248,18 @@
                     </div>
                     <div class="flex items-center gap-2" x-data="{ 
                         openUpload: @js($stampingErrors),
-                        shake: @js($stampingErrors),
-                        agreementLoading: false,
-                        refundLoading: false,
-                        statementLoading: false
+                        shake: @js($stampingErrors)
                     }">
                         {{-- 左侧按钮：View Agreement --}}
                         @canany(['owner-admin', 'leases.view agreement'])
                         @if (!empty($lease->document_id))
                             <x-form.primary-button type="button"
-                                loading="agreementLoading"
                                 data-base-content="{{ $lease->documentTemplate?->html_template }}"
                                 data-rental-breakdown="{{ !$lease->stamping_status && !$lease->stamping_cert_path ? 'true' : 'false' }}"
                                 data-rental-basis="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementRentalBasis($lease)) }}"
                                 data-title="{{ $lease->documentTemplate?->title }}"
                                 data-replacements="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementVariables($lease), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
-                                @click="agreementLoading = true; viewAgreement($el)"
-                                @agreement-preview-finished="agreementLoading = false"
+                                @click="viewAgreement($el)"
                                 class="ml-auto !text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50">
                                 VIEW AGREEMENT
                             </x-form.primary-button>
@@ -274,12 +269,10 @@
                         @canany(['owner-admin', 'leases.view agreement'])
                         @if (!empty($lease->refund_document_id))
                             <x-form.primary-button type="button"
-                                loading="refundLoading"
                                 data-template-id="{{ $lease->refund_document_id }}"
                                 data-lease-id="{{ $lease->id }}"
                                 data-check-out-date="{{ $lease->checked_out_at?->format('Y-m-d') }}"
-                                @click="refundLoading = true; viewRefund($el)"
-                                @refund-preview-finished="refundLoading = false"
+                                @click="viewRefund($el)"
                                 class="ml-auto !text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50">
                                 VIEW REFUND STATEMENT
                             </x-form.primary-button>
@@ -468,10 +461,7 @@
                                 <span class="w-1.5 h-4 bg-emerald-500 rounded-full"></span>
                                 Invoices
                                 <x-form.primary-button type="button"
-                                    loading="statementLoading"
-                                    data-statement-endpoint="{{ route('admin.leases.invoice-statement', $lease) }}"
-                                    @click="statementLoading = true; viewStatement($el)"
-                                    @statement-preview-finished="statementLoading = false"
+                                    @click="$dispatch('open-modal', 'invoice-statement')"
                                     class="ml-auto !text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50">View Statement</x-form.primary-button>
                             </h4>
                             <div class="overflow-x-auto border border-gray-100 rounded-xl">
@@ -791,129 +781,4 @@
     />
 </x-app-layout>
 
-<script>
-    window.viewAgreement = async function(button) {
-        await new Promise(requestAnimationFrame);
-
-        let content = button.dataset.baseContent;
-        if (!content) {
-            console.error('Agreement content is empty');
-            button.dispatchEvent(new CustomEvent('agreement-preview-finished', { bubbles: true }));
-            return;
-        }
-
-        let replacements;
-        try {
-            replacements = JSON.parse(button.dataset.replacements);
-        } catch (error) {
-            console.error('Agreement replacement data is invalid:', error);
-            button.dispatchEvent(new CustomEvent('agreement-preview-finished', { bubbles: true }));
-            return;
-        }
-
-        Object.keys(replacements).forEach(key => {
-            const val = String(replacements[key] ?? 'N/A').replace(/[&<>"']/g, char => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[char]));
-            const safeVal = val;
-
-            // Replace standard or encoded curly brackets variants
-            const textRegex = new RegExp(`(?:\\{|&#123;|&lcub;){1,2}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*${key}(?:[\\s\\u200B\\u200C\\u200D\\uFEFF&nbsp;]|<[^>]*>)*(?:\\}|&#125;|&rcub;){1,2}`, 'gi');
-            content = content.replace(textRegex, () => safeVal);
-        });
-
-        window.dispatchEvent(new CustomEvent('open-lease-preview', { 
-            detail: { content: content, title: button.dataset.title,
-                allowBreakdown: button.dataset.rentalBreakdown === 'true',
-                rentalBasis: JSON.parse(button.dataset.rentalBasis || 'null') }
-        }));
-        await new Promise(requestAnimationFrame);
-        button.dispatchEvent(new CustomEvent('agreement-preview-finished', { bubbles: true }));
-    };
-
-    window.viewRefund = async function(button) {
-        const templateId = button.dataset.templateId;
-        const leaseId = button.dataset.leaseId;
-
-        if (!templateId || !leaseId) {
-            console.error('Refund template or lease ID is missing');
-            button.dispatchEvent(new CustomEvent('refund-preview-finished', { bubbles: true }));
-            return;
-        }
-
-        const formData = new FormData();
-        formData.set('template_id', templateId);
-        formData.set('category', 'refund');
-        formData.set('lease_id', leaseId);
-        if (button.dataset.checkOutDate) {
-            formData.set('check_out_date', button.dataset.checkOutDate);
-        }
-
-        try {
-            const response = await fetch('{{ route('admin.leases.preview-template') }}', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content || '{{ csrf_token() }}',
-                    'Accept': 'application/json'
-                },
-                body: formData
-            });
-
-            if (!response.ok) {
-                const error = await response.json().catch(() => ({}));
-                throw new Error(error.message || 'Unable to generate refund preview.');
-            }
-
-            const rendered = await response.json();
-            window.dispatchEvent(new CustomEvent('open-lease-preview', {
-                detail: {
-                    content: rendered.content,
-                    title: rendered.title
-                }
-            }));
-        } catch (error) {
-            console.error('Refund preview error:', error);
-            alert(error.message);
-        } finally {
-            button.dispatchEvent(new CustomEvent('refund-preview-finished', { bubbles: true }));
-        }
-    };
-
-    window.viewStatement = async function(button) {
-        const endpoint = button.dataset.statementEndpoint;
-
-        if (!endpoint) {
-            console.error('Invoice statement endpoint is missing');
-            button.dispatchEvent(new CustomEvent('statement-preview-finished', { bubbles: true }));
-            return;
-        }
-
-        await new Promise(requestAnimationFrame);
-
-        try {
-            const response = await fetch(endpoint, {
-                headers: {
-                    Accept: 'application/json',
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                credentials: 'same-origin'
-            });
-            const data = await response.json();
-
-            if (!response.ok || typeof data.html !== 'string') {
-                throw new Error(data.message || 'Unable to load invoice statement.');
-            }
-
-            window.dispatchEvent(new CustomEvent('open-preloaded-invoice-statement', {
-                detail: {
-                    html: data.html,
-                    url: endpoint
-                }
-            }));
-        } catch (error) {
-            console.error('Invoice statement error:', error);
-            alert(error.message);
-        } finally {
-            await new Promise(requestAnimationFrame);
-            button.dispatchEvent(new CustomEvent('statement-preview-finished', { bubbles: true }));
-        }
-    };
-</script>
+<x-lease-preview-actions />

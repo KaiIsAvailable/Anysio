@@ -8,7 +8,17 @@
         openManual: false, 
         actionUrl: '',
         shake: false,
-        loading: false,
+        generatingInvoice: false,
+        showPostRefundAdjustment: false,
+        postRefundAdjustment: false,
+        adjustmentReason: '',
+        configureAdjustment(detail = {}) {
+            const leaseStatus = String(detail.leaseStatus || '').trim().toLowerCase();
+            const refundStatus = String(detail.refundStatus || '').trim().toLowerCase();
+            this.showPostRefundAdjustment = ['check out', 'refunded'].includes(leaseStatus) && refundStatus === 'paid';
+            this.postRefundAdjustment = false;
+            this.adjustmentReason = '';
+        },
         dueDate: '',
         currentBillingPeriod: (() => {
             let d = new Date();
@@ -40,6 +50,9 @@
             }
         },
         resetForm() {
+            this.showPostRefundAdjustment = false;
+            this.postRefundAdjustment = false;
+            this.adjustmentReason = '';
             this.items = [{ fee_type_id: '', amount: '', description: '' }];
             let d = new Date();
             let month = String(d.getMonth() + 1).padStart(2, '0');
@@ -47,12 +60,17 @@
             this.currentBillingPeriod = `${year}-${month}-01`;
             this.dueDate = '';
             this.shake = false;
-            this.loading = false;
+            this.generatingInvoice = false;
         },
         submitInvoice(event) {
+            if (this.generatingInvoice) return;
             let form = event.target;
             let formData = new FormData(form);
-            this.loading = true;
+            if (!this.showPostRefundAdjustment) {
+                formData.delete('post_refund_adjustment');
+                formData.delete('adjustment_reason');
+            }
+            this.generatingInvoice = true;
 
             fetch(this.actionUrl, {
                 method: 'POST',
@@ -70,11 +88,16 @@
                 return response.json().then(errData => { throw errData; });
             })
             .then(data => {
-                this.loading = false;
+                this.generatingInvoice = false;
                 if (data.success && data.invoice) {
                     this.openManual = false;
                     this.resetForm();
                     form.reset();
+
+                    if (data.wallet_auto_payment_summary) {
+                        window.location.reload();
+                        return;
+                    }
 
                     // 🌟 顯示成功訊息 (若您的專案有全局 flash/toast 事件，可在此觸發)
                     if (data.message) {
@@ -112,13 +135,23 @@
                 }
             })
             .catch(error => {
+                this.generatingInvoice = false;
+                if (error.errors || error.message) {
+                    const message = error.errors
+                        ? Object.values(error.errors).flat().join(' ')
+                        : error.message;
+                    window.dispatchEvent(new CustomEvent('showAlert', {
+                        detail: { type: 'error', message }
+                    }));
+                    return;
+                }
                 console.error('Fetch failed, falling back to traditional form.submit():', error);
-                this.loading = false;
                 form.submit();
             });
         }
      }" 
      @open-manual-modal.window="
+        configureAdjustment($event.detail);
         actionUrl = $event.detail.action; 
         openManual = true;
         $nextTick(() => {
@@ -255,6 +288,16 @@
                         <hr class="border-gray-100">
 
                         {{-- Remarks --}}
+                        <template x-if="showPostRefundAdjustment">
+                        <div class="space-y-2 rounded-lg border border-gray-200 p-3">
+                            <label class="flex items-center gap-2 text-sm text-gray-700">
+                                <input type="checkbox" name="post_refund_adjustment" value="1" x-model="postRefundAdjustment" class="rounded border-gray-300">
+                                Post-refund adjustment (completed settlements only)
+                            </label>
+                            <textarea name="adjustment_reason" x-model="adjustmentReason" rows="2" placeholder="Reason for the post-refund adjustment" class="block w-full rounded-lg border-gray-200 text-sm"></textarea>
+                            <p class="text-xs text-gray-500">Creates a separate charge linked to the completed refund. The original settlement stays unchanged.</p>
+                        </div>
+                        </template>
                         <div>
                             <x-form.input-label value="Remarks / Notes" class="text-xs text-gray-500 mb-1" />
                             <textarea name="remarks" rows="2"
@@ -267,7 +310,7 @@
                         <button type="button" @click="openManual = false; resetForm()" class="px-5 py-2.5 border border-gray-200 text-gray-600 rounded-xl font-bold text-xs hover:bg-white transition-colors uppercase tracking-wider">
                             Cancel
                         </button>
-                        <x-form.primary-button loading="loading" class="px-6 py-2.5 rounded-xl text-xs shadow-md shadow-indigo-100 uppercase tracking-wider">
+                        <x-form.primary-button loading="generatingInvoice" class="px-6 py-2.5 rounded-xl text-xs shadow-md shadow-indigo-100 uppercase tracking-wider">
                             <span>Generate Invoice</span>
                         </x-form.primary-button>
                     </div>

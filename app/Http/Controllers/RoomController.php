@@ -7,35 +7,10 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\{Auth, Gate, DB};
 use Illuminate\Support\Str;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use App\Services\{LeaseService};
 
 class RoomController extends Controller
 {
-    // 💡 新增一個專門的權限檢查方法，精準判斷 Agent 和 Owner 的權限
-    private function checkUnitAccess($user, $unit)
-    {
-        if (Gate::allows('super-admin')) {
-            return;
-        }
-
-        if ($user->role === 'agentAdmin' || $user->role === 'agent') {
-            // Agent 必須負責管理這個 Unit 的 Owner
-            $isManaging = Owners::where('agent_id', $user->id)
-                                ->where('user_id', $unit->owner_id)
-                                ->exists();
-            if (!$isManaging) {
-                abort(403, 'Unauthorized action: You do not manage the owner of this unit.');
-            }
-        } elseif ($user->role === 'ownerAdmin' || $user->role === 'owner') {
-            if ($unit->owner_id !== $user->id) {
-                abort(403, 'Unauthorized action: You do not own this unit.');
-            }
-        } else {
-            abort(403, 'Unauthorized role.');
-        }
-    }
-
     public function index(Request $request)
     {
         $search = $request->input('search');
@@ -107,14 +82,8 @@ class RoomController extends Controller
             return view('errors.403');
         }
 
-        // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = get_effective_user();
-
         $unitId = $request->query('unit_id');
         $unit = Unit::with(['property', 'owner'])->findOrFail($unitId);
-
-        // 💡 使用新的權限檢查方法
-        $this->checkUnitAccess($user, $unit);
 
         $assetLibrary = Asset::where('user_id', $unit->owner->id)
             ->orderBy('name', 'asc')
@@ -128,9 +97,6 @@ class RoomController extends Controller
         if (Gate::denies('super-admin') && Gate::denies('room.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
-        // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = get_effective_user();
-
         $data = $request->validate([
             'unit_id'   => 'required|exists:units,id',
             'room_no'   => 'required|string|max:255',
@@ -144,9 +110,6 @@ class RoomController extends Controller
 
         $unit = Unit::findOrFail($data['unit_id']);
         
-        // 💡 使用新的權限檢查方法
-        $this->checkUnitAccess($user, $unit);
-
         DB::transaction(function () use ($data) {
             $room = Room::create([
                 'unit_id'   => $data['unit_id'],
@@ -219,14 +182,8 @@ class RoomController extends Controller
             return view('errors.403');
         }
 
-        // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = get_effective_user();
-
         $room->load(['unit.property', 'unit.owner']);
         $unit = $room->unit;
-
-        // 💡 使用新的權限檢查方法
-        $this->checkUnitAccess($user, $unit);
 
         $assetLibrary = Asset::where('user_id', $unit->owner->id)
             ->orderBy('name', 'asc')
@@ -245,12 +202,6 @@ class RoomController extends Controller
         if (Gate::denies('super-admin') && Gate::denies('room.edit')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
-
-        // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = Auth::user();
-
-        // 💡 使用新的權限檢查方法
-        $this->checkUnitAccess($user, $room->unit);
 
         $data = $request->validate([
             'room_no'   => 'required|string|max:255',
@@ -300,12 +251,6 @@ class RoomController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
-        // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = get_effective_user();
-
-        // 💡 使用新的權限檢查方法
-        $this->checkUnitAccess($user, $room->unit);
-
         DB::transaction(function () use ($room) {
             RoomAsset::where('room_id', $room->id)
                 ->where('status', 'Active')
@@ -321,12 +266,6 @@ class RoomController extends Controller
         if (Gate::denies('super-admin') && Gate::denies('room.delete')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
-
-        // 💡 已經刪除 Gate::authorize('owner-admin');
-        $user = get_effective_user();
-
-        // 💡 使用新的權限檢查方法
-        $this->checkUnitAccess($user, $room->unit);
 
         DB::transaction(function () use ($room) {
             $room->update(['status' => 'Vacant']);
@@ -344,8 +283,9 @@ class RoomController extends Controller
 
     public function assetStore(Request $request, Room $room)
     {
-        $user = Auth::user();
-        $this->checkUnitAccess($user, $room->unit);
+        if (Gate::denies('super-admin') && Gate::denies('room.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
 
         $payload = $request->validate([
             'name'             => ['required', 'string', 'max:255'],
@@ -361,8 +301,9 @@ class RoomController extends Controller
 
     public function assetUpdate(Request $request, Room $room, RoomAsset $asset)
     {
-        $user = Auth::user();
-        $this->checkUnitAccess($user, $room->unit);
+        if (Gate::denies('super-admin') && Gate::denies('room.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
 
         abort_unless($asset->room_id === $room->id, 404);
 
@@ -380,8 +321,9 @@ class RoomController extends Controller
 
     public function assetDestroy(Room $room, RoomAsset $asset)
     {
-        $user = Auth::user();
-        $this->checkUnitAccess($user, $room->unit);
+        if (Gate::denies('super-admin') && Gate::denies('room.edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
 
         abort_unless($asset->room_id === $room->id, 404);
         $asset->update(['status' => 'inactive']);
@@ -402,7 +344,7 @@ class RoomController extends Controller
         return $request->validate([
             'room_no'   => ['required', 'string', 'max:50', $roomNoRule],
             'room_type' => ['required', 'string', 'max:100'],
-            'status'    => ['required', Rule::in(['OCCUPIED', 'VACANT', 'MAINTENANCE', 'AVAILABLE'])],
+            'status'    => ['required', Rule::in(['Occupied', 'Vacant', 'Maintenance'])],
             'address'   => ['required', 'string', 'max:255'],
 
             'assets'                        => ['nullable', 'array'],

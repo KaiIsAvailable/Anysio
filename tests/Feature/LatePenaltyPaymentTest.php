@@ -57,6 +57,9 @@ class LatePenaltyPaymentTest extends TestCase
         Schema::table('wallets', function (Blueprint $t) {
             $t->string('reserved_refund_id')->nullable();
         });
+        Schema::table('leases', function (Blueprint $t) {
+            $t->boolean('is_pending_renewal')->default(false);
+        });
         Carbon::setTestNow(Carbon::parse('2026-10-30 12:00:00', 'Asia/Kuala_Lumpur'));
         DB::table('users')->insert([
             ['id' => 'admin', 'role' => 'ownerAdmin', 'name' => 'Manager', 'email' => 'manager@test.test'],
@@ -80,10 +83,63 @@ class LatePenaltyPaymentTest extends TestCase
         ]);
         DB::table('invoice_items')->insert(['id' => 'item', 'invoice_id' => 'original', 'fee_type_id' => 'rent', 'amount' => 10000]);
         $this->setting();
+        // These existing scenarios isolate late penalties from processing fees.
+        DB::table('settings')->insert([
+            'user_id' => 'admin', 'key' => 'processing_fee_config',
+            'value' => json_encode(config('settings.processing_fee_config')), 'is_active' => false,
+        ]);
         $this->actingAs(User::find('admin'));
     }
 
     protected function tearDown(): void { Carbon::setTestNow(); parent::tearDown(); }
+
+    public function test_lease_invoice_rows_include_related_charge_documents_across_pages_and_respect_permissions(): void
+    {
+        Schema::table('document_templates', fn (Blueprint $table) => $table->string('title')->nullable());
+        \Illuminate\Support\Facades\Gate::before(fn () => true);
+        foreach (['penalty', 'processing_fee'] as $type) {
+            DB::table('invoices')->insert([
+                'id' => $type, 'parent_id' => 'original', 'lease_id' => 'lease', 'type' => $type,
+                'invoice_no' => 'INV-'.$type, 'document_template_id' => 'invoice-template',
+                'total_amount' => 1000, 'amount_paid' => 1000, 'status' => 'paid',
+                'created_at' => '2026-11-01 00:00:00',
+            ]);
+            DB::table('transactions')->insert([
+                'id' => $type, 'invoice_id' => $type, 'receipt_no' => 'REC-'.$type,
+                'document_template_id' => 'receipt-template',
+            ]);
+        }
+        // Put the original on a different page from its generated charges.
+        foreach (range(1, 3) as $index) {
+            DB::table('invoices')->insert([
+                'id' => 'other-'.$index, 'lease_id' => 'lease', 'type' => 'manual',
+                'status' => 'unpaid', 'created_at' => '2026-10-15 00:00:00',
+            ]);
+        }
+        $service = app(\App\Services\LeaseInvoiceViewService::class);
+        $lease = \App\Models\Lease::findOrFail('lease');
+        $row = $service->page($lease, 2)['invoices'][0];
+        $this->assertSame('original', $row['id']);
+        $this->assertCount(2, $row['related_charges']);
+        foreach ($row['related_charges'] as $charge) {
+            $this->assertSame('paid', $charge['status']);
+            $this->assertSame('10.00', $charge['amount']);
+            $this->assertNotNull($charge['document_url']);
+            $this->assertNotNull($charge['receipts'][0]['document_url']);
+        }
+        foreach (collect($service->page($lease, 1)['invoices'])->whereIn('id', ['penalty', 'processing_fee']) as $chargeRow) {
+            $this->assertSame('original', $chargeRow['original_invoice']['id']);
+            $this->assertNotNull($chargeRow['original_invoice']['document_url']);
+        }
+        \Illuminate\Support\Facades\Gate::swap(new \Illuminate\Auth\Access\Gate($this->app, fn () => auth()->user()));
+        $row = $service->page($lease, 2)['invoices'][0];
+        $this->assertNull($row['related_charges'][0]['document_url']);
+        $this->assertSame([], $row['related_charges'][0]['receipts']);
+        foreach (collect($service->page($lease, 1)['invoices'])->whereIn('id', ['penalty', 'processing_fee']) as $chargeRow) {
+            $this->assertNull($chargeRow['original_invoice']['document_url']);
+            $this->assertSame([], $chargeRow['original_invoice']['receipts']);
+        }
+    }
 
     private function setting(array $changes = [], bool $active = true): void
     {
@@ -94,12 +150,201 @@ class LatePenaltyPaymentTest extends TestCase
         ]);
     }
 
+    private function enableProcessingFee(): void
+    {
+        DB::table('settings')->where('key', 'processing_fee_config')->update(['is_active' => true]);
+        auth()->user()->unsetRelation('settings');
+    }
+
+    public function test_processing_fee_is_collected_separately_without_creating_wallet_excess(): void
+    {
+        $this->enableProcessingFee();
+        $staleInvoice = Invoice::find('original');
+        $this->pay($staleInvoice, 120); // RM100 invoice + RM10 penalty + RM10 processing.
+        $fee = Invoice::where('type', 'processing_fee')->sole();
+        $this->assertSame(1000, $fee->total_amount);
+        $this->assertSame('paid', $fee->status);
+        $this->assertSame('original', $fee->parent_id);
+        $this->assertSame(1000, (int) $fee->items()->sum('amount'));
+        $this->assertSame(10000, Invoice::find('original')->amount_paid);
+        $this->assertSame(12000, (int) DB::table('transactions')->sum('amount_paid'));
+        $this->assertSame(0, DB::table('wallet_transactions')->count());
+        try {
+            $this->pay($staleInvoice, 120);
+            $this->fail('A retry must not collect another processing fee.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('invoice', $exception->errors());
+        }
+        $this->assertSame(1, Invoice::where('type', 'processing_fee')->count());
+    }
+
+    public function test_processing_fee_edits_require_permission_and_use_the_edited_amount(): void
+    {
+        $this->enableProcessingFee();
+        $gate = new \Illuminate\Auth\Access\Gate($this->app, fn () => auth()->user());
+        \Illuminate\Support\Facades\Gate::swap($gate);
+        $gate->define('invoice.edit processing fee', fn () => false);
+        try {
+            $this->pay(Invoice::find('original'), 117.5, extra: ['processing_fee_amount' => '7.50']);
+            $this->fail('An unauthorized edit must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('processing_fee', $exception->errors());
+        }
+        $this->assertSame(0, DB::table('transactions')->count());
+        $gate->define('invoice.edit processing fee', fn () => true);
+        $this->pay(Invoice::find('original'), 117.5, extra: ['processing_fee_amount' => '7.50']);
+        $this->assertSame(750, Invoice::where('type', 'processing_fee')->sole()->total_amount);
+        $this->assertSame(0, DB::table('wallet_transactions')->count());
+    }
+
+    public function test_processing_fee_removal_requires_its_own_permission(): void
+    {
+        $this->enableProcessingFee();
+        $gate = new \Illuminate\Auth\Access\Gate($this->app, fn () => auth()->user());
+        \Illuminate\Support\Facades\Gate::swap($gate);
+        $gate->define('invoice.remove processing fee', fn () => false);
+        $gate->define('invoice.edit processing fee', fn () => true);
+        try {
+            $this->pay(Invoice::find('original'), 110, extra: ['processing_fee_cancelled' => true]);
+            $this->fail('Editing permission must not authorize the remove action.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('processing_fee', $exception->errors());
+        }
+        $gate->define('invoice.remove processing fee', fn () => true);
+        $this->pay(Invoice::find('original'), 110, extra: ['processing_fee_cancelled' => true]);
+        $this->assertSame(0, Invoice::where('type', 'processing_fee')->count());
+        $this->assertSame('paid', Invoice::find('original')->status);
+    }
+
+    public function test_processing_fee_does_not_apply_to_nonmatching_methods(): void
+    {
+        $this->enableProcessingFee();
+        $this->pay(Invoice::find('original'), 110, extra: ['payment_method' => 'Bank Transfer']);
+        $this->assertSame(0, Invoice::where('type', 'processing_fee')->count());
+    }
+
+    public function test_wallet_payment_skips_processing_fee_even_when_the_setting_is_enabled(): void
+    {
+        $this->enableProcessingFee();
+        DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 12000]);
+        $this->pay(Invoice::find('original'), 0, extra: [
+            'payment_method' => 'Wallet', 'use_wallet' => true, 'transaction_ref' => null,
+        ]);
+        $this->assertSame(0, Invoice::where('type', 'processing_fee')->count());
+        $this->assertSame(1000, (int) DB::table('wallets')->value('balance'));
+        $this->assertSame('paid', Invoice::find('original')->status);
+    }
+
+    public function test_processing_fee_cannot_consume_the_entire_payment_or_leave_partial_writes_on_failure(): void
+    {
+        $this->enableProcessingFee();
+        try {
+            $this->pay(Invoice::find('original'), 10);
+            $this->fail('A payment must contribute toward the original invoice.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('processing_fee', $exception->errors());
+        }
+        $this->assertSame(1, Invoice::count());
+        $this->assertSame(0, DB::table('transactions')->count());
+        $this->assertSame(0, DB::table('document_sequences')->count());
+        $this->assertSame(10000, Invoice::find('original')->amount_balance);
+    }
+
+    public function test_processing_fee_allows_partial_invoice_payment_and_only_true_excess_is_credited(): void
+    {
+        $this->enableProcessingFee();
+        $this->setting(active: false);
+        $this->pay(Invoice::find('original'), 30);
+        $this->assertSame(8000, Invoice::find('original')->amount_balance);
+        $this->assertSame(1000, Invoice::where('type', 'processing_fee')->sole()->amount_paid);
+        $this->assertSame(0, DB::table('wallet_transactions')->count());
+        // A second cash payment has its own fee: RM80 balance + RM10 fee + RM5 excess.
+        $this->pay(Invoice::find('original'), 95);
+        $this->assertSame(2, Invoice::where('type', 'processing_fee')->count());
+        $this->assertSame(500, (int) DB::table('wallets')->value('balance'));
+        $this->assertSame(12000, (int) DB::table('transactions')->sum('amount_paid'));
+    }
+
     private function pay(Invoice $invoice, float $amount, string $date = '2026-10-20', array $extra = []): void
     {
         // Exercise real invoice/payment/wallet writes; suppress only audit/notification observers.
         Model::withoutEvents(fn () => app(InvoiceService::class)->recordPayment($invoice, array_merge([
             'amount_paid' => $amount, 'payment_date' => $date, 'payment_method' => 'Cash', 'transaction_ref' => 'test',
         ], $extra)));
+    }
+
+    private function allowPenaltySeparation(): void
+    {
+        DB::table('settings')->updateOrInsert(['user_id' => 'admin', 'key' => 'payment_config'], [
+            'value' => json_encode(['allow_unpaid_penalty' => true, 'auto_pay_from_wallet' => false]), 'is_active' => true,
+        ]);
+        auth()->user()->unsetRelation('settings');
+    }
+
+    public function test_separated_penalty_does_not_block_finishing_partial_rent_or_create_another_penalty(): void
+    {
+        $this->allowPenaltySeparation();
+        $this->pay(Invoice::find('original'), 40);
+        $penalty = Invoice::where('parent_id', 'original')->where('type', 'penalty')->sole();
+        $this->assertSame(6000, Invoice::find('original')->amount_balance);
+        $this->assertNull(app(InvoicePenaltyService::class)->quote(Invoice::find('original'), '2026-10-30'));
+        DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 6000]);
+        $this->pay(Invoice::find('original'), 0, '2026-10-30', ['payment_method' => 'Wallet', 'use_wallet' => true, 'transaction_ref' => null]);
+        $this->assertSame('paid', Invoice::find('original')->status);
+        $this->assertSame(0, Invoice::find('original')->amount_balance);
+        $this->assertSame('unpaid', $penalty->fresh()->status);
+        $this->assertSame(1000, $penalty->fresh()->amount_balance);
+        $this->assertSame(1, Invoice::where('parent_id', 'original')->where('type', 'penalty')->count());
+        $this->assertSame(0, (int) DB::table('wallets')->value('balance'));
+    }
+
+    public function test_linked_penalty_can_be_paid_while_its_rental_is_still_partially_unpaid(): void
+    {
+        $this->allowPenaltySeparation();
+        $this->pay(Invoice::find('original'), 40);
+        $penalty = Invoice::where('parent_id', 'original')->where('type', 'penalty')->sole();
+        $this->pay($penalty, 5);
+        $this->assertSame('partial', $penalty->fresh()->status);
+        $this->assertSame(500, $penalty->fresh()->amount_balance);
+        $this->pay($penalty->fresh(), 5);
+        $this->assertSame('paid', $penalty->fresh()->status);
+        $this->assertSame('partial', Invoice::find('original')->status);
+        $this->assertSame(6000, Invoice::find('original')->amount_balance);
+        $this->assertSame(1, Invoice::where('type', 'penalty')->count());
+    }
+
+    public function test_unpaid_separated_penalty_does_not_block_the_next_rental_invoice(): void
+    {
+        $this->allowPenaltySeparation();
+        $this->pay(Invoice::find('original'), 100);
+        $penalty = Invoice::where('type', 'penalty')->sole();
+        DB::table('invoices')->insert([
+            'id' => 'next-rent', 'lease_id' => 'lease', 'type' => 'rent', 'period' => '2026-11-01', 'due_date' => '2026-11-20',
+            'document_template_id' => 'invoice-template', 'invoice_no' => 'NEXT-RENT', 'total_amount' => 10000,
+            'amount_balance' => 10000, 'status' => 'unpaid', 'created_at' => '2026-10-25 00:00:00',
+        ]);
+        $this->pay(Invoice::find('next-rent'), 100);
+        $this->assertSame('paid', Invoice::find('next-rent')->status);
+        $this->assertSame('unpaid', $penalty->fresh()->status);
+        $this->assertSame(1000, $penalty->fresh()->amount_balance);
+    }
+
+    public function test_penalty_separation_still_requires_clearing_unrelated_older_rental_debt(): void
+    {
+        $this->allowPenaltySeparation();
+        $this->pay(Invoice::find('original'), 40);
+        $penalty = Invoice::where('type', 'penalty')->sole();
+        DB::table('invoices')->insert([
+            'id' => 'older-rent', 'lease_id' => 'lease', 'type' => 'rent', 'period' => '2026-09-01',
+            'total_amount' => 10000, 'amount_balance' => 10000, 'status' => 'unpaid', 'created_at' => '2026-09-01 00:00:00',
+        ]);
+        try { $this->pay($penalty, 10); $this->fail('Unrelated older rental debt was skipped'); }
+        catch (\Illuminate\Http\Exceptions\HttpResponseException $exception) {
+            $this->assertStringContainsString('Earlier outstanding invoices', session('error'));
+        }
+        $this->assertSame('unpaid', $penalty->fresh()->status);
+        $this->assertSame(1000, $penalty->fresh()->amount_balance);
+        $this->assertSame(1, DB::table('transactions')->count());
     }
 
     public function test_preview_and_collection_share_dates_and_ignore_client_penalty_amount(): void
@@ -248,8 +493,15 @@ class LatePenaltyPaymentTest extends TestCase
             $request->headers->set('Accept', 'application/json');
             foreach (['preview', 'payment'] as $action) {
                 try {
-                    if ($action === 'preview') app(SettingsController::class)->calculatePenaltyPreview($request, $invoice, app(InvoicePenaltyService::class));
-                    else $this->pay($invoice, 110);
+                    if ($action === 'preview') {
+                        $response = app(SettingsController::class)->calculatePenaltyPreview($request, $invoice, app(InvoicePenaltyService::class));
+                        $this->assertSame(422, $response->getStatusCode());
+                        $this->assertArrayHasKey('penalty', $response->getData(true)['errors']);
+                        $this->assertSame(session('error'), $response->getData(true)['session_status']['message']);
+                        $this->assertStringContainsString('Ask the system administrator', $response->getContent());
+                        continue;
+                    }
+                    $this->pay($invoice, 110);
                     $this->fail("$case must block $action.");
                 } catch (ValidationException $e) {
                     $this->assertArrayHasKey('penalty', $e->errors());
@@ -302,7 +554,7 @@ class LatePenaltyPaymentTest extends TestCase
     public function test_missing_fee_form_submission_returns_actionable_page_error(): void
     {
         DB::table('fee_types')->where('id', 'penalty')->delete();
-        \Illuminate\Support\Facades\Gate::shouldReceive('denies')->once()->with('owner-admin')->andReturn(false);
+        \Illuminate\Support\Facades\Gate::shouldReceive('denies')->once()->with('super-admin')->andReturn(false);
         $request = \Mockery::mock(\App\Http\Requests\Invoice\RecordPaymentRequest::class)->makePartial();
         $request->initialize();
         $request->shouldReceive('validated')->once()->andReturn(['payment_date' => '2026-10-20', 'amount_paid' => 110, 'payment_method' => 'Cash']);
@@ -575,15 +827,17 @@ class LatePenaltyPaymentTest extends TestCase
         $this->assertSame('pending', $refund->status->value);
     }
 
-    public function test_wallet_is_added_to_draft_without_spending_it(): void
+    #[\PHPUnit\Framework\Attributes\DataProvider('checkoutRenewalStates')]
+    public function test_wallet_is_added_to_draft_without_spending_it(string $initialStatus, string $action): void
     {
         $this->refundFixture('draft');
         Schema::table('leases', function (Blueprint $t) { $t->string('status')->nullable(); });
+        DB::table('leases')->where('id', 'lease')->update(['status' => $initialStatus, 'is_pending_renewal' => true]);
         Schema::table('refunds', function (Blueprint $t) {
             $t->string('type')->nullable(); $t->string('reason')->nullable(); $t->string('internal_notes')->nullable();
         });
         DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 20000]);
-        $refund = Model::withoutEvents(fn () => app(\App\Services\RefundService::class)->saveAsDraft(
+        $refund = Model::withoutEvents(fn () => app(\App\Services\RefundService::class)->$action(
             \App\Models\Lease::findOrFail('lease'), [], [
                 ['type' => 'cleaning', 'amount_cents' => 5000, 'qty' => 1, 'description' => 'Cleaning'],
             ]
@@ -593,6 +847,19 @@ class LatePenaltyPaymentTest extends TestCase
         $this->assertSame(105000, $refund->net_amount_cents);
         $this->assertSame(20000, (int) DB::table('wallets')->value('balance'));
         $this->assertSame(0, DB::table('wallet_transactions')->count());
+        $lease = \App\Models\Lease::findOrFail('lease');
+        $this->assertSame('Check Out', $lease->status);
+        $this->assertFalse($lease->is_pending_renewal);
+    }
+
+    public static function checkoutRenewalStates(): array
+    {
+        return [
+            'draft from renewal' => ['Renew', 'saveAsDraft'],
+            'draft clears stale flag' => ['Check Out', 'saveAsDraft'],
+            'pending from renewal' => ['Renew', 'submitForPending'],
+            'pending clears stale flag' => ['Check Out', 'submitForPending'],
+        ];
     }
 
     public function test_approval_reserves_wallet_and_blocks_spending_on_other_invoices(): void
@@ -713,7 +980,7 @@ class LatePenaltyPaymentTest extends TestCase
             'id' => 'refund-template', 'user_id' => 'admin', 'category' => 'refund', 'status' => 'active', 'title' => 'Refund',
             'html_template' => '<table><tbody id="dynamic-refund-tbody"></tbody></table><p>Deductions: {{total_deductions}}</p><p>Net: {{nett_refund_amount}}</p>',
         ]);
-        \Illuminate\Support\Facades\Gate::shouldReceive('denies')->with('owner-admin')->andReturn(false);
+        \Illuminate\Support\Facades\Gate::shouldReceive('denies')->with('super-admin')->andReturn(false);
         $request = Request::create('/preview', 'POST', [
             'template_id' => 'refund-template', 'category' => 'refund',
             'refund_context' => [
@@ -739,6 +1006,229 @@ class LatePenaltyPaymentTest extends TestCase
     public static function walletOffsetExamples(): array
     {
         return ['insufficient-credit' => [37300, '0.00'], 'sufficient-credit' => [650000, '500.00']];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('blockedInvoiceChangeStages')]
+    public function test_financial_changes_are_blocked_before_any_writes(string $stage, string $action): void
+    {
+        $this->refundFixture($stage);
+        $before = DB::table('refunds')->where('id', 'refund')->first();
+        try {
+            Model::withoutEvents(function () use ($action) {
+                if ($action === 'create') {
+                    app(InvoiceService::class)->createManualInvoice(\App\Models\Lease::findOrFail('lease'), [
+                        'period' => '2026-11-01', 'due_date' => '2026-11-10',
+                        'items' => [['fee_type_id' => 'rent', 'amount' => 20]],
+                    ]);
+                } else {
+                    app(InvoiceService::class)->voidInvoice(Invoice::findOrFail('deposit-invoice'), 'Correction');
+                }
+            });
+            $this->fail('Financial changes must be blocked in this refund stage.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('refund', $exception->errors());
+        }
+        $this->assertSame(2, Invoice::count());
+        $this->assertSame('paid', Invoice::findOrFail('deposit-invoice')->status);
+        $this->assertSame(0, DB::table('wallet_transactions')->count());
+        $this->assertEquals($before, DB::table('refunds')->where('id', 'refund')->first());
+    }
+
+    public static function blockedInvoiceChangeStages(): array
+    {
+        $cases = [];
+        foreach (['pending', 'approved', 'processing', 'paid'] as $stage) {
+            foreach (['create', 'void'] as $action) $cases[$stage.'-'.$action] = [$stage, $action];
+        }
+        return $cases;
+    }
+
+    public function test_draft_invoice_creation_and_void_refresh_settlement_and_void_is_idempotent(): void
+    {
+        $this->refundFixture('draft');
+        $new = Model::withoutEvents(fn () => app(InvoiceService::class)->createManualInvoice(\App\Models\Lease::findOrFail('lease'), [
+            'period' => '2026-11-01', 'due_date' => '2026-11-10', 'items' => [['fee_type_id' => 'rent', 'amount' => 20]],
+        ]));
+        $this->assertSame(12000, \App\Models\Refund::findOrFail('refund')->auto_deduction_cents);
+        Model::withoutEvents(fn () => app(InvoiceService::class)->voidInvoice($new, 'Duplicate charge'));
+        $this->assertSame(10000, \App\Models\Refund::findOrFail('refund')->auto_deduction_cents);
+        DB::table('transaction_allocations')->insert(['invoice_item_id' => 'deposit-item', 'amount_cents' => 100000]);
+        Model::withoutEvents(fn () => app(InvoiceService::class)->voidInvoice(Invoice::findOrFail('deposit-invoice'), 'Deposit invoice correction'));
+        $refund = \App\Models\Refund::findOrFail('refund');
+        $this->assertSame(0, $refund->deposit_collected_cents);
+        $this->assertSame(100000, $refund->wallet_refund_cents);
+        $this->assertSame(85000, $refund->net_amount_cents);
+        try {
+            Model::withoutEvents(fn () => app(InvoiceService::class)->voidInvoice(Invoice::findOrFail('deposit-invoice'), 'Repeated request'));
+            $this->fail('Repeated void must be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('invoice', $exception->errors());
+        }
+        $this->assertSame(1, DB::table('wallet_transactions')->count());
+        $this->assertSame(100000, (int) DB::table('wallets')->value('balance'));
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('returnableStages')]
+    public function test_return_and_revoke_preserve_figures_and_record_reason(string $stage): void
+    {
+        $this->refundFixture($stage);
+        Schema::table('refunds', fn (Blueprint $table) => $table->text('internal_notes')->nullable());
+        DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 20000, 'reserved_refund_id' => $stage === 'approved' ? 'refund' : null]);
+        Model::withoutEvents(function () use ($stage) {
+            $service = app(\App\Services\RefundService::class);
+            if ($stage === 'approved') $service->revokeApproval(\App\Models\Refund::findOrFail('refund'), 'Correct final utility charge');
+            else $service->rejectRefund(\App\Models\Lease::findOrFail('lease'), ['transition_reason' => 'Correct final utility charge']);
+        });
+        $refund = \App\Models\Refund::findOrFail('refund');
+        $this->assertSame('draft', $refund->status->value);
+        $this->assertSame(85000, $refund->net_amount_cents);
+        $this->assertSame(2, $refund->items()->count());
+        $this->assertStringContainsString('Correct final utility charge', $refund->internal_notes);
+        $this->assertStringContainsString('admin', $refund->internal_notes);
+        $this->assertNull($refund->approved_by);
+        $this->assertNull($refund->approved_at);
+        $this->assertNull(DB::table('wallets')->value('reserved_refund_id'));
+        $this->assertSame(20000, (int) DB::table('wallets')->value('balance'));
+    }
+
+    public static function returnableStages(): array
+    {
+        return [['pending'], ['approved']];
+    }
+
+    public function test_completed_refund_cannot_be_reopened_and_residual_debt_can_be_collected(): void
+    {
+        $this->refundFixture('paid');
+        $service = app(\App\Services\RefundService::class);
+        try {
+            Model::withoutEvents(fn () => $service->saveAsDraft(\App\Models\Lease::findOrFail('lease'), [], []));
+            $this->fail('Completed settlements must not create another draft against the same deposit.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('refund', $exception->errors());
+        }
+        try {
+            Model::withoutEvents(fn () => $service->revokeApproval(\App\Models\Refund::findOrFail('refund'), 'Correction'));
+            $this->fail('Paid approval cannot be revoked.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('refund', $exception->errors());
+        }
+        $before = DB::table('refunds')->where('id', 'refund')->first();
+        $this->pay(Invoice::findOrFail('original'), 100);
+        $this->assertSame('paid', Invoice::findOrFail('original')->status);
+        $this->assertEquals($before, DB::table('refunds')->where('id', 'refund')->first());
+        $this->assertSame(1, DB::table('refunds')->count());
+    }
+
+    public function test_completed_refund_accepts_only_explicit_linked_adjustment_invoice(): void
+    {
+        $this->refundFixture('paid');
+        Schema::table('invoices', function (Blueprint $table) {
+            $table->string('settlement_refund_id')->nullable(); $table->text('adjustment_reason')->nullable();
+        });
+        $before = DB::table('refunds')->where('id', 'refund')->first();
+        $new = Model::withoutEvents(fn () => app(InvoiceService::class)->createManualInvoice(\App\Models\Lease::findOrFail('lease'), [
+            'period' => '2026-11-01', 'due_date' => '2026-11-10', 'post_refund_adjustment' => true,
+            'adjustment_reason' => 'Final utility charge received after settlement',
+            'items' => [['fee_type_id' => 'rent', 'amount' => 20]],
+        ]));
+        $this->assertSame('refund', $new->settlement_refund_id);
+        $this->assertSame('adjustment', $new->type);
+        $this->assertSame(2000, $new->total_amount);
+        $this->assertEquals($before, DB::table('refunds')->where('id', 'refund')->first());
+    }
+
+    public function test_old_review_screen_cannot_approve_figures_changed_by_payment(): void
+    {
+        $this->refundFixture('pending');
+        $service = app(\App\Services\RefundService::class);
+        $old = $service->settlementFingerprint(\App\Models\Refund::findOrFail('refund'));
+        $this->pay(Invoice::findOrFail('original'), 100);
+        try {
+            Model::withoutEvents(fn () => $service->approveRefund(\App\Models\Refund::findOrFail('refund'), User::findOrFail('admin'), ['settlement_fingerprint' => $old]));
+            $this->fail('An old review screen must not approve updated figures.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('refund', $exception->errors());
+        }
+        $refund = \App\Models\Refund::findOrFail('refund');
+        $this->assertSame('pending', $refund->status->value);
+        $approved = Model::withoutEvents(fn () => $service->approveRefund($refund, User::findOrFail('admin'), ['settlement_fingerprint' => $service->settlementFingerprint($refund)]));
+        $this->assertSame('approved', $approved->status->value);
+    }
+
+    public function test_ajax_renewal_business_errors_return_json_and_leave_the_lease_unchanged(): void
+    {
+        \Illuminate\Support\Facades\Gate::shouldReceive('denies')->with('super-admin')->andReturn(false);
+        $request = \Mockery::mock(\App\Http\Requests\Lease\StoreLeaseRequest::class)->makePartial();
+        $request->initialize();
+        $request->shouldReceive('expectsJson')->andReturn(true);
+        $request->shouldReceive('validated')->once()->andReturn(['status' => 'Renew', 'lease_id' => 'lease']);
+        $service = \Mockery::mock(\App\Services\LeaseService::class);
+        $service->shouldReceive('process')->once()->andThrow(ValidationException::withMessages(['error' => 'Clear unpaid invoices before renewal.']));
+        $response = app(\App\Http\Controllers\LeaseController::class)->store($request, $service);
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertFalse($response->getData(true)['success']);
+        $this->assertSame('Clear unpaid invoices before renewal.', session('error'));
+        $this->assertSame(1, \App\Models\Lease::count());
+        $this->assertSame(0, DB::table('transactions')->count());
+    }
+
+    public function test_void_controller_returns_stage_error_in_session(): void
+    {
+        $this->refundFixture('approved');
+        \Illuminate\Support\Facades\Gate::shouldReceive('denies')->with('super-admin')->andReturn(false);
+        $request = \Mockery::mock(\App\Http\Requests\Invoice\VoidInvoiceRequest::class)->makePartial();
+        $request->initialize();
+        $request->shouldReceive('validated')->with('reason')->andReturn('Correction');
+        $response = app(\App\Http\Controllers\InvoiceController::class)->void($request, Invoice::findOrFail('original'));
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertStringContainsString('Revoke refund approval', session('error'));
+        $this->assertSame('unpaid', Invoice::findOrFail('original')->status);
+    }
+
+    public function test_updated_refund_and_invoice_blades_compile(): void
+    {
+        foreach (['components.modals.lease-create-modal', 'components.modals.manual-invoice-modal', 'adminSide.leases.show', 'adminSide.leases.invoices.index', 'dashboard'] as $view) {
+            $php = app('blade.compiler')->compileString(file_get_contents(view($view)->getPath()));
+            $this->assertNotEmpty(token_get_all($php, TOKEN_PARSE));
+        }
+    }
+
+    public function test_post_refund_adjustment_migration_is_reversible(): void
+    {
+        $migration = require base_path('database/migrations/2026_11_09_000001_link_post_refund_invoice_adjustments.php');
+        $migration->up();
+        $this->assertTrue(Schema::hasColumn('invoices', 'settlement_refund_id'));
+        $this->assertTrue(Schema::hasColumn('invoices', 'adjustment_reason'));
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('invoices', 'settlement_refund_id'));
+        $this->assertFalse(Schema::hasColumn('invoices', 'adjustment_reason'));
+    }
+
+    public function test_unsuccessful_payout_does_not_enter_processing_or_move_funds(): void
+    {
+        $this->refundFixture('approved');
+        $before = DB::table('refunds')->where('id', 'refund')->first();
+        try {
+            Model::withoutEvents(fn () => app(\App\Services\RefundService::class)->processDisbursement(
+                \App\Models\Refund::findOrFail('refund'), ['status' => 'failed'], User::findOrFail('admin')
+            ));
+            $this->fail('A failed payout must not move settlement funds.');
+        } catch (ValidationException $exception) {
+            $this->assertArrayHasKey('refund', $exception->errors());
+        }
+        $this->assertEquals($before, DB::table('refunds')->where('id', 'refund')->first());
+        $this->assertSame(0, DB::table('transactions')->count());
+        $this->assertSame(0, DB::table('wallet_transactions')->count());
+    }
+
+    public function test_checked_out_lease_recurring_invoice_action_reports_session_error(): void
+    {
+        \Illuminate\Support\Facades\Gate::shouldReceive('denies')->with('super-admin')->andReturn(false);
+        $lease = new \App\Models\Lease(['status' => 'Check Out']);
+        $response = app(\App\Http\Controllers\InvoiceController::class)->generateAutoInvoice(Request::create('/generate', 'POST'), $lease);
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertStringContainsString('Recurring invoices stop after checkout', session('error'));
+        $this->assertSame(1, Invoice::count());
     }
 
     private function refundFixture(string $stage): void

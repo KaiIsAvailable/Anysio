@@ -1,12 +1,23 @@
 <?php
 namespace App\Services;
 
-use App\Models\{Wallet, WalletTransaction};
+use App\Models\{Wallet, WalletTransaction, Refund};
+use App\Enums\RefundStatus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
 class WalletService
 {
+    /** The caller holds the wallet lock; an unresolved reservation stays fully protected. */
+    public function automaticSpendableBalance(Wallet $wallet): int
+    {
+        $balance = max(0, (int) $wallet->balance);
+        if (!$wallet->reserved_refund_id) return $balance;
+        $refund = Refund::find($wallet->reserved_refund_id);
+        if (!$refund || $refund->status !== RefundStatus::APPROVED) return 0;
+        return max(0, $balance - max(0, (int) $refund->wallet_refund_cents));
+    }
+
     public function refundableBalance(string $userId, ?string $refundId = null, bool $lock = false): int
     {
         $query = Wallet::where('user_id', $userId);
@@ -73,12 +84,12 @@ class WalletService
         });
     }
 
-    public function debit(string $userId, int $amountCents, string $type, string $refId, string $remarks = ''): WalletTransaction
+    public function debit(string $userId, int $amountCents, string $type, string $refId, string $remarks = '', bool $automatic = false): WalletTransaction
     {
-        return DB::transaction(function () use ($userId, $amountCents, $type, $refId, $remarks) {
+        return DB::transaction(function () use ($userId, $amountCents, $type, $refId, $remarks, $automatic) {
             $this->getOrCreateWallet($userId);
             $wallet = Wallet::where('user_id', $userId)->lockForUpdate()->firstOrFail();
-            if ($wallet->reserved_refund_id) {
+            if ($wallet->reserved_refund_id && (!$automatic || $amountCents > $this->automaticSpendableBalance($wallet))) {
                 throw ValidationException::withMessages(['use_wallet' => 'This wallet balance is reserved for an approved checkout refund and cannot be spent.']);
             }
             abort_if($wallet->balance < $amountCents, 422, 'Insufficient wallet balance.');

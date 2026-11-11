@@ -22,7 +22,7 @@ class RefundController extends Controller
     public function storeDraft(Request $request)
     {
         if (Gate::denies('super-admin') && Gate::denies('leases.save draft')) {
-            return redirect()->back()->with('error', 'You have no permission.');
+            return $this->actionError($request, 'You have no permission.');
         }
         //dd($request->all());
         $validated = $request->validate([
@@ -67,11 +67,9 @@ class RefundController extends Controller
         })->toArray();
 
         if (!$this->authorizeDeductionChanges($lease, $items)) {
-            return redirect()->back()->with('error', 'You have no permission.');
+            return $this->actionError($request, 'You have no permission.');
         }
-        $refund = $this->refundService->saveAsDraft($lease, $validated, $items);
-
-        return redirect()->back()->with('success', 'Refund settlement saved as draft successfully.');
+        return $this->runAction(fn () => $this->refundService->saveAsDraft($lease, $validated, $items), 'Refund settlement saved as draft successfully.', $request);
     }
 
     /**
@@ -80,7 +78,7 @@ class RefundController extends Controller
     public function pending(Request $request)
     {
         if (Gate::denies('super-admin') && Gate::denies('leases.set as pending')) {
-            return redirect()->back()->with('error', 'You have no permission.');
+            return $this->actionError($request, 'You have no permission.');
         }
         $validated = $request->validate([
             'lease_id' => 'required|exists:leases,id',
@@ -121,29 +119,47 @@ class RefundController extends Controller
 
         // Call service method to update draft items and switch status to PENDING
         if (!$this->authorizeDeductionChanges($lease, $items)) {
-            return redirect()->back()->with('error', 'You have no permission.');
+            return $this->actionError($request, 'You have no permission.');
         }
-        $this->refundService->submitForPending($lease, $validated, $items);
-
-        return redirect()->back()->with('success', 'Refund settlement submitted for approval successfully.');
+        return $this->runAction(fn () => $this->refundService->submitForPending($lease, $validated, $items), 'Refund settlement submitted for approval successfully.', $request);
     }
 
     public function reject(Request $request)
     {
         if (Gate::denies('super-admin') && Gate::denies('leases.reject refund')) {
-            return redirect()->back()->with('error', 'You have no permission.');
+            return $this->actionError($request, 'You have no permission.');
         }
+        if ($request->filled('lease_id') && Refund::where('lease_id', $request->input('lease_id'))->latest()->first()?->status !== \App\Enums\RefundStatus::PENDING) {
+            return $this->actionError($request, 'Only a pending refund can be returned to Draft.');
+        }
+        if (!$request->filled('transition_reason')) return $this->actionError($request, 'Enter a reason for returning the refund to Draft.');
         $validated = $request->validate([
             'lease_id' => 'required|exists:leases,id',
+            'transition_reason' => 'required|string|max:1000',
             ...$this->checkoutMetadataRules(),
         ]);
 
         $lease = Lease::findOrFail($validated['lease_id']);
 
         // Call your service method to change status back to draft
-        $this->refundService->rejectRefund($lease, $validated);
+        return $this->runAction(fn () => $this->refundService->rejectRefund($lease, $validated), 'Refund returned to Draft.', $request);
+    }
 
-        return redirect()->back()->with('success', 'Refund rejected and sent back to draft.');
+    public function revokeApproval(Request $request)
+    {
+        if (Gate::denies('super-admin') && Gate::denies('leases.revoke refund approval')) {
+            return $this->actionError($request, 'You have no permission.');
+        }
+        if (!$request->filled('refund_id')) return $this->actionError($request, 'There is no approved refund to revoke.');
+        if (Refund::find($request->input('refund_id'))?->status !== \App\Enums\RefundStatus::APPROVED) return $this->actionError($request, 'Only an approved, unpaid refund can have approval revoked.');
+        if (!$request->filled('transition_reason')) return $this->actionError($request, 'Enter a reason for revoking refund approval.');
+        $validated = $request->validate([
+            'refund_id' => 'required|exists:refunds,id',
+            'transition_reason' => 'required|string|max:1000',
+        ]);
+        return $this->runAction(fn () => $this->refundService->revokeApproval(
+            Refund::findOrFail($validated['refund_id']), $validated['transition_reason']
+        ), 'Refund approval revoked. The settlement is back in Draft.', $request);
     }
 
     /**
@@ -152,10 +168,12 @@ class RefundController extends Controller
     public function approve(Request $request)
     {
         if (Gate::denies('super-admin') && Gate::denies('leases.approve refund')) {
-            return redirect()->back()->with('error', 'You have no permission.');
+            return $this->actionError($request, 'You have no permission.');
         }
+        if (!$request->filled('refund_id')) return $this->actionError($request, 'Save and submit the refund as Pending before approving it.');
         $validated = $request->validate([
             'refund_id' => 'required|exists:refunds,id',
+            'settlement_fingerprint' => 'required|string|size:64',
             ...$this->checkoutMetadataRules(),
         ]);
 
@@ -163,9 +181,7 @@ class RefundController extends Controller
         $effectiveUser = get_effective_user();
 
         // Call approve service method
-        $this->refundService->approveRefund($refund, $effectiveUser, $validated);
-
-        return redirect()->back()->with('success', 'Refund approved successfully.');
+        return $this->runAction(fn () => $this->refundService->approveRefund($refund, $effectiveUser, $validated), 'Refund approved successfully.', $request);
     }
 
     /**
@@ -174,10 +190,15 @@ class RefundController extends Controller
     public function disburse(Request $request)
     {
         if (Gate::denies('super-admin') && Gate::denies('leases.proceed refund')) {
-            return redirect()->back()->with('error', 'You have no permission.');
+            return $this->actionError($request, 'You have no permission.');
         }
+        if (!$request->filled('refund_id')) return $this->actionError($request, 'Approve a refund before proceeding to payout.');
+        $refund = Refund::findOrFail($request->input('refund_id'));
+        if ($refund->status !== \App\Enums\RefundStatus::APPROVED) return $this->actionError($request, 'Only an approved, unpaid refund can proceed to payout.');
+        $hasPayout = $refund->net_amount_cents > 0;
         $validated = $request->validate([
             'refund_id' => 'required|exists:refunds,id',
+            'settlement_fingerprint' => 'required|string|size:64',
             'checked_out_at' => ['required', 'date'],
             'refund_document_id' => [
                 'required',
@@ -187,15 +208,15 @@ class RefundController extends Controller
                         ->where('status', 'active')
                 ),
             ],
-            'bank_detail_id' => 'required|exists:bank_details,id',
-            'method' => 'required|string',
+            'bank_detail_id' => ($hasPayout ? 'required' : 'nullable').'|exists:bank_details,id',
+            'method' => $hasPayout ? 'required|string' : 'nullable|string',
             'reference' => 'nullable|string',
         ]);
 
         $refund = Refund::findOrFail($validated['refund_id']);
         $refund->loadMissing('tenant.user');
-        $bankBelongsToTenant = $refund->tenant?->user?->bankDetails()
-            ->whereKey($validated['bank_detail_id'])
+        $bankBelongsToTenant = !$hasPayout || $refund->tenant?->user?->bankDetails()
+            ->whereKey($validated['bank_detail_id'] ?? null)
             ->exists();
 
         if (!$bankBelongsToTenant) {
@@ -210,18 +231,45 @@ class RefundController extends Controller
         $netAmountDecimal = $refund->net_amount_cents / 100;
 
         $disbursementData = [
+            'settlement_fingerprint' => $validated['settlement_fingerprint'],
             'amount_cents' => $refund->net_amount_cents, // Use the exact calculated net cents from the database
             'checked_out_at' => $validated['checked_out_at'],
             'refund_document_id' => $validated['refund_document_id'],
-            'bank_detail_id' => $validated['bank_detail_id'],
-            'method' => $validated['method'],
+            'bank_detail_id' => $hasPayout ? $validated['bank_detail_id'] : null,
+            'method' => $hasPayout ? $validated['method'] : 'settlement',
             'reference' => $validated['reference'] ?? null,
             'status' => 'successful',
         ];
 
-        $this->refundService->processDisbursement($refund, $disbursementData, $effectiveUser);
+        return $this->runAction(fn () => $this->refundService->processDisbursement($refund, $disbursementData, $effectiveUser), 'Refund disbursement processed successfully.', $request);
+    }
 
-        return redirect()->back()->with('success', 'Refund disbursement processed successfully.');
+    private function runAction(callable $action, string $message, ?Request $request = null)
+    {
+        $request ??= request();
+        try {
+            $action();
+            if ($request->expectsJson()) {
+                session()->forget('error');
+                session()->flash('success', $message);
+                return response()->json(['success' => true, 'message' => $message]);
+            }
+            return back()->with('success', $message);
+        } catch (ValidationException $exception) {
+            return $this->actionError($request, implode(' ', \Illuminate\Support\Arr::flatten($exception->errors())), $exception->errors());
+        }
+    }
+
+    private function actionError(Request $request, string $message, array $errors = [])
+    {
+        session()->forget(['success', 'status']);
+        session()->flash('error', $message);
+        if ($request->expectsJson()) {
+            return response()->json(['success' => false, 'message' => $message, 'errors' => $errors,
+                'session_status' => ['type' => 'error', 'message' => $message]],
+                $message === 'You have no permission.' ? 403 : 422);
+        }
+        return back()->withErrors($errors)->withInput()->with('error', $message);
     }
 
     private function authorizeDeductionChanges(Lease $lease, array $items): bool

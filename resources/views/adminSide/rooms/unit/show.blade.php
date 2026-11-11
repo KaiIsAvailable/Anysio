@@ -14,14 +14,14 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Unit {{ $unit->unit_no }} <span class="text-indigo-600">Rooms</span></h1>
                     <p class="mt-2 text-sm text-gray-500 italic">Manage and organize rooms within this unit.</p>
                 </div>
-                <div class="flex-shrink-0" x-data="{loading: false}">
+                <div class="flex-shrink-0" x-data="{creatingRoom: false}">
                     @canany(['super-admin', 'room.create'])
                     <x-form.primary-button
                         type="button"
-                        loading="loading"
-                        @click="loading = true; window.location.href = '{{ route('admin.rooms.create', ['unit_id' => $unit->id]) }}'">
+                        loading="creatingRoom"
+                        @click="creatingRoom = true; window.location.href = '{{ route('admin.rooms.create', ['unit_id' => $unit->id]) }}'">
 
-                        <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg x-show="!creatingRoom" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                         Add New Room
@@ -34,7 +34,7 @@
             {{-- Unit Details --}}
             <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden mb-8">
                 {{-- Header --}}
-                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50">
                     <h2 class="text-base font-semibold text-slate-900">
                         Unit Details
                     </h2>
@@ -43,9 +43,16 @@
                         $unitBadge = get_status_badge($unit->status ?? null);
                     @endphp
 
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $unitBadge }}">
-                        {{ ucfirst($unit->status ?? 'N/A') }}
-                    </span>
+                    <section class="flex flex-wrap items-center gap-3" data-unit-header-status-summary aria-label="Unit status and room counts">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $unitBadge }}">
+                            {{ ucfirst($unit->status ?? 'N/A') }}
+                        </span>
+                        <x-table.status-counts :inline="true" :counts="[
+                            'Vacant' => $unit->vacant_rooms_count ?? 0,
+                            'Occupied' => $unit->occupied_rooms_count ?? 0,
+                            'Maintenance' => $unit->maintenance_rooms_count ?? 0,
+                        ]" />
+                    </section>
 
                 </div>
 
@@ -214,7 +221,7 @@
                                 </svg>
                                 View Room Assets
                             </a>-->
-                            <x-table.search placeholder="Search rooms name..." />
+                            <x-table.search placeholder="Search room, owner, type, status, asset, date..." />
                         </x-form.form>
                     </div>
                 </div>
@@ -298,7 +305,7 @@
                                     @endif
                                 </td>
 
-                                <td class="px-6 py-4 text-sm text-slate-900">{{ optional($room->created_at)->format('d M Y') }}</td>
+                                <td class="px-6 py-4 text-sm text-slate-900">{{ $room->created_at ? dateFormat($room->created_at) : '' }}</td>
 
                                 @canany(['super-admin', 'room.edit', 'room.delete'])
                                 <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">

@@ -1,12 +1,23 @@
 @props([
     'variant' => 'document',
     'label' => 'Loading...',
+    'columns' => 6,
 ])
 
 {{-- Pass Alpine visibility directives and layout classes through the attribute bag. --}}
 <div {{ $attributes->merge(['role' => 'status', 'aria-live' => 'polite']) }}>
     <span class="sr-only">{{ $label }}</span>
-    @if ($variant === 'statement')
+    @if ($variant === 'table-rows')
+        <div class="divide-y divide-gray-100 motion-safe:animate-pulse" aria-hidden="true">
+            @foreach (range(1, 5) as $row)
+                <div class="grid items-center gap-4 px-4 py-5" style="grid-template-columns: repeat({{ (int) $columns }}, minmax(0, 1fr))">
+                    @foreach (range(1, (int) $columns) as $column)
+                        <div class="h-4 rounded bg-slate-100"></div>
+                    @endforeach
+                </div>
+            @endforeach
+        </div>
+    @elseif ($variant === 'statement')
         <div class="space-y-5 motion-safe:animate-pulse" aria-hidden="true">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
                 @foreach (range(1, 2) as $card)

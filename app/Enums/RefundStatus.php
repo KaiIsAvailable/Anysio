@@ -5,6 +5,7 @@ enum RefundStatus: string {
     case DRAFT = 'draft';
     case PENDING = 'pending';
     case APPROVED = 'approved';
+    case PROCESSING = 'processing';
     case PAID = 'paid';
     case REJECTED = 'rejected';
     case CANCELLED = 'cancelled';

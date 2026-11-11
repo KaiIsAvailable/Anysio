@@ -6,6 +6,7 @@
         closeModal() {
 
             this.openPreview = false;
+            window.dispatchEvent(new CustomEvent('invoice-preview-closed'));
             document.body.style.overflow = ''; // Restores background scrolling
         },
         printDocument() {

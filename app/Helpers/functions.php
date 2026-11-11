@@ -10,6 +10,35 @@ if (!function_exists('toupper')) {
     }
 }
 
+if (!function_exists('get_status_color')) {
+    // Use the badge palette for standalone text, optionally matching its background.
+    function get_status_color(?string $status, bool $badgeBackground = false): string
+    {
+        if (!$badgeBackground) {
+            return match (get_status_badge($status, textOnly: true)) {
+                'text-amber-800' => 'text-yellow-500',
+                'text-emerald-800' => 'text-green-600',
+                'text-rose-800' => 'text-red-600',
+                default => get_status_badge($status, textOnly: true),
+            };
+        }
+
+        preg_match('/\bbg-[a-z]+-\d+\b/', get_status_badge($status), $matches);
+
+        // Full class names allow Tailwind to include these utilities in the build.
+        return match ($matches[0] ?? '') {
+            'bg-amber-100' => 'text-amber-100',
+            'bg-emerald-100' => 'text-emerald-100',
+            'bg-rose-100' => 'text-rose-100',
+            'bg-blue-100' => 'text-blue-100',
+            'bg-indigo-100' => 'text-indigo-100',
+            'bg-gray-100' => 'text-gray-100',
+            'bg-purple-100' => 'text-purple-100',
+            default => 'text-slate-100',
+        };
+    }
+}
+
 /**
  * date format = dd/mm/yyyy
  */
@@ -88,11 +117,11 @@ if (!function_exists('get_effective_user')) {
  * Get the Tailwind CSS badge classes for any entity status.
  */
 if (!function_exists('get_status_badge')) {
-    function get_status_badge(?string $status): string
+    function get_status_badge(?string $status, bool $textOnly = false): string
     {
         $status = strtolower(trim($status ?? ''));
 
-        return match ($status) {
+        $classes = match ($status) {
             // General / System Statuses & Completed Checkouts
             'active', 'occupied', 'paid', 'completed' => 'bg-emerald-100 text-emerald-800 border border-emerald-200',
             'pending', 'vacant'  => 'bg-amber-100 text-amber-800 border border-amber-200',
@@ -115,5 +144,12 @@ if (!function_exists('get_status_badge')) {
             // Default Fallback
             default => 'bg-slate-100 text-slate-800 border border-slate-200',
         };
+
+        if ($textOnly) {
+            preg_match('/\btext-[a-z]+-\d+\b/', $classes, $matches);
+            return $matches[0] ?? 'text-slate-800';
+        }
+
+        return $classes;
     }
 }

@@ -18,7 +18,7 @@
 <div x-data="{ 
         advancedOpen: false,
         loading: false,
-        search: '{{ request('search') }}',
+        search: @js((string) request('search', '')),
         leaseable_name: '{{ request('leaseable_name') }}',
         leaseable: '{{ request('leaseable') }}',
         owner: '{{ request('owner') }}',

@@ -61,7 +61,7 @@
             </div>
 
             <!-- TAB 1: LEASE SETTINGS -->
-            <div x-show="activeTab === 'payment'" x-cloak>
+            <div x-show="activeTab === 'payment'" x-cloak class="space-y-6">
                 @canany(['super-admin', 'settings.late payment setting'])
                 <x-form.form method="POST" 
                             action="{{ route('admin.settings.update') }}" 
@@ -215,6 +215,86 @@
                 </x-form.form>
                 @endcanany
 
+                <!-- Processing Fee Settings -->
+                @canany(['super-admin', 'settings.payment collection setting'])
+                <form method="POST" action="{{ route('admin.settings.update') }}" class="space-y-6"
+                    x-data="{
+                        editing: false,
+                        savingProcessingFee: false,
+                        collectProcessingFee: @js(filter_var(old('is_active.processing_fee_config', data_get($settings, 'processing_fee_config.is_active', true)), FILTER_VALIDATE_BOOLEAN))
+                    }"
+                    @submit="savingProcessingFee = true">
+                    @csrf
+                    @method('PATCH')
+                    <input type="hidden" name="tab" value="payment">
+
+                    <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg">
+                        <section>
+                            <header class="flex items-center justify-between">
+                                <div>
+                                    <h2 class="text-lg font-medium text-gray-900">{{ __('Processing Fee') }}</h2>
+                                    <p class="mt-1 text-sm text-gray-600">{{ __('Set the processing fee amount and choose which payment methods incur the fee when recording a payment.') }}</p>
+                                </div>
+                                @canany(['super-admin', 'settings.edit payment collection'])
+                                <x-form.section-edit-button state="editing" />
+                                @endcanany
+                            </header>
+
+                            <div class="mt-6 space-y-6">
+                                <div class="flex items-center justify-between gap-4">
+                                    <x-form.input-label id="processing_fee_active_label" for="processing_fee_active" :value="__('Collect Processing Fee')" />
+                                    <input type="hidden" name="is_active[processing_fee_config]" value="0">
+                                    <button type="button" role="switch" aria-labelledby="processing_fee_active_label"
+                                        :disabled="!editing || savingProcessingFee" :aria-checked="collectProcessingFee"
+                                        @click="collectProcessingFee = !collectProcessingFee"
+                                        :class="[
+                                            collectProcessingFee ? 'bg-indigo-600' : 'bg-gray-200',
+                                            !editing || savingProcessingFee ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                        ]"
+                                        class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                                        <span :class="collectProcessingFee ? 'translate-x-5' : 'translate-x-0'"
+                                            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+                                    </button>
+                                    <input type="checkbox" id="processing_fee_active" name="is_active[processing_fee_config]" value="1" x-model="collectProcessingFee" class="hidden">
+                                </div>
+
+                                <div x-show="collectProcessingFee" x-cloak class="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
+                                    <div>
+                                        <x-form.input-label for="processing_fee_amount" :value="__('Processing Fee Amount')" />
+                                        <div class="relative rounded-md shadow-sm">
+                                            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                                                <span class="text-gray-500 sm:text-sm">RM</span>
+                                            </div>
+                                            <x-form.text-input id="processing_fee_amount" name="settings[processing_fee_config][processing amount]"
+                                                type="number" step="0.01" min="0" class="block w-full pl-12"
+                                                :value="old('settings.processing_fee_config.processing amount', data_get($settings, 'processing_fee_config.value.processing amount', config('settings.processing_fee_config.processing amount', 10)))"
+                                                x-bind:disabled="!editing" />
+                                        </div>
+                                        <x-form.input-error :messages="$errors->get('settings.processing_fee_config.processing amount')" class="mt-2" />
+                                    </div>
+                                    <div>
+                                        <x-form.input-label for="processing_fee_payment_method" :value="__('Applicable Payment Method')" info="{{ __('Select one or more payment methods for which to collect the processing fee when recording a payment.') }}" />
+                                        <x-form.input-select id="processing_fee_payment_method"
+                                            name="settings[processing_fee_config][applicable_payment_method]"
+                                            :multiple="true"
+                                            :options="\App\Enums\PaymentMethod::options()"
+                                            :value="old('settings.processing_fee_config.applicable_payment_method', data_get($settings, 'processing_fee_config.value.applicable_payment_method', config('settings.processing_fee_config.applicable_payment_method', [\App\Enums\PaymentMethod::CASH->value])))"
+                                            x-bind:disabled="!editing" />
+                                        <x-form.input-error :messages="$errors->get('settings.processing_fee_config.applicable_payment_method')" class="mt-2" />
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+
+                        @canany(['super-admin', 'settings.edit payment collection'])
+                        <div class="mt-6 flex items-center gap-4" x-show="editing" x-cloak>
+                            <x-form.primary-button loading="savingProcessingFee">{{ __('Save Processing Fee Settings') }}</x-form.primary-button>
+                        </div>
+                        @endcanany
+                    </div>
+                </form>
+                @endcanany
+
                 <!-- SEPARATE TAB SECTION: Payment Collection Rules -->
                 @canany(['super-admin', 'settings.payment collection setting'])
                 <x-form.form method="POST" 
@@ -223,7 +303,8 @@
                     x-data="{ 
                         editingPayment: false, 
                         loadingPayment: false, 
-                        allowSeparate: {{ data_get($settings, 'payment_config.value.allow_unpaid_penalty', config('settings.payment_config.allow_unpaid_penalty', false)) ? 'true' : 'false' }}
+                        allowSeparate: {{ data_get($settings, 'payment_config.value.allow_unpaid_penalty', config('settings.payment_config.allow_unpaid_penalty', false)) ? 'true' : 'false' }},
+                        autoPayWallet: {{ filter_var(old('payment_config.auto_pay_from_wallet', data_get($settings, 'payment_config.value.auto_pay_from_wallet', false)), FILTER_VALIDATE_BOOLEAN) ? 'true' : 'false' }}
                     }"
                     @submit="loadingPayment = true">
                     @csrf
@@ -236,10 +317,10 @@
                             <header class="flex items-center justify-between">
                                 <div>
                                     <h2 class="text-lg font-medium text-gray-900">
-                                        {{ __('Payment Collection & Penalty Policy') }}
+                                        {{ __('Payment Collection & Wallet Policy') }}
                                     </h2>
                                     <p class="mt-1 text-sm text-gray-600">
-                                        {{ __('Configure whether tenants can clear their main invoice balance separately while leaving late penalties unpaid.') }}
+                                        {{ __('Configure wallet auto-payment and how outstanding invoice balances and late penalties are collected.') }}
                                     </p>
                                 </div>
                                 @canany(['super-admin', 'settings.edit payment collection'])
@@ -273,10 +354,29 @@
                                         x-model="allowSeparate" 
                                         class="hidden">
                                 </div>
+                                <div class="flex items-center justify-between gap-4 border-t border-gray-100 pt-6">
+                                    <div>
+                                        <x-form.input-label id="auto_pay_from_wallet_label" for="auto_pay_from_wallet" :value="__('Auto-pay Invoices from Tenant Wallet')" info="{{ __('Use spendable tenant wallet funds to pay newly generated invoices, including monthly recurring invoices. After an overpayment, pay earlier unpaid invoices on the same lease, oldest first, skipping refund-locked invoices. Reserved refund funds are protected. A summary shows the invoices and amounts paid.') }}" />
+                                        <x-form.input-error :messages="$errors->get('payment_config.auto_pay_from_wallet')" class="mt-2" />
+                                    </div>
+                                    <input type="hidden" name="payment_config[auto_pay_from_wallet]" value="0">
+                                    <button type="button" role="switch" aria-labelledby="auto_pay_from_wallet_label"
+                                        :disabled="!editingPayment" :aria-checked="autoPayWallet"
+                                        @click="if(editingPayment) autoPayWallet = !autoPayWallet"
+                                        :class="[
+                                            autoPayWallet ? 'bg-indigo-600' : 'bg-gray-200',
+                                            !editingPayment ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'
+                                        ]"
+                                        class="relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                                        <span :class="autoPayWallet ? 'translate-x-5' : 'translate-x-0'"
+                                            class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+                                    </button>
+                                    <input type="checkbox" id="auto_pay_from_wallet" name="payment_config[auto_pay_from_wallet]" value="1" x-model="autoPayWallet" class="hidden">
+                                </div>
                             </div>
                         </section>
 
-                        @canany(['super-admin', 'settings.payment collection setting'])
+                        @canany(['super-admin', 'settings.edit payment collection'])
                         <div class="mt-6 flex items-center gap-4" x-show="editingPayment" x-cloak>
                             <x-form.primary-button x-bind:disabled="!editingPayment" loading="loadingPayment">{{ __('Save Payment Settings') }}</x-form.primary-button>
                         </div>

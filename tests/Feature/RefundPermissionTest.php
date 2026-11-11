@@ -14,6 +14,29 @@ use Tests\TestCase;
 
 class RefundPermissionTest extends TestCase
 {
+    public function test_ajax_checkout_permission_errors_are_json_without_redirecting(): void
+    {
+        Gate::shouldReceive('denies')->with('super-admin')->andReturn(true);
+        Gate::shouldReceive('denies')->with('leases.save draft')->andReturn(true);
+        $request = Request::create('/draft', 'POST');
+        $request->headers->set('Accept', 'application/json');
+        $response = $this->controller(RefundController::class)->storeDraft($request);
+        $this->assertSame(403, $response->getStatusCode());
+        $this->assertFalse($response->getData(true)['success']);
+        $this->assertSame(session('error'), $response->getData(true)['session_status']['message']);
+    }
+
+    public function test_ajax_checkout_stage_errors_are_json_without_redirecting(): void
+    {
+        Gate::shouldReceive('denies')->with('super-admin')->andReturn(false);
+        $request = Request::create('/approve', 'POST');
+        $request->headers->set('Accept', 'application/json');
+        $response = $this->controller(RefundController::class)->approve($request);
+        $this->assertSame(422, $response->getStatusCode());
+        $this->assertFalse($response->getData(true)['success']);
+        $this->assertStringContainsString('Pending', $response->getData(true)['message']);
+    }
+
     public static function protectedActions(): array
     {
         return [
@@ -21,6 +44,7 @@ class RefundPermissionTest extends TestCase
             'pending' => [RefundController::class, 'pending', 'leases.set as pending'],
             'reject' => [RefundController::class, 'reject', 'leases.reject refund'],
             'approve' => [RefundController::class, 'approve', 'leases.approve refund'],
+            'revoke' => [RefundController::class, 'revokeApproval', 'leases.revoke refund approval'],
             'payout' => [RefundController::class, 'disburse', 'leases.proceed refund'],
             'fee type' => [FeeTypeController::class, 'store', 'leases.add fee type'],
         ];
@@ -41,16 +65,26 @@ class RefundPermissionTest extends TestCase
     {
         Gate::shouldReceive('denies')->once()->with('super-admin')->andReturn(true);
         Gate::shouldReceive('denies')->once()->with($permission)->andReturn(false);
-        $this->expectException(ValidationException::class);
-        $this->controller($controller)->$method(Request::create('/action', 'POST'));
+        $this->assertPastPermissionCheck($controller, $method);
     }
 
     #[DataProvider('protectedActions')]
     public function test_system_admin_can_bypass_individual_action_permission(string $controller, string $method, string $permission): void
     {
         Gate::shouldReceive('denies')->once()->with('super-admin')->andReturn(false);
-        $this->expectException(ValidationException::class);
-        $this->controller($controller)->$method(Request::create('/action', 'POST'));
+        $this->assertPastPermissionCheck($controller, $method);
+    }
+
+    private function assertPastPermissionCheck(string $controller, string $method): void
+    {
+        try {
+            $response = $this->controller($controller)->$method(Request::create('/action', 'POST'));
+            $this->assertSame(302, $response->getStatusCode());
+            $this->assertNotEmpty(session('error'));
+            $this->assertNotSame('You have no permission.', session('error'));
+        } catch (ValidationException $exception) {
+            $this->assertNotEmpty($exception->errors());
+        }
     }
 
     #[DataProvider('deductionChanges')]

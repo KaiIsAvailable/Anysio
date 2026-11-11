@@ -77,6 +77,7 @@ class LeaseRefundStatusTest extends TestCase
         Schema::create('leases', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->string('status');
+            $table->boolean('is_pending_renewal')->default(false);
             $table->date('checked_out_at')->nullable();
             $table->string('refund_document_id')->nullable();
             $table->string('leasable_type')->nullable();

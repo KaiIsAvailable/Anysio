@@ -13,16 +13,38 @@ class RefundService {
         protected InvoiceService $invoiceService
     ) {}
 
+    public function settlementFingerprint(Refund $refund): string
+    {
+        $fields = ['status', 'deposit_collected_cents', 'wallet_refund_cents', 'gross_amount_cents',
+            'auto_deduction_cents', 'manual_deduction_cents', 'deduction_amount_cents', 'net_amount_cents'];
+        $values = [];
+        foreach ($fields as $field) {
+            $value = $refund->$field;
+            $values[$field] = $value instanceof \BackedEnum ? $value->value : $value;
+        }
+        $values['items'] = $refund->items()->orderBy('id')->get()
+            ->map(fn ($item) => $item->only(['id', 'invoice_id', 'fee_type_id', 'type', 'qty', 'amount_cents']))->all();
+        return hash('sha256', json_encode($values));
+    }
+
+    private function checkReviewedSettlement(Refund $refund, array $data): void
+    {
+        if (isset($data['settlement_fingerprint']) && !hash_equals($this->settlementFingerprint($refund), $data['settlement_fingerprint'])) {
+            throw ValidationException::withMessages(['refund' => 'The settlement changed since you opened it. Reopen the refund, review the latest figures and try again.']);
+        }
+    }
+
     public function getWalletRefundCents(Lease $lease, ?string $refundId = null, bool $lock = false): int
     {
         $userId = $lease->tenant?->user_id;
         return $userId ? app(WalletService::class)->refundableBalance($userId, $refundId, $lock) : 0;
     }
 
-    public function assertInvoicePaymentAllowed(Invoice $invoice): \Illuminate\Database\Eloquent\Collection
+    public function assertInvoicePaymentAllowed(Invoice $invoice, bool $onlyIncludedInvoices = false): \Illuminate\Database\Eloquent\Collection
     {
         $refunds = $this->lockActiveForInvoice($invoice);
-        if ($refunds->contains(fn ($refund) => $refund->status === RefundStatus::APPROVED)) {
+        if ($refunds->contains(fn ($refund) => $refund->status === RefundStatus::PROCESSING || ($refund->status === RefundStatus::APPROVED
+            && (!$onlyIncludedInvoices || $refund->items()->where('invoice_id', $invoice->id)->exists())))) {
             throw ValidationException::withMessages([
                 'refund' => 'This invoice is approved for deduction in the refund and cannot be paid separately.',
             ]);
@@ -31,7 +53,7 @@ class RefundService {
     }
 
     /** Lock affected active settlements before changing an invoice balance. */
-    public function lockActiveForInvoice(Invoice $invoice): \Illuminate\Database\Eloquent\Collection
+    public function lockActiveForInvoice(Invoice $invoice, bool $includeCompleted = false): \Illuminate\Database\Eloquent\Collection
     {
         if (!$invoice->lease_id) {
             return new \Illuminate\Database\Eloquent\Collection();
@@ -46,9 +68,44 @@ class RefundService {
             $leaseIds = array_merge($leaseIds, $frontier);
         }
 
+        $statuses = [RefundStatus::DRAFT, RefundStatus::PENDING, RefundStatus::APPROVED, RefundStatus::PROCESSING];
+        if ($includeCompleted) $statuses[] = RefundStatus::PAID;
         return Refund::whereIn('lease_id', $leaseIds)
-            ->whereIn('status', [RefundStatus::DRAFT, RefundStatus::PENDING, RefundStatus::APPROVED])
+            ->whereIn('status', $statuses)
             ->orderBy('id')->lockForUpdate()->get();
+    }
+
+    public function assertInvoiceCreationAllowed(Lease $lease, bool $adjustment = false): \Illuminate\Database\Eloquent\Collection
+    {
+        $refunds = $this->lockActiveForInvoice(new Invoice(['lease_id' => $lease->id]), true);
+        foreach ($refunds as $refund) {
+            $message = match ($refund->status) {
+                RefundStatus::PENDING => 'Return the refund to Draft before adding invoices.',
+                RefundStatus::APPROVED => 'Manual invoices cannot be added after the checkout refund has been approved. Revoke approval first.',
+                RefundStatus::PROCESSING => 'The refund payout is processing. Financial changes are locked.',
+                RefundStatus::PAID => $adjustment ? null : 'This refund is complete. Add a linked post-refund adjustment instead of changing the completed settlement.',
+                default => null,
+            };
+            if ($message) throw ValidationException::withMessages(['refund' => $message]);
+        }
+        return $refunds;
+    }
+
+    public function assertInvoiceVoidAllowed(Invoice $invoice): \Illuminate\Database\Eloquent\Collection
+    {
+        $refunds = $this->lockActiveForInvoice($invoice, true);
+        foreach ($refunds as $refund) {
+            $message = match ($refund->status) {
+                RefundStatus::PENDING => 'Return the refund to Draft before voiding an invoice.',
+                RefundStatus::APPROVED => 'Revoke refund approval before voiding an invoice.',
+                RefundStatus::PROCESSING => 'The refund payout is processing. Financial changes are locked.',
+                RefundStatus::PAID => $invoice->settlement_refund_id === $refund->id ? null
+                    : 'This invoice belongs to a completed refund and cannot be voided. Record an approved adjustment instead.',
+                default => null,
+            };
+            if ($message) throw ValidationException::withMessages(['refund' => $message]);
+        }
+        return $refunds;
     }
 
     /** Refresh invoice deductions without changing any manually entered items. */
@@ -116,12 +173,16 @@ class RefundService {
         $effectiveUser = get_effective_user();        
 
         return DB::transaction(function () use ($lease, $data, $items, $actualUser, $effectiveUser) {
+            $lease = Lease::whereKey($lease->id)->lockForUpdate()->firstOrFail();
             $refund = Refund::where('lease_id', $lease->id)
-                ->where('status', RefundStatus::DRAFT)->lockForUpdate()->first();
+                ->latest('created_at')->lockForUpdate()->first();
+            if ($refund && $refund->status !== RefundStatus::DRAFT) {
+                throw ValidationException::withMessages(['refund' => 'Only a Draft refund can be edited or submitted. Return it to Draft first; completed refunds cannot be reopened.']);
+            }
             
             // 🌟 0. Automatically set the lease status to 'Check Out' when a refund draft starts/updates
-            if (strtolower($lease->status) !== 'check out') {
-                $lease->update(['status' => 'Check Out']);
+            if (strtolower($lease->status) !== 'check out' || $lease->is_pending_renewal) {
+                $lease->update(['status' => 'Check Out', 'is_pending_renewal' => false]);
             }
             $this->updateCheckoutMetadata($lease, $data);
 
@@ -207,7 +268,7 @@ class RefundService {
             }
 
             return $refund;
-        });
+        }, 3);
     }
 
     private function isDeductionType(?string $type): bool
@@ -283,6 +344,9 @@ class RefundService {
         // actually paid toward each refundable deposit charge.
         $allocatedCents = (int) DB::table('transaction_allocations')
             ->join('invoice_items', 'transaction_allocations.invoice_item_id', '=', 'invoice_items.id')
+            ->join('invoices', 'invoice_items.invoice_id', '=', 'invoices.id')
+            ->where('invoices.status', '!=', Invoice::STATUS_VOID)
+            ->whereNull('invoices.deleted_at')
             ->whereIn('invoice_items.lease_charge_id', $chargeIds)
             ->sum('transaction_allocations.amount_cents');
 
@@ -314,8 +378,8 @@ class RefundService {
             $refund = $this->saveAsDraft($lease, $data, $items);
 
             // 2. Just to be completely explicit and safe, ensure lease status is 'Check Out'
-            if (strtolower($lease->status) !== 'check out') {
-                $lease->update(['status' => 'Check Out']);
+            if (strtolower($lease->status) !== 'check out' || $lease->is_pending_renewal) {
+                $lease->update(['status' => 'Check Out', 'is_pending_renewal' => false]);
             }
 
             // 3. Lock and transition refund status to PENDING
@@ -326,23 +390,46 @@ class RefundService {
             }
 
             return $refund;
-        });
+        }, 3);
     }
 
     public function rejectRefund(Lease $lease, array $data = []): Refund
     {
         return DB::transaction(function () use ($lease, $data) {
-            $this->updateCheckoutMetadata($lease, $data);
-            $refund = $lease->refunds()->latest()->first();
-
-            if ($refund && $refund->status === RefundStatus::PENDING) {
-                $refund->update([
-                    'status' => RefundStatus::DRAFT,
-                ]);
+            $refund = $lease->refunds()->latest()->lockForUpdate()->first();
+            if (!$refund || $refund->status !== RefundStatus::PENDING) {
+                throw ValidationException::withMessages(['refund' => 'Only a pending refund can be returned to Draft.']);
             }
-
+            $this->returnToDraft($refund, (string) ($data['transition_reason'] ?? ''), 'Returned to Draft');
+            $this->updateCheckoutMetadata($lease, $data);
             return $refund;
         });
+    }
+
+    public function revokeApproval(Refund $refund, string $reason): Refund
+    {
+        return DB::transaction(function () use ($refund, $reason) {
+            $refund = Refund::whereKey($refund->id)->lockForUpdate()->firstOrFail();
+            if ($refund->status !== RefundStatus::APPROVED) {
+                throw ValidationException::withMessages(['refund' => 'Only an approved, unpaid refund can have approval revoked.']);
+            }
+            $this->returnToDraft($refund, $reason, 'Approval revoked');
+            return $refund;
+        });
+    }
+
+    private function returnToDraft(Refund $refund, string $reason, string $action): void
+    {
+        if (trim($reason) === '') {
+            throw ValidationException::withMessages(['transition_reason' => 'Enter a reason for returning or revoking the refund.']);
+        }
+        $lease = $refund->lease;
+        if ($lease?->tenant?->user_id) app(WalletService::class)->releaseRefund($lease->tenant->user_id, $refund->id);
+        $note = sprintf('[%s] %s by user %s: %s', now()->toDateTimeString(), $action, Auth::id() ?? 'system', trim($reason));
+        $refund->update([
+            'status' => RefundStatus::DRAFT, 'approved_by' => null, 'approved_at' => null,
+            'internal_notes' => trim(($refund->internal_notes ?? '')."\n".$note),
+        ]);
     }
 
     public function approveRefund(Refund $refund, $user, array $data = []): Refund {
@@ -356,6 +443,7 @@ class RefundService {
             if ($this->refreshSettlement($lockedRefund)) {
                 return null;
             }
+            $this->checkReviewedSettlement($lockedRefund, $data);
 
             $lease = $lockedRefund->lease()->lockForUpdate()->firstOrFail();
             $this->updateCheckoutMetadata($lease, $data);
@@ -370,7 +458,7 @@ class RefundService {
             }
 
             return $lockedRefund;
-        });
+        }, 3);
         if (!$approved) {
             throw ValidationException::withMessages(['status' => 'Invoice or wallet amounts changed the settlement. Review the updated amounts and approve again.']);
         }
@@ -384,10 +472,16 @@ class RefundService {
             if ($lockedRefund->status !== RefundStatus::APPROVED) {
                 throw ValidationException::withMessages(['status' => 'Refund must be approved prior to disbursement payout.']);
             }
+            $payoutStatus = $disbursementData['status'] ?? DisbursementStatus::SUCCESSFUL->value;
+            $payoutStatus = $payoutStatus instanceof \BackedEnum ? $payoutStatus->value : $payoutStatus;
+            if ($payoutStatus !== DisbursementStatus::SUCCESSFUL->value) {
+                throw ValidationException::withMessages(['refund' => 'Only a confirmed successful payout can finalize the settlement. No funds were moved.']);
+            }
 
             if ($this->refreshSettlement($lockedRefund)) {
                 return null;
             }
+            $this->checkReviewedSettlement($lockedRefund, $disbursementData);
 
             if ((int) $lockedRefund->net_amount_cents < 0) {
                 throw ValidationException::withMessages([
@@ -398,6 +492,7 @@ class RefundService {
             $lease = $lockedRefund->lease()->lockForUpdate()->firstOrFail();
             $this->updateCheckoutMetadata($lease, $disbursementData, true);
             $paymentDate = now()->toDateString();
+            $lockedRefund->update(['status' => RefundStatus::PROCESSING]);
             if ($lockedRefund->wallet_refund_cents > 0) {
                 app(WalletService::class)->settleRefund($lease->tenant->user_id, $lockedRefund->id, $lockedRefund->wallet_refund_cents);
             }
@@ -433,6 +528,7 @@ class RefundService {
 
                     $lease->update([
                         'status' => 'Check Out',
+                        'is_pending_renewal' => false,
                     ]);
 
                     if ($lease->leasable) {
@@ -445,7 +541,7 @@ class RefundService {
             }
 
             return $disbursement;
-        });
+        }, 3);
         if (!$disbursement) {
             throw ValidationException::withMessages(['status' => 'Invoice or wallet amounts changed the settlement. It has been returned for approval; review the updated amounts before payment.']);
         }
@@ -481,8 +577,9 @@ class RefundService {
             $updates['refund_document_id'] = $refundDocumentId;
         }
 
-        if ($updates) {
+        if ($updates || (strtolower((string) $lease->status) === 'check out' && $lease->is_pending_renewal)) {
             $updates['status'] = 'Check Out';
+            $updates['is_pending_renewal'] = false;
             $lease->update($updates);
         }
     }

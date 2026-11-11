@@ -7,4 +7,5 @@ Route::post('/refunds/draft', [RefundController::class, 'storeDraft'])->name('re
 Route::post('/refunds/pending', [RefundController::class, 'pending'])->name('refunds.submit-pending');
 Route::post('/refunds/approve', [RefundController::class, 'approve'])->name('refunds.approve');
 Route::post('/refunds/reject', [RefundController::class, 'reject'])->name('refunds.reject');
+Route::post('/refunds/revoke-approval', [RefundController::class, 'revokeApproval'])->name('refunds.revoke-approval');
 Route::post('/refunds/disburse', [RefundController::class, 'disburse'])->name('refunds.disburse');

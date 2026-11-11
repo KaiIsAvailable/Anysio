@@ -103,7 +103,7 @@ class AccountPermissionTest extends TestCase
         $this->assertTrue(Gate::forUser($this->user('system'))->allows('tenant.edit'));
     }
 
-    public function test_shared_staff_roles_still_work_and_manager_revocation_does_not_modify_roles(): void
+    public function test_shared_staff_roles_still_work_independently_of_manager_grants(): void
     {
         $this->actingAs($this->user('def'));
         // Gate::forUser must resolve the staff's own manager, not the signed-in account.
@@ -112,8 +112,9 @@ class AccountPermissionTest extends TestCase
             $this->assertFalse(Gate::forUser($this->user($staff))->allows('tenant.create'));
         }
         $this->grant('abc', []);
+        $this->assertFalse(Gate::forUser($this->user('abc'))->allows('tenant.edit'));
         foreach (['staff-a', 'staff-b'] as $staff) {
-            $this->assertFalse(Gate::forUser($this->user($staff))->allows('tenant.edit'));
+            $this->assertTrue(Gate::forUser($this->user($staff))->allows('tenant.edit'));
         }
         $this->assertSame(1, DB::table('role_has_permissions')->count());
         $this->assertSame(2, DB::table('model_has_roles')->count());
@@ -128,6 +129,66 @@ class AccountPermissionTest extends TestCase
     {
         DB::table('roles')->where('id', 1)->update(['team_id' => $this->ids['def']]);
         $this->assertFalse(Gate::forUser($this->user('staff-a'))->allows('tenant.edit'));
+    }
+
+    public function test_processing_fee_controls_follow_manager_and_staff_permissions_independently(): void
+    {
+        $abilities = ['invoice.edit processing fee', 'invoice.remove processing fee'];
+        foreach ($abilities as $index => $ability) {
+            DB::table('permissions')->insert(['id' => $index + 2, 'name' => $ability, 'guard_name' => 'web']);
+        }
+        $source = file_get_contents(resource_path('views/components/modals/payment-modal.blade.php'));
+        $section = substr($source, strpos($source, '{{-- Processing fee follows'));
+        $section = substr($section, 0, strpos($section, '{{-- Cancelled Penalty State'));
+
+        foreach ([false, true] as $managerAllowed) {
+            $this->grant('abc', $managerAllowed ? $abilities : []);
+            foreach ([false, true] as $staffAllowed) {
+                DB::table('role_has_permissions')->whereIn('permission_id', [2, 3])->delete();
+                if ($staffAllowed) {
+                    DB::table('role_has_permissions')->insert([
+                        ['role_id' => 1, 'permission_id' => 2],
+                        ['role_id' => 1, 'permission_id' => 3],
+                    ]);
+                }
+                foreach ($abilities as $ability) {
+                    $this->assertSame($managerAllowed, Gate::forUser($this->user('abc'))->allows($ability));
+                    foreach (['staff-a', 'staff-b'] as $staff) {
+                        $this->assertSame($staffAllowed, Gate::forUser($this->user($staff))->allows($ability));
+                    }
+                }
+                foreach (['abc' => $managerAllowed, 'staff-a' => $staffAllowed] as $actor => $allowed) {
+                    $this->actingAs($this->user($actor));
+                    $html = Blade::render($section);
+                    $this->assertSame(!$allowed, str_contains($html, 'readonly'));
+                    $this->assertSame($allowed, str_contains($html, 'Cancel/Remove Processing Fee'));
+                }
+            }
+        }
+    }
+
+    public function test_manager_can_delegate_processing_fee_actions_without_personally_having_them(): void
+    {
+        $this->grant('abc', ['settings.edit user role']);
+        DB::table('permissions')->insert([
+            ['id' => 2, 'name' => 'invoice.edit processing fee', 'guard_name' => 'web'],
+            ['id' => 3, 'name' => 'invoice.remove processing fee', 'guard_name' => 'web'],
+        ]);
+        $this->actingAs($this->user('abc'));
+        $url = route('admin.settings.user-role-permissions.update');
+        $this->put($url, ['permissions' => [1 => [
+            'invoice.edit processing fee' => '1',
+            'invoice.remove processing fee' => '1',
+        ]]])->assertRedirect()->assertSessionHas('success');
+
+        foreach (['invoice.edit processing fee', 'invoice.remove processing fee'] as $ability) {
+            $this->assertFalse(Gate::forUser($this->user('abc'))->allows($ability));
+            $this->assertTrue(Gate::forUser($this->user('staff-a'))->allows($ability));
+        }
+        $this->grant('abc', []);
+        $this->actingAs($this->user('abc'));
+        $this->put($url, ['permissions' => []])->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertTrue(Gate::forUser($this->user('staff-a'))->allows('invoice.edit processing fee'));
     }
 
     public function test_existing_staff_role_editor_still_changes_shared_permissions_only_in_its_workspace(): void
@@ -267,7 +328,7 @@ class AccountPermissionTest extends TestCase
         $this->post(route('login'), ['email' => 'staff-a@example.com', 'password' => 'test-password'])->assertRedirect(route('admin.tenants.index'));
 
         $this->grant('abc', ['dashboard.tab']);
-        $this->assertSame('profile.edit', app(\App\Services\LandingPageService::class)->routeFor($this->user('staff-a')));
+        $this->assertSame('admin.tenants.index', app(\App\Services\LandingPageService::class)->routeFor($this->user('staff-a')));
     }
 
     public function test_denied_dashboard_redirects_to_an_allowed_page_without_a_loop(): void

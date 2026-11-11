@@ -30,6 +30,7 @@
         closeModal() {
             this.resetBreakdown();
             this.openPreview = false;
+            window.dispatchEvent(new CustomEvent('lease-document-preview-closed'));
             this.previewRequestId = null;
             this.previewLoading = false;
             this.previewRendering = false;

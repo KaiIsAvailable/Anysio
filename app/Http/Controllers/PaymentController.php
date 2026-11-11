@@ -33,6 +33,17 @@ class PaymentController extends Controller
 
     public function viewReceipt(Payment $payment)
     {
+        $invoice = $payment->invoice;
+        $ownInvoiceProof = Auth::check() && $invoice && (
+            $invoice->lease?->tenant?->user_id === Auth::id()
+            || (!$invoice->lease_id && $invoice->user_id === Auth::id())
+        );
+        if (!$ownInvoiceProof) {
+            abort_unless(\Illuminate\Support\Facades\Gate::allows('super-admin')
+                || \Illuminate\Support\Facades\Gate::allows('invoice.view payment proof'), 403);
+            abort_unless(\App\Models\Invoice::query()->visibleTo(Auth::id(), get_effective_user()?->id,
+                \Illuminate\Support\Facades\Gate::allows('super-admin'))->whereKey($payment->invoice_id)->exists(), 403);
+        }
         if (\Illuminate\Support\Facades\Gate::allows('owner-admin') || \Illuminate\Support\Facades\Gate::allows('is-staff')) {
             \Illuminate\Support\Facades\Gate::authorize('invoice.view payment proof');
         }

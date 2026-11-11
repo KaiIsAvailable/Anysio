@@ -18,15 +18,24 @@ class PropertyController extends Controller
             return view('errors.403');
         }
 
-        $search = $request->input('search');
+        $search = trim((string) $request->input('search', ''));
         $user = get_effective_user();
+
+        // Calculate from current units so existing stale parent statuses display correctly.
+        $availabilitySql = Property::availabilityStatusSql();
 
         // 1. 构建基础查询，带上必要的 Join
         $query = Property::query()
             ->leftJoin('users as owners', 'properties.owner_id', '=', 'owners.id')
             ->leftJoin('users as creators', 'properties.created_by', '=', 'creators.id')
             ->select('properties.*', 'owners.name as owner_name', 'creators.name as creator_name')
-            ->withCount('units');
+            ->selectRaw("$availabilitySql AS availability_status")
+            ->withCount([
+                'units',
+                'units as vacant_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'vacant'"),
+                'units as occupied_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'occupied'"),
+                'units as maintenance_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'maintenance'"),
+            ]);
 
         $query->where(function ($q) use ($user) {
             if (Gate::allows('super-admin')) {
@@ -55,25 +64,14 @@ class PropertyController extends Controller
         $sortMapping = [
             'n'  => 'properties.name',
             't'  => 'properties.type',
-            'st' => 'properties.status',
+            'st' => DB::raw($availabilitySql),
             'o'  => 'owner_name',
             'a'  => 'properties.address',
             'cr' => 'properties.created_at',
         ];
 
         // 💡 重点：搜索只搜表格里显示的列 (Address 包含了 City, Postcode, State 所以一起搜)
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('properties.name', 'like', "%{$search}%")
-                    ->orWhere('properties.type', 'like', "%{$search}%")
-                    ->orWhere('properties.status', 'like', "%{$search}%")
-                    ->orWhere('properties.address', 'like', "%{$search}%")
-                    ->orWhere('properties.city', 'like', "%{$search}%")
-                    ->orWhere('properties.postcode', 'like', "%{$search}%")
-                    ->orWhere('properties.state', 'like', "%{$search}%")
-                    ->orWhere('owners.name', 'like', "%{$search}%");
-            });
-        }
+        $query->search($search)->withSearchMatches($search);
 
         $sortParam = $request->query('sort');
         $field = Str::beforeLast($sortParam, '_');
@@ -162,22 +160,26 @@ class PropertyController extends Controller
         }
         
         $property->load('owner');
+        $property->loadCount([
+            'units as vacant_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'vacant'"),
+            'units as occupied_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'occupied'"),
+            'units as maintenance_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'maintenance'"),
+        ]);
 
         // 从当前 Property 下的单位开始查询
         $query = Unit::query()
             ->where('property_id', $property->id)
             ->leftJoin('users as owners', 'units.owner_id', '=', 'owners.id')
-            ->select('units.*', 'owners.name as owner_name');
+            ->select('units.*', 'owners.name as owner_name')
+            ->withCount([
+                'rooms',
+                'rooms as vacant_rooms_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'vacant'"),
+                'rooms as occupied_rooms_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'occupied'"),
+                'rooms as maintenance_rooms_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'maintenance'"),
+            ]);
 
         // 💡 重点：搜索逻辑严格限制在 Unit No, Status 和 Owner Name
-        $search = $request->input('search');
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('units.unit_no', 'like', "%{$search}%")
-                    ->orWhere('units.status', 'like', "%{$search}%")
-                    ->orWhere('owners.name', 'like', "%{$search}%");
-            });
-        }
+        $query->search($request->input('search'))->withSearchMatches($request->input('search'));
 
         $user = get_effective_user();
 

@@ -1,5 +1,8 @@
 <?php
-
+//THIS ACTIONS ARE DONE IN 08 November 2026 1:52 for all server online user
+//only use 1 time to copy paste the comapny info
+//Old format is the tenant table still have company info
+//New format is we create the new table company to store user's company info
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;

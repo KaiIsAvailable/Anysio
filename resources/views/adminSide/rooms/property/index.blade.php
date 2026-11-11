@@ -7,15 +7,15 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Properties</h1>
                     <p class="mt-2 text-sm text-gray-500">Manage and organize your property directory.</p>
                 </div>
-                <div class="flex-shrink-0" x-data="{loading: false}">
+                <div class="flex-shrink-0" x-data="{creatingProperty: false}">
                     @canany(['super-admin', 'property.create'])
                         <x-form.primary-button
                             type="button"
-                            loading="loading"
-                            @click="loading = true; window.location.href = '{{ route('admin.properties.create') }}'"
+                            loading="creatingProperty"
+                            @click="creatingProperty = true; window.location.href = '{{ route('admin.properties.create') }}'"
                             >
 
-                            <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg x-show="!creatingProperty" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
                             Add New Property
@@ -38,7 +38,7 @@
                                     View Room Assets
                                 </a>-->
                                 @endcanany
-                                <x-table.search placeholder="Search property name..." />
+                                <x-table.search placeholder="Search property, owner, unit, room, date..." />
                             </div>
                         </x-form.form>
                     </div>
@@ -64,7 +64,7 @@
                             <tbody class="bg-white divide-y divide-gray-200">
                             @foreach($properties as $property)
                                 @php
-                                    $status = $property->status;
+                                    $status = $property->availability_status ?? $property->status;
                                     $badge = get_status_badge($status);
 
                                     $assetNames = collect(); 
@@ -110,8 +110,13 @@
 
                                     <td class="px-6 py-4 whitespace-nowrap">
                                         <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $badge }}">
-                                            {{ $property->status ?? '-' }}
+                                            {{ $status ?? '-' }}
                                         </span>
+                                        <x-table.status-counts :counts="[
+                                            'Vacant' => $property->vacant_units_count ?? 0,
+                                            'Occupied' => $property->occupied_units_count ?? 0,
+                                            'Maintenance' => $property->maintenance_units_count ?? 0,
+                                        ]" />
                                     </td>
 
                                     <td class="px-6 py-4 text-sm text-slate-900">
@@ -165,6 +170,7 @@
                                         </td>
                                     @endcan
                                 </tr>
+                                <x-table.property-search-matches :property="$property" :colspan="\Illuminate\Support\Facades\Gate::any(['super-admin', 'property.edit', 'property.delete']) ? 7 : 6" />
                             @endforeach
                             </tbody>
                         </table>

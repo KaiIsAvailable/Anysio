@@ -59,6 +59,7 @@
                           }
                           
                           this.loading = true;
+                          this.$dispatch('form-loading', true);
                       }
                   }" 
                   id="templateForm" 

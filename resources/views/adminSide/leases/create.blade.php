@@ -182,7 +182,18 @@
                                 </button>
                             </div>
 
-                            <div id="charges-container" class="space-y-4">
+                            @php
+                                    $chargeTypeOptions = collect()
+                                        ->concat($rentFeeTypes->map(fn($fee) => ['value' => (string) $fee->id, 'label' => $fee->name]))
+                                        ->concat($serviceFeeTypes->map(fn($fee) => ['value' => (string) $fee->id, 'label' => $fee->name . ' (Service)']))
+                                        ->concat($depositFeeTypes->map(fn($fee) => ['value' => (string) $fee->id, 'label' => $fee->name . ' (Deposit)']))
+                                        ->concat($managementFeeTypes->map(fn($fee) => ['value' => (string) $fee->id, 'label' => $fee->name . ' (Management)']));
+                                @endphp
+                                <template id="charge-type-select-template">
+                                    <x-form.input-select name="charges[__CHARGE_INDEX__][fee_type_id]"
+                                        :options="$chargeTypeOptions" placeholder="-- Select Fee Type --" />
+                                </template>
+                                <div id="charges-container" class="space-y-4">
                                 <div class="charge-row rounded-lg border border-gray-200 bg-gray-50 p-4">
                                     <div class="flex justify-between items-center mb-2">
                                         <span class="text-xs font-semibold text-gray-500 tracking-wider">CHARGE ITEM #1</span>
@@ -190,24 +201,9 @@
                                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div>
                                             <x-form.input-label value="Charge Type" class="mb-1 text-xs" info="You may hide the charge type if not using it in 'Setting (Lease Settings)'"/>
-                                            <select name="charges[0][fee_type_id]" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                                <option value="">-- Select Fee Type --</option>
-                                                @foreach($rentFeeTypes as $feeType)
-                                                    <option value="{{ $feeType->id }}" data-type="rent">{{ $feeType->name }}</option>
-                                                @endforeach
-
-                                                @foreach($serviceFeeTypes as $serviceType)
-                                                    <option value="{{ $serviceType->id }}">{{ $serviceType->name }} (Service)</option>
-                                                @endforeach
-
-                                                @foreach($depositFeeTypes as $depositType)
-                                                    <option value="{{ $depositType->id }}">{{ $depositType->name }} (Deposit)</option>
-                                                @endforeach
-
-                                                @foreach($managementFeeTypes as $managementType)
-                                                    <option value="{{ $managementType->id }}">{{ $managementType->name }} (Management)</option>
-                                                @endforeach
-                                            </select>
+                                            <x-form.input-select name="charges[0][fee_type_id]"
+                                                    :options="$chargeTypeOptions" placeholder="-- Select Fee Type --"
+                                                    :value="old('charges.0.fee_type_id')" />
                                         </div>
 
                                         <div>
@@ -335,8 +331,8 @@
 
         function addChargeRow() {
             const container = document.getElementById('charges-container');
-            const firstSelect = container.querySelector('select');
-            const optionsHtml = firstSelect ? firstSelect.innerHTML : '';
+            const selectHtml = document.getElementById('charge-type-select-template').innerHTML
+                .replaceAll('__CHARGE_INDEX__', String(chargeIndex));
 
             const newRow = document.createElement('div');
             newRow.className = 'charge-row rounded-lg border border-gray-200 bg-gray-50 p-4';
@@ -352,9 +348,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block uppercase font-medium text-sm text-gray-700 mb-1 text-xs">Charge Type</label>
-                        <select name="charges[${chargeIndex}][fee_type_id]" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                            ${optionsHtml}
-                        </select>
+                        ${selectHtml}
                     </div>
                     <div>
                         <label class="block uppercase font-medium text-sm text-gray-700 mb-1 text-xs">Amount (RM)</label>
@@ -573,13 +567,13 @@
                 let managementSum = 0;
 
                 document.querySelectorAll('.charge-row').forEach(row => {
-                    const select = row.querySelector('select');
+                    const select = row.querySelector('input[name$="[fee_type_id]"]');
                     const amountInput = row.querySelector('input[name$="[amount]"]');
                     
                     if (select && amountInput && amountInput.value) {
-                        const opt = select.options[select.selectedIndex];
+                        const opt = (@json($chargeTypeOptions)).find(option => String(option.value) === String(select.value));
                         if(opt) {
-                            const text = opt.text.toLowerCase(); 
+                            const text = opt.label.toLowerCase();
                             const amount = parseFloat(amountInput.value || 0);
 
                             // 如果選項包含 (deposit)

@@ -9,8 +9,13 @@ return [
         'frequency' => 1,
         'applicable_categories' => ['rent'],
     ],
+    'processing_fee_config' => [
+        'processing amount' => 10,
+        'applicable_payment_method' => [\App\Enums\PaymentMethod::CASH->value],
+    ],
     'payment_config' => [
         'allow_unpaid_penalty' => false, // false = default is pay all or nothing
+        'auto_pay_from_wallet' => false,
     ],
     'fee_types_config' => [
         'rent_daily_rental'                    => ['is_active' => true],

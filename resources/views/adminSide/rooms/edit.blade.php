@@ -74,7 +74,12 @@
                                     <x-form.input-select 
                                         name="status" 
                                         :options="['Vacant' => 'Vacant', 'Occupied' => 'Occupied', 'Maintenance' => 'Maintenance']" 
-                                        :value="strtoupper(old('status', $room->status))" 
+                                        :value="match (strtolower(trim((string) old('status', $room->status)))) {
+                                            'vacant' => 'Vacant',
+                                            'occupied' => 'Occupied',
+                                            'maintenance', 'under maintenance', 'cleaning' => 'Maintenance',
+                                            default => '',
+                                        }"
                                         class="w-full" 
                                         required />
                                     <x-form.input-error :messages="$errors->get('status')" class="mt-1" />

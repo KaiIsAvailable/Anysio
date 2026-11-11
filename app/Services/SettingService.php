@@ -23,6 +23,15 @@ class SettingService
         return data_get($this->getEffectiveSettings($user), 'due_date_config.value.recurring_type') !== 'auto';
     }
 
+    /** Check this before looking up wallets or outstanding invoices for auto-payment. */
+    public function allowsAutomaticWalletPayment($user): bool
+    {
+        $settings = $this->getEffectiveSettings($user);
+
+        return filter_var(data_get($settings, 'payment_config.is_active', false), FILTER_VALIDATE_BOOLEAN)
+            && filter_var(data_get($settings, 'payment_config.value.auto_pay_from_wallet', false), FILTER_VALIDATE_BOOLEAN);
+    }
+
     public function getEffectiveSettings($user = null): array
     {
         if ($user) {
@@ -81,6 +90,11 @@ class SettingService
         $penaltyValue = data_get($dbSettings, 'late_penalty_config.value', []);
         if (is_array($penaltyValue) && array_key_exists('applicable_categories', $penaltyValue)) {
             $resolved['late_penalty_config']['value']['applicable_categories'] = $penaltyValue['applicable_categories'];
+        }
+        // A saved multi-select replaces the default list rather than merging its indexes.
+        $processingValue = data_get($dbSettings, 'processing_fee_config.value', []);
+        if (is_array($processingValue) && array_key_exists('applicable_payment_method', $processingValue)) {
+            $resolved['processing_fee_config']['value']['applicable_payment_method'] = $processingValue['applicable_payment_method'];
         }
         return $resolved;
     }
@@ -148,6 +162,11 @@ class SettingService
         if (isset($requestData['settings'])) {
             foreach ($requestData['settings'] as $key => $configValues) {
                 $isActive = filter_var($activeStates[$key] ?? false, FILTER_VALIDATE_BOOLEAN);
+
+                if ($key === 'processing_fee_config') {
+                    $configValues['processing amount'] = round((float) $configValues['processing amount'], 2);
+                    $configValues['applicable_payment_method'] = array_values($configValues['applicable_payment_method']);
+                }
 
                 if ($key === 'late_penalty_config') {
                     $configValues['amount'] = round((float) ($configValues['amount'] ?? 0) * 100);
@@ -256,11 +275,16 @@ class SettingService
         if (isset($requestData['payment_config'])) {
             $isActive = filter_var($activeStates['payment_config'] ?? true, FILTER_VALIDATE_BOOLEAN);
             
-            $paymentConfig = $requestData['payment_config'];
+            $storedConfig = Setting::where('user_id', $userId)->where('key', 'payment_config')->first();
+            $paymentConfig = array_replace(
+                config('settings.payment_config', []),
+                $storedConfig?->value ?? [],
+                $requestData['payment_config']
+            );
             
             // Normalize and cast types safely
-            if (isset($paymentConfig['allow_unpaid_penalty'])) {
-                $paymentConfig['allow_unpaid_penalty'] = filter_var($paymentConfig['allow_unpaid_penalty'], FILTER_VALIDATE_BOOLEAN);
+            foreach (['allow_unpaid_penalty', 'auto_pay_from_wallet'] as $key) {
+                $paymentConfig[$key] = filter_var($paymentConfig[$key] ?? false, FILTER_VALIDATE_BOOLEAN);
             }
 
             Log::channel('testing')->info('Saving Payment Config', [

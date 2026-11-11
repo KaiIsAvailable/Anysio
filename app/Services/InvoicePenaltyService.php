@@ -26,9 +26,13 @@ class InvoicePenaltyService
         );
         if (($penalty['amount'] ?? 0) <= 0) return $penalty;
 
-        // Legacy children have no reliable period coverage. Never infer it from their amount,
-        // or rebill voided/deleted penalties. Normal collection settles parent + child atomically.
+        // A separated penalty is already billed: further rental payments must not
+        // calculate it again. Without separation, existing coverage still needs review.
         if (Invoice::withTrashed()->where('parent_id', $invoice->id)->where('type', 'penalty')->exists()) {
+            if (filter_var(data_get($this->settings->getEffectiveSettings($manager),
+                'payment_config.value.allow_unpaid_penalty', false), FILTER_VALIDATE_BOOLEAN)) {
+                return null;
+            }
             throw ValidationException::withMessages(['penalty' => 'This invoice already has a penalty invoice. Review the existing penalty and its covered dates before collecting another penalty. No automatic recalculation has been made.']);
         }
 

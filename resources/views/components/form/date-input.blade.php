@@ -2,7 +2,8 @@
     'id', 
     'name', 
     'value' => '',
-    'mode' => 'date' // 'date' or 'month'
+    'mode' => 'date', // 'date' or 'month'
+    'maxDate' => null,
 ])
 
 <input type="text" 
@@ -16,6 +17,7 @@
                altFormat: @js($mode === 'month' ? 'm/Y' : 'd/m/Y'),
                altInputClass: 'h-[38px] w-full text-sm px-3 py-1.5 border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm',
                allowInput: true,
+               maxDate: @js($maxDate),
                defaultDate: @js(request($name, old($name, $value))),
                onChange: (selectedDates, dateStr) => {
                    $el.value = dateStr;

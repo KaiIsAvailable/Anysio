@@ -490,6 +490,81 @@ class RecurringInvoiceGenerationTest extends TestCase
         $this->assertSame(0, Invoice::count());
     }
 
+    public function test_lease_page_generates_one_month_per_click_from_december_through_august(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-09 09:00:00', config('app.timezone')));
+        $this->actingAs(User::findOrFail('manager'));
+        DB::table('leases')->where('id', 'lease')->update(['start_date' => '2026-11-01', 'end_date' => '2027-08-31']);
+        DB::table('lease_charges')->where('id', 'charge')->update(['amount' => 25500, 'next_billing_date' => '2026-12-01']);
+        DB::table('invoices')->insert(['id' => 'november', 'lease_id' => 'lease', 'period' => '2026-11-01', 'status' => 'paid']);
+        DB::table('invoice_items')->insert(['id' => 'november-rent', 'invoice_id' => 'november', 'lease_charge_id' => 'charge', 'fee_type_id' => 'rent']);
+        $generate = fn () => Model::withoutEvents(fn () => app(InvoiceService::class)->generateRecurringInvoices(Lease::findOrFail('lease'), throughEnd: true));
+        foreach (['2026-12-01', '2027-01-01', '2027-02-01', '2027-03-01', '2027-04-01',
+            '2027-05-01', '2027-06-01', '2027-07-01', '2027-08-01'] as $index => $period) {
+            $this->assertSame(1, $generate());
+            $this->assertSame($index + 2, Invoice::count());
+            $this->assertTrue(Invoice::whereDate('period', $period)->exists());
+        }
+        $future = Invoice::where('id', '!=', 'november')->orderBy('period')->get();
+        $this->assertSame(['2026-12-01', '2027-01-01', '2027-02-01', '2027-03-01', '2027-04-01',
+            '2027-05-01', '2027-06-01', '2027-07-01', '2027-08-01'], $future->map(fn ($i) => $i->period->toDateString())->all());
+        $this->assertTrue($future->every(fn ($invoice) => $invoice->total_amount === 25500 && $invoice->amount_balance === 25500));
+        $this->assertSame('2027-09-01', \App\Models\LeaseCharge::findOrFail('charge')->next_billing_date->toDateString());
+        $this->assertSame(0, $generate());
+        $this->assertSame(10, Invoice::count());
+        $this->travelTo(Carbon::parse('2026-12-01 09:00:00', config('app.timezone')));
+        $this->assertSame(0, $this->generate());
+        $this->assertSame(10, Invoice::count());
+    }
+
+    public function test_remaining_term_generation_clamps_month_ends_and_never_exceeds_lease_end(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-09 09:00:00', config('app.timezone')));
+        DB::table('leases')->where('id', 'lease')->update(['start_date' => '2026-10-31', 'end_date' => '2027-02-28']);
+        $generate = fn (bool $dryRun = false) => Model::withoutEvents(fn () => app(RecurringInvoiceService::class)->generate(
+            Lease::findOrFail('lease'), User::findOrFail('manager'), false, $dryRun, throughEnd: true));
+        $this->assertSame(1, $generate(true));
+        $this->assertSame(0, Invoice::count());
+        $this->assertSame(0, DB::table('document_sequences')->count());
+        for ($click = 0; $click < 5; $click++) $this->assertSame(1, $generate());
+        $this->assertSame(0, $generate());
+        $this->assertSame(['2026-10-31', '2026-11-30', '2026-12-31', '2027-01-31', '2027-02-28'],
+            Invoice::orderBy('period')->get()->map(fn ($i) => $i->period->toDateString())->all());
+    }
+
+    public function test_button_replaces_voided_january_before_generating_august_without_regressing_the_billing_cursor(): void
+    {
+        $this->travelTo(Carbon::parse('2026-11-09 09:00:00', config('app.timezone')));
+        $this->actingAs(User::findOrFail('manager'));
+        DB::table('leases')->where('id', 'lease')->update(['start_date' => '2026-11-01', 'end_date' => '2027-08-31']);
+        $generate = fn () => Model::withoutEvents(fn () => app(InvoiceService::class)->generateRecurringInvoices(Lease::findOrFail('lease'), throughEnd: true));
+        for ($click = 0; $click < 9; $click++) $this->assertSame(1, $generate());
+        $this->assertFalse(Invoice::whereDate('period', '2027-08-01')->exists());
+        $january = Invoice::whereDate('period', '2027-01-01')->firstOrFail();
+        DB::table('invoices')->where('id', $january->id)->update(['status' => 'void']);
+        $this->assertSame('2027-08-01', \App\Models\LeaseCharge::findOrFail('charge')->next_billing_date->toDateString());
+        $this->assertSame(1, $generate());
+        $replacement = Invoice::whereDate('period', '2027-01-01')->where('id', '!=', $january->id)->firstOrFail();
+        $this->assertSame('unpaid', $replacement->status);
+        $this->assertNotSame($january->invoice_no, $replacement->invoice_no);
+        $this->assertSame('void', $january->fresh()->status);
+        $this->assertFalse(Invoice::whereDate('period', '2027-08-01')->exists());
+        $this->assertSame('2027-08-01', \App\Models\LeaseCharge::findOrFail('charge')->next_billing_date->toDateString());
+        $this->assertSame(1, $generate());
+        $this->assertTrue(Invoice::whereDate('period', '2027-08-01')->exists());
+        $this->assertSame(0, $generate());
+        $this->assertSame(10, Invoice::where('status', '!=', 'void')->count());
+        $this->assertSame(11, Invoice::count());
+    }
+
+    public function test_scheduler_does_not_generate_future_periods_even_if_through_end_is_requested(): void
+    {
+        $count = Model::withoutEvents(fn () => app(RecurringInvoiceService::class)->generate(
+            Lease::findOrFail('lease'), User::findOrFail('manager'), true, throughEnd: true));
+        $this->assertSame(1, $count);
+        $this->assertSame(['2026-11-15'], Invoice::all()->map(fn ($i) => $i->period->toDateString())->all());
+    }
+
     public function test_unresolved_account_is_reported_and_skipped(): void
     {
         $resolver = \Mockery::mock(LeaseManagementResolver::class);

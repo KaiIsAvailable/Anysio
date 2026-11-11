@@ -109,14 +109,25 @@ class InvoiceService
     /**
      * Owner manually creates an invoice containing multiple items after the lease exists.
      */
-    public function createManualInvoice(Lease $lease, array $data): Invoice 
+    public function createManualInvoice(Lease $lease, array $data, ?User $issuer = null): Invoice
     {
-        return DB::transaction(function () use ($lease, $data) {
+        return DB::transaction(function () use ($lease, $data, $issuer) {
+            $refundService = app(RefundService::class);
+            $adjustment = filter_var($data['post_refund_adjustment'] ?? false, FILTER_VALIDATE_BOOLEAN);
+            $isPenalty = !empty($data['parent_id']) && ($data['type'] ?? '') === 'penalty';
+            $refunds = $isPenalty ? collect() : $refundService->assertInvoiceCreationAllowed($lease, $adjustment);
+            $completedRefund = $refunds->where('status', \App\Enums\RefundStatus::PAID)->sortByDesc('created_at')->first();
+            if ($adjustment && (!$completedRefund || trim($data['adjustment_reason'] ?? '') === '')) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['refund' => 'A post-refund adjustment requires a completed refund and a correction reason.']);
+            }
+            // Serialize manual creation with checkout approval and recheck current state.
+            $lease = Lease::whereKey($lease->id)->lockForUpdate()->firstOrFail();
+            if (!$isPenalty) $refunds = $refundService->assertInvoiceCreationAllowed($lease, $adjustment);
             if (empty($data['items'])) {
                 throw new \InvalidArgumentException('Invoice must contain at least one item.');
             }
 
-            $currentUser = get_effective_user(); 
+            $currentUser = $issuer ?? get_effective_user();
             if (!$currentUser) {
                 throw new \RuntimeException('Authenticated user required to generate invoices.');
             }
@@ -140,7 +151,7 @@ class InvoiceService
                 'lease_id'             => $lease->id,
                 'document_template_id' => $template?->id,
                 'invoice_no'           => $invoiceNo,
-                'type'                 => $data['type'] ?? 'manual', // Allow dynamic type
+                'type'                 => $adjustment ? 'adjustment' : ($data['type'] ?? 'manual'),
                 'period'               => Carbon::parse($data['period'])->startOfMonth()->toDateString(),
                 'due_date'             => $data['due_date'],
                 'total_amount'         => $totalCents,
@@ -148,15 +159,18 @@ class InvoiceService
                 'amount_balance'       => $totalCents,
                 'status'               => 'unpaid',
                 'remarks'              => $data['remarks'] ?? null,
+                ...($adjustment ? ['settlement_refund_id' => $completedRefund->id, 'adjustment_reason' => trim($data['adjustment_reason'])] : []),
             ]);
 
             $this->saveInvoiceItems($invoice, $items);
+            $this->applyWalletToNewInvoice($invoice, $currentUser);
+            foreach ($refunds as $refund) $refundService->refreshSettlement($refund);
 
             return $invoice->load('items.feeType');
         });
     }
 
-    public function generateRecurringInvoices(Lease $lease): int
+    public function generateRecurringInvoices(Lease $lease, bool $throughEnd = false): int
     {
         $currentUser = get_effective_user();
         if (!$currentUser) {
@@ -167,21 +181,66 @@ class InvoiceService
             throw new \DomainException('Manual recurring invoice generation is disabled in Auto mode.');
         }
 
-        return app(RecurringInvoiceService::class)->generate($lease, $currentUser, false);
+        return app(RecurringInvoiceService::class)->generate($lease, $currentUser, false, throughEnd: $throughEnd);
+    }
+
+    /** Called after the new invoice's fee items exist, inside its creation transaction. */
+    public function applyWalletToNewInvoice(Invoice $invoice, User $issuer): ?array
+    {
+        // Check settings first: disabled accounts do not query wallets or invoices.
+        if (!$this->settingService->allowsAutomaticWalletPayment($issuer)
+            || $invoice->parent_id || in_array($invoice->type, ['penalty', Invoice::TYPE_SUBSCRIPTION])
+            || $invoice->context === Invoice::CONTEXT_SUBSCRIPTION) return null;
+
+        $summary = app(OverpaymentWalletService::class)->settle($invoice, Carbon::today(config('app.timezone'))->toDateString(),
+            $this, newInvoice: true, issuer: $issuer);
+        if (!$summary) return null;
+        $invoice->refresh();
+        if ($summary['wallet_used_cents'] > 0) {
+            $refunds = app(RefundService::class)->lockActiveForInvoice($invoice);
+            foreach ($refunds as $refund) app(RefundService::class)->refreshSettlement($refund);
+        }
+
+        // Publish only committed results, combining invoices generated in the same request.
+        $request = request();
+        if ($request->hasSession()) {
+            DB::afterCommit(function () use ($request, $summary) {
+                $combined = $request->attributes->get('generated_wallet_summary');
+                if ($combined) {
+                    $combined['wallet_used_cents'] += $summary['wallet_used_cents'];
+                    $combined['wallet_remaining_cents'] = $summary['wallet_remaining_cents'];
+                    foreach (['payments', 'skipped', 'notes'] as $key) {
+                        $combined[$key] = array_merge($combined[$key], $summary[$key]);
+                    }
+                    $combined['source_invoice_no'] .= ', '.$summary['source_invoice_no'];
+                } else $combined = $summary;
+                $request->attributes->set('generated_wallet_summary', $combined);
+                $request->session()->flash('wallet_auto_payment_summary', $combined);
+            });
+        }
+        return $summary;
     }
     /**
      * Record a payment against an invoice.
      */
-    public function recordPayment(Invoice $invoice, array $data, bool $refreshRefund = true): void
+    public function recordPayment(Invoice $invoice, array $data, bool $refreshRefund = true): ?array
     {
-        DB::transaction(function () use ($invoice, $data, $refreshRefund) {
+        return DB::transaction(function () use ($invoice, $data, $refreshRefund) {
             $refundService = app(RefundService::class);
             $refunds = $refreshRefund ? $refundService->assertInvoicePaymentAllowed($invoice) : collect();
-            $this->paymentProcessor->process($invoice, $data, $this);
+            $overpaymentCents = 0;
+            $this->paymentProcessor->process($invoice, $data, $this, $overpaymentCents, settlement: !$refreshRefund);
+            $summary = null;
+            if ($refreshRefund && $overpaymentCents > 0
+                && $this->settingService->allowsAutomaticWalletPayment(get_effective_user())) {
+                $summary = app(OverpaymentWalletService::class)->settle($invoice->fresh(), $data['payment_date'], $this);
+            }
             foreach ($refunds as $refund) {
                 $refundService->refreshSettlement($refund);
             }
-        });
+
+            return $summary;
+        }, 3);
     }
 
     /**
@@ -246,40 +305,27 @@ class InvoiceService
      */
     public function voidInvoice(Invoice $invoice, string $reason): void
     {
-        $allowedStatuses = ['unpaid', 'partial', 'paid'];
-        
-        abort_if(
-            !in_array(strtolower($invoice->status), $allowedStatuses),
-            422,
-            'This invoice cannot be voided.'
-        );
-
         DB::transaction(function () use ($invoice, $reason) {
+            $refundService = app(RefundService::class);
+            $refunds = $refundService->assertInvoiceVoidAllowed($invoice);
+            $invoice = Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            if (!in_array(strtolower($invoice->status), ['unpaid', 'partial', 'paid', 'overdue'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['invoice' => 'This invoice is already void or cannot be voided.']);
+            }
+            if (trim($reason) === '') {
+                throw \Illuminate\Validation\ValidationException::withMessages(['reason' => 'Enter a reason for voiding the invoice.']);
+            }
             // 1. If the invoice was paid or partial, refund the actual amount paid into the user's wallet
             $amountPaid = $invoice->amount_paid ?? 0;
             $amountInCents = (int) round($amountPaid); // Ensure you are working with cents consistently
 
-            if (in_array(strtolower($invoice->status), ['paid', 'partial']) && $amountInCents > 0) {
+            if ($amountInCents > 0) {
                 // Get the user ID associated with the tenant/invoice
                 $userId = $invoice->lease?->tenant?->user_id;
 
                 if ($userId) {
-                    // Find or create the user's wallet
-                    $wallet = Wallet::firstOrCreate(
-                        ['user_id' => $userId],
-                        ['balance' => 0]
-                    );
-
-                    // Increment wallet balance by the exact amount paid
-                    $wallet->increment('balance', $amountInCents);
-
-                    // Log the transaction
-                    $wallet->transactions()->create([
-                        'amount'       => $amountInCents, // Positive for credit
-                        'type'         => 'refund',
-                        'reference_id' => $invoice->id,
-                        'remarks'      => "Refund from voided invoice #{$invoice->invoice_no}: {$reason}",
-                    ]);
+                    $this->walletService->credit($userId, $amountInCents, 'refund', $invoice->id,
+                        "Refund from voided invoice #{$invoice->invoice_no}: {$reason}");
                 }
             }
 
@@ -291,7 +337,8 @@ class InvoiceService
                 'status'  => 'void',
                 'remarks' => $remarks,
             ]);
-        });
+            foreach ($refunds as $refund) $refundService->refreshSettlement($refund);
+        }, 3);
     }
 
     /**
@@ -440,6 +487,8 @@ class InvoiceService
                         'lease_charge_id' => $charge->id,
                     ]
                 ]);
+
+                $this->applyWalletToNewInvoice($invoice, $currentUser);
 
                 $invoices->push($invoice->load('items.feeType', 'documentTemplate'));
             }

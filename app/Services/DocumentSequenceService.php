@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\DocumentSequence;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class DocumentSequenceService
 {
@@ -11,6 +12,15 @@ class DocumentSequenceService
      * Generate a unique document number based on category (e.g., invoice, receipt).
      */
     public function generateNumber(User $user, string $category = 'invoice', string $defaultPrefix = 'INV'): string
+    {
+        return DB::transaction(function () use ($user, $category, $defaultPrefix) {
+            User::whereKey($user->id)->lockForUpdate()->firstOrFail();
+
+            return $this->nextNumber($user, $category, $defaultPrefix);
+        });
+    }
+
+    private function nextNumber(User $user, string $category, string $defaultPrefix): string
     {
         $sequence = DocumentSequence::firstOrCreate(
             [

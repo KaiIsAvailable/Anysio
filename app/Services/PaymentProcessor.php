@@ -17,29 +17,29 @@ class PaymentProcessor
         private readonly SettingService $settingService,
     ) {}
 
-    public function process(Invoice $invoice, array $data, InvoiceService $invoiceService): Transaction
+    public function process(Invoice $invoice, array $data, InvoiceService $invoiceService, ?int &$overpaymentCents = null, bool $automatic = false, ?\App\Models\User $issuer = null, bool $settlement = false): Transaction
     {
-        return DB::transaction(function () use ($invoice, $data, $invoiceService) {
+        $overpaymentCents = 0;
+        return DB::transaction(function () use ($invoice, $data, $invoiceService, &$overpaymentCents, $automatic, $issuer, $settlement) {
             // Serialize duplicate submissions and always use the latest approved balance.
             $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
             if ($locked->amount_balance <= 0 || $locked->isVoid()) {
                 throw ValidationException::withMessages(['invoice' => 'This invoice is already settled or void. No payment has been recorded.']);
             }
-            return $this->processLocked($locked, $data, $invoiceService);
+            if ($automatic) app(RefundService::class)->assertInvoicePaymentAllowed($locked, onlyIncludedInvoices: true);
+            return $this->processLocked($locked, $data, $invoiceService, $overpaymentCents, $automatic, $issuer, $settlement);
         });
     }
 
-    private function processLocked(Invoice $invoice, array $data, InvoiceService $invoiceService): Transaction
+    private function processLocked(Invoice $invoice, array $data, InvoiceService $invoiceService, ?int &$overpaymentCents, bool $automatic, ?\App\Models\User $issuer, bool $settlement): Transaction
     {
-        $this->assertNoEarlierOutstanding($invoice);
-
-        $currentUser = get_effective_user();
+        $currentUser = $issuer ?? get_effective_user();
         if (!$currentUser) {
             throw new \RuntimeException('Authenticated user required to generate invoices.');
         }
 
         // Fetch effective settings to check payment collection policy
-        $settings = $this->settingService->getEffectiveSettings();
+        $settings = $this->settingService->getEffectiveSettings($currentUser);
         $allowUnpaidPenalty = (bool) data_get($settings, 'payment_config.value.allow_unpaid_penalty', false);
 
         $rawPaidCents = (int) round(($data['amount_paid'] ?? 0) * 100);
@@ -56,16 +56,29 @@ class PaymentProcessor
         $walletDeductionCents = 0;
 
         // Never trust a client-supplied amount or an earlier preview for collection.
-        $penaltyDetails = $this->invoicePenaltyService->quote($invoice, $data['payment_date'], lockFeeType: true);
+        // Payout applies the reviewed settlement; it must not introduce a new, unapproved charge.
+        $penaltyDetails = $settlement ? null : $this->invoicePenaltyService->quote($invoice, $data['payment_date'], lockFeeType: true);
         $penaltyAmount = isset($penaltyDetails['amount']) ? (float) $penaltyDetails['amount'] : 0;
         $penaltyAmountCents = (int) round($penaltyAmount * 100);
+        $processingFeeCents = ($automatic || $settlement || $useWallet || !$invoice->lease_id || $invoice->type === 'processing_fee')
+            ? 0 : $this->processingFeeCents($settings, $data);
+        if ($processingFeeCents > 0 && $rawPaidCents <= $processingFeeCents) {
+            throw ValidationException::withMessages(['processing_fee' => 'Amount paid must cover the processing fee and a payment toward the invoice.']);
+        }
         
-        // Total amount required (Invoice Balance + Penalty Amount)
-        $totalRequiredCents = $invoice->amount_balance + $penaltyAmountCents;
+        // Include all charges before deciding whether any payment is excess.
+        $totalRequiredCents = $invoice->amount_balance + $penaltyAmountCents + $processingFeeCents;
+        // A genuine external overpayment can fund earlier invoices in this same transaction.
+        // The automatic loop already orders candidates and may skip blocked invoices.
+        if (!$automatic && !($rawPaidCents > $totalRequiredCents && $this->settingService->allowsAutomaticWalletPayment($currentUser))) {
+            $this->assertNoEarlierOutstanding($invoice, $allowUnpaidPenalty);
+        }
 
         // Optional wallet deduction for the invoice & penalty
         if ($useWallet && $tenant) {
-            $walletBalanceCents = $this->walletService->getBalance($tenant->user_id);
+            $walletBalanceCents = $automatic
+                ? $this->walletService->automaticSpendableBalance(\App\Models\Wallet::where('user_id', $tenant->user_id)->lockForUpdate()->firstOrFail())
+                : $this->walletService->getBalance($tenant->user_id);
             $walletDeductionCents = min($walletBalanceCents, $totalRequiredCents);
 
             if ($walletDeductionCents > 0) {
@@ -74,7 +87,8 @@ class PaymentProcessor
                     $walletDeductionCents,
                     'invoice_payment',
                     $invoice->id,
-                    "Wallet payment applied to invoice {$invoice->invoice_no} and penalties"
+                    "Wallet payment applied to invoice {$invoice->invoice_no} and penalties",
+                    automatic: $automatic
                 );
             }
         }
@@ -110,7 +124,12 @@ class PaymentProcessor
             throw new \RuntimeException('No active receipt template was found for the invoice owner.');
         }
 
-        $poolCents = $totalPaidCents;
+        // The processing fee is fully collected with this external payment.
+        // Its own invoice/receipt keeps it out of the rent balance and wallet excess.
+        if ($processingFeeCents > 0) {
+            $this->collectProcessingFee($invoice, $processingFeeCents, $data, $currentUser, $template);
+        }
+        $poolCents = $totalPaidCents - $processingFeeCents;
         $penaltyAppliedCents = 0;
         $penaltyTransaction = null;
         $transaction1 = null;
@@ -132,7 +151,7 @@ class PaymentProcessor
                         'amount'      => $penaltyAmount,
                     ]
                 ]
-            ]);
+            ], $currentUser);
         }
 
         if ($allowUnpaidPenalty) {
@@ -157,7 +176,7 @@ class PaymentProcessor
                     'receipt_no'           => $receiptNo1,
                     'document_template_id' => $template->id,
                     'payment_date'         => $data['payment_date'],
-                    'approved_by'          => Auth::id(),
+                    'approved_by'          => Auth::id() ?? ($automatic ? $currentUser->id : null),
                     'remarks'              => $data['remarks'] ?? null,
                 ]);
 
@@ -188,7 +207,7 @@ class PaymentProcessor
                         'receipt_no'           => $receiptNo2,
                         'document_template_id' => $template->id,
                         'payment_date'         => $data['payment_date'],
-                        'approved_by'          => Auth::id(),
+                        'approved_by'          => Auth::id() ?? ($automatic ? $currentUser->id : null),
                         'remarks'              => 'Payment for late penalty',
                     ]);
                 }
@@ -227,7 +246,7 @@ class PaymentProcessor
                         'receipt_no'           => $receiptNo2,
                         'document_template_id' => $template->id,
                         'payment_date'         => $data['payment_date'],
-                        'approved_by'          => Auth::id(),
+                        'approved_by'          => Auth::id() ?? ($automatic ? $currentUser->id : null),
                         'remarks'              => 'Payment for late penalty',
                     ]);
 
@@ -259,7 +278,7 @@ class PaymentProcessor
                     'receipt_no'           => $receiptNo1,
                     'document_template_id' => $template->id,
                     'payment_date'         => $data['payment_date'],
-                    'approved_by'          => Auth::id(),
+                    'approved_by'          => Auth::id() ?? ($automatic ? $currentUser->id : null),
                     'remarks'              => $data['remarks'] ?? null,
                 ]);
 
@@ -322,13 +341,91 @@ class PaymentProcessor
                 $invoice->id,
                 "Excess from invoice {$invoice->invoice_no}"
             );
+            $overpaymentCents = $excessCents;
         }
 
         // Return the primary transaction created (prioritize invoice transaction, fallback to penalty transaction)
         return $transaction1 ?? $penaltyTransaction;
     }
 
-    private function assertNoEarlierOutstanding(Invoice $invoice): void
+    private function processingFeeCents(array $settings, array $data): int
+    {
+        if (!filter_var(data_get($settings, 'processing_fee_config.is_active', false), FILTER_VALIDATE_BOOLEAN)
+            || !in_array($data['payment_method'], data_get($settings, 'processing_fee_config.value.applicable_payment_method', []), true)) {
+            return 0;
+        }
+        $defaultCents = max(0, (int) round((float) data_get($settings, 'processing_fee_config.value.processing amount', 0) * 100));
+        if ($defaultCents === 0) return 0;
+
+        if (filter_var($data['processing_fee_cancelled'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            if (!\Illuminate\Support\Facades\Gate::any(['super-admin', 'invoice.remove processing fee'])) {
+                throw ValidationException::withMessages(['processing_fee' => 'You have no permission to remove the processing fee.']);
+            }
+            return 0;
+        }
+
+        if (!array_key_exists('processing_fee_amount', $data)) return $defaultCents;
+        // Validate service callers as well as HTTP requests.
+        \Illuminate\Support\Facades\Validator::make($data, [
+            'processing_fee_amount' => ['required', 'numeric', 'min:0', 'decimal:0,2'],
+        ])->validate();
+        $amountCents = (int) round((float) $data['processing_fee_amount'] * 100);
+        if ($amountCents !== $defaultCents && !\Illuminate\Support\Facades\Gate::any(['super-admin', 'invoice.edit processing fee'])) {
+            throw ValidationException::withMessages(['processing_fee' => 'You have no permission to edit the processing fee. Refresh the payment form if the settings have changed.']);
+        }
+        return $amountCents;
+    }
+
+    private function collectProcessingFee(Invoice $parent, int $amountCents, array $data, \App\Models\User $issuer, DocumentTemplate $receiptTemplate): void
+    {
+        // Serialize creation of this management account's fee type, even across invoices.
+        \App\Models\User::whereKey($issuer->id)->lockForUpdate()->firstOrFail();
+        $feeType = \App\Models\FeeType::firstOrCreate([
+            'user_id' => $issuer->id, 'name' => 'Processing Fee', 'category' => 'service',
+        ], ['is_system' => false, 'is_active' => true]);
+        if (!$feeType->is_active || !$this->settingService->isFeeTypeActive($feeType, userId: $issuer->id)) {
+            throw ValidationException::withMessages(['processing_fee' => 'The Processing Fee fee type is inactive. Enable it before collecting this fee.']);
+        }
+
+        // Build a paid child directly: this fee must not trigger another wallet payment.
+        $feeInvoice = Invoice::create([
+            'parent_id' => $parent->id,
+            'context' => $parent->context,
+            'billable_type' => $parent->billable_type,
+            'billable_id' => $parent->billable_id,
+            'lease_id' => $parent->lease_id,
+            'document_template_id' => $parent->document_template_id,
+            'invoice_no' => $this->documentSequenceService->generateInvoiceNumber($issuer),
+            'type' => 'processing_fee',
+            'period' => $parent->period,
+            'due_date' => $data['payment_date'],
+            'total_amount' => $amountCents,
+            'amount_paid' => $amountCents,
+            'amount_balance' => 0,
+            'status' => 'paid',
+            'remarks' => 'Processing fee for invoice '.$parent->invoice_no,
+        ]);
+        $feeInvoice->items()->create([
+            'fee_type_id' => $feeType->id,
+            'description' => 'Processing Fee ('.$data['payment_method'].')',
+            'amount' => $amountCents,
+        ]);
+        Transaction::create([
+            'invoice_id' => $feeInvoice->id,
+            'amount_paid' => $amountCents,
+            'amount_applied' => $amountCents,
+            'amount_excess' => 0,
+            'payment_method' => $data['payment_method'],
+            'transaction_ref' => $data['transaction_ref'] ?? null,
+            'receipt_no' => $this->documentSequenceService->generateReceiptNumber($issuer),
+            'document_template_id' => $receiptTemplate->id,
+            'payment_date' => $data['payment_date'],
+            'approved_by' => Auth::id(),
+            'remarks' => 'Payment for processing fee',
+        ]);
+    }
+
+    private function assertNoEarlierOutstanding(Invoice $invoice, bool $allowUnpaidPenalty = false): void
     {
         if (!$invoice->lease_id) {
             return;
@@ -337,10 +434,18 @@ class PaymentProcessor
         $hasEarlier = Invoice::forLease($invoice->lease_id)
             ->unpaid()
             ->where('id', '!=', $invoice->id)
+            ->when($allowUnpaidPenalty, function ($query) use ($invoice) {
+                // Separated penalties do not block rent collection. The linked
+                // rental also must not prevent payment of its own penalty.
+                $query->where(fn ($types) => $types->whereNull('type')->orWhere('type', '!=', 'penalty'));
+                if ($invoice->type === 'penalty' && $invoice->parent_id) {
+                    $query->where('id', '!=', $invoice->parent_id);
+                }
+            })
             ->where(function ($query) use ($invoice) {
-                $query->where('period', '<', $invoice->period)
+                $query->where('period', '<', $invoice->period?->toDateString())
                     ->orWhere(function ($q) use ($invoice) {
-                        $q->where('period', '=', $invoice->period)
+                        $q->where('period', '=', $invoice->period?->toDateString())
                             ->where('created_at', '<', $invoice->created_at);
                     });
             })

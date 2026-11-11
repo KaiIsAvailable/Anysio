@@ -8,7 +8,7 @@
             <section class="bg-white shadow-sm sm:rounded-lg border border-gray-200 p-4 sm:p-5 space-y-4">
                 <header>
                     <h3 class="text-lg font-medium text-gray-900">{{ __('Account Permissions') }}</h3>
-                    <p class="text-sm text-gray-500">{{ __('Choose an account to control its access. Changes apply only to that account and limit its staff access.') }}</p>
+                    <p class="text-sm text-gray-500">{{ __('Choose an account to control its access. These permissions apply only to that account. Staff access is controlled separately by staff roles.') }}</p>
                 </header>
 
                 @php

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -53,6 +54,43 @@ class Unit extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function scopeSearch(Builder $query, ?string $search): Builder
+    {
+        $search = trim($search ?? '');
+        if ($search === '') {
+            return $query;
+        }
+
+        $pattern = "%{$search}%";
+
+        return $query->where(function (Builder $q) use ($pattern) {
+            $q->where('units.unit_no', 'like', $pattern);
+
+            foreach (['type', 'block', 'floor', 'sqft', 'electricity_acc_no', 'water_acc_no', 'indah_water_acc_no', 'status'] as $column) {
+                $q->orWhere("units.$column", 'like', $pattern);
+            }
+
+            $q->orWhereHas('owner', fn ($owner) => $owner->where(function ($owner) use ($pattern) {
+                $owner->where('users.name', 'like', $pattern)
+                    ->orWhere('users.email', 'like', $pattern);
+            }))
+                ->orWhereHas('rooms', fn ($rooms) => $rooms->where('rooms.room_no', 'like', $pattern));
+        });
+    }
+
+    public function scopeWithSearchMatches(Builder $query, ?string $search): Builder
+    {
+        $search = trim($search ?? '');
+        if ($search === '') {
+            return $query;
+        }
+
+        return $query->with([
+            'rooms' => fn ($rooms) => $rooms->where('rooms.room_no', 'like', "%{$search}%")
+                ->with('unit:id,unit_no')->orderBy('rooms.room_no'),
+        ]);
     }
 
     //public function owners(): BelongsTo

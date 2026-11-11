@@ -7,127 +7,21 @@
         x-data="{
             activeId: '{{ old('active_id', $defaultActiveId) }}',
             source: {{ $historyJson->isNotEmpty() ? $historyJson->toJson() : '{}' }},
-            loading: false,
-            invoicePage: 1,
-            perPage: 5,
-            voidModalOpen: false, 
-            actionUrl: '',
-
-            openUpload: @js($stampingErrors),
-            shake: @js($stampingErrors),
-
-            get activeLease() {
-                return (this.source && this.activeId) ? (this.source[this.activeId] || {}) : {};
-            },
-
-            get paginatedInvoices() {
-                let invoices = this.activeLease.invoices || [];
-                let start = (this.invoicePage - 1) * this.perPage;
-                return invoices.slice(start, start + this.perPage);
-            },
-
-            get totalInvoicePages() {
-                let invoices = this.activeLease.invoices || [];
-                return Math.ceil(invoices.length / this.perPage) || 1;
-            },
-
-            get paginationLinks() {
-                let total = this.totalInvoicePages;
-                let current = this.invoicePage;
-                let pages = [];
-
-                if (total <= 7) {
-                    for (let i = 1; i <= total; i++) { pages.push(i); }
-                } else {
-                    if (current <= 4) {
-                        pages = [1, 2, 3, 4, 5, '...', total];
-                    } else if (current >= total - 3) {
-                        pages = [1, '...', total - 4, total - 3, total - 2, total - 1, total];
-                    } else {
-                        pages = [1, '...', current - 1, current, current + 1, '...', total];
-                    }
-                }
-                return pages;
-            },
-
-            openPayment: false,
-            shakePayment: false,
-            openPreview: false,
-            paymentData: { id: '', invoice_no: '', amount_due: 0, actionUrl: '' },
-
-            openManual: false,
-            manualActionUrl: '',
-
+            openUpload: @js($stampingErrors), shake: @js($stampingErrors),
+            openManual: false, manualActionUrl: '',
+            get activeLease() { return this.source[this.activeId] || {}; },
             getManualInvoiceUrl() {
-                if (!this.activeId) return '#';
-                return `{{ route('admin.invoices.store-manual', ':lease') }}`.replace(':lease', this.activeId);
-            },
-
-            refreshTable() {
-                console.log('[Debug] refreshTable called for activeId:', this.activeId);
-                if (!this.activeId || this.loading) return;
-                this.loading = true;
-                const url = `{{ route('admin.leases.show', ':id') }}`.replace(':id', this.activeId) + `?lease_id=${this.activeId}`;
-
-                fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-                .then(response => {
-                    if (!response.ok) throw new Error('Status: ' + response.status);
-                    return response.json();
-                })
-                .then(data => {
-                    console.log('[Debug] refreshTable success data:', data);
-                    
-                    // 💡 Read is_current from the local source dictionary instead of data
-                    const currentLeaseRecord = this.source[this.activeId] || {};
-                    console.log('[Debug] Current Lease ID:', this.activeId, '| is_current status:', currentLeaseRecord.is_current);
-
-                    if (this.activeLease) {
-                        this.activeLease.can_generate = data.can_generate;
-                        
-                        // Ensure activeLease retains its correct is_current flag from source
-                        if (typeof currentLeaseRecord.is_current !== 'undefined') {
-                            this.activeLease.is_current = currentLeaseRecord.is_current;
-                        }
-
-                        if (data.invoices) {
-                            this.activeLease.invoices = data.invoices;
-                        }
-                    }
-                })
-                .catch(e => { console.error('[Debug] Table refresh failed:', e); })
-                .finally(() => { this.loading = false; });
-            },
-
-            init() {
-                let self = this;
-                console.log('[Debug] Component initialized. refreshTable is function?', typeof self.refreshTable);
-                
-                this.$watch('activeId', (newVal) => {
-                    if (newVal) {
-                        self.invoicePage = 1;
-                        self.refreshTable();
-                    }
-                });
+                return '{{ route('admin.invoices.store-manual', '__LEASE__') }}'.replace('__LEASE__', this.activeId);
             }
         }"
         @click.stop
-        @open-payment.window="paymentData = $event.detail; openPayment = true;"
-        @open-manual-modal.window="openManual = true; manualActionUrl = $event.detail.action;"
-        @invoice-generated.window="
-            let self = $data;
-            console.log('[Debug] @invoice-generated event caught. refreshTable type:', typeof self.refreshTable);
-            if ($event.detail && $event.detail.success) {
-                if ($event.detail.invoice) {
-                    if (self.activeId && self.source[self.activeId]) {
-                        if (!self.source[self.activeId].invoices) {
-                            self.source[self.activeId].invoices = [];
-                        }
-                        let inv = $event.detail.invoice;
-                        if (!inv.invoice_items && inv.items) inv.invoice_items = inv.items;
-                        self.source[self.activeId].invoices.unshift(inv);
-                    }
-                }
-                self.refreshTable();
+        @open-manual-modal.window="openManual = true; manualActionUrl = $event.detail.action"
+        @invoice-table-updated.window="
+            const data = $event.detail;
+            if (data.lease_id && source[data.lease_id]) {
+                source[data.lease_id].refund_status = data.refund_status;
+                source[data.lease_id].refund_id = data.refund_id;
+                Object.values(source).forEach(lease => lease.wallet_balance = data.wallet_balance);
             }
         ">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -158,9 +52,9 @@
                             {{-- 2. Check Out Lease Button --}}
                             @canany(['super-admin', 'leases.check out lease'])
                                         <button type="button"
-                                            x-show="activeId && !['cancelled', 'end', 'refunded'].includes((activeLease.status || '').toLowerCase()) && !((activeLease.status || '').toLowerCase() === 'check out' && activeLease.refund_status === 'paid')"
+                                            x-show="activeId && !['cancelled', 'end'].includes((activeLease.status || '').toLowerCase())"
                                             x-cloak
-                                            x-text="activeLease.refund_id ? 'CONTINUE REFUND' : 'CHECK OUT'"
+                                            x-text="activeLease.refund_status === 'paid' ? 'VIEW REFUND' : (activeLease.refund_id ? 'CONTINUE REFUND' : 'CHECK OUT')"
                                             @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: activeId } }))"
                                             class="px-3 py-1.5 bg-amber-50 text-amber-600 text-xs font-black rounded-lg border border-amber-100 hover:bg-amber-600 hover:text-white transition-all shadow-sm flex items-center justify-center">
                                         </button>
@@ -192,6 +86,7 @@
                                     'draft' => 'REFUND: DRAFT',
                                     'pending' => 'REFUND: PENDING APPROVE',
                                     'approved' => 'REFUND: APPROVED, AWAITING PAYMENT',
+                                    'processing' => 'REFUND: PROCESSING PAYMENT',
                                     'paid' => 'REFUNDED',
                                     'rejected' => 'REFUND: REJECTED',
                                     'cancelled' => 'REFUND: CANCELLED',
@@ -439,8 +334,11 @@
                             <!-- Add Manual Invoice Button -->
                             @canany(['super-admin', 'leases.add manual invoice'])
                             <x-form.primary-button type="button"
+                                x-show="activeId"
                                 @click="$dispatch('open-manual-modal', { 
                                     action: getManualInvoiceUrl(),
+                                    leaseStatus: activeLease.status,
+                                    refundStatus: activeLease.refund_status,
                                     defaultDueDate: '{{ now()->addDays($dueDateDays)->format('Y-m-d') }}'
                                 })"
                                 class="!text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50 shadow-sm">
@@ -464,250 +362,12 @@
                                     @click="$dispatch('open-modal', 'invoice-statement')"
                                     class="ml-auto !text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50">View Statement</x-form.primary-button>
                             </h4>
-                            <div class="overflow-x-auto border border-gray-100 rounded-xl">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
-                                        <tr>
-                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Invoice No</th>
-                                            @canany(['super-admin', 'invoice.view invoice', 'invoice.view receipt'])
-                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Documents</th>
-                                            @endcanany
-                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Period</th>
-                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Due Date</th>
-                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Amount Details</th>
-                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Remarks</th>
-                                            <th class="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                                            @canany(['super-admin', 'invoice.record payment', 'invoice.void'])
-                                            <th class="px-4 py-3 text-center text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
-                                            @endcanany
-                                        </tr>
-                                    </thead>
-                                    <tbody id="invoices-table-body" class="bg-white divide-y divide-gray-200">
-                                        <template x-for="invoice in paginatedInvoices" :key="invoice.id">
-                                            <tr class="hover:bg-gray-50 transition-colors">
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm font-bold text-indigo-600" x-text="invoice.invoice_no"></td>
-
-                                                <!-- 💡 Alpine Loop Document Preview (Using Component) -->
-                                                @canany(['super-admin', 'invoice.view invoice', 'invoice.view receipt'])
-                                                <td class="px-4 py-4 whitespace-nowrap">
-                                                    <!-- Invoice Component -->
-                                                    <div class="flex flex-col items-start gap-1.5">
-                                                        @canany(['super-admin', 'invoice.view invoice'])
-                                                        <template x-if="invoice.document_template_id && invoice.document_template_id !== '—' && invoice.template_title">
-                                                            <div>
-                                                                <x-buttons.preview-doc
-                                                                    type="invoice"
-                                                                    color="indigo"
-                                                                    titleExpr="'Invoice: ' + invoice.invoice_no"
-                                                                    contentExpr="invoice.template_html || invoice.html_content || ''"
-                                                                    variablesExpr="invoice.variables || {}"
-                                                                    itemsExpr="invoice.invoice_items || invoice.items || []"
-                                                                    buttonTextExpr="invoice.invoice_no" />
-                                                            </div>
-                                                        </template>
-                                                        @endcanany
-
-                                                        <!-- Receipt Component Loop -->
-                                                        @canany(['super-admin', 'invoice.view receipt'])
-                                                        <template x-if="invoice.receipts && invoice.receipts.length > 0">
-                                                            <template x-for="receipt in invoice.receipts" :key="receipt.id">
-                                                                <div class="mt-1">
-                                                                    <x-buttons.preview-doc
-                                                                        type="receipt"
-                                                                        color="emerald"
-                                                                        titleExpr="'Receipt: ' + (receipt.receipt_no || 'N/A')"
-
-                                                                        contentExpr="
-                                                                            receipt.template_html
-                                                                            || receipt.html_content
-                                                                            || (receipt.documentTemplate
-                                                                                ? (receipt.documentTemplate.html_template || receipt.documentTemplate.html_content || '')
-                                                                                : '')
-                                                                            || (receipt.document_template
-                                                                                ? (receipt.document_template.html_template || receipt.document_template.html_content || '')
-                                                                                : '')
-                                                                            || ''
-                                                                        "
-
-                                                                        variablesExpr="invoice.variables || {}"
-
-                                                                        itemsExpr="invoice.invoice_items || invoice.items || []"
-
-                                                                        buttonTextExpr="receipt.receipt_no || 'Receipt'"
-
-                                                                        extraExpr="{
-                                                                                        receiptNo: receipt.receipt_no || 'N/A',
-
-                                                                                        paymentDate:
-                                                                        (receipt.variables && receipt.variables.payment_date)
-                                                                        || receipt.payment_date
-                                                                        || receipt.created_at
-                                                                        || '—',
-
-                                                                        receiptVariables:
-                                                                            receipt.variables || {},
-
-                                                                        paidAmount:
-                                                                            typeof receipt.amount === 'number'
-                                                                                ? (
-                                                                                    receipt.amount > 100
-                                                                                        ? (receipt.amount / 100).toFixed(2)
-                                                                                        : parseFloat(receipt.amount).toFixed(2)
-                                                                                )
-                                                                                : (receipt.amount || '0.00'),
-
-                                                                        invoiceNo:
-                                                                            invoice.invoice_no || '—',
-
-                                                                        invoiceTotal:
-                                                                            typeof invoice.total_amount === 'number'
-                                                                                ? (
-                                                                                    invoice.total_amount > 100
-                                                                                        ? (invoice.total_amount / 100).toFixed(2)
-                                                                                        : parseFloat(invoice.total_amount).toFixed(2)
-                                                                                )
-                                                                                : (invoice.total_amount || '0.00')
-                                                                    }" />
-                                                                    <!-- TEMP DEBUG
-                                                                    <pre
-                                                                        class="text-[10px] bg-gray-100 border border-gray-300 p-2 mt-2 whitespace-pre-wrap max-w-xl"
-                                                                        x-text="JSON.stringify(receipt, null, 2)">
-                                                                    </pre> -->
-                                                                </div>
-                                                            </template>
-                                                        </template>
-                                                        @endcanany
-
-                                                        <template x-if="(!invoice.document_template_id || invoice.document_template_id === '—' || !invoice.template_title) && (!invoice.receipts || invoice.receipts.length === 0)">
-                                                            <span class="text-xs text-gray-400 italic mt-1">- None -</span>
-                                                        </template>
-                                                    </div>
-                                                </td>
-                                                @endcanany
-
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-900" x-text="invoice.period"></td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-600" x-text="invoice.due_date_formatted"></td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
-                                                    <div class="space-y-1">
-                                                        <div class="text-gray-900 font-semibold">Total: <span class="font-normal" x-text="'RM ' + invoice.total_amount"></span></div>
-                                                        <div class="text-emerald-600 font-medium text-xs">Paid: <span x-text="'RM ' + invoice.amount_paid"></span></div>
-                                                        <div class="text-red-600 font-medium text-xs">Balance: <span x-text="'RM ' + invoice.amount_balance"></span></div>
-                                                    </div>
-                                                </td>
-                                                <td class="px-4 py-4 text-sm text-gray-600" x-text="invoice.remarks"></td>
-                                                <td class="px-4 py-4 whitespace-nowrap text-sm">
-                                                    <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border uppercase"
-                                                        :class="{
-                                                        'bg-green-100 text-green-700 border-green-200': invoice.status === 'paid',
-                                                        'bg-yellow-100 text-yellow-700 border-yellow-200': invoice.status === 'unpaid',
-                                                        'bg-red-100 text-red-700 border-red-200': invoice.status === 'rejected',
-                                                        'bg-gray-100 text-gray-500 border-gray-200 line-through': invoice.status === 'void'
-                                                    }" x-text="invoice.status">
-                                                    </span>
-                                                </td>
-                                                @canany(['super-admin', 'invoice.record payment', 'invoice.void'])
-                                                <td class="px-4 py-4 whitespace-nowrap text-center text-sm font-medium">
-                                                    <!-- Record Payment Button -->
-                                                    @canany(['super-admin', 'invoice.record payment'])
-                                                    <template x-if="invoice.status !== 'paid' && invoice.status !== 'void'">
-                                                        <button type="button"
-                                                            @click="
-                                                                let payload = {
-                                                                    id: invoice.id, 
-                                                                    invoiceNo: invoice.invoice_no, 
-                                                                    dueDate: invoice.due_date,
-                                                                    totalAmount: invoice.amount_balance, 
-                                                                    invoiceItems: invoice.invoice_items, 
-                                                                    walletBalance: activeLease.wallet_balance, 
-                                                                    actionUrl: '{{ route('admin.invoices.payment', ':id') }}'.replace(':id', invoice.id),
-                                                                };
-                                                                console.log('[Debug] Dispatching open-payment with payload:', payload);
-                                                                $dispatch('open-payment', payload);
-                                                            "
-                                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200/60 rounded-lg transition-all shadow-sm">
-                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z"></path>
-                                                            </svg>
-                                                            <span>Record Payment</span>
-                                                        </button>
-                                                    </template>
-                                                    @endcanany
-
-                                                    <!-- Void Button -->
-                                                    @canany(['super-admin', 'invoice.void'])
-                                                    <template x-if="invoice.status !== 'void'">
-                                                        <button type="button"
-                                                            @click="
-                                                            $dispatch('open-void-modal', { 
-                                                                actionUrl: '{{ route('admin.invoices.void', ':id') }}'.replace(':id', invoice.id),
-                                                                invoiceNumber: invoice.invoice_no
-                                                            });
-                                                        "
-                                                            class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition-all shadow-sm">
-                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
-                                                            </svg>
-                                                            <span>Void</span>
-                                                        </button>
-                                                    </template>
-                                                    @endcanany
-                                                </td>
-                                                @endcanany
-                                            </tr>
-                                        </template>
-                                        <template x-if="!activeLease.invoices || activeLease.invoices.length === 0">
-                                            <tr>
-                                                <td colspan="7" class="px-6 py-12 text-center text-sm text-gray-500 italic">No invoices found for this lease.</td>
-                                            </tr>
-                                        </template>
-                                    </tbody>
-                                </table>
-                            </div>
+                            <x-table.invoice-table
+                                class="-mx-6"
+                                :endpoint="route('admin.invoices.lease-rows', $defaultActiveId)"
+                                :lease-id="$defaultActiveId"
+                                x-effect="setEndpoint('{{ route('admin.invoices.lease-rows', '__LEASE__') }}'.replace('__LEASE__', activeId), activeId)" />
                         </div>
-
-                        <x-modals.payment-modal />
-
-                        <!-- The Confirmation Modal Component with Dynamic actionUrl binding -->
-                        <x-modals.confirmation-modal id="void-modal" title="Void Invoice" maxWidth="sm:max-w-lg">
-                            <div x-data="{ actionUrl: '', invoiceNumber: '', loading: false }" 
-                                @open-void-modal.window="
-                                    actionUrl = $event.detail.actionUrl;
-                                    invoiceNumber = $event.detail.invoiceNumber;
-                                ">
-                                    <!-- Optional: Display invoice number in the modal content -->
-                                    <x-form.form :action="''" x-bind:action="actionUrl" method="POST" loading="loading">
-                                        @csrf
-                                        @method('PATCH')
-                                        <input type="hidden" name="redirect" value="{{ request()->url() }}">
-
-                                        <div class="p-6 space-y-4">
-                                            <div class="flex items-center gap-3 text-amber-600 bg-amber-50 p-4 rounded-xl border border-amber-100 mb-4">
-                                                <svg class="w-6 h-6 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
-                                                </svg>
-                                                <p class="text-sm text-slate-600 font-medium">
-                                                    Are you sure you want to void invoice <span class="font-bold text-slate-900" x-text="invoiceNumber"></span>? This action cannot be undone.
-                                                </p>
-                                            </div>
-
-                                            <div>
-                                                <x-form.input-label value="Reason for Voiding" class="mb-1" />
-                                                <textarea @keydown.enter.stop="if ($event.ctrlKey &amp;&amp; !$event.isComposing &amp;&amp; $event.keyCode !== 229) { $event.preventDefault(); if (!loading) $el.form.requestSubmit(); }" name="reason" rows="3" required
-                                                    class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"></textarea>
-                                            </div>
-                                        </div>
-
-                                        <div class="px-6 py-4 bg-gray-50/50 border-t border-gray-100 flex justify-end space-x-3">
-                                            <button type="button" @click="$dispatch('close-void-modal')" class="px-4 py-2 bg-gray-200 text-gray-700 rounded-md text-xs font-semibold uppercase hover:bg-gray-300 transition-colors">
-                                                Cancel
-                                            </button>
-                                            <x-form.primary-button type="submit" loading="loading" class="px-4 py-2 bg-rose-600 text-white rounded-md text-xs font-semibold uppercase hover:bg-rose-700">
-                                                Confirm Void
-                                            </x-form.primary-button>
-                                        </div>
-                                    </x-form.form>
-                                </div>
-                            </x-modals.confirmation-modal>
 
                             {{-- Cancel Confirmation Modal --}}
                             <x-modals.confirmation-modal id="lease-confirm-modal" title="Cancel Lease">
@@ -742,20 +402,7 @@
                                 </div>
                             </x-modals.confirmation-modal>
 
-                            <!-- Pagination -->
-                            <div class="mt-4 flex items-center justify-between px-2" x-show="totalInvoicePages > 1">
-                                <div class="text-xs text-gray-500">Showing page <span class="font-bold" x-text="invoicePage"></span> of <span class="font-bold" x-text="totalInvoicePages"></span></div>
-                                <div class="flex items-center space-x-1">
-                                    <button type="button" @click="if(invoicePage > 1) invoicePage--" :disabled="invoicePage === 1" class="px-3 py-1.5 text-xs font-semibold bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">&lsaquo;</button>
-                                    <template x-for="page in paginationLinks" :key="page">
-                                        <div>
-                                            <template x-if="page !== '...'"><button type="button" @click="invoicePage = page" class="px-3 py-1.5 text-xs font-semibold border rounded-md transition-all" :class="invoicePage === page ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50'" x-text="page"></button></template>
-                                            <template x-if="page === '...'"><span class="px-2 py-1 text-xs text-gray-400 font-bold">...</span></template>
-                                        </div>
-                                    </template>
-                                    <button type="button" @click="if(invoicePage < totalInvoicePages) invoicePage++" :disabled="invoicePage === totalInvoicePages" class="px-3 py-1.5 text-xs font-semibold bg-white border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed">&rsaquo;</button>
-                                </div>
-                            </div>
+
 
                         </div>
                     </div>

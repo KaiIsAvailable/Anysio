@@ -192,7 +192,7 @@
                                 $statusOptions = [
                                     'Vacant' => 'Vacant',
                                     'Occupied' => 'Occupied',
-                                    'Under Maintenance' => 'Under Maintenance',
+                                    'Maintenance' => 'Maintenance',
                                 ];
                             @endphp
                             <x-form.input-select 

@@ -150,11 +150,23 @@
 
                         <div class="mt-4">
                             <label class="block text-sm font-medium text-slate-900 mb-1">Status</label>
-                            <select name="status" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm">
-                                @php $currentStatus = old('status', $unit->status); @endphp
-                                <option value="Vacant" @selected($currentStatus == 'Vacant')>Vacant</option>
-                                <option value="Occupied" @selected($currentStatus == 'Occupied')>Occupied</option>
-                                <option value="Under Maintenance" @selected($currentStatus == 'Under Maintenance')>Under Maintenance</option>
+                            <select name="status" class="w-full rounded-lg border-gray-300 focus:ring-indigo-500 shadow-sm" required>
+                                @php
+                                    $statusOptions = ['Vacant', 'Occupied', 'Maintenance'];
+                                    $savedStatus = trim((string) old('status', $unit->status));
+                                    $currentStatus = match (strtolower($savedStatus)) {
+                                        'vacant' => 'Vacant',
+                                        'occupied' => 'Occupied',
+                                        'maintenance', 'under maintenance', 'cleaning' => 'Maintenance',
+                                        default => '',
+                                    };
+                                @endphp
+                                @if(!in_array($currentStatus, $statusOptions, true))
+                                    <option value="" selected disabled>Select status</option>
+                                @endif
+                                @foreach($statusOptions as $status)
+                                    <option value="{{ $status }}" @selected($currentStatus === $status)>{{ $status }}</option>
+                                @endforeach
                             </select>
                         </div>
                     </section>

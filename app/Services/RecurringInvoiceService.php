@@ -14,9 +14,9 @@ class RecurringInvoiceService
         private DocumentSequenceService $sequences,
     ) {}
 
-    public function generate(Lease $lease, User $issuer, bool $automatic, bool $dryRun = false): int
+    public function generate(Lease $lease, User $issuer, bool $automatic, bool $dryRun = false, bool $throughEnd = false): int
     {
-        return DB::transaction(function () use ($lease, $issuer, $automatic, $dryRun) {
+        return DB::transaction(function () use ($lease, $issuer, $automatic, $dryRun, $throughEnd) {
             // Both entry points lock the same persistent row before checking invoices.
             $lease = Lease::whereKey($lease->id)->lockForUpdate()->firstOrFail();
             $today = Carbon::today(config('app.timezone'));
@@ -31,9 +31,10 @@ class RecurringInvoiceService
             $offset = (int) data_get($config, 'due_date_config.value.recurring_feq_days', 0);
             $offset *= data_get($config, 'due_date_config.value.recurring_feq', 'before') === 'after' ? 1 : -1;
             $target = $automatic ? $today->copy()->subDays($offset) : $today->copy();
+            $onePeriod = !$automatic && $throughEnd;
             $groups = [];
             foreach ($lease->charges()->recurring()->with('feeType')->get() as $charge) {
-                $period = $this->periods->containing($lease->start_date, $target, $charge->frequency);
+                $period = $this->periods->containing($lease->start_date, $onePeriod ? $lease->start_date : $target, $charge->frequency);
                 if (!$period || ($automatic && !$period->equalTo($target))) continue;
                 $scheduled = $period->copy()->addDays($offset);
                 if ($lease->end_date && ($period->gt($lease->end_date) || ($automatic && $scheduled->gt($lease->end_date)))) continue;
@@ -41,23 +42,38 @@ class RecurringInvoiceService
                 if (!$fee || !$fee->is_active || (!$fee->is_system && $fee->user_id !== $issuer->id)
                     || $charge->amount <= 0 || !$this->settings->isFeeTypeActive($fee, $config)) continue;
 
-                // Include void/deleted invoices: an issued period must never be issued again.
-                // Legacy recurring invoices stored month-start and omitted lease_charge_id.
-                $dates = [$period->toDateString()];
-                if (in_array($charge->frequency, ['monthly', 'yearly']) || $period->equalTo($lease->start_date)) {
-                    $dates[] = $period->copy()->startOfMonth()->toDateString();
+                // Find the earliest missing period for each charge. The button issues
+                // only one period per click; scheduled generation keeps its daily timing.
+                $lastPeriod = $onePeriod ? ($lease->end_date ?? $today) : $period;
+                while ($period->lte($lastPeriod)) {
+                    // Only the lease-page action can replace a voided invoice.
+                    // Deleted records retain their existing duplicate protection.
+                    // Legacy recurring invoices stored month-start and omitted lease_charge_id.
+                    $dates = [$period->toDateString()];
+                    if (in_array($charge->frequency, ['monthly', 'yearly']) || $period->equalTo($lease->start_date)) {
+                        $dates[] = $period->copy()->startOfMonth()->toDateString();
+                    }
+                    $exists = DB::table('invoices as i')->join('invoice_items as item', 'item.invoice_id', '=', 'i.id')
+                        ->where('i.lease_id', $lease->id)
+                        ->when($onePeriod, fn ($q) => $q->where(fn ($live) => $live
+                            ->whereNull('i.status')->orWhere('i.status', '!=', Invoice::STATUS_VOID)
+                            ->orWhereNotNull('i.deleted_at')))
+                        ->where(function ($q) use ($dates) {
+                            foreach (array_unique($dates) as $date) $q->orWhereDate('i.period', $date);
+                        })
+                        ->where(function ($q) use ($charge) {
+                            $q->where('item.lease_charge_id', $charge->id)
+                                ->orWhere(fn ($q) => $q->whereNull('item.lease_charge_id')->where('item.fee_type_id', $charge->fee_type_id));
+                        })->exists();
+                    if (!$exists) {
+                        $groups[$period->toDateString()][] = $charge;
+                        break;
+                    }
+                    $period = $this->periods->next($lease->start_date, $period, $charge->frequency);
                 }
-                $exists = DB::table('invoices as i')->join('invoice_items as item', 'item.invoice_id', '=', 'i.id')
-                    ->where('i.lease_id', $lease->id)
-                    ->where(function ($q) use ($dates) {
-                        foreach (array_unique($dates) as $date) $q->orWhereDate('i.period', $date);
-                    })
-                    ->where(function ($q) use ($charge) {
-                        $q->where('item.lease_charge_id', $charge->id)
-                            ->orWhere(fn ($q) => $q->whereNull('item.lease_charge_id')->where('item.fee_type_id', $charge->fee_type_id));
-                    })->exists();
-                if (!$exists) $groups[$period->toDateString()][] = $charge;
             }
+            ksort($groups);
+            if ($onePeriod) $groups = array_slice($groups, 0, 1, true);
             if ($dryRun || !$groups) return count($groups);
 
             // Serialize sequence allocation across leases for this issuer as well.
@@ -82,8 +98,12 @@ class RecurringInvoiceService
                         'fee_type_id' => $charge->fee_type_id, 'lease_charge_id' => $charge->id,
                         'description' => $charge->description, 'amount' => $charge->amount,
                     ]);
-                    $charge->update(['next_billing_date' => $this->periods->next($lease->start_date, Carbon::parse($period), $charge->frequency)]);
+                    $next = $this->periods->next($lease->start_date, Carbon::parse($period), $charge->frequency);
+                    if (!$charge->next_billing_date || $next->gt($charge->next_billing_date)) {
+                        $charge->update(['next_billing_date' => $next]);
+                    }
                 }
+                app(InvoiceService::class)->applyWalletToNewInvoice($invoice, $issuer);
             }
             return count($groups);
         });

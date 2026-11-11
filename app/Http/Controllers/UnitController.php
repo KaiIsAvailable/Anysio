@@ -208,23 +208,18 @@ class UnitController extends Controller
             'property',
             'owner',
         ]);
+        $unit->loadCount([
+            'rooms as vacant_rooms_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'vacant'"),
+            'rooms as occupied_rooms_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'occupied'"),
+            'rooms as maintenance_rooms_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'maintenance'"),
+        ]);
 
         // 1. 建立查詢關聯
         $query = $unit->rooms()
             ->with(['unit.owner:id,name,email', 'assets']);
 
         // 2. 處理搜尋 (Searching) - 严格匹配前端显示的列 (Room No, Type, Status, Asset Name)
-        $search = $request->input('search');
-        if ($search) {
-            $query->where(function ($q) use ($search) {
-                $q->where('rooms.room_no', 'like', "%{$search}%")
-                    ->orWhere('rooms.room_type', 'like', "%{$search}%")
-                    ->orWhere('rooms.status', 'like', "%{$search}%")
-                    ->orWhereHas('assets', function ($aq) use ($search) {
-                        $aq->where('assets.name', 'like', "%{$search}%");
-                    });
-            });
-        }
+        $query->search($request->input('search'));
 
         // 3. 處理排序 (Sorting) - 完美適配領導的 <x-table.th> 組件邏輯
         $sortMapping = [

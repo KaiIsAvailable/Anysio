@@ -214,7 +214,7 @@ class LeaseService
     protected function updateLeasableStatus($leasable, string $status): void
     {
         $targetStatus = match ($status) {
-            'Check Out' => 'Cleaning',
+            'Check Out' => 'Maintenance',
             'End' => 'Vacant',
             default => 'Occupied',
         };
@@ -808,6 +808,7 @@ class LeaseService
         })->values()->all();
 
         $activeRefund = $lease->refunds->sortByDesc('created_at')->first();
+        if ($activeRefund) $activeRefund->setAttribute('settlement_fingerprint', app(RefundService::class)->settlementFingerprint($activeRefund));
         $walletRefundCents = $activeRefund?->status === \App\Enums\RefundStatus::PAID
             ? (int) $activeRefund->wallet_refund_cents
             : app(RefundService::class)->getWalletRefundCents($lease, $activeRefund?->id);

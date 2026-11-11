@@ -24,6 +24,9 @@
         'bank_detail_id',
         'method',
         'reference',
+        'transition_reason',
+        'settlement_fingerprint',
+        'refund',
     ];
 @endphp
 
@@ -32,17 +35,85 @@
         action: '{{ old('status') === 'Renew' ? 'renew' : (old('status') === 'Check Out' ? 'checkout' : 'create') }}', 
         formStatus: @js(old('status', 'New')), 
         formLeaseId: @js(old('lease_id', '')),
+        renewalStartDate: @js(old('start_date', '')),
+        submittingLease: false,
+        checkoutSubmitting: false,
+        submitError: '',
         refundData: {},
         refundLoading: false,
         refundReady: false,
         refundLoadError: '',
         refundLoadSequence: 0,
+        refundForceRefresh: false,
         isEditMode: false,
         loading: false,
         shake: false,
 
         get isCheckoutOrRenew() {
             return this.action === 'renew' || this.action === 'checkout';
+        },
+
+        syncRenewalStartDate(input) {
+            const status = Array.isArray(this.formStatus) ? this.formStatus[0] : this.formStatus;
+            const leaseId = String(Array.isArray(this.formLeaseId) ? (this.formLeaseId[0] || '') : (this.formLeaseId || ''));
+            const minimum = status === 'Renew' ? (window.allLeases?.[leaseId]?.renewal_min_start_date || null) : null;
+            const picker = input._flatpickr;
+            if (!picker) return;
+            const selected = picker.selectedDates[0];
+            const invalid = minimum && selected && picker.formatDate(selected, 'Y-m-d') < minimum;
+            picker.set('minDate', minimum);
+            if (invalid) picker.clear();
+        },
+
+        syncRenewalEndDate(input) {
+            const status = Array.isArray(this.formStatus) ? this.formStatus[0] : this.formStatus;
+            const minimum = status === 'Renew' ? (this.renewalStartDate || null) : null;
+            const picker = input._flatpickr;
+            if (!picker) return;
+            const selected = picker.selectedDates[0];
+            const invalid = minimum && selected && picker.formatDate(selected, 'Y-m-d') < minimum;
+            picker.set('minDate', minimum);
+            if (invalid) picker.clear();
+        },
+
+        async sendLeaseForm(form, url) {
+            this.submitError = '';
+            try {
+                const response = await fetch(url, {
+                    method: 'POST', credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                    body: new FormData(form)
+                });
+                const data = await response.json();
+                if (!response.ok || !data.success) {
+                    this.open = true;
+                    this.submitError = data.errors && Object.keys(data.errors).length
+                        ? Object.values(data.errors).flat().join(' ') : (data.message || 'Unable to process the lease. Review the details and try again.');
+                    window.dispatchEvent(new CustomEvent('session-status', {
+                        detail: data.session_status || { type: 'error', message: this.submitError }
+                    }));
+                    return;
+                }
+                if (data.redirect) window.location.assign(data.redirect);
+                else window.location.reload();
+                return true;
+            } catch (error) {
+                this.open = true;
+                this.submitError = 'The result could not be confirmed. Refresh and check the lease before submitting again.';
+                window.dispatchEvent(new CustomEvent('session-status', { detail: { type: 'error', message: this.submitError } }));
+            }
+        },
+
+        async submitLease(event) {
+            event.preventDefault();
+            if (this.submittingLease || (this.action === 'checkout' && !this.refundReady)) {
+                return;
+            }
+            this.submittingLease = true;
+            this.$dispatch('form-loading', true);
+            let success = false;
+            try { success = await this.sendLeaseForm(event.target, event.target.action); }
+            finally { if (!success) { this.submittingLease = false; this.$dispatch('form-loading', false); } }
         },
 
         get refundStatus() {
@@ -64,10 +135,12 @@
             else rawStatus = 'New';
 
             this.formStatus = rawStatus;
+            this.submitError = '';
             this.refundLoadSequence++;
             this.refundReady = false;
             this.refundLoading = rawStatus === 'Check Out';
             this.refundLoadError = '';
+            this.refundForceRefresh = rawStatus === 'Check Out';
             this.formLeaseId = (detail.leaseId && detail.leaseId !== '0') ? String(detail.leaseId) : '';
             this.open = true;
 
@@ -117,7 +190,7 @@
      }"
      @open-lease-modal.window="openModal($event.detail)"
      x-init="if (open && action === 'checkout' && formLeaseId) $nextTick(() => { toggleLeaseSelect(formStatus); handleLeaseChange(formLeaseId); })"
-     @keydown.escape.window="open = false"
+     @keydown.escape.window="if (!submittingLease && !checkoutSubmitting) open = false"
      x-show="open" 
      class="fixed inset-0 z-50 overflow-y-auto" 
      style="display: none;"
@@ -143,7 +216,7 @@
                     <h1 class="text-2xl font-bold text-slate-900 tracking-tight" 
                         x-text="action === 'renew' ? 'Renew Lease' : (action === 'checkout' ? 'Check Out Lease' : 'Create Lease')">
                     </h1>
-                    <button @click="open = false" class="text-gray-400 hover:text-gray-600 transition-colors">
+                    <button type="button" @click="open = false" :disabled="submittingLease || checkoutSubmitting" class="text-gray-400 hover:text-gray-600 transition-colors">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
@@ -152,7 +225,7 @@
 
                 {{-- Modal Body --}}
                 <div class="max-h-[80vh] overflow-y-auto">
-                    <x-form.form method="POST" action="{{ route('admin.leases.store') }}" @submit="if (action === 'checkout' && !refundReady) { $event.preventDefault(); } else { loading = true; }">
+                    <x-form.form method="POST" action="{{ route('admin.leases.store') }}" :async="true" @submit="submitLease($event)">
                         @csrf
                         
                         <input type="hidden" name="redirect_to" value="{{ request()->routeIs('admin.dashboard') ? 'dashboard' : 'index' }}">
@@ -265,13 +338,13 @@
                             <div id="date_section" class="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 <div>
                                     <x-form.input-label value="Start Date" :required="true" class="mb-1" />
-                                    <x-form.date-input id="start-date" name="start_date" :value="old('start_date')" />
+                                    <x-form.date-input id="start-date" name="start_date" :value="old('start_date')" x-model="renewalStartDate" x-effect="syncRenewalStartDate($el)" />
                                     <x-form.input-error :messages="$errors->get('start_date')" class="mt-1" />
                                 </div>
 
                                 <div>
                                     <x-form.input-label value="End Date" :required="true" class="mb-1" />
-                                    <x-form.date-input id="end-date" name="end_date" :value="old('end_date')" />
+                                    <x-form.date-input id="end-date" name="end_date" :value="old('end_date')" x-effect="syncRenewalEndDate($el)" />
                                     <x-form.input-error :messages="$errors->get('end_date')" class="mt-1" />
                                 </div>
                             </div>
@@ -536,7 +609,7 @@
 
                                     <div class="grid grid-cols-9 gap-1 items-center text-center text-xs font-semibold w-full" x-data="{
                                         getCurrentStep() {
-                                            const map = { none: 1, draft: 2, pending: 3, approved: 4, paid: 5 };
+                                            const map = { none: 1, draft: 2, pending: 3, approved: 4, processing: 4, paid: 5 };
                                             return map[String(this.refundStatus || 'none').toLowerCase()] || 1;
                                         }
                                     }">
@@ -744,6 +817,11 @@
                                 </div>
                             </div>
 
+                            <div x-show="action === 'checkout' && refundReady" x-cloak class="space-y-2">
+                                <x-form.input-label for="refund-transition-reason" value="Reason for returning or revoking approval" />
+                                <textarea id="refund-transition-reason" name="transition_reason" rows="2" maxlength="1000" class="w-full rounded-lg border-gray-300 text-sm" placeholder="Required for Return to Draft or Revoke Approval">{{ old('transition_reason') }}</textarea>
+                            </div>
+
                             <x-modals.add-fee-type-modal />
 
                             <div id="lease_charges_section" class="space-y-4 border-t border-gray-200 pt-6">
@@ -754,6 +832,17 @@
                                     </button>
                                 </div>
 
+                                @php
+                                    $chargeTypeOptions = collect()
+                                        ->concat($rentFeeTypes->map(fn($fee) => ['value' => (string) $fee->id, 'label' => $fee->name]))
+                                        ->concat($serviceFeeTypes->map(fn($fee) => ['value' => (string) $fee->id, 'label' => $fee->name . ' (Service)']))
+                                        ->concat($depositFeeTypes->map(fn($fee) => ['value' => (string) $fee->id, 'label' => $fee->name . ' (Deposit)']))
+                                        ->concat($managementFeeTypes->map(fn($fee) => ['value' => (string) $fee->id, 'label' => $fee->name . ' (Management)']));
+                                @endphp
+                                <template id="charge-type-select-template">
+                                    <x-form.input-select name="charges[__CHARGE_INDEX__][fee_type_id]"
+                                        :options="$chargeTypeOptions" placeholder="-- Select Fee Type --" />
+                                </template>
                                 <div id="charges-container" class="space-y-4">
                                     <div class="charge-row rounded-lg border border-gray-200 bg-gray-50 p-4">
                                         <div class="flex justify-between items-center mb-2">
@@ -762,24 +851,10 @@
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div>
                                                 <x-form.input-label value="Charge Type" class="mb-1 text-xs" info="You may hide the charge type if not using it in 'Setting (Lease Settings)'"/>
-                                                <select name="charges[0][fee_type_id]" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">
-                                                    <option value="">-- Select Fee Type --</option>
-                                                    @foreach($rentFeeTypes as $feeType)
-                                                        <option value="{{ $feeType->id }}" data-type="rent">{{ $feeType->name }}</option>
-                                                    @endforeach
-
-                                                    @foreach($serviceFeeTypes as $serviceType)
-                                                        <option value="{{ $serviceType->id }}">{{ $serviceType->name }} (Service)</option>
-                                                    @endforeach
-
-                                                    @foreach($depositFeeTypes as $depositType)
-                                                        <option value="{{ $depositType->id }}">{{ $depositType->name }} (Deposit)</option>
-                                                    @endforeach
-
-                                                    @foreach($managementFeeTypes as $managementType)
-                                                        <option value="{{ $managementType->id }}">{{ $managementType->name }} (Management)</option>
-                                                    @endforeach
-                                                </select>
+                                                <x-form.input-select name="charges[0][fee_type_id]"
+                                                    :options="$chargeTypeOptions" placeholder="-- Select Fee Type --"
+                                                    :value="old('charges.0.fee_type_id')"
+                                                    :ignore-checkout-or-renew="true"  />
                                             </div>
 
                                             <div>
@@ -819,30 +894,32 @@
                             
                             {{-- Hidden input to pass active refund ID to controller when clicking approve/disburse --}}
                             <input type="hidden" name="refund_id" :value="currentRefundId">
+                            <input type="hidden" name="settlement_fingerprint" :value="activeRefund?.settlement_fingerprint || ''">
 
                             {{-- Left Side / Secondary Actions if needed (or keep empty to push buttons right) --}}
                             <div></div>
 
-                            <div class="flex items-center gap-3">
-                                <button type="button" @click="open = false" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors">
+                            <div class="flex flex-wrap items-center justify-end gap-3">
+                                <button type="button" @click="open = false" :disabled="submittingLease || checkoutSubmitting" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 text-sm font-semibold rounded-lg hover:bg-gray-50 transition-colors">
                                     Cancel
                                 </button>
                                 
                                 <template x-if="action === 'checkout' && refundReady">
-                                    <div class="flex items-center gap-2" x-data="{ 
+                                    <div class="flex flex-wrap items-center justify-end gap-2" x-data="{
                                         subAction: '',
-                                        submitCheckout(routeUrl, actionName) {
-                                            if (!this.refundReady || this.refundLoading || this.refundLoadError) return;
+                                        async submitCheckout(routeUrl, actionName) {
+                                            if (this.checkoutSubmitting || !this.refundReady || this.refundLoading || this.refundLoadError) return;
+                                            this.checkoutSubmitting = true;
                                             this.subAction = actionName;
                                             const form = $el.closest('form');
-                                            form.action = routeUrl;
-                                            form.submit();
+                                            let success = false;
+                                            try { success = await this.sendLeaseForm(form, routeUrl); }
+                                            finally { if (!success) { this.subAction = ''; this.checkoutSubmitting = false; } }
                                         }
                                     }">
                                         
                                         {{-- STEP 1 & 2: Save as Draft or Direct Confirm & Set as Pending --}}
-                                        <template x-if="refundStatus === 'none' || refundStatus === 'draft'">
-                                            <div class="flex items-center gap-2">
+                                            <div class="flex items-center gap-2" x-show="['none', 'draft'].includes(refundStatus)" x-cloak>
                                                 {{-- Save as Draft Button --}}
                                                 @canany(['super-admin', 'leases.save draft'])
                                                 <x-form.secondary-button 
@@ -865,18 +942,17 @@
                                                 </x-form.primary-button>
                                                 @endcanany
                                             </div>
-                                        </template>
 
                                         {{-- STEP 3: PENDING -> Approve or Reject Refund --}}
-                                        <template x-if="refundStatus === 'pending'">
-                                            <div class="flex items-center gap-2">
+                                            <div class="flex items-center gap-2" x-show="refundStatus === 'pending'" x-cloak>
                                                 {{-- Reject / Send Back Button --}}
                                                 @canany(['super-admin', 'leases.reject refund'])
                                                 <x-form.secondary-button 
+                                                    type="button"
                                                     loading="subAction === 'reject'" 
                                                     @click="submitCheckout('{{ route('admin.refunds.reject') }}', 'reject')"
                                                     class="!bg-red-600 !text-white !border-red-600 hover:!bg-red-700 focus:!ring-red-500">
-                                                    Reject / Send Back
+                                                    Return to Draft
                                                 </x-form.secondary-button>
                                                 @endcanany
 
@@ -891,11 +967,14 @@
                                                 </x-form.primary-button>
                                                 @endcanany
                                             </div>
-                                        </template>
 
                                         {{-- STEP 4: APPROVED -> Proceed to Final Refund Payout --}}
-                                        <template x-if="refundStatus === 'approved'">
-                                            <div class="flex items-center gap-2">
+                                            <div class="flex items-center gap-2" x-show="refundStatus === 'approved'" x-cloak>
+                                                @canany(['super-admin', 'leases.revoke refund approval'])
+                                                <x-form.secondary-button type="button" loading="subAction === 'revoke'" @click="submitCheckout('{{ route('admin.refunds.revoke-approval') }}', 'revoke')">
+                                                    Revoke Approval
+                                                </x-form.secondary-button>
+                                                @endcanany
                                                 @canany(['super-admin', 'leases.proceed refund'])
                                                 <x-form.primary-button
                                                     type="button"
@@ -906,9 +985,11 @@
                                                 </x-form.primary-button>
                                                 @endcanany
                                             </div>
-                                        </template>
 
                                         {{-- STEP 5: PAID / REFUNDED (Finished State) --}}
+                                        <template x-if="refundStatus === 'processing'">
+                                            <span class="text-sm text-gray-700">Refund payment is processing</span>
+                                        </template>
                                         <template x-if="refundStatus === 'paid'">
                                             <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-200">
                                                 ✓ Refund Completed
@@ -919,7 +1000,7 @@
                                 </template>
 
                                 <template x-if="action !== 'checkout'">
-                                    <x-form.primary-button type="submit" loading="loading" class="px-5 py-2.5">
+                                    <x-form.primary-button type="submit" loading="submittingLease" class="px-5 py-2.5">
                                         <span x-text="action === 'renew' ? 'Process Renewal' : 'Create Lease'"></span>
                                     </x-form.primary-button>
                                 </template>
@@ -1008,7 +1089,7 @@
         data-all-fee-types="{{ json_encode($jsAllFeeTypes) }}"
         data-rent-fees="{{ json_encode($jsRentFees) }}"
         data-deposit-fees="{{ json_encode($jsDepositFees) }}"
-        data-all-leases="{{ json_encode($leases->keyBy('id')) }}"
+        data-all-leases="{{ json_encode($leases->mapWithKeys(fn ($lease) => [(string) $lease->id => array_merge($lease->toArray(), ['renewal_min_start_date' => $lease->end_date?->copy()->addDay()->toDateString()])])) }}"
         data-preview-data="{{ json_encode($leasePreviewData->keyBy('id')) }}"
         data-tenants="{{ json_encode($jsTenants) }}"
         data-properties="{{ json_encode($jsProperties) }}"
@@ -1040,8 +1121,8 @@
 
         function addChargeRow() {
             const container = document.getElementById('charges-container');
-            const firstSelect = container.querySelector('select');
-            const optionsHtml = firstSelect ? firstSelect.innerHTML : '';
+            const selectHtml = document.getElementById('charge-type-select-template').innerHTML
+                .replaceAll('__CHARGE_INDEX__', String(chargeIndex));
 
             const newRow = document.createElement('div');
             newRow.className = 'charge-row rounded-lg border border-gray-200 bg-gray-50 p-4';
@@ -1057,9 +1138,7 @@
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block uppercase font-medium text-sm text-gray-700 mb-1 text-xs">Charge Type</label>
-                        <select name="charges[${chargeIndex}][fee_type_id]" class="block w-full rounded-lg border-gray-300 text-sm focus:border-indigo-500 focus:ring-indigo-500 shadow-sm" required>
-                            ${optionsHtml}
-                        </select>
+                        ${selectHtml}
                     </div>
                     <div>
                         <label class="block uppercase font-medium text-sm text-gray-700 mb-1 text-xs">Amount (RM)</label>
@@ -1495,7 +1574,7 @@
                     || '';
             }
 
-            if (!window.leasePreviewData[leaseId]?.unpaid_invoices) {
+            if (modalData.refundForceRefresh || !window.leasePreviewData[leaseId]?.unpaid_invoices) {
                 let previewRequest = window.leasePreviewRequests[leaseId];
                 if (!previewRequest) {
                     previewRequest = fetch(
@@ -1656,7 +1735,10 @@
             if (typeof filterTemplates === 'function' && selectedLease) {
                 filterTemplates(selectedLease.owner_id || null);
             }
-            if (isCurrentLoad()) modalData.refundReady = true;
+            if (isCurrentLoad()) {
+                modalData.refundReady = true;
+                modalData.refundForceRefresh = false;
+            }
             } catch (error) {
                 if (isCurrentLoad()) {
                     modalData.refundReady = false;

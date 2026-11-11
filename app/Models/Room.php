@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -33,6 +34,45 @@ class Room extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');
+    }
+
+    public function scopeSearch(Builder $query, ?string $search): Builder
+    {
+        $search = trim($search ?? '');
+        if ($search === '') {
+            return $query;
+        }
+
+        $pattern = "%{$search}%";
+        $createdDate = null;
+        if (preg_match('/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/', $search, $dateParts)
+            && checkdate((int) $dateParts[2], (int) $dateParts[1], (int) $dateParts[3])) {
+            $createdDate = sprintf('%04d-%02d-%02d', $dateParts[3], $dateParts[2], $dateParts[1]);
+        } elseif (preg_match('/^\d{1,2}\s+[A-Za-z]+\s+\d{4}$/', $search)) {
+            foreach (['!j M Y', '!j F Y'] as $format) {
+                $date = \DateTimeImmutable::createFromFormat($format, $search);
+                if ($date && \DateTimeImmutable::getLastErrors() === false) {
+                    $createdDate = $date->format('Y-m-d');
+                    break;
+                }
+            }
+        }
+
+        return $query->where(function (Builder $q) use ($pattern, $createdDate) {
+            $q->where('rooms.room_no', 'like', $pattern)
+                ->orWhere('rooms.room_type', 'like', $pattern)
+                ->orWhere('rooms.status', 'like', $pattern)
+                ->orWhere('rooms.created_at', 'like', $pattern)
+                ->orWhereHas('unit.owner', fn ($owner) => $owner->where(function ($owner) use ($pattern) {
+                    $owner->where('users.name', 'like', $pattern)
+                        ->orWhere('users.email', 'like', $pattern);
+                }))
+                ->orWhereHas('assets', fn ($assets) => $assets->where('assets.name', 'like', $pattern));
+
+            if ($createdDate !== null) {
+                $q->orWhereDate('rooms.created_at', $createdDate);
+            }
+        });
     }
 
     public function assets(): BelongsToMany

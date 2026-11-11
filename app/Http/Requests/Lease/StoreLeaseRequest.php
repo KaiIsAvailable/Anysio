@@ -9,6 +9,19 @@ use App\Models\Lease;
 
 class StoreLeaseRequest extends FormRequest
 {
+    protected function failedValidation(\Illuminate\Contracts\Validation\Validator $validator)
+    {
+        if ($this->expectsJson()) {
+            $message = $validator->errors()->first();
+            session()->flash('error', $message);
+            throw new \Illuminate\Http\Exceptions\HttpResponseException(response()->json([
+                'success' => false, 'message' => $message, 'errors' => $validator->errors()->messages(),
+                'session_status' => ['type' => 'error', 'message' => $message],
+            ], 422));
+        }
+        parent::failedValidation($validator);
+    }
+
     public function authorize(): bool
     {
         return true;

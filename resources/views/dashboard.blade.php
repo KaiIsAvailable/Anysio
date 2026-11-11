@@ -487,13 +487,14 @@
                                                         <div class="flex flex-col gap-1.5 w-full">
                                                             {{-- Record Payment Button --}}
                                                             @canany(['super-admin', 'invoice.record payment'])
-                                                            @if(in_array($invoice->status, ['unpaid', 'partial']))
                                                             @php
                                                             $paymentPayload = json_encode([
                                                                 'id' => $invoice->id,
                                                                 'invoiceNo' => $invoice->invoice_no,
                                                                 'dueDate' => $invoice->due_date,
                                                                 'totalAmount' => number_format($invoice->amount_balance / 100, 2),
+                                                                'invoiceTotal' => number_format($invoice->total_amount / 100, 2),
+                                                                'previouslyPaid' => number_format($invoice->amount_paid / 100, 2),
                                                                 'invoiceItems' => $invoice->invoice_items,
                                                                 'walletBalance' => $invoice->wallet_balance,
                                                                 'actionUrl' => route('admin.invoices.payment', $invoice->id)
@@ -507,12 +508,10 @@
                                                                 </svg>
                                                                 <span>Record Payment</span>
                                                             </button>
-                                                            @endif
                                                             @endcanany
 
                                                             {{-- Void Button --}}
                                                             @canany(['super-admin', 'invoice.void'])
-                                                            @if(!in_array($invoice->status, ['void']))
                                                             <button type="button"
                                                                 @click.stop="$dispatch('open-void-modal', { actionUrl: '{{ route('admin.invoices.void', $invoice->id) }}', invoiceNumber: '{{ $invoice->invoice_no }}' })"
                                                                 class="px-3 py-1.5 bg-rose-50 text-rose-700 text-sm font-semibold rounded-lg border border-rose-200/60 hover:bg-rose-100 transition-all shadow-sm flex items-center justify-center gap-1.5">
@@ -521,7 +520,6 @@
                                                                 </svg>
                                                                 <span>Void</span>
                                                             </button>
-                                                            @endif
                                                             @endcanany
                                                         </div>
                                                     </td>
@@ -630,10 +628,6 @@
                                     <p class="text-lg font-bold text-emerald-600">{{ $stat['occ'] }}</p>
                                 </div>
                                 <div class="border-t pt-3">
-                                    <span class="text-sm uppercase font-bold text-purple-500">Cleaning</span>
-                                    <p class="text-lg font-bold text-purple-600">{{ $stat['clean'] }}</p>
-                                </div>
-                                <div class="border-t pt-3">
                                     <span class="text-sm uppercase font-bold text-rose-500">Maintenance</span>
                                     <p class="text-lg font-bold text-rose-600">{{ $stat['main'] }}</p>
                                 </div>
@@ -662,9 +656,9 @@
                     
                     // 映射数据
                     let series = [];
-                    if (title === 'Properties') series = [counts.occ_properties, counts.vacant_properties, counts.main_properties, counts.clean_properties];
-                    else if (title === 'Units') series = [counts.occ_units, counts.vacant_units, counts.main_units, counts.clean_units];
-                    else if (title === 'Rooms') series = [counts.occ_rooms, counts.vacant_rooms, counts.main_rooms, counts.clean_rooms];
+                    if (title === 'Properties') series = [counts.occ_properties, counts.vacant_properties, counts.main_properties];
+                    else if (title === 'Units') series = [counts.occ_units, counts.vacant_units, counts.main_units];
+                    else if (title === 'Rooms') series = [counts.occ_rooms, counts.vacant_rooms, counts.main_rooms];
 
                     // 将 null 或 undefined 转换为 0，防止 reduce 报错
                     const safeSeries = series.map(val => val || 0);
@@ -685,8 +679,8 @@
                     const options = {
                         chart: { type: 'donut', height: 220, width: '100%' },
                         series: safeSeries,
-                        labels: ['Occupied', 'Vacant', 'Cleaning', 'Maintenance'],
-                        colors: ['#10b981', '#f59e0b', '#8b5cf6', '#ef4444'],
+                        labels: ['Occupied', 'Vacant', 'Maintenance'],
+                        colors: ['#10b981', '#f59e0b', '#ef4444'],
                         dataLabels: { enabled: false },
                         legend: { position: 'bottom', fontSize: '12px' }
                     };

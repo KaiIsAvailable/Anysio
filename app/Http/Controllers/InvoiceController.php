@@ -22,14 +22,18 @@ class InvoiceController extends Controller
             return view('errors.403');
         }
 
-        $actualUserId = Auth::id(); 
-        $effectiveUser = get_effective_user();
-        $effectiveUserId = $effectiveUser?->id;
-
-        $superAdmin = Gate::allows('super-admin');
-        $invoices = $this->invoiceService->getIndexInvoices($actualUserId, $effectiveUserId, $superAdmin, max(1, $request->integer('page', 1)));
-
+        $request->validate(['search' => ['nullable', 'string', 'max:255']]);
+        $invoices = app(\App\Services\InvoiceTableService::class)->indexPaginator(
+            Auth::id(), get_effective_user()?->id, Gate::allows('super-admin'), max(1, $request->integer('page', 1)), $request->input('search'));
         return view('adminSide.leases.invoices.index', compact('invoices'));
+    }
+
+    public function indexRows(Request $request)
+    {
+        abort_unless(Gate::allows('super-admin') || Gate::allows('invoice.tab'), 403);
+        $request->validate(['page' => ['sometimes', 'integer', 'min:1'], 'search' => ['nullable', 'string', 'max:255']]);
+        return response()->json(app(\App\Services\InvoiceTableService::class)->allPage(
+            Auth::id(), get_effective_user()?->id, Gate::allows('super-admin'), $request->integer('page', 1), $request->input('search')));
     }
 
     public function statement(Request $request, ?Lease $lease = null)
@@ -64,23 +68,94 @@ class InvoiceController extends Controller
     public function recordPayment(RecordPaymentRequest $request, Invoice $invoice)
     {
         if (Gate::denies('super-admin') && Gate::denies('invoice.record payment')) {
+            if ($request->expectsJson()) {
+                session()->flash('error', 'You have no permission.');
+                return response()->json(['success' => false, 'message' => session('error'),
+                    'session_status' => ['type' => 'error', 'message' => session('error')]], 403);
+            }
             return redirect()->back()->with('error', 'You have no permission.');
         }
+        $this->assertInvoiceVisible($invoice);
 
         //Gate::authorize('owner-admin', $invoice->lease);
         try {
-            $this->invoiceService->recordPayment($invoice, $request->validated());
+            $walletSummary = $this->invoiceService->recordPayment($invoice, $request->validated());
         } catch (\Illuminate\Validation\ValidationException $e) {
-            $blockingError = isset($e->errors()['refund']) ? 'refund' : 'penalty';
-            if ($request->expectsJson() || !isset($e->errors()[$blockingError])) {
-                throw $e;
-            }
-            // The payment modal closes after a form redirect; also show the error in the page alert.
-            return back()->withErrors($e->errors())->withInput()
-                ->with('error', implode(' ', $e->errors()[$blockingError]));
+            return $this->actionError($request, $e);
+        } catch (\Illuminate\Http\Exceptions\HttpResponseException $e) {
+            if (!$request->expectsJson()) throw $e;
+            return $this->actionError($request, \Illuminate\Validation\ValidationException::withMessages([
+                'invoice' => session('error') ?? 'Payment could not be recorded. Please review the invoice.',
+            ]));
         }
-        //dd($request->all());
-        return back()->with('success', 'Payment recorded successfully.');
+        if ($request->expectsJson()) {
+            session()->forget('error');
+            session()->flash('success', 'Payment recorded successfully.');
+            if ($request->boolean('preserve_payment_summary') && $walletSummary) {
+                session()->flash('wallet_auto_payment_summary', $walletSummary);
+            }
+            return response()->json(['success' => true, 'message' => 'Payment recorded successfully.',
+                'session_status' => ['type' => 'success', 'message' => session('success')],
+                'lease_id' => $invoice->lease_id,
+                'wallet_balance' => $invoice->lease?->tenant?->user_id
+                    ? number_format((int) $this->walletService->getBalance($invoice->lease->tenant->user_id) / 100, 2) : '0.00',
+                'wallet_auto_payment_summary' => $walletSummary,
+                'wallet_summary_html' => $walletSummary
+                    ? view('components.modals.wallet-payment-summary-content', ['summary' => $walletSummary])->render() : null]);
+        }
+
+        return back()->with('success', 'Payment recorded successfully.')->with('wallet_auto_payment_summary', $walletSummary);
+    }
+
+    private function assertInvoiceVisible(Invoice $invoice): void
+    {
+        abort_unless(Invoice::query()->visibleTo(Auth::id(), get_effective_user()?->id, Gate::allows('super-admin'))
+            ->whereKey($invoice->id)->exists(), 403);
+    }
+
+    public function leaseRows(Request $request, Lease $lease)
+    {
+        abort_unless(Gate::allows('super-admin') || Gate::allows('leases.show'), 403);
+        abort_unless(Invoice::statementLeases(Auth::id(), get_effective_user()?->id, Gate::allows('super-admin'))->whereKey($lease->id)->exists(), 403);
+        $request->validate(['page' => ['sometimes', 'integer', 'min:1']]);
+        return response()->json(app(\App\Services\LeaseInvoiceViewService::class)->page($lease, $request->integer('page', 1)));
+    }
+
+    public function documentData(Invoice $invoice)
+    {
+        abort_unless(Gate::allows('super-admin') || Gate::allows('invoice.view invoice'), 403);
+        $this->assertInvoiceVisible($invoice);
+        $invoice->loadMissing('documentTemplate', 'items.feeType');
+        abort_unless($invoice->documentTemplate, 404);
+        return response()->json(['type' => 'invoice', 'title' => 'Invoice: '.$invoice->invoice_no,
+            'content' => $invoice->documentTemplate->html_template,
+            'variables' => $this->invoiceService->getInvoiceVariables($invoice),
+            'items' => $invoice->items->map(fn ($item) => ['name' => $item->feeType?->name ?? 'Item',
+                'description' => $item->description, 'amount' => number_format($item->amount / 100, 2)])]);
+    }
+
+    public function receiptData(Invoice $invoice, Transaction $transaction)
+    {
+        abort_unless(Gate::allows('super-admin') || Gate::allows('invoice.view receipt'), 403);
+        $this->assertInvoiceVisible($invoice);
+        abort_unless($transaction->invoice_id === $invoice->id, 404);
+        $transaction->loadMissing('documentTemplate', 'approver');
+        abort_unless($transaction->documentTemplate, 404);
+        $invoice->loadMissing('items.feeType');
+        return response()->json(['type' => 'receipt', 'title' => 'Receipt: '.$transaction->receipt_no,
+            'content' => $transaction->documentTemplate->html_template,
+            'variables' => $this->invoiceService->getInvoiceVariables($invoice),
+            'items' => $invoice->items->map(fn ($item) => ['name' => $item->feeType?->name ?? 'Item',
+                'description' => $item->description, 'amount' => number_format($item->amount / 100, 2)]),
+            'extra' => ['receiptNo' => $transaction->receipt_no,
+                'paymentDate' => $transaction->payment_date ? \Carbon\Carbon::parse($transaction->payment_date)->format('d/m/Y') : $transaction->created_at?->format('d/m/Y'),
+                'paidAmount' => number_format($transaction->amount_paid / 100, 2),
+                'invoiceTotal' => number_format($invoice->total_amount / 100, 2),
+                'receiptVariables' => ['payment_method' => $transaction->payment_method,
+                    'reference_no' => $transaction->transaction_ref ?? '—',
+                    'issued_by_name' => $transaction->approver?->name ?? 'N/A',
+                    'issued_by_email' => $transaction->approver?->email ?? 'N/A',
+                    'issued_by_phone' => $transaction->approver?->phone ?? $transaction->approver?->phone_number ?? 'N/A']]]);
     }
 
     public function void(VoidInvoiceRequest $request, Invoice $invoice)
@@ -90,7 +165,14 @@ class InvoiceController extends Controller
         }
 
         //Gate::authorize('owner-admin', $invoice->lease);
-        $this->invoiceService->voidInvoice($invoice, $request->validated('reason'));
+        if ($invoice->settlement_refund_id && Gate::denies('super-admin') && Gate::denies('leases.create refund adjustment')) {
+            return back()->with('error', 'You have no permission to change a post-refund adjustment.');
+        }
+        try {
+            $this->invoiceService->voidInvoice($invoice, $request->validated('reason'));
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->actionError($request, $e);
+        }
         return back()->with('success', 'Invoice voided.');
     }
 
@@ -101,12 +183,23 @@ class InvoiceController extends Controller
         }
 
         //Gate::authorize('owner-admin', $lease);
-        $invoice = $this->invoiceService->createManualInvoice($lease, $request->validated());
+        if ($request->boolean('post_refund_adjustment') && Gate::denies('super-admin') && Gate::denies('leases.create refund adjustment')) {
+            session()->flash('error', 'You have no permission to create a post-refund adjustment.');
+            return $request->expectsJson()
+                ? response()->json(['success' => false, 'message' => session('error')], 403)
+                : back()->with('error', session('error'));
+        }
+        try {
+            $invoice = $this->invoiceService->createManualInvoice($lease, $request->validated());
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->actionError($request, $e);
+        }
 
         if ($request->expectsJson()) {
             return response()->json([
                 'success' => true,
                 'message' => "Invoice {$invoice->invoice_no} created.",
+                'wallet_auto_payment_summary' => request()->attributes->get('generated_wallet_summary'),
                 'invoice' => [
                     'id' => $invoice->id,
                     'invoice_no' => $invoice->invoice_no,
@@ -134,10 +227,27 @@ class InvoiceController extends Controller
         return back()->with('success', "Invoice {$invoice->invoice_no} created.");
     }
 
+    private function actionError(Request $request, \Illuminate\Validation\ValidationException $exception)
+    {
+        $message = implode(' ', \Illuminate\Support\Arr::flatten($exception->errors()));
+        session()->forget(['success', 'status']);
+        session()->flash('error', $message);
+        if ($request->expectsJson()) {
+            return response()->json(['success' => false, 'message' => $message, 'errors' => $exception->errors(),
+                'session_status' => ['type' => 'error', 'message' => session('error')]], 422);
+        }
+        return back()->withErrors($exception->errors())->withInput()->with('error', $message);
+    }
+
     public function generateAutoInvoice(Request $request, Lease $lease)
     {
         if (Gate::denies('super-admin') && Gate::denies('leases.auto generate invoice')) {
             return redirect()->back()->with('error', 'You have no permission.');
+        }
+        if (in_array(strtolower((string) $lease->status), ['check out', 'refunded'], true) || $lease->checked_out_at) {
+            $message = 'Recurring invoices stop after checkout. Add final charges manually while the refund is Draft.';
+            session()->flash('error', $message);
+            return $request->expectsJson() ? response()->json(['success' => false, 'message' => $message], 422) : back()->with('error', $message);
         }
 
 
@@ -148,18 +258,19 @@ class InvoiceController extends Controller
         }
 
         try {
-            $generatedCount = $this->invoiceService->generateRecurringInvoices($lease);
+            $generatedCount = $this->invoiceService->generateRecurringInvoices($lease, throughEnd: true);
 
             $message = $generatedCount > 0 
-                ? "Successfully generated invoice for lease." 
-                : "No due recurring charges found for this lease.";
+                ? "Generated {$generatedCount} recurring invoice(s) for this lease."
+                : "No missing recurring invoices found for the remaining lease term.";
 
             // Flash message to session
             session()->flash('success', $message);
 
             return response()->json([
                 'success' => true,
-                'message' => $message
+                'message' => $message,
+                'wallet_auto_payment_summary' => request()->attributes->get('generated_wallet_summary'),
             ]);
         } catch (\Exception $e) {
             $errorMessage = 'Failed to generate invoice: ' . $e->getMessage();

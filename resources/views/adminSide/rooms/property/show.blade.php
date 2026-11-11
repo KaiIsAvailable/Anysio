@@ -18,14 +18,14 @@
                         {{ $property->address }}, {{ $property->postcode }} {{ $property->city }}
                     </div>
                 </div>
-                <div class="flex-shrink-0" x-data="{loading: false}">
+                <div class="flex-shrink-0" x-data="{creatingUnit: false}">
                     @canany(['super-admin', 'unit.create'])
                     <x-form.primary-button
                         type="button"
-                        loading="loading"
-                        @click="loading = true; window.location.href = '{{ route('admin.units.create', ['property_id' => $property->id]) }}'">
+                        loading="creatingUnit"
+                        @click="creatingUnit = true; window.location.href = '{{ route('admin.units.create', ['property_id' => $property->id]) }}'">
 
-                        <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg x-show="!creatingUnit" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                         Add New Unit
@@ -39,18 +39,28 @@
             <div class="bg-white rounded-xl shadow-sm border border-slate-200/80 overflow-hidden mb-8">
                 
                 {{-- Header --}}
-                <div class="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
+                <div class="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center justify-between gap-3 bg-slate-50/50">
                     <h2 class="text-base font-semibold text-slate-900">
                         Property Details
                     </h2>
+                    @php
+                        $propertyStatus = $property->unit_summary_status;
+                        $propertyBadge = get_status_badge($propertyStatus);
+                    @endphp
+                    <section class="flex flex-wrap items-center gap-3" data-property-status-summary aria-label="Property status and unit counts">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $propertyBadge }}">
+                            {{ $propertyStatus ?? '—' }}
+                        </span>
+                        <x-table.status-counts :inline="true" :counts="[
+                            'Vacant' => $property->vacant_units_count ?? 0,
+                            'Occupied' => $property->occupied_units_count ?? 0,
+                            'Maintenance' => $property->maintenance_units_count ?? 0,
+                        ]" />
+                    </section>
                 </div>
 
                 {{-- Body --}}
                 <div class="px-6 py-6">
-                    @php
-                    $propertyBadge = get_status_badge($property->status ?? null);
-                    @endphp
-
                     <dl class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-6">
 
                         {{-- Property Name --}}
@@ -87,18 +97,6 @@
                             </dt>
                             <dd class="text-sm font-medium text-slate-900 mt-1">
                                 {{ $property->type ?? '—' }}
-                            </dd>
-                        </div>
-
-                        {{-- Status --}}
-                        <div>
-                            <dt class="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                                Status
-                            </dt>
-                            <dd class="mt-1">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {{ $propertyBadge }}">
-                                    {{ $property->status ?? '—' }}
-                                </span>
                             </dd>
                         </div>
 
@@ -140,7 +138,7 @@
                                     </svg>
                                     View Room Assets
                                 </a>-->
-                                <x-table.search placeholder="Search units name..." />
+                                <x-table.search placeholder="Search unit, owner, utilities, room..." />
                             </div>
                         </x-form.form>
                     </div>
@@ -179,7 +177,7 @@
                                         </div>
                                         <div class="ml-4">
                                             <div class="text-sm font-medium text-gray-900">{{ $unit->unit_no }}</div>
-                                            <div class="text-xs text-gray-400">{{ $unit->rooms->count() }} Rooms</div>
+                                            <div class="text-xs text-gray-400">{{ $unit->rooms_count }} Rooms</div>
                                         </div>
                                     </div>
                                 </td>
@@ -235,10 +233,15 @@
                                     </div>
                                 </td>
 
-                                <td class="px-6 py-4 whitespace-nowrap">
+                                <td class="px-6 py-4 whitespace-nowrap" data-unit-status-summary>
                                     <span class="px-2.5 py-0.5 rounded-full text-xs font-medium {{ $uBadge }}">
                                         {{ ucfirst($uStatus) }}
                                     </span>
+                                    <x-table.status-counts :counts="[
+                                        'Vacant' => $unit->vacant_rooms_count ?? 0,
+                                        'Occupied' => $unit->occupied_rooms_count ?? 0,
+                                        'Maintenance' => $unit->maintenance_rooms_count ?? 0,
+                                    ]" />
                                 </td>
 
                                 @canany(['super-admin', 'unit.edit', 'unit.delete'])
@@ -291,6 +294,11 @@
                                 </td>
                                 @endcan
                             </tr>
+                            <x-table.search-matches
+                                :label="'Unit '.$unit->unit_no"
+                                :rooms="$unit->relationLoaded('rooms') ? $unit->rooms : collect()"
+                                :colspan="\Illuminate\Support\Facades\Gate::any(['super-admin', 'unit.edit', 'unit.delete']) ? 6 : 5"
+                            />
                             @endforeach
                         </tbody>
                     </table>

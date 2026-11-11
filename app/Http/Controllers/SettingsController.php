@@ -110,18 +110,26 @@ class SettingsController extends Controller
             $request->validate(SettingService::recurringInvoiceRules());
         }
         $request->validate([
-            'settings' => ['nullable', 'array:late_penalty_config'],
+            'settings' => ['nullable', 'array:late_penalty_config,processing_fee_config'],
+            'settings.processing_fee_config' => ['sometimes', 'required', 'array:processing amount,applicable_payment_method'],
+            'settings.processing_fee_config.processing amount' => ['required_with:settings.processing_fee_config', 'numeric', 'min:0', 'decimal:0,2'],
+            'settings.processing_fee_config.applicable_payment_method' => ['required_with:settings.processing_fee_config', 'array', 'min:1'],
+            'settings.processing_fee_config.applicable_payment_method.*' => ['required', 'distinct', \Illuminate\Validation\Rule::enum(\App\Enums\PaymentMethod::class)],
+            'is_active.processing_fee_config' => ['sometimes', 'required', 'boolean'],
             'settings.due_date_config' => ['prohibited'],
             'fee_types_config' => ['nullable', 'array'],
             'due_date_config' => ['nullable', 'array'],
             'pending_renewal_config' => ['nullable', 'array'],
-            'payment_config' => ['nullable', 'array'],
+            'payment_config' => ['nullable', 'array:allow_unpaid_penalty,auto_pay_from_wallet'],
+            'payment_config.allow_unpaid_penalty' => ['sometimes', 'required', 'boolean'],
+            'payment_config.auto_pay_from_wallet' => ['sometimes', 'required', 'boolean'],
             'is_active' => ['nullable', 'array'],
         ]);
 
         // Check every submitted section, including requests sent without the UI.
         foreach ([
             'settings.late_penalty_config' => 'settings.edit late payment',
+            'settings.processing_fee_config' => 'settings.edit payment collection',
             'fee_types_config' => 'settings.edit lease configuration',
             'pending_renewal_config' => 'settings.edit pending renewal',
             'payment_config' => 'settings.edit payment collection',
@@ -154,8 +162,20 @@ class SettingsController extends Controller
     public function calculatePenaltyPreview(Request $request, Invoice $invoice, \App\Services\InvoicePenaltyService $penalties)
     {
         $data = $request->validate(['payment_date' => ['required', 'date', 'before_or_equal:today']]);
-        \Illuminate\Support\Facades\DB::transaction(fn () => app(\App\Services\RefundService::class)->assertInvoicePaymentAllowed($invoice));
-        return response()->json($penalties->quote($invoice, $data['payment_date']));
+        try {
+            \Illuminate\Support\Facades\DB::transaction(fn () => app(\App\Services\RefundService::class)->assertInvoicePaymentAllowed($invoice));
+            if ($invoice->amount_balance <= 0 || $invoice->isVoid()) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['invoice' => 'This invoice is already settled or void. No payment can be recorded.']);
+            }
+            return response()->json($penalties->quote($invoice, $data['payment_date']));
+        } catch (\Illuminate\Validation\ValidationException $exception) {
+            session()->flash('error', implode(' ', \Illuminate\Support\Arr::flatten($exception->errors())));
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => session('error'), 'errors' => $exception->errors(),
+                        'session_status' => ['type' => 'error', 'message' => session('error')]], 422);
+                }
+            throw $exception;
+        }
     }
 
     public function userRolePermissions()

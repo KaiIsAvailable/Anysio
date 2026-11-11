@@ -59,6 +59,8 @@ class Invoice extends Model
         'amount_balance',
         'status',
         'remarks',
+        'settlement_refund_id',
+        'adjustment_reason',
     ];
 
     // -------------------------------------------------------------------------
@@ -134,6 +136,63 @@ class Invoice extends Model
     // -------------------------------------------------------------------------
     // Scopes
     // -------------------------------------------------------------------------
+
+    public function scopeSearch($query, ?string $search)
+    {
+        $search = trim($search ?? '');
+        if ($search === '') return $query;
+
+        $pattern = '%'.$search.'%';
+        $status = strtolower($search);
+        $knownStatus = in_array($status, [self::STATUS_UNPAID, self::STATUS_PARTIAL,
+            self::STATUS_PAID, self::STATUS_OVERDUE, self::STATUS_VOID], true);
+        $amount = preg_replace('/^(?:RM\s*|MYR\s*)/i', '', $search);
+        $amount = str_replace(',', '', $amount);
+        $cents = preg_match('/^-?\d{1,12}(?:\.\d{1,2})?$/D', $amount)
+            ? (int) round((float) $amount * 100) : null;
+
+        // Match the table's m/Y period and d/m/Y due date as well as ISO dates.
+        $date = null;
+        $month = null;
+        if (preg_match('~^(\d{1,2})/(\d{1,2})/(\d{4})$~D', $search, $parts)
+            && checkdate((int) $parts[2], (int) $parts[1], (int) $parts[3])) {
+            $date = sprintf('%04d-%02d-%02d', $parts[3], $parts[2], $parts[1]);
+        } elseif (preg_match('~^(\d{1,2})/(\d{4})$~D', $search, $parts)
+            && checkdate((int) $parts[1], 1, (int) $parts[2])) {
+            $month = sprintf('%04d-%02d', $parts[2], $parts[1]);
+        }
+
+        return $query->where(function ($q) use ($search, $pattern, $status, $knownStatus, $cents, $date, $month) {
+            $q->where('invoices.invoice_no', 'like', $pattern)
+                ->orWhere('invoices.remarks', 'like', $pattern)
+                ->orWhere('invoices.status', $knownStatus ? '=' : 'like', $knownStatus ? $status : $pattern)
+                ->orWhereHas('lease.tenant.user', fn ($user) => $user->where('name', 'like', $pattern))
+                ->orWhere(function ($fallback) use ($pattern) {
+                    $fallback->whereDoesntHave('lease')
+                        ->whereHas('user', fn ($user) => $user->where('name', 'like', $pattern));
+                })
+                ->orWhereHas('lease', function ($lease) use ($search, $pattern) {
+                    $lease->whereHasMorph('leasable', [Property::class, Unit::class, Room::class],
+                        function ($asset, $type) use ($search, $pattern) {
+                            $column = match ($type) {
+                                Property::class => 'name', Unit::class => 'unit_no', Room::class => 'room_no',
+                            };
+                            if (strcasecmp($search, class_basename($type)) !== 0) {
+                                $asset->where($column, 'like', $pattern);
+                            }
+                        });
+                });
+
+            foreach (['period', 'due_date'] as $column) {
+                $q->orWhere('invoices.'.$column, 'like', '%'.($date ?? $month ?? $search).'%');
+            }
+            if ($cents !== null) {
+                foreach (['total_amount', 'amount_paid', 'amount_balance'] as $column) {
+                    $q->orWhere('invoices.'.$column, $cents);
+                }
+            }
+        });
+    }
 
     public function scopeTenant($q)
     {

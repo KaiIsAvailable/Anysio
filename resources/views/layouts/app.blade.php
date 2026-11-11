@@ -101,6 +101,7 @@
         --}}
         @include('components.preview-invoice-modal')
         @include('components.preview-agreement-modal')
+        <x-modals.wallet-payment-summary />
 
 
         {{-- ========================================================= --}}
@@ -318,7 +319,11 @@
             let dynamicRows = '';
 
 
-            if (type === 'invoice') {
+            if (extra.previewTarget === 'agreement') {
+                window.dispatchEvent(new CustomEvent('open-lease-preview', {
+                    detail: { title, content, requestId: extra.previewRequestId }
+                }));
+            } else if (type === 'invoice') {
 
                 if (items && items.length > 0) {
 
@@ -536,122 +541,17 @@
             // 6. 变量替换
             // -----------------------------------------------------
 
-            Object.keys(finalVariables).forEach(key => {
-
-                let val =
-                    finalVariables[key];
-
-
-                if (
-                    val === null ||
-                    val === undefined ||
-                    val === ''
-                ) {
-
-                    val = 'N/A';
-
-                }
-
-
-                let replaceHtml =
-                    `<span class="font-medium">${val}</span>`;
-
-
-                let spanRegex =
-                    new RegExp(
-                        '<span[^>]*data-variable=.' +
-                        key +
-                        '.[^>]*>\\s*\\{\\{\\s*' +
-                        key +
-                        '\\s*\\}\\}\\s*<\\/span>',
-                        'gi'
-                    );
-
-
-                if (content.match(spanRegex)) {
-
-                    content =
-                        content.replace(
-                            spanRegex,
-                            replaceHtml
-                        );
-
-                } else {
-
-                    let doubleRegex =
-                        new RegExp(
-                            '\\{\\{\\s*' +
-                            key +
-                            '\\s*\\}\\}',
-                            'g'
-                        );
-
-                    let singleRegex =
-                        new RegExp(
-                            '\\{\\s*' +
-                            key +
-                            '\\s*\\}',
-                            'g'
-                        );
-
-
-                    content =
-                        content
-                        .replace(
-                            doubleRegex,
-                            replaceHtml
-                        )
-                        .replace(
-                            singleRegex,
-                            replaceHtml
-                        );
-
-                }
-
-            });
-
+            content = window.replaceDocumentTemplateVariables(content, finalVariables);
 
             // =====================================================
             // 7. 根据类型打开对应 Modal
             // =====================================================
 
-            if (type === 'invoice') {
-
-                console.log(
-                    '[Preview] Opening Invoice Preview'
-                );
-
-                window.dispatchEvent(
-                    new CustomEvent(
-                        'open-invoice-preview', {
-                            detail: {
-                                title: title,
-                                content: content
-                            }
-                        }
-                    )
-                );
-
-            } else {
-
-                console.log(
-                    '[Preview] Opening Lease/Receipt Preview'
-                );
-
-                window.dispatchEvent(
-                    new CustomEvent(
-                        'open-invoice-preview', {
-                            detail: {
-                                title: title,
-                                content: content
-                            }
-                        }
-                    )
-                );
-
-            }
-
-
+            window.dispatchEvent(new CustomEvent(
+                extra.previewTarget === 'agreement' ? 'open-lease-preview' : 'open-invoice-preview', {
+                    detail: { title, content, requestId: extra.previewRequestId }
+                }
+            ));
             document.body.style.overflow =
                 'hidden';
 

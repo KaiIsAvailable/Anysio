@@ -50,6 +50,7 @@
                             'draft' => 'REFUND: DRAFT',
                             'pending' => 'REFUND: PENDING APPROVE',
                             'approved' => 'REFUND: APPROVED, AWAITING PAYMENT',
+                            'processing' => 'REFUND: PROCESSING PAYMENT',
                             'paid' => 'REFUNDED',
                             'rejected' => 'REFUND: REJECTED',
                             'cancelled' => 'REFUND: CANCELLED',
@@ -339,14 +340,14 @@
                                                     $isCheckOut = $leaseStatus === 'check out';
                                                     $isPaid = $refundStatus === 'paid';
                                                     
-                                                    $canShowCheckout = (!in_array($leaseStatus, ['cancelled', 'end', 'refunded'])) && (!$isCheckOut || !$isPaid);
+                                                    $canShowCheckout = !in_array($leaseStatus, ['cancelled', 'end']);
                                                 @endphp
 
                                                 @if($canShowCheckout)
                                                     <button type="button" 
                                                         @click.stop="window.dispatchEvent(new CustomEvent('open-lease-modal', { detail: { status: 'Check Out', leaseId: '{{ $lease->id }}' } })); openDropdown = false;"
                                                         class="w-full text-left px-3 py-2 text-sm font-semibold text-amber-600 hover:bg-amber-50 transition-colors flex items-center">
-                                                        {{ $latestRefund ? 'Continue Refund' : 'Check Out Lease' }}
+                                                        {{ $isPaid ? 'View Refund' : ($latestRefund ? 'Continue Refund' : 'Check Out Lease') }}
                                                     </button>
                                                 @endif
                                             @endcanany

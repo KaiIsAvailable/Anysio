@@ -104,18 +104,60 @@ test('Cached complete data is populated without another request', async () => {
     assert.equal(root.refundData.a.active_refund, null);
 });
 
-test('The submit handler rejects calls while loading or after a load failure', () => {
-    const method = blade.match(/submitCheckout\(routeUrl, actionName\) \{[\s\S]*?\n\s{40}\}/)[0];
+test('The submit handler rejects calls while loading or after a load failure', async () => {
+    const method = 'async ' + blade.match(/submitCheckout\(routeUrl, actionName\) \{[\s\S]*?\n\s{40}\}/)[0];
     let submissions = 0;
-    const form = { action: '', submit: () => submissions++ };
+    let submittedUrl;
+    const form = { action: '/leases/store' };
     const state = vm.runInNewContext('({' + method + '})', { $el: { closest: () => form } });
+    state.sendLeaseForm = async (_, url) => { submissions++; submittedUrl = url; return false; };
     Object.assign(state, { refundReady: false, refundLoading: true, refundLoadError: '' });
-    state.submitCheckout('/pending', 'pending');
+    await state.submitCheckout('/pending', 'pending');
     Object.assign(state, { refundReady: false, refundLoading: false, refundLoadError: 'Failed' });
-    state.submitCheckout('/pending', 'pending');
+    await state.submitCheckout('/pending', 'pending');
     assert.equal(submissions, 0);
     Object.assign(state, { refundReady: true, refundLoading: false, refundLoadError: '' });
-    state.submitCheckout('/pending', 'pending');
+    await state.submitCheckout('/pending', 'pending');
     assert.equal(submissions, 1);
-    assert.equal(form.action, '/pending');
+    assert.equal(submittedUrl, '/pending');
+    assert.equal(form.action, '/leases/store');
+    assert.equal(state.checkoutSubmitting, false);
+    assert.equal(state.subAction, '');
+});
+
+function submission(fetch) {
+    const method = 'async ' + blade.match(/sendLeaseForm\(form, url\) \{[\s\S]*?\n {8}\},/)[0];
+    const messages = [], navigation = [];
+    const state = vm.runInNewContext('({' + method + '})', {
+        fetch, FormData: class { constructor(form) { this.form = form; } },
+        CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
+        window: { dispatchEvent: event => messages.push(event), location: {
+            assign: url => navigation.push(url), reload: () => navigation.push('reload')
+        } }
+    });
+    state.open = true;
+    return { state, messages, navigation };
+}
+
+test('renewal errors leave the modal and entered dates intact without navigation', async () => {
+    const { state, messages, navigation } = submission(async () => ({ ok: false, json: async () => ({
+        success: false, errors: { start_date: ['Choose a later renewal date'] }
+    }) }));
+    const form = { start_date: '2027-09-01', end_date: '2028-08-31' };
+    await state.sendLeaseForm(form, '/renew');
+    assert.equal(state.open, true);
+    assert.equal(form.start_date, '2027-09-01');
+    assert.equal(form.end_date, '2028-08-31');
+    assert.equal(navigation.length, 0);
+    assert.equal(messages[0].detail.message, 'Choose a later renewal date');
+});
+
+test('checkout errors stay open and successful actions alone navigate', async () => {
+    const failed = submission(async () => ({ ok: false, json: async () => ({ success: false, message: 'Review the updated refund' }) }));
+    await failed.state.sendLeaseForm({}, '/approve');
+    assert.equal(failed.state.open, true);
+    assert.equal(failed.navigation.length, 0);
+    const successful = submission(async () => ({ ok: true, json: async () => ({ success: true, redirect: '/leases' }) }));
+    assert.equal(await successful.state.sendLeaseForm({}, '/renew'), true);
+    assert.deepEqual(successful.navigation, ['/leases']);
 });

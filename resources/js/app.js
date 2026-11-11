@@ -1,11 +1,16 @@
 import './bootstrap';
+import { replaceTemplateVariables } from './template-variable-replacement';
+window.replaceDocumentTemplateVariables = replaceTemplateVariables;
+import './lease-invoice-documents';
 import Alpine from 'alpinejs';
 import collapse from '@alpinejs/collapse';
 import { invoiceStatement } from './invoice-statement';
+import { invoiceTable } from './invoice-table';
 import { agreementBreakdown } from './agreement-breakdown';
 
 Alpine.plugin(collapse);
 Alpine.data('invoiceStatement', invoiceStatement);
+Alpine.data('invoiceTable', invoiceTable);
 window.agreementBreakdown = agreementBreakdown;
 window.Alpine = Alpine;
 Alpine.start();

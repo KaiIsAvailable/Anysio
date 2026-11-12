@@ -12,6 +12,7 @@ Route::get('/invoices/{invoice}/document-data', [InvoiceController::class, 'docu
 Route::get('/invoices/{invoice}/receipts/{transaction}/document-data', [InvoiceController::class, 'receiptData'])->name('invoices.receipt-data');
 Route::post('/invoices/{invoice}/payment', [InvoiceController::class, 'recordPayment'])->name('invoices.payment');
 Route::post('/leases/{lease}/invoices/manual', [InvoiceController::class, 'storeManualInvoice'])->name('invoices.store-manual');
+Route::post('/leases/{lease}/charges/{chargeId}/regenerate-invoice', [InvoiceController::class, 'regenerateChargeInvoice'])->name('invoices.regenerate-charge');
 Route::post('/leases/{lease}/invoices/generate', [InvoiceController::class, 'generateInvoice'])->name('invoices.generate');
 Route::post('/invoices/{invoice}/reject-payment', [InvoiceController::class, 'rejectPayment'])->name('invoices.reject-payment');
 Route::patch('/invoices/{invoice}/void', [InvoiceController::class, 'void'])->name('invoices.void');

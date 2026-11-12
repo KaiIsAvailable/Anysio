@@ -405,10 +405,48 @@ class InvoiceService
     /**
      * 自動為新租約 (New/Renew) 產生第一期帳單，並自動關聯 Active 的 Invoice Template
      */
-    public function createInitialInvoiceForLease(Lease $lease, User $currentUser): \Illuminate\Support\Collection
+    public function regenerateChargeInvoice(Lease $lease, string $chargeId, User $issuer): Invoice
     {
-        return DB::transaction(function () use ($lease, $currentUser) {
-            $charges = $lease->charges()->with('feeType')->get();
+        return DB::transaction(function () use ($lease, $chargeId, $issuer) {
+            $lease = Lease::whereKey($lease->id)->lockForUpdate()->firstOrFail();
+            $refundService = app(RefundService::class);
+            $refunds = $refundService->assertInvoiceCreationAllowed($lease);
+            $charge = $lease->charges()->with('feeType')->whereKey($chargeId)->lockForUpdate()->first();
+            if (!$charge || !$charge->feeType || (int) $charge->amount <= 0) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['invoice' => 'This charge is missing, has no fee type, or has no positive amount to invoice.']);
+            }
+
+            $existing = \App\Models\InvoiceItem::query()
+                ->where('lease_charge_id', $charge->id)
+                ->whereHas('invoice', fn ($q) => $q->where('status', '!=', Invoice::STATUS_VOID));
+            if ($existing->exists()) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['invoice' => 'This charge already has a valid invoice. Pay the existing invoice or void it before regenerating.']);
+            }
+
+            // Missing historical links must not silently create a duplicate bill.
+            $legacy = \App\Models\InvoiceItem::query()->whereNull('lease_charge_id')
+                ->where('amount', $charge->amount)
+                ->whereHas('invoice', fn ($q) => $q->where('lease_id', $lease->id)->where('status', '!=', Invoice::STATUS_VOID))
+                ->where(function ($q) use ($charge) {
+                    $q->where('fee_type_id', $charge->fee_type_id)
+                        ->orWhereHas('feeType', fn ($fee) => $fee->where('name', $charge->feeType->name));
+                    if (filled($charge->description)) $q->orWhere('description', $charge->description);
+                })->exists();
+            if ($legacy) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['invoice' => 'A possible existing invoice has no charge link. Review or backfill it, or void the incorrect invoice before regenerating.']);
+            }
+
+            $invoice = $this->createInitialInvoiceForLease($lease, $issuer, $charge->id)->first();
+            foreach ($refunds as $refund) $refundService->refreshSettlement($refund);
+            return $invoice;
+        }, 3);
+    }
+
+    public function createInitialInvoiceForLease(Lease $lease, User $currentUser, ?string $onlyChargeId = null): \Illuminate\Support\Collection
+    {
+        return DB::transaction(function () use ($lease, $currentUser, $onlyChargeId) {
+            $charges = $lease->charges()->with('feeType')
+                ->when($onlyChargeId !== null, fn ($q) => $q->whereKey($onlyChargeId))->get();
             
             if ($charges->isEmpty()) {
                 return collect();

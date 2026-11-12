@@ -30,6 +30,8 @@
     ];
 @endphp
 
+<x-modals.add-fee-type-modal />
+
 <div id="lease-create-modal-root" x-data="{
         open: @js($errors->hasAny($leaseCreateErrorFields)),
         action: '{{ old('status') === 'Renew' ? 'renew' : (old('status') === 'Check Out' ? 'checkout' : 'create') }}', 
@@ -822,7 +824,6 @@
                                 <textarea id="refund-transition-reason" name="transition_reason" rows="2" maxlength="1000" class="w-full rounded-lg border-gray-300 text-sm" placeholder="Required for Return to Draft or Revoke Approval">{{ old('transition_reason') }}</textarea>
                             </div>
 
-                            <x-modals.add-fee-type-modal />
 
                             <div id="lease_charges_section" class="space-y-4 border-t border-gray-200 pt-6">
                                 <div class="flex justify-between items-center">

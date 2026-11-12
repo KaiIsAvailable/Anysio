@@ -3,6 +3,8 @@
     'feeTypes' => []
 ])
 
+<x-modals.add-fee-type-modal />
+
 <template x-teleport="body">
     <div x-data="{ 
         openManual: false, 
@@ -316,7 +318,6 @@
                     </div>
                 </form>
 
-                <!--<x-modals.add-fee-type-modal />-->
             </div>
         </div>
     </div>

@@ -1231,6 +1231,100 @@ class LatePenaltyPaymentTest extends TestCase
         $this->assertSame(1, Invoice::count());
     }
 
+    public static function regenerationContexts(): array
+    {
+        return ['draft-manual-wallet' => [false, false], 'draft-auto-wallet' => [false, true],
+            'before-refund-manual-wallet' => [true, false], 'before-refund-auto-wallet' => [true, true]];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('regenerationContexts')]
+    public function test_regenerate_charge_invoice_after_void_preserves_wallet_and_counts_deposit(bool $beforeRefund, bool $autoWallet): void
+    {
+        $this->refundFixture('draft');
+        if ($beforeRefund) { DB::table('refund_items')->delete(); DB::table('refunds')->delete(); }
+        DB::table('settings')->updateOrInsert(['user_id' => 'admin', 'key' => 'payment_config'], [
+            'value' => json_encode(['allow_unpaid_penalty' => true, 'auto_pay_from_wallet' => $autoWallet]), 'is_active' => true,
+        ]);
+        auth()->user()->unsetRelation('settings');
+        DB::table('invoices')->where('id', 'original')->update(['status' => 'void']);
+        Schema::table('leases', function (Blueprint $t) { $t->date('start_date')->nullable(); });
+        DB::table('leases')->update(['start_date' => '2026-10-01']);
+        $lease = \App\Models\Lease::findOrFail('lease');
+        $issuer = User::findOrFail('admin');
+        $service = app(InvoiceService::class);
+        Model::withoutEvents(fn () => $service->voidInvoice(Invoice::findOrFail('deposit-invoice'), 'Replace incorrect invoice'));
+        $this->assertSame(100000, (int) DB::table('wallets')->value('balance'));
+        $invoice = Model::withoutEvents(fn () => $service->regenerateChargeInvoice($lease, 'deposit-charge', $issuer));
+        $this->assertSame(100000, $invoice->total_amount);
+        $this->assertSame('deposit-charge', $invoice->items->first()->lease_charge_id);
+        $this->assertSame($autoWallet ? 'paid' : 'unpaid', $invoice->status);
+        if (!$autoWallet) {
+            $this->assertSame(0, app(\App\Services\RefundService::class)->getDepositCollectedCents($lease));
+            $this->pay($invoice, 0, '2026-10-20', ['payment_method' => 'Wallet', 'use_wallet' => true, 'transaction_ref' => null]);
+        }
+        $this->assertSame(0, (int) DB::table('wallets')->value('balance'));
+        $this->assertSame(100000, app(\App\Services\RefundService::class)->getDepositCollectedCents($lease));
+        try {
+            Model::withoutEvents(fn () => $service->regenerateChargeInvoice($lease, 'deposit-charge', $issuer));
+            $this->fail('A repeated generation must not duplicate the invoice.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('invoice', $e->errors());
+        }
+        $this->assertSame(3, Invoice::count());
+    }
+
+    public function test_regenerate_charge_invoice_rejects_existing_legacy_and_wrong_lease_charges(): void
+    {
+        $this->refundFixture('draft');
+        $service = app(InvoiceService::class);
+        $lease = \App\Models\Lease::findOrFail('lease');
+        foreach (['unpaid', 'partial', 'paid', 'overdue', 'legacy', 'wrong-lease'] as $case) {
+            if (in_array($case, ['unpaid', 'partial', 'paid', 'overdue'])) DB::table('invoices')->where('id', 'deposit-invoice')->update(['status' => $case]);
+            if ($case === 'legacy') DB::table('invoice_items')->where('id', 'deposit-item')->update(['lease_charge_id' => null]);
+            if ($case === 'wrong-lease') DB::table('lease_charges')->update(['lease_id' => 'another-lease']);
+            try {
+                $service->regenerateChargeInvoice($lease, 'deposit-charge', User::findOrFail('admin'));
+                $this->fail('Unsafe regeneration must be rejected: '.$case);
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('invoice', $e->errors());
+            }
+        }
+        $this->assertSame(2, Invoice::count());
+    }
+
+    public function test_regenerate_charge_invoice_controller_redirects_permission_and_stage_errors(): void
+    {
+        $this->refundFixture('pending');
+        $controller = app(\App\Http\Controllers\InvoiceController::class);
+        $lease = \App\Models\Lease::findOrFail('lease');
+        \Illuminate\Support\Facades\Gate::before(fn () => false);
+        $response = $controller->regenerateChargeInvoice(Request::create('/regenerate', 'POST'), $lease, 'deposit-charge');
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertSame('You have no permission.', session('error'));
+        // Replace the earlier denial callback so this action reaches the stage guard.
+        \Illuminate\Support\Facades\Gate::swap(new \Illuminate\Auth\Access\Gate(app(), fn () => auth()->user()));
+        \Illuminate\Support\Facades\Gate::before(fn () => true);
+        $response = $controller->regenerateChargeInvoice(Request::create('/regenerate', 'POST'), $lease, 'deposit-charge');
+        $this->assertSame(302, $response->getStatusCode());
+        $this->assertStringContainsString('Return the refund to Draft', session('error'));
+        $this->assertSame(2, Invoice::count());
+    }
+
+    public function test_regenerate_charge_invoice_is_blocked_in_locked_refund_stages(): void
+    {
+        $this->refundFixture('pending');
+        foreach (['pending', 'approved', 'processing', 'paid'] as $stage) {
+            DB::table('refunds')->update(['status' => $stage]);
+            try {
+                app(InvoiceService::class)->regenerateChargeInvoice(\App\Models\Lease::findOrFail('lease'), 'deposit-charge', User::findOrFail('admin'));
+                $this->fail('Refund stage must block regeneration: '.$stage);
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('refund', $e->errors());
+            }
+        }
+        $this->assertSame(2, Invoice::count());
+    }
+
     private function refundFixture(string $stage): void
     {
         $this->setting([], false);

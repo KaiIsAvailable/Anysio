@@ -1,3 +1,4 @@
+@once('shared-add-fee-type-modal')
 <template x-teleport="body">
     <div x-data="{ 
             openFeeModal: false,
@@ -134,3 +135,4 @@
         </div>
     </div>
 </template>
+@endonce

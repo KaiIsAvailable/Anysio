@@ -267,6 +267,16 @@
                                     <div class="flex items-center justify-between">
                                         <span x-text="charge.name" class="text-gray-600 font-medium"></span>
                                         <span class="font-semibold text-gray-900">RM <span x-text="charge.amount"></span></span>
+                                        @canany(['super-admin', 'leases.add manual invoice'])
+                                        <form method="POST" :action="@js(url('admin/leases')) + '/' + activeId + '/charges/' + charge.id + '/regenerate-invoice'" class="ml-2" x-show="!charge.has_invoice" x-cloak x-data="{ submitting: false }" @submit="submitting = true">
+                                            @csrf
+                                            <button type="submit" :disabled="submitting" class="p-1 text-gray-600 hover:text-gray-900 disabled:opacity-50" title="Generate an invoice from this original charge if its invoice is missing or void. Existing valid invoices cannot be duplicated." aria-label="Generate missing charge invoice">
+                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 10a9 9 0 1 1 2.6 8.4M3 4v6h6" />
+                                                </svg>
+                                            </button>
+                                        </form>
+                                        @endcanany
                                     </div>
                                     <div class="text-sm text-gray-500" x-show="charge.description" x-text="charge.description"></div>
                                     <div class="text-sm text-gray-500 mt-1" x-show="charge.next_billing_date">

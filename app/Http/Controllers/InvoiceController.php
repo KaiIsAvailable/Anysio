@@ -176,6 +176,25 @@ class InvoiceController extends Controller
         return back()->with('success', 'Invoice voided.');
     }
 
+    public function regenerateChargeInvoice(Request $request, Lease $lease, string $chargeId)
+    {
+        if (Gate::denies('super-admin') && Gate::denies('leases.add manual invoice')) {
+            return back()->with('error', 'You have no permission.');
+        }
+        $issuer = get_effective_user();
+        if (!$issuer || !Invoice::statementLeases(Auth::id(), $issuer->id, Gate::allows('super-admin'))->whereKey($lease->id)->exists()) {
+            return back()->with('error', 'You have no permission.');
+        }
+        try {
+            $invoice = $this->invoiceService->regenerateChargeInvoice($lease, $chargeId, $issuer);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return $this->actionError($request, $e);
+        }
+
+        return back()->with('success', "Invoice {$invoice->invoice_no} generated from the original lease charge."
+            . ($invoice->amount_paid > 0 ? ' Wallet payment was applied automatically.' : ' Record payment using the tenant wallet when ready.'));
+    }
+
     public function storeManualInvoice(StoreInvoiceRequest $request, Lease $lease)
     {
         if (Gate::denies('super-admin') && Gate::denies('leases.add manual invoice')) {

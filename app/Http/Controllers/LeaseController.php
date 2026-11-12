@@ -657,9 +657,13 @@ class LeaseController extends Controller
         $invoices = collect();
 
         $leaseHistory = $leaseHistory->reverse();
-        (new \Illuminate\Database\Eloquent\Collection($leaseHistory->all()))->loadMissing('latestRefund');
+        (new \Illuminate\Database\Eloquent\Collection($leaseHistory->all()))->loadMissing(['latestRefund', 'charges.feeType']);
+        $invoicedChargeIds = \App\Models\InvoiceItem::query()
+            ->whereIn('lease_charge_id', $leaseHistory->flatMap(fn ($item) => $item->charges->pluck('id')))
+            ->whereHas('invoice', fn ($query) => $query->where('status', '!=', \App\Models\Invoice::STATUS_VOID))
+            ->pluck('lease_charge_id')->flip();
 
-        $historyJson = $leaseHistory->keyBy('id')->map(function ($item) use ($latePenaltyConfig) {
+        $historyJson = $leaseHistory->keyBy('id')->map(function ($item) use ($latePenaltyConfig, $invoicedChargeIds) {
             $chargesSum = $item->charges->sum('amount');
             $totalRentPrice = $item->rent_price + $chargesSum;
 
@@ -674,9 +678,10 @@ class LeaseController extends Controller
                 'end_date' => $item->end_date_formatted ?? null,
                 'term_type' => strtoupper($item->term_type) ?? 'N/A',
                 'total_rent_price' => number_format($totalRentPrice / 100, 2),
-                'charges' => $item->charges->map(function ($charge) {
+                'charges' => $item->charges->map(function ($charge) use ($invoicedChargeIds) {
                     return [
                         'id' => $charge->id,
+                        'has_invoice' => $invoicedChargeIds->has($charge->id),
                         'name' => $charge->feeType?->name ?? 'Charge',
                         'description' => $charge->description,
                         'amount' => number_format($charge->amount / 100, 2),

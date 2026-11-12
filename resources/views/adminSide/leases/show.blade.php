@@ -268,11 +268,15 @@
                                         <span x-text="charge.name" class="text-gray-600 font-medium"></span>
                                         <span class="font-semibold text-gray-900">RM <span x-text="charge.amount"></span></span>
                                         @canany(['super-admin', 'leases.add manual invoice'])
-                                        <form method="POST" :action="@js(url('admin/leases')) + '/' + activeId + '/charges/' + charge.id + '/regenerate-invoice'" class="ml-2" x-show="!charge.has_invoice" x-cloak x-data="{ submitting: false }" @submit="submitting = true">
+                                        <form method="POST" :action="@js(url('admin/leases')) + '/' + activeId + '/charges/' + charge.id + '/regenerate-invoice'" class="ml-2" x-show="!charge.has_invoice" x-cloak x-data="{ submitting: false }" @submit="if (submitting) { $event.preventDefault(); } else { submitting = true; }" @pageshow.window="submitting = false">
                                             @csrf
-                                            <button type="submit" :disabled="submitting" class="p-1 text-gray-600 hover:text-gray-900 disabled:opacity-50" title="Generate an invoice from this original charge if its invoice is missing or void. Existing valid invoices cannot be duplicated." aria-label="Generate missing charge invoice">
-                                                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                            <button type="submit" :disabled="submitting" :aria-busy="submitting" class="p-1 text-gray-600 hover:text-gray-900 disabled:opacity-50 disabled:cursor-wait" title="Generate an invoice from this original charge if its invoice is missing or void. Existing valid invoices cannot be duplicated." :aria-label="submitting ? 'Generating invoice' : 'Generate missing charge invoice'">
+                                                <svg x-show="!submitting" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
                                                     <path stroke-linecap="round" stroke-linejoin="round" d="M3 10a9 9 0 1 1 2.6 8.4M3 4v6h6" />
+                                                </svg>
+                                                <svg x-show="submitting" x-cloak class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                                 </svg>
                                             </button>
                                         </form>

@@ -31,3 +31,36 @@ test('lease invoice preview returns to the loading modal with its request ID', (
         assert.equal(event.detail.content, 'Rendered data');
     }
 });
+
+test('lease invoice and receipt previews populate dynamic items before opening once', () => {
+    const source = readFileSync('resources/views/layouts/app.blade.php', 'utf8');
+    const start = source.indexOf('window.openDocumentPreview = function(');
+    const end = source.indexOf('</script>', start);
+    for (const type of ['invoice', 'receipt']) {
+        const events = [];
+        const tbody = { innerHTML: '' };
+        const container = {
+            querySelectorAll() { return []; },
+            querySelector() { return tbody; },
+            get innerHTML() { return `<table><tbody>${tbody.innerHTML}</tbody></table>`; },
+            set innerHTML(value) {}
+        };
+        const context = {
+            console: { log() {} },
+            document: { createElement() { return container; }, body: { style: {} } },
+            CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
+            window: { replaceDocumentTemplateVariables: replaceTemplateVariables, dispatchEvent(event) { events.push(event); } }
+        };
+        vm.runInNewContext(source.slice(start, end), context);
+        context.window.openDocumentPreview(type, '<table></table>', {},
+            [{ name: 'Monthly Rental', description: 'Room A & B', amount: '200.00' }], 'Document',
+            { previewTarget: 'agreement', previewRequestId: 'document-1' });
+        assert.match(tbody.innerHTML, /Monthly Rental/);
+        assert.match(tbody.innerHTML, /Room A &amp; B/);
+        assert.match(tbody.innerHTML, /RM 200\.00/);
+        assert.equal(events.length, 1);
+        assert.equal(events[0].type, 'open-lease-preview');
+        assert.equal(events[0].detail.requestId, 'document-1');
+        assert.match(events[0].detail.content, /Monthly Rental/);
+    }
+});

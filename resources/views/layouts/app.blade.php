@@ -319,11 +319,7 @@
             let dynamicRows = '';
 
 
-            if (extra.previewTarget === 'agreement') {
-                window.dispatchEvent(new CustomEvent('open-lease-preview', {
-                    detail: { title, content, requestId: extra.previewRequestId }
-                }));
-            } else if (type === 'invoice') {
+            if (type === 'invoice') {
 
                 if (items && items.length > 0) {
 

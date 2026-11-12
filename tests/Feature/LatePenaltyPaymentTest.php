@@ -1182,12 +1182,48 @@ class LatePenaltyPaymentTest extends TestCase
         $response = app(\App\Http\Controllers\InvoiceController::class)->void($request, Invoice::findOrFail('original'));
         $this->assertSame(302, $response->getStatusCode());
         $this->assertStringContainsString('Revoke refund approval', session('error'));
+        $this->assertSame('invoice-void', session('failed_modal.id'));
+        $this->assertSame('original', session('failed_modal.invoice_id'));
         $this->assertSame('unpaid', Invoice::findOrFail('original')->status);
+    }
+
+    public function test_void_reason_validation_remembers_the_invoice_modal(): void
+    {
+        $request = \App\Http\Requests\Invoice\VoidInvoiceRequest::create('/void', 'PATCH', ['reason' => str_repeat('x', 501)]);
+        $route = new \Illuminate\Routing\Route('PATCH', 'void', fn () => null);
+        $route->bind($request);
+        $route->setParameter('invoice', Invoice::findOrFail('original'));
+        $request->setRouteResolver(fn () => $route);
+        $request->setContainer(app());
+        $request->setRedirector(app('redirect'));
+        try {
+            $request->validateResolved();
+            $this->fail('An overlong void reason must fail validation.');
+        } catch (ValidationException $e) {
+            $this->assertArrayHasKey('reason', $e->errors());
+        }
+        $this->assertSame('invoice-void', session('failed_modal.id'));
+        $this->assertSame('original', session('failed_modal.invoice_id'));
+        $this->assertNotEmpty(session('error'));
+    }
+
+    public function test_only_lease_form_errors_reopen_the_lease_modal(): void
+    {
+        request()->setLaravelSession(app('session.store'));
+        $blade = file_get_contents(resource_path('views/components/modals/lease-create-modal.blade.php'));
+        preg_match('/@php[\s\S]*?@endphp/', $blade, $header);
+        $errors = new \Illuminate\Support\ViewErrorBag();
+        $errors->put('default', new \Illuminate\Support\MessageBag(['reason' => ['Invalid reason']]));
+        $render = fn () => \Illuminate\Support\Facades\Blade::render($header[0] . '@json($leaseModalHasErrors)', ['errors' => $errors]);
+        session()->flashInput(['reason' => 'A void reason']);
+        $this->assertSame('false', trim($render()));
+        session()->flashInput(['_modal' => 'lease-create', 'status' => 'New']);
+        $this->assertSame('true', trim($render()));
     }
 
     public function test_updated_refund_and_invoice_blades_compile(): void
     {
-        foreach (['components.modals.lease-create-modal', 'components.modals.manual-invoice-modal', 'adminSide.leases.show', 'adminSide.leases.invoices.index', 'dashboard'] as $view) {
+        foreach (['components.modals.lease-create-modal', 'components.modals.manual-invoice-modal', 'components.table.invoice-table', 'adminSide.leases.show', 'adminSide.leases.invoices.index', 'dashboard'] as $view) {
             $php = app('blade.compiler')->compileString(file_get_contents(view($view)->getPath()));
             $this->assertNotEmpty(token_get_all($php, TOKEN_PARSE));
         }

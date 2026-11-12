@@ -46,8 +46,8 @@ class RecurringInvoiceService
                 // only one period per click; scheduled generation keeps its daily timing.
                 $lastPeriod = $onePeriod ? ($lease->end_date ?? $today) : $period;
                 while ($period->lte($lastPeriod)) {
-                    // Only the lease-page action can replace a voided invoice.
-                    // Deleted records retain their existing duplicate protection.
+                    // The lease-page button can replace voided invoices. Deleted
+                    // records retain their existing duplicate protection.
                     // Legacy recurring invoices stored month-start and omitted lease_charge_id.
                     $dates = [$period->toDateString()];
                     if (in_array($charge->frequency, ['monthly', 'yearly']) || $period->equalTo($lease->start_date)) {

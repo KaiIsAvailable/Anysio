@@ -557,6 +557,44 @@ class RecurringInvoiceGenerationTest extends TestCase
         $this->assertSame(11, Invoice::count());
     }
 
+    public function test_initial_rent_can_be_replaced_by_either_entry_point_without_duplicate_billing(): void
+    {
+        $this->actingAs($issuer = User::findOrFail('manager'));
+        DB::table('leases')->where('id', 'lease')->update(['start_date' => '2026-11-15', 'end_date' => '2027-08-31']);
+        $this->mock(\App\Services\RefundService::class, function ($mock) {
+            $mock->shouldReceive('assertInvoiceCreationAllowed')->andReturn(new \Illuminate\Database\Eloquent\Collection());
+        });
+        $lease = Lease::findOrFail('lease');
+        $service = app(InvoiceService::class);
+        $auto = fn () => Model::withoutEvents(fn () => $service->generateRecurringInvoices($lease, throughEnd: true));
+        $regenerate = fn () => Model::withoutEvents(fn () => $service->regenerateChargeInvoice($lease, 'charge', $issuer));
+        $original = Model::withoutEvents(fn () => $service->createInitialInvoiceForLease($lease, $issuer)->first());
+        $this->assertSame(1, $auto());
+        $this->assertTrue(Invoice::whereDate('period', '2026-12-15')->exists());
+        // A later month's valid invoice must not block initial-month regeneration.
+        DB::table('invoices')->where('id', $original->id)->update(['status' => 'void']);
+        $replacement = $regenerate();
+        $this->assertSame('2026-11-01', $replacement->period->toDateString());
+        $this->assertNotSame($original->invoice_no, $replacement->invoice_no);
+        $this->assertSame(1, $auto());
+        $this->assertTrue(Invoice::whereDate('period', '2027-01-15')->exists());
+        // Once voided again, Auto Generate can replace the same initial period.
+        DB::table('invoices')->where('id', $replacement->id)->update(['status' => 'void']);
+        $this->assertSame(1, $auto());
+        $autoReplacement = Invoice::whereDate('period', '2026-11-15')->firstOrFail();
+        try {
+            $regenerate();
+            $this->fail('A valid auto-generated invoice must block duplicate regeneration.');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            $this->assertArrayHasKey('invoice', $e->errors());
+        }
+        DB::table('invoices')->where('id', $autoReplacement->id)->update(['status' => 'void']);
+        $final = $regenerate();
+        $this->assertSame('2026-11-01', $final->period->toDateString());
+        $this->assertSame(3, Invoice::where('status', '!=', 'void')->count());
+        $this->assertSame(6, Invoice::count());
+    }
+
     public function test_scheduler_does_not_generate_future_periods_even_if_through_end_is_requested(): void
     {
         $count = Model::withoutEvents(fn () => app(RecurringInvoiceService::class)->generate(

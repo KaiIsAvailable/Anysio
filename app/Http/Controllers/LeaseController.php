@@ -658,9 +658,24 @@ class LeaseController extends Controller
 
         $leaseHistory = $leaseHistory->reverse();
         (new \Illuminate\Database\Eloquent\Collection($leaseHistory->all()))->loadMissing(['latestRefund', 'charges.feeType']);
+        $chargesById = $leaseHistory->flatMap(fn ($item) => $item->charges)->keyBy('id');
+        $leasesById = $leaseHistory->keyBy('id');
         $invoicedChargeIds = \App\Models\InvoiceItem::query()
             ->whereIn('lease_charge_id', $leaseHistory->flatMap(fn ($item) => $item->charges->pluck('id')))
             ->whereHas('invoice', fn ($query) => $query->where('status', '!=', \App\Models\Invoice::STATUS_VOID))
+            ->with('invoice:id,lease_id,period')
+            ->get(['lease_charge_id', 'invoice_id'])
+            ->filter(function ($invoiceItem) use ($chargesById, $leasesById) {
+                $charge = $chargesById->get($invoiceItem->lease_charge_id);
+                if ($charge->charge_type !== \App\Models\LeaseCharge::TYPE_RECURRING) return true;
+                $lease = $leasesById->get($charge->lease_id);
+                if (!$lease?->start_date || !$invoiceItem->invoice?->period) return false;
+                return $invoiceItem->invoice->lease_id === $lease->id && in_array(
+                    $invoiceItem->invoice->period->toDateString(),
+                    [$lease->start_date->toDateString(), $lease->start_date->copy()->startOfMonth()->toDateString()],
+                    true
+                );
+            })
             ->pluck('lease_charge_id')->flip();
 
         $historyJson = $leaseHistory->keyBy('id')->map(function ($item) use ($latePenaltyConfig, $invoicedChargeIds) {

@@ -135,7 +135,8 @@
                                     @click="
                                     $dispatch('open-void-modal', { 
                                         actionUrl: '{{ route('admin.invoices.void', ':id') }}'.replace(':id', invoice.id),
-                                        invoiceNumber: invoice.invoice_no
+                                        invoiceNumber: invoice.invoice_no,
+                                        leaseId: invoice.lease_id
                                     });
                                 "
                                     class="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200/60 rounded-lg transition-all shadow-sm">
@@ -218,19 +219,33 @@
         </div>
     @endif
     @once('shared-invoice-table-modals')
+        @php
+            $failedVoidModal = session('failed_modal');
+            $reopenVoidModal = ($failedVoidModal['id'] ?? null) === 'invoice-void'
+                ? [
+                    'actionUrl' => route('admin.invoices.void', $failedVoidModal['invoice_id']),
+                    'invoiceNumber' => $failedVoidModal['invoice_number'],
+                    'leaseId' => $failedVoidModal['lease_id'],
+                    'reason' => old('reason', ''),
+                ] : null;
+        @endphp
         <x-modals.payment-modal />
         <x-modals.receipt-preview-modal />
         <x-modals.confirmation-modal id="void-modal" title="Void Invoice" maxWidth="sm:max-w-lg">
-            <div x-data="{ actionUrl: '', invoiceNumber: '', loading: false }" 
+            <div x-data="{ actionUrl: '', invoiceNumber: '', leaseId: '', reason: '', loading: false }"
+                x-init="if (@js($reopenVoidModal !== null)) $nextTick(() => $dispatch('open-void-modal', @js($reopenVoidModal)))"
                 @open-void-modal.window="
                     actionUrl = $event.detail.actionUrl;
                     invoiceNumber = $event.detail.invoiceNumber;
+                    leaseId = $event.detail.leaseId || '';
+                    reason = $event.detail.reason || '';
                 ">
                     <!-- Optional: Display invoice number in the modal content -->
                     <x-form.form :action="''" x-bind:action="actionUrl" method="POST" loading="loading">
                         @csrf
                         @method('PATCH')
                         <input type="hidden" name="redirect" value="{{ request()->url() }}">
+                        <input type="hidden" name="active_id" :value="leaseId">
 
                         <div class="p-6 space-y-4">
                             <div class="flex items-center gap-3 text-amber-600 bg-amber-50 p-4 rounded-xl border border-amber-100 mb-4">
@@ -244,7 +259,7 @@
 
                             <div>
                                 <x-form.input-label value="Reason for Voiding" class="mb-1" />
-                                <textarea @keydown.enter.stop="if ($event.ctrlKey &amp;&amp; !$event.isComposing &amp;&amp; $event.keyCode !== 229) { $event.preventDefault(); if (!loading) $el.form.requestSubmit(); }" name="reason" rows="3" required
+                                <textarea @keydown.enter.stop="if ($event.ctrlKey &amp;&amp; !$event.isComposing &amp;&amp; $event.keyCode !== 229) { $event.preventDefault(); if (!loading) $el.form.requestSubmit(); }" name="reason" x-model="reason" rows="3" required
                                     class="w-full border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 rounded-md shadow-sm text-sm"></textarea>
                             </div>
                         </div>

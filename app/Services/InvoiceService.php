@@ -416,9 +416,22 @@ class InvoiceService
                 throw \Illuminate\Validation\ValidationException::withMessages(['invoice' => 'This charge is missing, has no fee type, or has no positive amount to invoice.']);
             }
 
+            // Later recurring invoices share the same charge, but must not block
+            // replacing its initial invoice. Support both historical month-start
+            // periods and recurring invoices anchored to the lease start date.
+            $initialDates = $lease->start_date ? [
+                $lease->start_date->toDateString(),
+                $lease->start_date->copy()->startOfMonth()->toDateString(),
+            ] : [];
+            $initialInvoice = fn ($q) => $q->where('lease_id', $lease->id)
+                ->where('status', '!=', Invoice::STATUS_VOID)
+                ->when($charge->charge_type === LeaseCharge::TYPE_RECURRING, fn ($q) => $q->where(function ($dates) use ($initialDates) {
+                    foreach (array_unique($initialDates) as $date) $dates->orWhereDate('period', $date);
+                }));
+
             $existing = \App\Models\InvoiceItem::query()
                 ->where('lease_charge_id', $charge->id)
-                ->whereHas('invoice', fn ($q) => $q->where('status', '!=', Invoice::STATUS_VOID));
+                ->whereHas('invoice', $initialInvoice);
             if ($existing->exists()) {
                 throw \Illuminate\Validation\ValidationException::withMessages(['invoice' => 'This charge already has a valid invoice. Pay the existing invoice or void it before regenerating.']);
             }
@@ -426,7 +439,7 @@ class InvoiceService
             // Missing historical links must not silently create a duplicate bill.
             $legacy = \App\Models\InvoiceItem::query()->whereNull('lease_charge_id')
                 ->where('amount', $charge->amount)
-                ->whereHas('invoice', fn ($q) => $q->where('lease_id', $lease->id)->where('status', '!=', Invoice::STATUS_VOID))
+                ->whereHas('invoice', $initialInvoice)
                 ->where(function ($q) use ($charge) {
                     $q->where('fee_type_id', $charge->fee_type_id)
                         ->orWhereHas('feeType', fn ($fee) => $fee->where('name', $charge->feeType->name));

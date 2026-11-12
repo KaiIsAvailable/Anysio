@@ -1,39 +1,14 @@
 @props(['tenants', 'leases', 'properties', 'units', 'rooms', 'templates', 'refundTemplates','rentFeeTypes', 'serviceFeeTypes', 'depositFeeTypes', 'managementFeeTypes', 'itemFeeTypes', 'leasePreviewData'])
 
 @php
-    $leaseCreateErrorFields = [
-        'status',
-        'lease_id',
-        'lease_selection',
-        'property_id',
-        'unit_id',
-        'room_id',
-        'tenant_id',
-        'start_date',
-        'end_date',
-        'checked_out_at',
-        'refund_document_id',
-        'agreement_ended_at',
-        'charges',
-        'document_id',
-        'type',
-        'reason',
-        'internal_notes',
-        'items',
-        'auto_deductions',
-        'bank_detail_id',
-        'method',
-        'reference',
-        'transition_reason',
-        'settlement_fingerprint',
-        'refund',
-    ];
+    $leaseModalHasErrors = old('_modal') === 'lease-create'
+        && ($errors->any() || session()->has('error'));
 @endphp
 
 <x-modals.add-fee-type-modal />
 
 <div id="lease-create-modal-root" x-data="{
-        open: @js($errors->hasAny($leaseCreateErrorFields)),
+        open: @js($leaseModalHasErrors),
         action: '{{ old('status') === 'Renew' ? 'renew' : (old('status') === 'Check Out' ? 'checkout' : 'create') }}', 
         formStatus: @js(old('status', 'New')), 
         formLeaseId: @js(old('lease_id', '')),
@@ -230,6 +205,7 @@
                     <x-form.form method="POST" action="{{ route('admin.leases.store') }}" :async="true" @submit="submitLease($event)">
                         @csrf
                         
+                        <input type="hidden" name="_modal" value="lease-create">
                         <input type="hidden" name="redirect_to" value="{{ request()->routeIs('admin.dashboard') ? 'dashboard' : 'index' }}">
 
                         <div class="p-8 space-y-8">

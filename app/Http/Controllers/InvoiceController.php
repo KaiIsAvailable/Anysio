@@ -161,16 +161,19 @@ class InvoiceController extends Controller
     public function void(VoidInvoiceRequest $request, Invoice $invoice)
     {
         if (Gate::denies('super-admin') && Gate::denies('invoice.void')) {
-            return redirect()->back()->with('error', 'You have no permission.');
+            $request->rememberModal($invoice);
+            return redirect()->back()->withInput()->with('error', 'You have no permission.');
         }
 
         //Gate::authorize('owner-admin', $invoice->lease);
         if ($invoice->settlement_refund_id && Gate::denies('super-admin') && Gate::denies('leases.create refund adjustment')) {
-            return back()->with('error', 'You have no permission to change a post-refund adjustment.');
+            $request->rememberModal($invoice);
+            return back()->withInput()->with('error', 'You have no permission to change a post-refund adjustment.');
         }
         try {
             $this->invoiceService->voidInvoice($invoice, $request->validated('reason'));
         } catch (\Illuminate\Validation\ValidationException $e) {
+            $request->rememberModal($invoice);
             return $this->actionError($request, $e);
         }
         return back()->with('success', 'Invoice voided.');

@@ -51,13 +51,18 @@ class TenantCustomerService
 
     public function ownerId(Lease $lease): ?string
     {
+        $id = $this->recordedOwnerId($lease);
+        return $id && User::whereKey($id)->exists() ? $id : null;
+    }
+
+    private function recordedOwnerId(Lease $lease): ?string
+    {
         $model = $lease->leasable;
-        $id = match (true) {
+        return match (true) {
             $model instanceof Property, $model instanceof Unit => $model->owner_id,
             $model instanceof Room => $model->unit?->owner_id,
             default => null,
         };
-        return $id && User::whereKey($id)->exists() ? $id : null;
     }
 
     public function recipient($leases): array
@@ -112,31 +117,54 @@ class TenantCustomerService
 
     public function canAccess(Ticket $ticket, User $user): bool
     {
-        if (Gate::forUser($user)->allows('is-tenant')) return $ticket->sender_id === $user->id;
+        return $this->checkAccess($ticket, $user);
+    }
+
+    private function checkAccess(Ticket $ticket, User $user, ?array $batch = null): bool
+    {
+        if ($batch === null && Gate::forUser($user)->allows('is-tenant')) return $ticket->sender_id === $user->id;
         $sender = $ticket->sender;
-        if (!$this->canUseMaintenance($user) || !$sender instanceof User
-            || Gate::forUser($sender)->denies('is-tenant') || !$ticket->receive_id) return false;
-        $manager = $this->managementUser($user);
+        if (($batch === null && !$this->canUseMaintenance($user)) || !$sender instanceof User
+            || ($batch === null ? Gate::forUser($sender)->denies('is-tenant') : !($batch['senders'][$sender->id] ?? false))
+            || !$ticket->receive_id) return false;
+        $manager = $batch === null ? $this->managementUser($user) : $batch['manager'];
         if (!$manager) return false;
         if ($ticket->lease_id) {
             $lease = $ticket->lease;
-            if (!$lease || $lease->tenant?->user_id !== $ticket->sender_id || $this->ownerId($lease) !== $ticket->receive_id) return false;
+            if (!$lease || $lease->tenant?->user_id !== $ticket->sender_id
+                || ($batch === null ? $this->ownerId($lease) : ($batch['owners'][$lease->id] ?? null)) !== $ticket->receive_id) return false;
             if ($ticket->receive_id === $manager->id) return true;
-            return app(LeaseManagementResolver::class)->resolve($lease)?->id === $manager->id;
+            return ($batch === null ? app(LeaseManagementResolver::class)->resolve($lease)?->id : ($batch['managers'][$lease->id] ?? null)) === $manager->id;
         }
         // Legacy tickets: verify the recorded owner directly, never choose a current lease.
         if ($ticket->receive_id === $manager->id) return true;
-        return \App\Models\Owners::where('user_id', $ticket->receive_id)->where('agent_id', $manager->id)->exists();
+        return $batch === null
+            ? \App\Models\Owners::where('user_id', $ticket->receive_id)->where('agent_id', $manager->id)->exists()
+            : isset($batch['legacyOwners'][$ticket->receive_id]);
     }
 
     public function visibleTickets(User $user)
     {
         if (Gate::forUser($user)->allows('is-tenant')) return Ticket::where('sender_id', $user->id);
-        abort_unless($this->canUseMaintenance($user) && $this->managementUser($user), 403);
+        abort_unless($this->canUseMaintenance($user) && ($manager = $this->managementUser($user)), 403);
         // Apply precisely the same relationship checks as show/reply/download before pagination.
-        $ids = Ticket::whereHas('sender', fn ($q) => $q->where('role', User::ROLE_TENANT))
-            ->with(['sender', 'lease.tenant', 'lease.leasable'])->get()
-            ->filter(fn ($ticket) => $this->canAccess($ticket, $user))->modelKeys();
+        $tickets = Ticket::whereHas('sender', fn ($q) => $q->where('role', User::ROLE_TENANT))
+            ->with(['sender', 'lease.tenant', 'lease.leasable'])->get();
+        $leases = new \Illuminate\Database\Eloquent\Collection($tickets->pluck('lease')->filter()->values()->all());
+        $managers = app(LeaseManagementResolver::class)->resolveMany($leases);
+        $recordedOwners = $leases->mapWithKeys(fn ($lease) => [$lease->id => $this->recordedOwnerId($lease)]);
+        $existingOwners = $recordedOwners->isEmpty() ? collect() : User::whereIn('id', $recordedOwners->filter()->unique())->pluck('id', 'id');
+        // This context exists only during this call, never across requests/users.
+        // Gate and staff mapping are re-evaluated above before every batch.
+        $batch = [
+            'manager' => $manager,
+            'senders' => $tickets->pluck('sender')->filter()->unique('id')->mapWithKeys(fn ($sender) => [$sender->id => Gate::forUser($sender)->allows('is-tenant')])->all(),
+            'owners' => $recordedOwners->map(fn ($id) => $existingOwners->get($id))->all(),
+            'managers' => $managers,
+            'legacyOwners' => \App\Models\Owners::whereIn('user_id', $tickets->pluck('receive_id')->filter()->unique())
+                ->where('agent_id', $manager->id)->pluck('user_id', 'user_id')->all(),
+        ];
+        $ids = $tickets->filter(fn ($ticket) => $this->checkAccess($ticket, $user, $batch))->modelKeys();
         return Ticket::whereIn('id', $ids);
     }
 
@@ -146,10 +174,22 @@ class TenantCustomerService
     }
     public function isIncoming(TicketMsg $message, Ticket $ticket, User $viewer): bool
     {
+        return $this->incomingForSide($message, $ticket, Gate::forUser($viewer)->allows('is-tenant'));
+    }
+
+    public function incomingIds($messages, Ticket $ticket, User $viewer): array
+    {
+        if ($messages->isEmpty()) return [];
+        $tenantViewer = Gate::forUser($viewer)->allows('is-tenant');
+        return $messages->filter(fn ($message) => $this->incomingForSide($message, $ticket, $tenantViewer))->pluck('id')->all();
+    }
+
+    private function incomingForSide(TicketMsg $message, Ticket $ticket, bool $tenantViewer): bool
+    {
         $author = $message->authorId();
         if (!$author) return false;
         // A colleague reading a management message cannot stand in for the tenant.
-        return Gate::forUser($viewer)->allows('is-tenant')
+        return $tenantViewer
             ? $author !== $ticket->sender_id && $message->sender_type !== User::ROLE_TENANT
             : $author === $ticket->sender_id && $message->sender_type === User::ROLE_TENANT;
     }
@@ -158,6 +198,21 @@ class TenantCustomerService
     {
         return $ticket->messages()->where('status', 'unread')->with('creationAudits')->get()
             ->filter(fn ($message) => $this->isIncoming($message, $ticket, $viewer))->count();
+    }
+
+    public function loadUnreadCounts($tickets, User $viewer): void
+    {
+        $tenantViewer = Gate::forUser($viewer)->allows('is-tenant');
+        $messages = TicketMsg::whereIn('ticket_id', $tickets->modelKeys())->where('status', 'unread')
+            ->select(['id', 'ticket_id', 'sender_type', 'status'])
+            ->with('creationAudits:id,auditable_id,user_id')->get()->groupBy('ticket_id');
+        foreach ($tickets as $ticket) {
+            $count = ($messages[$ticket->id] ?? collect())->filter(function ($message) use ($ticket, $tenantViewer) {
+                $message->setRelation('ticket', $ticket);
+                return $this->incomingForSide($message, $ticket, $tenantViewer);
+            })->count();
+            $ticket->setAttribute('unread_count', $count);
+        }
     }
 
     public function attachmentPath(TicketMsg $message): ?string

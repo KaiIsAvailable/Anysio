@@ -14,6 +14,7 @@ class TenantTicketController extends Controller
     public function index(Request $request, TenantCustomerService $service)
     {
         abort_unless(Gate::allows('is-tenant') || $service->canUseMaintenance($this->actor()), 403);
+        if ($request->boolean('sync')) return $this->sync($request, $service);
         $data = $request->validate(['search' => ['nullable', 'string', 'max:255'], 'ticket' => ['nullable', 'string', 'max:26']]);
         $selectedTicket = isset($data['ticket']) ? Ticket::findOrFail($data['ticket']) : null;
         if ($selectedTicket) $service->authorize($selectedTicket, $this->actor());
@@ -86,12 +87,14 @@ class TenantTicketController extends Controller
 
     private function chatHtml(Ticket $ticket, Request $request, TenantCustomerService $service, ?array $conversation = null): string
     {
-        $messages = ($conversation ?? $this->conversation($ticket, $service))['messages'];
+        $conversation ??= $this->conversation($ticket, $service);
+        $messages = $conversation['messages'];
+        $syncCursor = $conversation['cursor'];
         $currentRole = $this->actor()->role;
         $routePrefix = $this->routePrefix();
         $canSend = $service->canReply($ticket, $this->actor());
         $canAttach = Gate::any(['is-tenant', 'owner-admin', 'is-owner']);
-        return view('tenantSide.customerService.conversation', compact('ticket', 'messages', 'currentRole', 'canSend', 'routePrefix', 'canAttach'))->render();
+        return view('tenantSide.customerService.conversation', compact('ticket', 'messages', 'currentRole', 'canSend', 'routePrefix', 'canAttach', 'syncCursor'))->render();
     }
 
     public function reply(Request $request, Ticket $ticket, TenantCustomerService $service)
@@ -113,7 +116,7 @@ class TenantTicketController extends Controller
             Storage::disk('local')->delete($uploaded);
             throw $e;
         }
-        return response()->json($this->conversation($ticket->fresh(), $service));
+        return response()->json($this->conversation($ticket->fresh(), $service, null, false));
     }
 
     public function markRead(Request $request, Ticket $ticket, TenantCustomerService $service)
@@ -149,6 +152,58 @@ class TenantTicketController extends Controller
         ]);
     }
 
+    private function saveSnapshot(?string $ticket, array $messages, array $list = []): string
+    {
+        $token = (string) \Illuminate\Support\Str::uuid();
+        // Immutable snapshots tolerate lost responses and commits out of ULID order.
+        \Illuminate\Support\Facades\Cache::put('ticket-sync:'.$this->actor()->id.':'.$token,
+            compact('ticket', 'messages', 'list'), now()->addMinutes(2));
+        return $token;
+    }
+
+    private function sync(Request $request, TenantCustomerService $service)
+    {
+        $data = $request->validate([
+            'ticket' => ['nullable', 'string', 'max:26'], 'cursor' => ['nullable', 'uuid'],
+            'search' => ['nullable', 'string', 'max:255'], 'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $ticket = !empty($data['ticket']) ? Ticket::findOrFail($data['ticket']) : null;
+        if ($ticket) $service->authorize($ticket, $this->actor());
+        $previous = empty($data['cursor']) ? [] : \Illuminate\Support\Facades\Cache::get(
+            'ticket-sync:'.$this->actor()->id.':'.$data['cursor'], []);
+        $known = ($previous['ticket'] ?? null) === $ticket?->id ? ($previous['messages'] ?? []) : [];
+        // History metadata only; bodies are fetched only for unseen IDs.
+        $states = $ticket ? $ticket->messages()->pluck('status', 'id')->all() : [];
+        $newIds = array_keys(array_diff_key($states, $known));
+        $messages = $ticket && $newIds ? $ticket->messages()->whereIn('id', $newIds)
+            ->with('creationAudits')->orderBy('created_at')->orderBy('id')->get() : collect();
+        $conversation = $ticket ? $this->conversation($ticket, $service, $messages, false) : ['messages' => []];
+        $receipts = [];
+        foreach ($states as $id => $status) {
+            if (array_key_exists($id, $known) && $known[$id] !== $status) $receipts[] = ['id' => $id, 'status' => $status];
+        }
+        $search = trim($data['search'] ?? '');
+        $tickets = $service->visibleTickets($this->actor())->with(['receiver', 'sender', 'lease.leasable'])
+            ->withMax('messages', 'created_at')
+            ->when($search !== '', fn ($q) => $q->where('subject', 'like', '%'.$search.'%'))
+            ->orderByRaw('COALESCE(messages_max_created_at, tickets.created_at) DESC')->orderByDesc('tickets.id')
+            ->paginate(15)->appends($request->except(['sync', 'cursor']));
+        $service->loadUnreadCounts($tickets->getCollection(), $this->actor());
+        $canCreate = Gate::allows('is-tenant');
+        $routePrefix = $this->routePrefix();
+        $list = ['search' => $search, 'page' => $tickets->currentPage(), 'total' => $tickets->total(),
+            'rows' => $tickets->map(fn ($row) => [$row->id, $row->subject, $row->status, $row->unread_count,
+                $row->messages_max_created_at, $canCreate ? '' : $row->sourceLabel()])->all()];
+        $conversation['receipts'] = $receipts;
+        $conversation['list_html'] = $list === ($previous['list'] ?? []) ? null
+            : view('tenantSide.customerService.table', compact('tickets', 'canCreate', 'routePrefix'))->render();
+        $conversation['cursor'] = $this->saveSnapshot($ticket?->id, $states, $list);
+        // Bound cache growth even for database cache stores which retain expired
+        // rows. A lost response falls back to a deduplicated resync, never a gap.
+        if (!empty($data['cursor'])) \Illuminate\Support\Facades\Cache::forget('ticket-sync:'.$this->actor()->id.':'.$data['cursor']);
+        return response()->json($conversation)->header('Cache-Control', 'no-store');
+    }
+
     private function actor(): User
     {
         $user = Auth::user();
@@ -161,23 +216,27 @@ class TenantTicketController extends Controller
         return Gate::allows('is-tenant') ? 'tenants.customerService' : 'admin.maintenance';
     }
 
-    private function conversation(Ticket $ticket, TenantCustomerService $service): array
+    private function conversation(Ticket $ticket, TenantCustomerService $service, $messages = null, bool $snapshot = true): array
     {
-        $messages = $ticket->messages()->with('creationAudits')->orderBy('created_at')->orderBy('id')->get();
+        $messages ??= $ticket->messages()->with('creationAudits')->orderBy('created_at')->orderBy('id')->get();
+        $messages->each(fn ($message) => $message->setRelation('ticket', $ticket));
+        $routePrefix = $this->routePrefix();
+        $incomingIds = array_fill_keys($service->incomingIds($messages, $ticket, $this->actor()), true);
         return [
+            'cursor' => $snapshot ? $this->saveSnapshot($ticket->id, $messages->pluck('status', 'id')->all()) : null,
             'ticket' => [
                 'id' => $ticket->id,
                 'subject' => $ticket->subject,
                 'status' => $ticket->status,
                 'closed' => $service->isClosed($ticket),
                 'can_send' => $service->canReply($ticket, $this->actor()),
-                'context' => Gate::allows('is-tenant') ? '' : $ticket->sourceLabel(),
-                'reply_url' => route($this->routePrefix().'.reply', $ticket),
-                'show_url' => route($this->routePrefix().'.show', $ticket),
-                'mark_read_url' => route($this->routePrefix().'.markRead', $ticket),
-                'index_url' => route($this->routePrefix().'.index', ['ticket' => $ticket->id]),
+                'context' => $routePrefix === 'tenants.customerService' ? '' : $ticket->sourceLabel(),
+                'reply_url' => route($routePrefix.'.reply', $ticket),
+                'show_url' => route($routePrefix.'.show', $ticket),
+                'mark_read_url' => route($routePrefix.'.markRead', $ticket),
+                'index_url' => route($routePrefix.'.index', ['ticket' => $ticket->id]),
             ],
-            'messages' => $messages->map(function ($message) use ($ticket, $service) {
+            'messages' => $messages->map(function ($message) use ($ticket, $service, $routePrefix, $incomingIds) {
                 $attachment = $service->attachmentPath($message);
                 $local = $message->created_at?->copy()->setTimezone('Asia/Kuala_Lumpur');
                 $today = now('Asia/Kuala_Lumpur')->startOfDay();
@@ -185,14 +244,14 @@ class TenantTicketController extends Controller
                 return [
                     'id' => $message->id,
                     'own' => $message->authorId() === Auth::id(),
-                    'incoming' => $service->isIncoming($message, $ticket, $this->actor()),
+                    'incoming' => isset($incomingIds[$message->id]),
                     'status' => $message->status,
                     'read_at' => $message->read_at?->toIso8601String(),
                     'read_by' => $message->read_by,
                     'sender_type' => $message->sender_type,
                     'sender_label' => $message->authorId() ? $message->sender_type : 'Unverified sender',
                     'text' => $attachment ? null : $message->message,
-                    'attachment_url' => $attachment ? route($this->routePrefix().'.attachment', [$ticket, $message]) : null,
+                    'attachment_url' => $attachment ? route($routePrefix.'.attachment', [$ticket, $message]) : null,
                     'extension' => $attachment ? strtolower(pathinfo($attachment, PATHINFO_EXTENSION)) : null,
                     'filename' => $attachment ? basename($attachment) : null,
                     'sent_at' => $local?->toIso8601String(),

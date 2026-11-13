@@ -24,7 +24,7 @@ class Element {
     }
     set innerHTML(value) { this.html = value; if (this.onHTML) this.onHTML(value); }
     get innerHTML() { return this.html; }
-    querySelector() { return this.children[0] || null; }
+    querySelector(selector) { return selector === '[data-read-receipt]' ? this.querySelectorAll(selector)[0] || null : this.children[0] || null; }
     contains(target) { return this === target || this.children.includes(target); }
     focus() { this.focused = true; }
     click() { this.clicked = true; }
@@ -38,14 +38,16 @@ class Element {
     async fire(event, extra = {}) {
         for (const callback of this.listeners[event] ?? []) await callback({ target: this, currentTarget: this, preventDefault() {}, ...extra });
     }
-    append(...children) { this.children.push(...children); }
+    remove() { if (this.parentElement) this.parentElement.children = this.parentElement.children.filter(child => child !== this); this.parentElement = null; }
+    append(...children) { children.forEach(child => { child.remove(); child.parentElement = this; this.children.push(child); }); }
+    insertBefore(child, anchor) { child.remove(); child.parentElement = this; this.children.splice(this.children.indexOf(anchor), 0, child); }
     replaceChildren(...children) { this.children = children; this.textContent = ''; }
     closest(selector) {
         if (selector === '[data-back-to-list]' && this.dataset.backToList !== undefined) return this;
         return selector === 'a' && this.tagName === 'A' ? this : null;
     }
     querySelectorAll(selector) {
-        const key = { '[data-message-id]': 'messageId', '[data-unread-divider]': 'unreadDivider' }[selector];
+        const key = { '[data-message-id]': 'messageId', '[data-unread-divider]': 'unreadDivider', '[data-read-receipt]': 'readReceipt' }[selector];
         if (key) return this.children.flatMap(child => [...(child.dataset[key] !== undefined ? [child] : []), ...child.querySelectorAll(selector)]);
         if (selector === '[data-message-date]') return this.children.flatMap(child => [...(child.dataset.messageDate ? [child] : []), ...child.querySelectorAll(selector)]);
         return this.controls;
@@ -179,6 +181,7 @@ function setup({ manager = false, multipleLeases = false, index = false, dashboa
             const id = answer.data.html;
             answer.data = { ticket: { id, subject: id, status: 'pending', closed: false, reply_url: '/ticket/' + id + '/reply', show_url: '/ticket/' + id }, messages: [] };
         }
+        answer.data?.messages?.forEach((message, i) => { message.id ??= 'fixture-' + i; });
         return { ok: answer.status === undefined || answer.status < 400, status: answer.status ?? 200, json: async () => answer.data };
     };
     const ticket = { id: 'one', subject: 'Leaking tap', status: closed ? 'done' : 'pending', closed, reply_url: '/ignored/reply', show_url: '/ignored/show' };
@@ -207,15 +210,24 @@ function setup({ manager = false, multipleLeases = false, index = false, dashboa
         constructor(...args) { super(...(args.length ? args : [currentTime])); }
         static now() { return currentTime; }
     }
-    let timer;
-    const clock = { advanceTo(value) { currentTime = new Date(value).getTime(); timer?.(); } };
+    let timerId = 0;
+    const timers = new Map();
+    const setTimer = (callback, delay = 0) => { const id = ++timerId; timers.set(id, { callback, at: currentTime + delay }); return id; };
+    const clock = {
+        advanceTo(value) {
+            currentTime = new Date(value).getTime();
+            for (const [id, timer] of [...timers]) if (timer.at <= currentTime) { timers.delete(id); timer.callback(); }
+        },
+        async tick(ms) { this.advanceTo(currentTime + ms); await settle(); },
+        pending: () => [...timers.values()].map(timer => timer.at - currentTime),
+    };
     const resizeObservers = [];
     class ResizeObserverMock {
         constructor(callback) { this.callback = callback; this.targets = []; resizeObservers.push(this); }
         observe(target) { this.targets.push(target); }
         disconnect() { this.targets = []; }
     }
-    vm.runInNewContext(source, { document, window, AbortController, CustomEvent, ResizeObserver: ResizeObserverMock, Date: TestDate, setTimeout: (callback) => { timer = callback; return 1; }, clearTimeout: () => {}, URL: TestURL, FormData: FormDataMock, fetch, console });
+    vm.runInNewContext(source, { document, window, AbortController, CustomEvent, ResizeObserver: ResizeObserverMock, Date: TestDate, setTimeout: setTimer, clearTimeout: id => timers.delete(id), URL: TestURL, FormData: FormDataMock, fetch, console });
     document.fire('DOMContentLoaded');
     return { node, ticket, requests, answers, revoked, navigations, chatRoot, document, window, dynamicChats, clock, resizeObservers };
 }
@@ -985,7 +997,7 @@ test('Message day groups use Malaysia dates, update at midnight and do not dupli
     await settle();
     const labels = () => node('[data-chat-messages]').querySelectorAll('[data-message-date]').map(el => el.textContent);
     assert.deepEqual(labels(), ['Yesterday', 'Today']);
-    clock.advanceTo('2026-10-14T00:00:00+08:00');
+    clock.advanceTo('2026-10-14T00:00:00.020+08:00');
     assert.deepEqual(labels(), ['12 Oct 2026', 'Yesterday']);
     answers.push({ data: { ticket, messages } });
     node('[data-chat-draft]').value = 'Update';
@@ -1108,4 +1120,101 @@ test('Maintenance roles reuse attachment previews, removal, batch submission and
         assert.equal(requests[2].body.get('items[0][file]').name, 'proof.txt');
         assert.equal(previews.children.length, 0);
     }
+});
+
+test('Polling is serialized, backs off, pauses when hidden and resumes immediately without notices', async () => {
+    const { clock, answers, requests, document, window, node } = setup({ index: true });
+    let release;
+    answers.push({ gate: new Promise(resolve => { release = resolve; }), data: { messages: [], cursor: 'one', list_html: null } });
+    await clock.tick(1000);
+    assert.equal(requests.length, 1);
+    await clock.tick(5000);
+    assert.equal(requests.length, 1);
+    release(); await settle();
+    answers.push({ status: 500, data: {} });
+    await clock.tick(1000);
+    assert.equal(requests.length, 2);
+    await clock.tick(1000);
+    assert.equal(requests.length, 2);
+    answers.push({ status: 503, data: {} });
+    await clock.tick(1000);
+    assert.equal(requests.length, 3);
+    assert.equal(node('[data-page-feedback]').textContent, '');
+    assert.ok(clock.pending().includes(4000));
+    document.visibilityState = 'hidden'; await document.fire('visibilitychange');
+    await clock.tick(30000);
+    assert.equal(requests.length, 3);
+    answers.push({ data: { messages: [], cursor: 'two', list_html: 'changed subjects' } });
+    document.visibilityState = 'visible'; await document.fire('visibilitychange');
+    await clock.tick(0);
+    assert.equal(requests.length, 4);
+    assert.ok(clock.pending().includes(1000));
+    await window.fire('pagehide'); await clock.tick(10000);
+    assert.equal(requests.length, 4);
+});
+
+test('Incremental merge retains nodes, drafts and attachments, deduplicates send overlap and updates receipts', async () => {
+    const { node, ticket, chatRoot, answers, requests } = setup({ chat: true, messages: [
+        { id: 'a', own: true, text: 'Mine', status: 'unread', sent_at: '2026-11-01T01:00:00Z' },
+    ] });
+    await settle();
+    const history = node('[data-chat-messages]');
+    const original = history.querySelectorAll('[data-message-id]')[0];
+    history.scrollHeight = 1000; history.clientHeight = 200; history.scrollTop = 150;
+    node('[data-chat-draft]').value = 'Keep draft';
+    node('[data-chat-draft]').focus();
+    const picker = node('[data-chat-files="document"]'); picker.files = [{ name: 'keep.txt', type: 'text/plain', size: 1 }];
+    await picker.fire('change');
+    const packet = { ticket, cursor: 'next', messages: [{ id: 'b', text: 'Incoming', incoming: true, status: 'unread', sent_at: '2026-11-01T01:00:00Z' }], receipts: [{ id: 'a', status: 'read' }] };
+    chatRoot.testApi.merge(packet); chatRoot.testApi.merge(packet);
+    assert.equal(history.querySelectorAll('[data-message-id]').length, 2);
+    assert.equal(history.querySelectorAll('[data-message-id]')[0], original);
+    assert.equal(original.querySelector('[data-read-receipt]').textContent, 'Read');
+    assert.equal(history.scrollTop, 150);
+    assert.equal(node('[data-chat-draft]').value, 'Keep draft');
+    assert.equal(node('[data-chat-draft]').focused, true);
+    assert.equal(node('[data-attachment-previews]').children.length, 1);
+    assert.equal(requests.length, 1, 'poll arrival never reads');
+    answers.push({ data: { ticket, messages: [...packet.messages, { id: 'c', own: true, text: 'Sent', status: 'unread' }] } });
+    await node('[data-chat-form]').fire('submit');
+    chatRoot.testApi.merge({ ticket, messages: [{ id: 'c', own: true, text: 'Sent', status: 'unread' }], receipts: [] });
+    assert.equal(history.querySelectorAll('[data-message-id]').length, 3);
+    assert.equal(history.scrollTop, 1000);
+    history.scrollTop = 790;
+    chatRoot.testApi.merge({ ticket, messages: [{ id: 'd', incoming: true, text: 'Bottom arrival' }], receipts: [] });
+    assert.equal(history.scrollTop, 1000);
+});
+
+test('A delayed poll cannot update a switched subject or a hidden/departed page', async () => {
+    for (const action of ['switch', 'hide', 'leave']) {
+        const { node, answers, clock, dynamicChats, document, window } = setup({ index: true, initial: 'first' });
+        let release;
+        answers.push({ gate: new Promise(resolve => { release = resolve; }), data: { ticket: { subject: 'STALE' }, messages: [{ id: 'stale', text: 'wrong' }], list_html: 'STALE' } });
+        await clock.tick(1000);
+        if (action === 'switch') {
+            const link = new Element('a'); link.dataset.ticketId = 'second';
+            answers.push({ data: { html: 'second' } });
+            await node('[data-ticket-list]').fire('click', { target: link });
+        } else if (action === 'hide') { document.visibilityState = 'hidden'; await document.fire('visibilitychange'); }
+        else await window.fire('pagehide');
+        release(); await settle();
+        assert.notEqual(dynamicChats[0].node('[data-chat-subject]').textContent, 'STALE');
+        assert.notEqual(node('[data-ticket-list]').innerHTML, 'STALE');
+    }
+});
+
+test('Cache-expiry resync updates existing receipts and inserts late commits without replacing rows', async () => {
+    const { node, ticket, chatRoot } = setup({ chat: true, messages: [{ id: 'b', own: true, text: 'Existing', status: 'unread', sent_at: '2026-11-01T01:00:00Z' }] });
+    await settle();
+    const history = node('[data-chat-messages]');
+    const existing = history.querySelectorAll('[data-message-id]')[0];
+    chatRoot.testApi.merge({ ticket, messages: [
+        { id: 'a', incoming: true, text: 'Late commit', status: 'unread', sent_at: '2026-11-01T01:00:00Z' },
+        { id: 'b', own: true, text: 'Existing', status: 'read', sent_at: '2026-11-01T01:00:00Z' },
+    ], receipts: [] });
+    assert.deepEqual(history.querySelectorAll('[data-message-id]').map(row => row.dataset.messageId), ['a', 'b']);
+    assert.equal(history.querySelectorAll('[data-message-id]')[1], existing);
+    assert.equal(existing.querySelector('[data-read-receipt]').textContent, 'Read');
+    chatRoot.testApi.merge({ ticket, messages: [], receipts: [{ id: 'b', status: 'unread' }] });
+    assert.equal(existing.querySelector('[data-read-receipt]').textContent, 'Read');
 });

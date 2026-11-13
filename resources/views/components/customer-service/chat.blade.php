@@ -11,6 +11,7 @@
     'limits' => config('customer_service'),
     'id' => 'ticket-chat',
     'embedded' => false,
+    'syncCursor' => '',
 ])
 
 @php
@@ -19,6 +20,7 @@
         @endphp
 
 <section data-ticket-chat data-mark-read-url="{{ $markReadUrl }}" data-can-attach="{{ $canAttach ? 'true' : 'false' }}" data-empty="{{ $ticket ? 'false' : 'true' }}" data-current-role="{{ $currentRole }}" data-send-url="{{ $sendUrl }}" data-read-url="{{ $readUrl }}" data-can-send="{{ $canSend ? 'true' : 'false' }}" data-limits="{{ json_encode($limits) }}" class="bg-white rounded-2xl shadow-lg border border-gray-100 {{ $embedded ? 'h-full min-h-0 flex flex-col' : '' }}">
+    <input type="hidden" data-sync-cursor value="{{ $syncCursor }}">
     <header class="flex shrink-0 items-start gap-2 border-b p-3 sm:gap-3 sm:p-5">
         @if($embedded)
             <button type="button" data-back-to-list aria-label="Back to conversations" title="Back to conversations" class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-indigo-700 hover:bg-indigo-50 focus-visible:ring-2 focus-visible:ring-indigo-500 md:hidden">
@@ -56,7 +58,7 @@
                     <span class="h-px flex-1 bg-indigo-100"></span>
                 </div>
             @endif
-            <div data-message-id="{{ $message['id'] ?? '' }}" data-incoming="{{ ($message['incoming'] ?? false) ? 'true' : 'false' }}" data-message-status="{{ $message['status'] ?? '' }}" class="flex {{ $own ? 'justify-end' : 'justify-start' }}">
+            <div data-sent-at="{{ $message['sent_at'] ?? '' }}" data-date-key="{{ $message['date_key'] ?? '' }}" data-message-id="{{ $message['id'] ?? '' }}" data-incoming="{{ ($message['incoming'] ?? false) ? 'true' : 'false' }}" data-message-status="{{ $message['status'] ?? '' }}" class="flex {{ $own ? 'justify-end' : 'justify-start' }}">
                 <article class="max-w-[85%] rounded-2xl px-4 py-3 text-slate-900 {{ $own ? 'bg-indigo-100' : 'bg-white border' }}">
                     <p class="mb-1 text-xs text-gray-500">{{ $own ? 'You' : ($message['sender_label'] ?? $message['sender_type']) }} · {{ $message['created_at'] }}</p>
                     @if($message['attachment_url'])
@@ -72,7 +74,7 @@
                         <p class="text-sm whitespace-pre-wrap break-words">{{ $message['text'] }}</p>
                     @endif
                     @if($own)
-                        <p class="mt-1 text-right text-xs text-gray-500">{{ ($message['status'] ?? null) === 'read' ? 'Read' : (($message['status'] ?? null) === 'unread' ? 'Unread' : 'Read status unknown') }}</p>
+                        <p data-read-receipt class="mt-1 text-right text-xs text-gray-500">{{ ($message['status'] ?? null) === 'read' ? 'Read' : (($message['status'] ?? null) === 'unread' ? 'Unread' : 'Read status unknown') }}</p>
                     @endif
                 </article>
             </div>

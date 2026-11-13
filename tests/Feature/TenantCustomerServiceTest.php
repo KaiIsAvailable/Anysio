@@ -92,6 +92,231 @@ class TenantCustomerServiceTest extends TestCase
         return Ticket::findOrFail($id);
     }
 
+    public function test_incremental_sync_two_identities_receipts_and_late_commit_order(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['receive_id' => $this->ownerId]);
+        $this->postJson(route('tenants.customerService.reply', $ticket), ['items' => [['type' => 'text', 'text' => 'First']]])->assertOk();
+        $first = $ticket->messages()->firstOrFail();
+        $tenantCursor = $this->getJson(route('tenants.customerService.show', $ticket))->assertOk()->json('cursor');
+        $this->actingAs(User::findOrFail($this->ownerId));
+        $ownerCursor = $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()->json('cursor');
+        $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => [$first->id]])->assertOk();
+        $readAt = $first->fresh()->read_at;
+        $this->postJson(route('admin.maintenance.reply', $ticket), ['items' => [['type' => 'text', 'text' => 'Reply']]])->assertOk();
+        $reply = $ticket->messages()->where('sender_type', 'owner')->firstOrFail();
+        $this->actingAs($this->tenantUser);
+        $sync = fn ($cursor) => $this->getJson(route('tenants.customerService.index', ['sync' => 1, 'ticket' => $ticket->id, 'cursor' => $cursor]));
+        $result = $sync($tenantCursor)->assertOk()->assertJsonCount(1, 'messages')
+            ->assertJsonPath('messages.0.id', $reply->id)->assertJsonPath('receipts.0.id', $first->id)->assertJsonPath('receipts.0.status', 'read');
+        $cursor = $result->json('cursor');
+        $unchanged = $sync($cursor)->assertOk()->assertJsonCount(0, 'messages')->assertJsonCount(0, 'receipts')->assertJsonPath('list_html', null);
+        $this->assertSame('unread', $reply->fresh()->status, 'Fetching never marks read');
+        $this->assertTrue($readAt->equalTo($first->fresh()->read_at));
+        // An older ULID inserted after the snapshot models a transaction committing late.
+        $late = '00000000000000000000000001';
+        DB::table('ticket_msgs')->insert(['id' => $late, 'ticket_id' => $ticket->id, 'sender_type' => 'owner', 'message' => 'Late commit', 'status' => 'unread', 'created_at' => $first->created_at]);
+        $sync($unchanged->json('cursor'))->assertOk()->assertJsonCount(1, 'messages')->assertJsonPath('messages.0.id', $late);
+        // A lost response consumes its cursor; replay must safely resync all IDs.
+        $sync($unchanged->json('cursor'))->assertOk()->assertJsonCount(3, 'messages');
+        $this->postJson(route('tenants.customerService.markRead', $ticket), ['message_ids' => [$reply->id]])->assertOk();
+        $this->actingAs(User::findOrFail($this->ownerId));
+        $this->getJson(route('admin.maintenance.index', ['sync' => 1, 'ticket' => $ticket->id, 'cursor' => $ownerCursor]))
+            ->assertOk()->assertJsonFragment(['id' => $reply->id, 'status' => 'read']);
+    }
+
+    public function test_sync_rechecks_scope_and_does_not_trust_another_users_cursor(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['receive_id' => $this->ownerId, 'lease_id' => $this->lease()->id]);
+        $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Private']);
+        $cursor = $this->getJson(route('tenants.customerService.show', $ticket))->json('cursor');
+        $other = $this->user('tenant');
+        $this->actingAs($other);
+        $this->getJson(route('tenants.customerService.index', ['sync' => 1, 'ticket' => $ticket->id, 'cursor' => $cursor]))->assertForbidden();
+        $this->getJson(route('tenants.customerService.index', ['sync' => 1, 'cursor' => $cursor]))->assertOk()->assertDontSee('Private');
+        $staff = $this->staffFor($this->managerId);
+        $this->actingAs($staff);
+        $this->getJson(route('admin.maintenance.index', ['sync' => 1, 'ticket' => $ticket->id]))->assertOk()->assertJsonPath('ticket.can_send', false);
+        DB::table('staff')->where('user_id', $staff->id)->update(['user_mgnt_id' => null]);
+        $this->getJson(route('admin.maintenance.index', ['sync' => 1, 'ticket' => $ticket->id]))->assertForbidden();
+    }
+
+    public function test_sync_isolated_measurement_and_unopened_subject_window(): void
+    {
+        $tickets = [];
+        for ($i = 0; $i < 20; $i++) {
+            $ticket = $this->ticket();
+            $ticket->update(['subject' => 'Sync '.$i, 'receive_id' => $this->ownerId]);
+            $tickets[] = $ticket;
+            for ($j = 0; $j < 10; $j++) $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'History '.$j]);
+        }
+        foreach ([$this->tenantUser, User::findOrFail($this->ownerId)] as $actor) {
+            $this->actingAs($actor);
+            $prefix = $actor->isTenant() ? 'tenants.customerService' : 'admin.maintenance';
+            $params = ['sync' => 1, 'ticket' => $tickets[0]->id, 'search' => 'Sync', 'page' => 2];
+            $result = $this->getJson(route($prefix.'.index', $params))->assertOk();
+            $samples = [];
+            for ($i = 0; $i < 5; $i++) {
+                $params['cursor'] = $result->json('cursor');
+                DB::flushQueryLog(); DB::enableQueryLog();
+                $start = hrtime(true);
+                $result = $this->getJson(route($prefix.'.index', $params))->assertOk()->assertJsonCount(0, 'messages')->assertJsonPath('list_html', null);
+                $samples[] = ['ms' => round((hrtime(true) - $start) / 1e6, 2), 'queries' => count(DB::getQueryLog())];
+                DB::disableQueryLog();
+            }
+            fwrite(STDERR, "\nSync isolated ".$actor->role.' (20 tickets / 200 messages, SQLite memory, array cache, 5 warm requests): '.json_encode($samples)."\n");
+        }
+        $this->actingAs($this->tenantUser);
+        $params = ['sync' => 1, 'ticket' => $tickets[0]->id, 'search' => 'Sync'];
+        $initial = $this->getJson(route('tenants.customerService.index', $params))->assertOk();
+        $this->actingAs(User::findOrFail($this->ownerId));
+        Carbon::setTestNow(now()->addMinute());
+        $tickets[1]->messages()->create(['sender_type' => 'owner', 'message' => 'Unopened']);
+        $this->actingAs($this->tenantUser);
+        $params['cursor'] = $initial->json('cursor');
+        $changed = $this->getJson(route('tenants.customerService.index', $params))->assertOk()->assertJsonCount(0, 'messages');
+        $html = $changed->json('list_html');
+        $this->assertStringContainsString('1 unread messages', $html);
+        preg_match('/data-ticket-id="([^"]+)"/', $html, $firstRow);
+        $this->assertSame($tickets[1]->id, $firstRow[1]);
+        $this->assertStringContainsString('search=Sync', $html);
+        // Also expose the existing relationship authorization cost, rather than
+        // extrapolating the inexpensive legacy-owner fixture to managed leases.
+        foreach ($tickets as $ticket) $ticket->update(['lease_id' => $this->lease()->id]);
+        foreach ([User::findOrFail($this->managerId), $this->staffFor($this->managerId)] as $actor) {
+            $this->actingAs($actor);
+            $params = ['sync' => 1, 'ticket' => $tickets[0]->id];
+            $result = $this->getJson(route('admin.maintenance.index', $params))->assertOk();
+            $samples = [];
+            for ($i = 0; $i < 3; $i++) {
+                $params['cursor'] = $result->json('cursor');
+                DB::flushQueryLog(); DB::enableQueryLog(); $start = hrtime(true);
+                $result = $this->getJson(route('admin.maintenance.index', $params))->assertOk()->assertJsonCount(0, 'messages')->assertJsonPath('list_html', null);
+                $samples[] = ['ms' => round((hrtime(true) - $start) / 1e6, 2), 'queries' => count(DB::getQueryLog())];
+                DB::disableQueryLog();
+            }
+            fwrite(STDERR, "\nSync managed leases ".$actor->role.' (20 leases / 201 messages, SQLite memory, array cache): '.json_encode($samples)."\n");
+        }
+    }
+
+    public function test_bulk_scope_matches_single_ticket_checks_for_mixed_assets_and_actors(): void
+    {
+        $otherOwner = $this->user('owner');
+        $otherManager = $this->user('ownerAdmin');
+        $otherTenant = $this->user('tenant');
+        $make = function (?Lease $lease, ?string $owner, ?string $sender = null) {
+            $ticket = $this->ticket('pending', $sender);
+            $ticket->update(['lease_id' => $lease?->id, 'receive_id' => $owner]);
+            return $ticket;
+        };
+        $propertyLease = $this->lease();
+        $good = [$make($propertyLease, $this->ownerId)->id];
+        $good[] = $make($this->lease(['status' => 'expired', 'is_current' => false,
+            'end_date' => today()->subYear()->toDateString()]), $this->ownerId)->id;
+        $unitId = (string) Str::ulid();
+        DB::table('units')->insert(['id' => $unitId, 'unit_no' => 'U', 'owner_id' => $otherOwner->id,
+            'created_by' => $this->managerId, 'property_id' => $propertyLease->leasable_id]);
+        $roomId = (string) Str::ulid();
+        DB::table('rooms')->insert(['id' => $roomId, 'room_no' => 'R', 'unit_id' => $unitId]);
+        foreach ([[Unit::class, $unitId], [Room::class, $roomId]] as [$type, $id]) {
+            $lease = $this->lease(['leasable_type' => $type, 'leasable_id' => $id]);
+            $good[] = $make($lease, $otherOwner->id)->id;
+            $make($lease, $this->ownerId); // Property owner cannot replace unit owner.
+        }
+        $fallbackUnit = (string) Str::ulid();
+        DB::table('units')->insert(['id' => $fallbackUnit, 'unit_no' => 'Fallback', 'owner_id' => $otherOwner->id,
+            'created_by' => null, 'property_id' => $propertyLease->leasable_id]);
+        $good[] = $make($this->lease(['leasable_type' => Unit::class, 'leasable_id' => $fallbackUnit]), $otherOwner->id)->id;
+        $missingOwner = (string) Str::ulid();
+        $missingOwnerLease = $this->lease();
+        DB::table('properties')->where('id', $missingOwnerLease->leasable_id)->update(['owner_id' => $missingOwner]);
+        $make($missingOwnerLease, $missingOwner);
+        $ambiguousOwner = $this->user('owner');
+        DB::table('owners')->insert(['id' => (string) Str::ulid(), 'user_id' => $ambiguousOwner->id, 'agent_id' => $otherManager->id]);
+        $ambiguous = $this->lease();
+        DB::table('properties')->where('id', $ambiguous->leasable_id)->update(['owner_id' => $ambiguousOwner->id]);
+        $make($ambiguous, $ambiguousOwner->id); // Creator and owner-agent disagree.
+        $missingAsset = $this->lease(['leasable_id' => (string) Str::ulid()]);
+        $make($missingAsset, $this->ownerId);
+        $make($this->lease(['tenant_id' => (string) Str::ulid()]), $this->ownerId);
+        $make($propertyLease, $this->ownerId, $otherTenant->id);
+        $make($propertyLease, $this->ownerId, $this->managerId); // Non-tenant sender.
+        $missingLease = $make(null, $this->ownerId);
+        $missingLease->update(['lease_id' => (string) Str::ulid()]);
+        $make(null, null);
+        $legacyOwner = $this->user('owner');
+        DB::table('owners')->insert(['id' => (string) Str::ulid(), 'user_id' => $legacyOwner->id, 'agent_id' => $this->managerId]);
+        $good[] = $make(null, $legacyOwner->id)->id;
+        $make(null, $otherOwner->id); // No recorded legacy management relationship.
+
+        $service = app(TenantCustomerService::class);
+        $actors = [$this->tenantUser, $otherTenant, User::findOrFail($this->ownerId), $otherOwner,
+            User::findOrFail($this->managerId), $otherManager, $this->user('admin'),
+            $this->staffFor($this->managerId), $this->staffFor($this->ownerId), $this->staffFor($otherManager->id),
+            $this->staffFor($this->managerId, false), $this->staffFor($this->managerId, true, $otherManager->id)];
+        foreach ($actors as $actor) {
+            $this->actingAs($actor);
+            $expected = Ticket::all()->filter(fn ($ticket) => $service->canAccess($ticket, $actor))->modelKeys();
+            try {
+                $actual = $service->visibleTickets($actor)->pluck('id')->all();
+            } catch (\Symfony\Component\HttpKernel\Exception\HttpException $exception) {
+                $this->assertSame(403, $exception->getStatusCode());
+                $actual = [];
+            }
+            $this->assertEqualsCanonicalizing($expected, $actual, $actor->role.' '.$actor->id);
+            if ($actor->id === $this->managerId) $this->assertEqualsCanonicalizing($good, $actual);
+        }
+        // Reusing the same resolver must not retain another lease/user's scope.
+        $resolver = app(\App\Services\LeaseManagementResolver::class);
+        $leases = Lease::with('leasable')->get();
+        $expected = $leases->mapWithKeys(fn ($lease) => [$lease->id => $resolver->resolve($lease)?->id])->all();
+        $this->assertSame($expected, $resolver->resolveMany(Lease::with('leasable')->get()));
+        $this->actingAs($otherTenant);
+        $this->assertFalse($service->canAccess(Ticket::findOrFail($good[0]), User::findOrFail($this->managerId)), 'An arbitrary actor cannot borrow the current login mapping');
+    }
+
+    public function test_bulk_scope_rechecks_staff_mapping_permissions_and_ownership_between_calls(): void
+    {
+        $lease = $this->lease();
+        $ticket = $this->ticket();
+        $ticket->update(['receive_id' => $this->ownerId, 'lease_id' => $lease->id]);
+        $staff = $this->staffFor($this->managerId);
+        $this->actingAs($staff);
+        $service = app(TenantCustomerService::class);
+        $this->assertSame([$ticket->id], $service->visibleTickets($staff)->pluck('id')->all());
+        DB::table('properties')->where('id', $lease->leasable_id)->update(['created_by' => $this->user('agentAdmin')->id]);
+        $this->assertSame([], $service->visibleTickets($staff)->pluck('id')->all());
+        DB::table('properties')->where('id', $lease->leasable_id)->update(['created_by' => $this->managerId]);
+        $this->assertSame([$ticket->id], $service->visibleTickets($staff)->pluck('id')->all());
+        $mapping = DB::table('staff')->where('user_id', $staff->id)->value('user_mgnt_id');
+        DB::table('staff')->where('user_id', $staff->id)->update(['user_mgnt_id' => null]);
+        $this->getJson(route('admin.maintenance.index', ['sync' => 1]))->assertForbidden();
+        DB::table('staff')->where('user_id', $staff->id)->update(['user_mgnt_id' => $mapping]);
+        $this->getJson(route('admin.maintenance.index', ['sync' => 1]))->assertOk();
+        DB::table('model_has_roles')->where('model_id', $staff->id)->delete();
+        $this->getJson(route('admin.maintenance.index', ['sync' => 1]))->assertForbidden();
+    }
+
+    public function test_bulk_scope_query_count_does_not_grow_per_ticket(): void
+    {
+        $staff = $this->staffFor($this->managerId);
+        $this->actingAs($staff);
+        $counts = [];
+        app(TenantCustomerService::class)->visibleTickets($staff)->get(); // Warm Gate/permission setup equally.
+        foreach ([5, 35] as $additional) {
+            for ($i = 0; $i < $additional; $i++) {
+                $ticket = $this->ticket();
+                $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId]);
+            }
+            DB::flushQueryLog(); DB::enableQueryLog();
+            app(TenantCustomerService::class)->visibleTickets($staff)->get();
+            $counts[] = count(DB::getQueryLog()); DB::disableQueryLog();
+        }
+        $this->assertLessThanOrEqual($counts[0], $counts[1], '5 versus 40 distinct leases must not introduce per-ticket queries');
+        fwrite(STDERR, "\nBulk staff scope queries (5 / 40 leases): ".json_encode($counts)."\n");
+    }
+
     private function batch(array $extra = []): array
     {
         return array_merge(['category' => 'QNA', 'subject' => 'Question', 'details' => 'Hello', 'items' => [['type' => 'text', 'text' => 'Hello']]], $extra);

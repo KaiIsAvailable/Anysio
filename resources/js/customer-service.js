@@ -39,6 +39,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const chats = new WeakMap();
     const index = document.querySelector('[data-customer-service]');
+    if (index?.dataset.syncInitialized === 'true') return;
+    if (index) index.dataset.syncInitialized = 'true';
     if (index) initIndex(index);
     document.querySelectorAll('[data-complaint-create]').forEach((root) => initComplaint(root));
     document.querySelectorAll('[data-ticket-chat]').forEach((root) => { if (!chats.has(root)) initChat(root); });
@@ -310,6 +312,51 @@ document.addEventListener('DOMContentLoaded', () => {
         window.addEventListener('beforeunload', (event) => {
             if (chat?.isDirty() || chat?.isSending()) { event.preventDefault(); event.returnValue = ''; }
         });
+        // One serialized loop for the shared page, including the unopened subjects.
+        let pollTimer, pollRequest = null, pollDelay = 1000, pageActive = true, resumeImmediately = false;
+        const schedulePoll = (delay = pollDelay) => {
+            clearTimeout(pollTimer);
+            if (pageActive && document.visibilityState === 'visible') pollTimer = setTimeout(poll, delay);
+        };
+        const poll = async () => {
+            if (pollRequest || !pageActive || document.visibilityState !== 'visible') return;
+            const selection = selectionSequence, listing = listSequence;
+            const version = chat.syncVersion();
+            const controller = new AbortController();
+            pollRequest = controller;
+            const timeout = setTimeout(() => controller.abort(), 20000);
+            try {
+                if (!chat.canSync()) return;
+                const url = selectedUrl();
+                url.searchParams.set('sync', '1');
+                if (chat.cursor()) url.searchParams.set('cursor', chat.cursor());
+                const data = await request(url, { signal: controller.signal, cache: 'no-store' });
+                if (!pageActive || document.visibilityState !== 'visible' || selection !== selectionSequence
+                    || listing !== listSequence || version !== chat.syncVersion() || !chat.canSync()) return;
+                chat.merge(data);
+                if (data.list_html !== null && data.list_html !== undefined) {
+                    const top = list.scrollTop;
+                    list.innerHTML = data.list_html;
+                    list.scrollTop = top;
+                    highlight();
+                }
+                pollDelay = 1000;
+            } catch { pollDelay = Math.min(pollDelay * 2, 30000); }
+            finally {
+                clearTimeout(timeout);
+                pollRequest = null;
+                schedulePoll(resumeImmediately ? 0 : pollDelay);
+                resumeImmediately = false;
+            }
+        };
+        document.addEventListener('visibilitychange', () => {
+            clearTimeout(pollTimer);
+            if (document.visibilityState === 'visible') { resumeImmediately = !!pollRequest; schedulePoll(0); }
+            else pollRequest?.abort();
+        });
+        window.addEventListener('pagehide', () => { pageActive = false; clearTimeout(pollTimer); pollRequest?.abort(); });
+        window.addEventListener('pageshow', () => { pageActive = true; resumeImmediately = !!pollRequest; schedulePoll(0); });
+        schedulePoll();
         highlight();
     }
 
@@ -319,6 +366,8 @@ document.addEventListener('DOMContentLoaded', () => {
         const on = (target, type, handler, options = {}) => target.addEventListener(type, handler, { ...options, signal: listeners.signal });
         let destroyed = false;
         let conversationVersion = 0;
+        let syncCursor = root.querySelector('[data-sync-cursor]')?.value || '';
+        let syncRevision = 0;
         let readUrl = root.dataset.readUrl;
         let sendUrl = root.dataset.sendUrl;
         const find = (selector) => root.querySelector(selector);
@@ -331,7 +380,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const history = find('[data-chat-messages]');
         let markReadUrl = root.dataset.markReadUrl || '';
         let displayedMessages = Array.from(history.querySelectorAll('[data-message-id]')).map(row => ({
-            id: row.dataset.messageId, incoming: row.dataset.incoming === 'true', status: row.dataset.messageStatus,
+            sent_at: row.dataset.sentAt, date_key: row.dataset.dateKey, id: row.dataset.messageId, incoming: row.dataset.incoming === 'true', status: row.dataset.messageStatus,
         }));
         const unreadSnapshot = (messages) => messages.filter(message => message.incoming && message.status === 'unread');
         let visitUnread = unreadSnapshot(displayedMessages);
@@ -349,6 +398,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const version = conversationVersion;
             const endpoint = markReadUrl;
             readPending = true;
+            ++syncRevision;
             lastReadAttempt = Date.now();
             try {
                 for (let offset = 0; offset < ids.length; offset += 500) {
@@ -526,15 +576,29 @@ document.addEventListener('DOMContentLoaded', () => {
             updateComposer();
             find('[data-chat-closed]').hidden = canSend;
         };
-        const renderConversation = (data, newVisit = false) => {
+        const renderConversation = (data, newVisit = false, incremental = false) => {
             updateTicket(data.ticket);
-            displayedMessages = data.messages.map(message => ({ ...message }));
+            if (data.cursor && !incremental) syncCursor = data.cursor;
+            const existing = new Map(Array.from(history.querySelectorAll('[data-message-id]')).map(row => [row.dataset.messageId, row]));
+            if (incremental) {
+                const known = new Map(displayedMessages.map(message => [message.id, message]));
+                for (const message of data.messages) {
+                    if (!known.has(message.id)) known.set(message.id, message);
+                }
+                displayedMessages = Array.from(known.values()).sort((a, b) =>
+                    String(a.sent_at || '').localeCompare(String(b.sent_at || '')) || String(a.id).localeCompare(String(b.id)));
+                data = { ...data, messages: displayedMessages };
+            } else displayedMessages = data.messages.map(message => ({ ...message }));
             markReadUrl = data.ticket.mark_read_url || markReadUrl;
             if (newVisit) visitUnread = unreadSnapshot(displayedMessages);
             const savedScrollTop = history.scrollTop;
             contentResize?.disconnect();
-            pdfThumbnails.reset();
-            history.replaceChildren();
+            if (!incremental) {
+                pdfThumbnails.reset();
+                history.replaceChildren();
+            } else {
+                Array.from(history.children).filter(child => !child.dataset.messageId).forEach(child => child.remove());
+            }
             if (!data.messages.length) {
                 const empty = document.createElement('p');
                 empty.textContent = 'No messages yet. Start the conversation below.';
@@ -542,7 +606,19 @@ document.addEventListener('DOMContentLoaded', () => {
                 history.append(empty);
             }
             let previousDate = null;
+            // Insert around existing rows without detaching loaded media or PDFs.
+            const anchors = new Map();
+            let nextRow = null;
+            if (incremental) [...data.messages].reverse().forEach(message => {
+                nextRow = existing.get(message.id) || nextRow;
+                anchors.set(message.id, nextRow);
+            });
             data.messages.forEach((message) => {
+                const appendHistory = (node) => {
+                    const anchor = anchors.get(message.id);
+                    if (anchor) history.insertBefore(node, anchor);
+                    else history.append(node);
+                };
                 const sent = message.sent_at ? new Date(message.sent_at) : null;
                 const day = sent ? messageDay(sent) : message.date_key;
                 const startsDay = day && day !== previousDate;
@@ -567,7 +643,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         divider.append(unread);
                     }
                     divider.append(line());
-                    history.append(divider);
+                    appendHistory(divider);
                     previousDate = day;
                 }
                 const own = message.own === true;
@@ -581,8 +657,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     label.textContent = visitUnread.length + ' unread messages';
                     const line = () => { const el = document.createElement('span'); el.className = 'h-px flex-1 bg-indigo-100'; return el; };
                     divider.append(line(), label, line());
-                    history.append(divider);
+                    appendHistory(divider);
                 }
+                if (incremental && existing.has(message.id)) return;
                 const row = document.createElement('div');
                 row.dataset.messageId = message.id;
                 row.dataset.incoming = String(message.incoming === true);
@@ -651,12 +728,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 if (own) {
                     const receipt = document.createElement('p');
+                    receipt.dataset.readReceipt = '';
                     receipt.className = 'mt-1 text-right text-xs text-gray-500';
                     receipt.textContent = message.status === 'read' ? 'Read' : message.status === 'unread' ? 'Unread' : 'Read status unknown';
                     bubble.append(receipt);
                 }
                 row.append(bubble);
-                history.append(row);
+                appendHistory(row);
             });
             if (!followBottom) history.scrollTop = savedScrollTop;
             watchContentHeight();
@@ -713,7 +791,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (!isCurrentSend()) return;
                 // A successful own send starts a new bottom-follow session, even after reading older messages.
                 followBottom = true;
-                renderConversation(data);
+                ++syncRevision;
+                renderConversation(data, false, true);
                 draft.value = '';
                 resizeDraft();
                 clearAttachments();
@@ -737,8 +816,35 @@ document.addEventListener('DOMContentLoaded', () => {
         resizeDraft();
         on(window, 'pagehide', clearAttachments);
         const api = {
+            cursor: () => syncCursor,
+            syncVersion: () => syncRevision + ':' + conversationVersion,
+            canSync: () => !destroyed && !suspended && !sending && !readPending,
+            merge: (data) => {
+                syncCursor = data.cursor || syncCursor;
+                if (data.ticket) {
+                    updateTicket(data.ticket);
+                    const knownIds = new Set(displayedMessages.map(message => message.id));
+                    if (data.messages.some(message => !knownIds.has(message.id))) {
+                        followBottom = history.scrollHeight - history.scrollTop - history.clientHeight < 80;
+                        renderConversation(data, false, true);
+                    }
+                }
+                // A cache-expiry resync may carry a receipt on an already known
+                // message body. Merge it too, without replacing that message node.
+                const receipts = new Map([...data.messages, ...(data.receipts || [])]
+                    .filter(message => message.status !== undefined).map(message => [message.id, message.status]));
+                displayedMessages.forEach(message => {
+                    if (receipts.has(message.id) && message.status !== 'read') message.status = receipts.get(message.id);
+                });
+                history.querySelectorAll('[data-message-id]').forEach(row => {
+                    if (!receipts.has(row.dataset.messageId) || row.dataset.messageStatus === 'read') return;
+                    row.dataset.messageStatus = receipts.get(row.dataset.messageId);
+                    const receipt = row.querySelector('[data-read-receipt]');
+                    if (receipt) receipt.textContent = row.dataset.messageStatus === 'read' ? 'Read' : 'Unread';
+                });
+            },
             confirmRead: (loadedIds = null) => confirmRead(true, loadedIds),
-            setSuspended: (value) => { suspended = value; updateComposer(); },
+            setSuspended: (value) => { ++syncRevision; suspended = value; updateComposer(); },
             apply: (data, { preserveDraft = false } = {}) => {
                 ++conversationVersion;
                 readPending = false;
@@ -767,6 +873,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ++conversationVersion;
                 readPending = false;
                 markReadUrl = '';
+                syncCursor = '';
                 displayedMessages = [];
                 visitUnread = [];
                 sending = false;

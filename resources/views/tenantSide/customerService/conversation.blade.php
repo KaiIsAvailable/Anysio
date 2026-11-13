@@ -8,5 +8,6 @@
     :can-attach="$canAttach"
     :context="\Illuminate\Support\Facades\Gate::allows('is-tenant') ? '' : $ticket->sourceLabel()"
     :messages="$messages"
+    :sync-cursor="$syncCursor"
     :embedded="true"
 />

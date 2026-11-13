@@ -11,7 +11,7 @@
                 <span data-ticket-unread @if(!$ticket->unread_count) hidden @endif aria-label="{{ $ticket->unread_count }} unread messages" class="col-start-2 row-start-1 inline-flex h-6 min-w-6 items-center justify-center justify-self-end rounded-full bg-indigo-600 px-1 text-xs font-semibold text-white [&[hidden]]:hidden">{{ $ticket->unread_count }}</span>
                 @php($latestMessageAt = $ticket->messages_max_created_at ? \Illuminate\Support\Carbon::parse($ticket->messages_max_created_at) : $ticket->created_at)
                 <span class="col-start-1 row-start-2 min-w-0 text-xs text-gray-500"><x-customer-service.ticket-status :status="$ticket->status" /></span>
-                <span class="col-start-2 row-start-2 whitespace-nowrap text-right text-xs text-gray-500">{{ $latestMessageAt?->copy()->setTimezone('Asia/Kuala_Lumpur')->format('d M Y') }}</span>
+                <span data-ticket-latest class="col-start-2 row-start-2 whitespace-nowrap text-right text-xs text-gray-500">{{ $latestMessageAt?->copy()->setTimezone('Asia/Kuala_Lumpur')->format('d M Y H:i') }}</span>
             </span>
         </a>
     @empty

@@ -1,10 +1,7 @@
 <x-app-layout>
     <div x-data="{ maintenanceTab: @js(!$canCreate && !$selectedTicket && \Illuminate\Support\Facades\Gate::allows('maintenance.view') ? 'orders' : 'chat') }">
     @if(!$canCreate)
-    <nav class="mx-auto flex max-w-7xl gap-2 px-4 pt-4" aria-label="Maintenance sections">
-        @can('maintenance.view')<button type="button" x-on:click="maintenanceTab = 'orders'" :aria-pressed="maintenanceTab === 'orders'" class="rounded-lg border bg-white px-4 py-2 text-indigo-700">维修工单</button>@endcan
-        <button type="button" x-on:click="maintenanceTab = 'chat'" :aria-pressed="maintenanceTab === 'chat'" class="rounded-lg border bg-white px-4 py-2 text-indigo-700">Customer Service 对话</button>
-    </nav>
+    <x-maintenance.tabs />
     <div class="mx-auto max-w-7xl px-4 pt-2 text-sm text-amber-800" role="status">
         @unless(app(\App\Services\MaintenanceService::class)->ready())
             <p>Maintenance database upgrade is required. Existing conversations remain available.</p>

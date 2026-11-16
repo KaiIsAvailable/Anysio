@@ -93,3 +93,23 @@ test('unverified source blocks submission without losing its form state', async 
     ui.form.dataset.blocked = 'true'; await ui.select([file()]); await ui.form.fire('submit');
     assert.equal(calls, 0); assert.equal(ui.list.children.length, 1); assert.equal(ui.title.value, 'Verified repair');
 });
+
+test('Viewing work order details never opens a modal, including stale action hashes', () => {
+    for (const hash of ['', '#assign', '#complete']) {
+        let ready;
+        const opened = [];
+        const document = {
+            addEventListener(name, callback) { if (name === 'DOMContentLoaded') ready = callback; },
+            querySelectorAll() { return []; },
+            querySelector() { return null; },
+        };
+        const window = { addEventListener() {}, dispatchEvent(event) { opened.push(event); } };
+        vm.runInNewContext(source, {
+            document, window, location: { hash },
+            createPdfThumbnails: () => ({ scan() {}, destroy() {} }),
+            CustomEvent: class { constructor(type, options) { this.type = type; this.detail = options.detail; } },
+        });
+        ready();
+        assert.equal(opened.length, 0, `No automatic action on ${hash || 'plain View'}`);
+    }
+});

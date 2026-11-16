@@ -160,7 +160,6 @@ document.addEventListener('DOMContentLoaded', () => {
     if (cards?.dataset.initial) renderMaintenanceCards(cards.parentElement, JSON.parse(cards.dataset.initial));
     const pdfs = createPdfThumbnails(document); pdfs.scan();
     window.addEventListener('pagehide', () => pdfs.destroy(), { once: true });
-    if (['#assign', '#complete'].includes(location.hash)) {
-        window.dispatchEvent(new CustomEvent('open-modal', { detail: location.hash === '#assign' ? 'assign-maintenance' : 'complete-maintenance' }));
-    }
+    // Opening details never opens an action modal; actions require an explicit click.
+
 });

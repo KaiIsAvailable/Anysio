@@ -1,23 +1,42 @@
 @extends('adminSide.maintenance.frame')
 @section('content')
-<a href="{{ route('admin.maintenance.work-orders.index') }}" class="text-indigo-700 underline">Back to work orders</a>
-<div class="my-4 flex flex-wrap items-center gap-3"><h1 class="text-2xl font-bold">{{ $maintenance->title }}</h1><x-maintenance.status :status="$maintenance->status" /></div>
-<p class="break-all text-sm text-gray-500">{{ $maintenance->maintenance_number }}</p>
-<div class="my-5 grid gap-4 md:grid-cols-2">
-    <section class="space-y-3 rounded-xl border bg-white p-5"><h2 class="font-semibold">Problem and location</h2><p class="whitespace-pre-wrap">{{ $maintenance->desc }}</p><p>{{ $maintenance->location_snapshot }} · {{ $maintenance->location_detail }}</p><a target="_top" href="{{ route('admin.maintenance.index', ['ticket' => $maintenance->ticket_id]) }}" class="text-indigo-700 underline">Open source conversation</a></section>
-    <section class="space-y-3 rounded-xl border bg-white p-5"><h2 class="font-semibold">External Contractor</h2><p>{{ $maintenance->contractor_name ?: 'Unassigned' }}</p><p>{{ $maintenance->contractor_phone }}</p>
-    @if(in_array($maintenance->status, ['pending','maintaining'])) @can('maintenance.assign')<x-form.secondary-button type="button" x-data x-on:click="$dispatch('open-modal', 'assign-maintenance')">{{ $maintenance->status === 'pending' ? 'Assign Contractor' : 'Change Contractor' }}</x-form.secondary-button>@endcan @endif
-    @if($maintenance->status === 'maintaining') @can('maintenance.complete')<x-form.primary-button type="button" x-data x-on:click="$dispatch('open-modal', 'complete-maintenance')">Complete</x-form.primary-button>@endcan @endif
-    </section>
+<a href="{{ route('admin.maintenance.work-orders.index') }}" class="text-sm font-medium text-indigo-600 hover:text-indigo-900">&larr; Back to work orders</a>
+<div class="my-6 flex flex-wrap items-center justify-between gap-4">
+    <div><h1 class="text-3xl font-bold tracking-tight text-slate-900">{{ $maintenance->title }}</h1><p class="mt-2 break-all text-sm text-gray-500">{{ $maintenance->maintenance_number }}</p></div>
+    <x-maintenance.status :status="$maintenance->status" />
+</div>
+<div class="mb-6 grid gap-6 md:grid-cols-2">
+    <x-maintenance.section title="Problem and location">
+        <p class="whitespace-pre-wrap">{{ $maintenance->desc }}</p>
+        <dl class="space-y-2"><div><dt class="font-medium text-gray-500">Property / Unit / Room</dt><dd>{{ $maintenance->location_snapshot }}</dd></div><div><dt class="font-medium text-gray-500">Location details</dt><dd>{{ $maintenance->location_detail }}</dd></div></dl>
+        <a target="_top" href="{{ route('admin.maintenance.index', ['ticket' => $maintenance->ticket_id]) }}" class="inline-block font-medium text-indigo-600 hover:text-indigo-900">Open source conversation</a>
+    </x-maintenance.section>
+    <x-maintenance.section title="External Contractor">
+        <p class="font-medium text-slate-900">{{ $maintenance->contractor_name ?: 'Unassigned' }}</p>
+        @if($maintenance->contractor_phone)<p>{{ $maintenance->contractor_phone }}</p>@endif
+        <div class="flex flex-wrap gap-2">
+            @if(in_array($maintenance->status, ['pending','maintaining']))
+                @can('maintenance.assign')<x-form.secondary-button x-data x-on:click="$dispatch('open-modal', 'assign-maintenance')">{{ $maintenance->status === 'pending' ? 'Assign Contractor' : 'Change Contractor' }}</x-form.secondary-button>@endcan
+            @endif
+            @if($maintenance->status === 'maintaining')
+                @can('maintenance.complete')<x-form.primary-button type="button" x-data x-on:click="$dispatch('open-modal', 'complete-maintenance')">Complete</x-form.primary-button>@endcan
+            @endif
+        </div>
+    </x-maintenance.section>
 </div>
 @foreach(['before' => 'Before evidence', 'completion' => 'Completion evidence'] as $purpose => $label)
-    @if($maintenance->attachments->where('purpose', $purpose)->isNotEmpty())<section class="mb-5"><h2 class="mb-2 font-semibold">{{ $label }}</h2><div class="grid gap-3 sm:grid-cols-3">@foreach($maintenance->attachments->where('purpose', $purpose) as $file)<x-maintenance.evidence :file="$file" />@endforeach</div></section>@endif
+    @if($maintenance->attachments->where('purpose', $purpose)->isNotEmpty())
+        <x-maintenance.section :title="$label" class="mb-6"><div class="grid gap-4 sm:grid-cols-3">@foreach($maintenance->attachments->where('purpose', $purpose) as $file)<x-maintenance.evidence :file="$file" />@endforeach</div></x-maintenance.section>
+    @endif
 @endforeach
-<section class="rounded-xl border bg-white p-5"><h2 class="mb-3 font-semibold">Activity</h2><ol class="space-y-3 text-sm">@foreach($maintenance->events as $event)<li class="border-b pb-2"><strong>{{ ucfirst($event->action) }}</strong> · {{ $event->created_at?->format('d M Y H:i:s') }} · User {{ $event->actor_id }} @foreach($event->changes as $field => $change)<p class="text-gray-600">{{ str_replace('_',' ', $field) }}: {{ $change['from'] ?? '—' }} → {{ $change['to'] ?? '—' }}</p>@endforeach</li>@endforeach</ol></section>
-@if(in_array($maintenance->status, ['pending','maintaining'])) @can('maintenance.assign')
-<x-modal name="assign-maintenance" :shake-on-backdrop="true"><form data-maintenance-form="assign" data-reload="true" action="{{ route('admin.maintenance.work-orders.assign', $maintenance) }}" class="space-y-4 p-6">@csrf<input type="hidden" name="version" value="{{ $maintenance->version }}"><h2 class="text-xl font-semibold">Assign external Contractor</h2><div><x-form.input-label value="Name (required)" /><x-form.text-input name="contractor_name" :value="$maintenance->contractor_name" required maxlength="255" class="w-full" /></div><div><x-form.input-label value="Phone (optional)" /><x-form.text-input name="contractor_phone" :value="$maintenance->contractor_phone" maxlength="80" class="w-full" /></div><p data-maintenance-error role="alert" class="text-red-700"></p><div class="flex justify-end gap-2"><x-form.secondary-button type="button" x-on:click="$dispatch('close-modal', 'assign-maintenance')">Close</x-form.secondary-button><x-form.primary-button>Confirm assignment</x-form.primary-button></div></form></x-modal>
-@endcan @endif
-@if($maintenance->status === 'maintaining') @can('maintenance.complete')
-<x-modal name="complete-maintenance" :shake-on-backdrop="true"><form data-maintenance-form="complete" data-reload="true" action="{{ route('admin.maintenance.work-orders.complete', $maintenance) }}" class="space-y-4 p-6">@csrf<input type="hidden" name="version" value="{{ $maintenance->version }}"><h2 class="text-xl font-semibold">Confirm completion</h2><p class="text-sm text-gray-600">Evidence is optional. Saved completion evidence will be visible to the Tenant in the original conversation. Completion cannot be reopened or edited.</p><x-maintenance.files /><p data-maintenance-error role="alert" class="whitespace-pre-line text-red-700"></p><div class="flex justify-end gap-2"><x-form.secondary-button type="button" x-on:click="$dispatch('close-modal', 'complete-maintenance')">Close</x-form.secondary-button><x-form.primary-button>Confirm completed</x-form.primary-button></div></form></x-modal>
-@endcan @endif
+<x-maintenance.section title="Activity">
+    <ol class="divide-y divide-gray-100">
+        @forelse($maintenance->events as $event)
+            <li class="py-3 first:pt-0"><p class="font-medium text-slate-900">{{ ucfirst($event->action) }} <span class="font-normal text-gray-500">&middot; {{ $event->created_at?->timezone('Asia/Kuala_Lumpur')->format('d M Y H:i:s') }}</span></p><p class="break-all text-xs text-gray-500">User {{ $event->actor_id }}</p>
+                @foreach($event->changes as $field => $change)<p class="mt-1">{{ ucfirst(str_replace('_', ' ', $field)) }}: {{ $change['from'] ?? 'None' }} &rarr; {{ $change['to'] ?? 'None' }}</p>@endforeach
+            </li>
+        @empty <li class="text-gray-500">No activity yet.</li> @endforelse
+    </ol>
+</x-maintenance.section>
+<x-maintenance.action-modals :maintenance="$maintenance" />
 @endsection

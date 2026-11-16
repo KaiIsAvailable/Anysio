@@ -11,6 +11,7 @@ class FileService
         'tenant_ic'      => 'tenants/ic_photo',
         'tenant_ssm'     => 'tenants/ssm_certs',
         'tenant_ticket'  => 'tenants/tickets',
+        'maintenance' => 'maintenance/evidence',
         'lease_stamping' => 'leases/stamping_certs',
         'user_receipt'   => 'users/receipts',
         'user_invoice'   => 'users/invoices',
@@ -29,11 +30,11 @@ class FileService
 
         try {
             $fullPath = $file->storeAs($directory, $filename, $this->disk);
-            if (!$fullPath && $category === 'tenant_ticket') {
+            if (!$fullPath && in_array($category, ['tenant_ticket', 'maintenance'], true)) {
                 Storage::disk($this->disk)->delete($directory.'/'.$filename);
             }
         } catch (\Throwable $error) {
-            if ($category === 'tenant_ticket') Storage::disk($this->disk)->delete($directory.'/'.$filename);
+            if (in_array($category, ['tenant_ticket', 'maintenance'], true)) Storage::disk($this->disk)->delete($directory.'/'.$filename);
             throw $error;
         }
         

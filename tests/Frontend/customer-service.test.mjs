@@ -4,6 +4,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const source = readFileSync(new URL('../../resources/js/customer-service.js', import.meta.url), 'utf8')
+    .replace("import { renderMaintenanceCards } from './maintenance';", 'const renderMaintenanceCards = () => {};')
     .replace('chats.set(root, api);', 'chats.set(root, api); root.testApi = api;')
     .replace("import { createPdfThumbnails } from './ticket-pdf-thumbnails';", 'const createPdfThumbnails = () => ({ scan() {}, reset() {}, destroy() {} });');
 class Element {

@@ -12,7 +12,7 @@ return [
         'leases'            => ['tab', 'agreement template', 'lease controller', 'upload stamping', 'view agreement', 'renew lease', 'check out lease' => ['add fee type', 'add deduction item', 'save draft', 'set as pending', 'reject refund', 'approve refund', 'revoke refund approval', 'proceed refund', 'create refund adjustment'], 'cancel lease', 'show', 'auto generate invoice', 'add manual invoice'],
         'invoice'           => ['tab', 'void', 'view invoice', 'view receipt', 'view payment proof', 'record payment' => ['edit penalty', 'remove penalty', 'edit processing fee', 'remove processing fee']],
         'document template' => ['create', 'preview', 'print', 'edit', 'set active document'],
-        'maintenance'       => ['tab'],
+        'maintenance'       => ['tab', 'view', 'create', 'assign', 'complete'],
         'staff'             => ['tab', 'create', 'edit', 'delete', 'show'],
         'settings'          => ['payment tab', 'late payment setting', 'edit late payment', 'payment collection setting', 'edit payment collection', 'lease tab', 'recurring invoice setting', 'edit recurring invoice', 'pending renewal setting', 'edit pending renewal', 'lease configuration setting', 'edit lease configuration', 'user role tab', 'create new role', 'edit user role', 'delete user role']
     ],

@@ -31,7 +31,10 @@
         @endif
         <h2 data-chat-subject class="min-w-0 flex-1 py-2 text-xl font-bold text-slate-900 break-words">{{ $ticket?->subject ?? 'Customer Service' }}</h2>
         <x-customer-service.ticket-status data-chat-status :status="$ticket?->status ?? ''" :hidden="!$ticket" class="mt-2" />
+        @php($maintenanceCapability = $ticket ? app(\App\Services\MaintenanceService::class)->capabilities($ticket) : [])
+        <button type="button" data-create-maintenance data-create-url="{{ $maintenanceCapability['create_url'] ?? '' }}" data-context-url="{{ $maintenanceCapability['context_url'] ?? '' }}" title="{{ $maintenanceCapability['reason'] ?? 'Create Maintenance' }}" @if(empty($maintenanceCapability['create_url'])) hidden @endif class="shrink-0 rounded-lg border border-indigo-200 px-3 py-2 text-sm text-indigo-700">Create Maintenance</button>
     </header>
+    <div data-maintenance-cards data-initial="{{ json_encode($ticket ? app(\App\Services\MaintenanceService::class)->cards($ticket) : []) }}" hidden class="max-h-48 shrink-0 overflow-auto space-y-2 border-b bg-indigo-50 p-3" aria-label="Maintenance progress"></div>
     <p data-chat-context class="shrink-0 px-5 py-2 text-sm text-gray-600" @if(!$context) hidden @endif>{{ $context }}</p>
     <div data-chat-messages aria-live="polite" class="overflow-y-auto space-y-3 bg-gray-50 p-4 sm:p-6 {{ $embedded ? 'flex-1 min-h-0' : 'h-[55vh] min-h-64' }}">
         @php($previousDate = null)

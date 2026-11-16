@@ -29,3 +29,5 @@ window.createAgreementEditor = createAgreementEditor;
 window.updateBlocks = updateBlocks;
 import './customer-service';
 import './tenant-lease-navigation';
+
+import './maintenance';

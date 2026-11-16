@@ -20,7 +20,7 @@ class TicketMsg extends Model
     protected $casts = ['read_at' => 'datetime'];
 
     protected $fillable = [
-        'ticket_id',
+        'ticket_id', 'maintenance_id',
         'sender_type',
         'message',
     ];
@@ -33,6 +33,7 @@ class TicketMsg extends Model
 
     public function authorId(): ?string
     {
+        if ($this->sender_type === 'system') return null;
         // Legacy tenant messages have a unique recorded participant on their ticket.
         if ($this->creationAudits->isEmpty() && $this->sender_type === User::ROLE_TENANT && $this->ticket?->sender?->isTenant()) {
             return $this->ticket->sender_id;

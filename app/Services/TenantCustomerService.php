@@ -186,6 +186,7 @@ class TenantCustomerService
 
     private function incomingForSide(TicketMsg $message, Ticket $ticket, bool $tenantViewer): bool
     {
+        if ($message->sender_type === 'system') return $tenantViewer;
         $author = $message->authorId();
         if (!$author) return false;
         // A colleague reading a management message cannot stand in for the tenant.
@@ -240,6 +241,15 @@ class TenantCustomerService
             'items.*.file' => ['nullable', 'file'],
         ]);
         return $this->validateItems($data['items']);
+    }
+
+    public function validateEvidence(Request $request): array
+    {
+        $data = $request->validate([
+            'attachments' => ['nullable', 'array', 'max:'.config('customer_service.max_files')],
+            'attachments.*' => ['required', 'file'],
+        ]);
+        return $this->validateItems(array_map(fn ($file) => ['type' => 'file', 'file' => $file], $data['attachments'] ?? []));
     }
 
     public function validateCreate(Request $request): array

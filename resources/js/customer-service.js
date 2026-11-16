@@ -1,3 +1,4 @@
+import { renderMaintenanceCards } from './maintenance';
 import { createPdfThumbnails } from './ticket-pdf-thumbnails';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -320,6 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         const poll = async () => {
             if (pollRequest || !pageActive || document.visibilityState !== 'visible') return;
+            if (root.getClientRects && !root.getClientRects().length) { schedulePoll(); return; }
             const selection = selectionSequence, listing = listSequence;
             const version = chat.syncVersion();
             const controller = new AbortController();
@@ -568,6 +570,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const updateTicket = (ticket) => {
             canSend = permitted && !ticket.closed && ticket.can_send !== false;
             find('[data-chat-subject]').textContent = ticket.subject;
+            const maintenanceButton = find('[data-create-maintenance]');
+            if (maintenanceButton) {
+                maintenanceButton.hidden = !ticket.maintenance?.create_url;
+                maintenanceButton.dataset.createUrl = ticket.maintenance?.create_url || '';
+                maintenanceButton.dataset.contextUrl = ticket.maintenance?.context_url || '';
+                maintenanceButton.title = ticket.maintenance?.reason || 'Create Maintenance';
+            }
             find('[data-chat-context]').textContent = ticket.context || '';
             find('[data-chat-context]').hidden = !ticket.context;
             find('[data-chat-status]').textContent = String(ticket.status || '').toUpperCase();
@@ -578,6 +587,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         const renderConversation = (data, newVisit = false, incremental = false) => {
             updateTicket(data.ticket);
+            renderMaintenanceCards(root, data.maintenance_cards);
             if (data.cursor && !incremental) syncCursor = data.cursor;
             const existing = new Map(Array.from(history.querySelectorAll('[data-message-id]')).map(row => [row.dataset.messageId, row]));
             if (incremental) {
@@ -823,6 +833,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 syncCursor = data.cursor || syncCursor;
                 if (data.ticket) {
                     updateTicket(data.ticket);
+                    renderMaintenanceCards(root, data.maintenance_cards);
                     const knownIds = new Set(displayedMessages.map(message => message.id));
                     if (data.messages.some(message => !knownIds.has(message.id))) {
                         followBottom = history.scrollHeight - history.scrollTop - history.clientHeight < 80;
@@ -880,6 +891,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 ++readSequence;
                 empty = true;
                 root.dataset.empty = 'true';
+                renderMaintenanceCards(root, []);
+                const maintenanceButton = find('[data-create-maintenance]');
+                if (maintenanceButton) { maintenanceButton.hidden = true; maintenanceButton.dataset.createUrl = ''; }
                 suspended = false;
                 canSend = false;
                 readUrl = '';

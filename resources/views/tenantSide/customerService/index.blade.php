@@ -1,5 +1,17 @@
 <x-app-layout>
-    <div class="py-4 sm:py-6 bg-gray-50 font-sans" data-customer-service data-index-url="{{ route($routePrefix.'.index') }}" data-ticket-url-template="{{ route($routePrefix.'.show', ['ticket' => '__TICKET__']) }}" data-selected-ticket="{{ $selectedTicket?->id }}">
+    <div x-data="{ maintenanceTab: @js(!$canCreate && !$selectedTicket && \Illuminate\Support\Facades\Gate::allows('maintenance.view') ? 'orders' : 'chat') }">
+    @if(!$canCreate)
+    <x-maintenance.tabs />
+    <div class="mx-auto max-w-7xl px-4 pt-2 text-sm text-amber-800" role="status">
+        @unless(app(\App\Services\MaintenanceService::class)->ready())
+            <p>Maintenance database upgrade is required. Existing conversations remain available.</p>
+        @endunless
+        @cannot('maintenance.view')<p>Work orders require maintenance.view permission.</p>@endcannot
+        @cannot('maintenance.create')<p>Create Maintenance requires maintenance.create permission.</p>@endcannot
+    </div>
+    @can('maintenance.view')<section x-show="maintenanceTab === 'orders'" class="mx-auto max-w-7xl p-4"><iframe title="Maintenance work orders" src="{{ route('admin.maintenance.work-orders.index') }}" class="h-[80vh] w-full rounded-xl border" loading="lazy"></iframe></section>@endcan
+    @endif
+    <div class="py-4 sm:py-6 bg-gray-50 font-sans" x-show="maintenanceTab === 'chat'" data-customer-service data-index-url="{{ route($routePrefix.'.index') }}" data-ticket-url-template="{{ route($routePrefix.'.show', ['ticket' => '__TICKET__']) }}" data-selected-ticket="{{ $selectedTicket?->id }}">
         <div class="max-w-7xl mx-auto px-2 sm:px-6 lg:px-8">
             <h1 class="mb-4 text-2xl font-bold text-slate-900">{{ $canCreate ? 'Customer Service' : 'Maintenance' }}</h1>
             {{-- Reserve feedback space: refreshing the list must not change the page height. --}}
@@ -40,5 +52,7 @@
         @can('is-tenant')
         <x-customer-service.create-modal :leases="$complaintLeases" :action="route('tenants.customerService.store')" />
         @endcan
+    </div>
+    @if(!$canCreate)<x-maintenance.create-modal />@endif
     </div>
 </x-app-layout>

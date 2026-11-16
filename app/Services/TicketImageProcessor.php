@@ -7,7 +7,7 @@ use Illuminate\Validation\ValidationException;
 
 class TicketImageProcessor
 {
-    public function upload(UploadedFile $file, string $managerId)
+    public function upload(UploadedFile $file, string $managerId, string $category = 'tenant_ticket')
     {
         $fail = fn ($reason) => ValidationException::withMessages(['attachments' => $file->getClientOriginalName().': '.$reason]);
         $extension = strtolower($file->getClientOriginalExtension());
@@ -26,7 +26,7 @@ class TicketImageProcessor
             if (max($width, $height) > config('customer_service.image_max_dimension')) {
                 throw $fail('animated images must already be at most 1920px on the longest side.');
             }
-            return app(FileService::class)->upload($file, $managerId, 'tenant_ticket');
+            return app(FileService::class)->upload($file, $managerId, $category);
         }
         // Bound decoded buffers, rotation, resizing and encoder working memory before decoding.
         $memoryLimit = ini_get('memory_limit');
@@ -73,7 +73,7 @@ class TicketImageProcessor
             if (filesize($temporary) > $limit) throw $fail('processed image exceeds the 2 MB limit. Please choose a smaller image.');
             $mime = (new \finfo(FILEINFO_MIME_TYPE))->file($temporary);
             if (!in_array($mime, config("customer_service.types.$extension.mimes"), true)) throw $fail('processed image format is invalid.');
-            return app(FileService::class)->upload(new UploadedFile($temporary, 'image.'.$extension, $mime, null, true), $managerId, 'tenant_ticket');
+            return app(FileService::class)->upload(new UploadedFile($temporary, 'image.'.$extension, $mime, null, true), $managerId, $category);
         } finally {
             if ($image) imagedestroy($image);
             if ($resized) imagedestroy($resized);

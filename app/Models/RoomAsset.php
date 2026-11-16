@@ -48,6 +48,6 @@ class RoomAsset extends Model
      */
     public function maintenanceHistory(): HasMany
     {
-        return $this->hasMany(Maintenance::class, 'asset_id');
+        return $this->hasMany(Maintenance::class, 'asset_room_id');
     }
 }

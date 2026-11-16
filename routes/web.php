@@ -19,6 +19,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     //    return view('dashboard');
     //})->name('dashboard');
     require __DIR__.'/dashboardRoute.php';
+    Route::get('/maintenance-evidence/{attachment}', [\App\Http\Controllers\MaintenanceController::class, 'attachment'])->name('maintenance.evidence');
 
     Route::get('/email/verify/status', function (Request $request) {
         return response()->json([

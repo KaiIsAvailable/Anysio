@@ -152,12 +152,12 @@ class TenantTicketController extends Controller
         ]);
     }
 
-    private function saveSnapshot(?string $ticket, array $messages, array $list = []): string
+    private function saveSnapshot(?string $ticket, array $messages, array $list = [], array $cards = []): string
     {
         $token = (string) \Illuminate\Support\Str::uuid();
         // Immutable snapshots tolerate lost responses and commits out of ULID order.
         \Illuminate\Support\Facades\Cache::put('ticket-sync:'.$this->actor()->id.':'.$token,
-            compact('ticket', 'messages', 'list'), now()->addMinutes(2));
+            compact('ticket', 'messages', 'list', 'cards'), now()->addMinutes(2));
         return $token;
     }
 
@@ -197,7 +197,9 @@ class TenantTicketController extends Controller
         $conversation['receipts'] = $receipts;
         $conversation['list_html'] = $list === ($previous['list'] ?? []) ? null
             : view('tenantSide.customerService.table', compact('tickets', 'canCreate', 'routePrefix'))->render();
-        $conversation['cursor'] = $this->saveSnapshot($ticket?->id, $states, $list);
+        $cards = $conversation['maintenance_cards'] ?? [];
+        $conversation['maintenance_cards'] = $cards === ($previous['cards'] ?? null) ? null : $cards;
+        $conversation['cursor'] = $this->saveSnapshot($ticket?->id, $states, $list, $cards);
         // Bound cache growth even for database cache stores which retain expired
         // rows. A lost response falls back to a deduplicated resync, never a gap.
         if (!empty($data['cursor'])) \Illuminate\Support\Facades\Cache::forget('ticket-sync:'.$this->actor()->id.':'.$data['cursor']);
@@ -221,21 +223,24 @@ class TenantTicketController extends Controller
         $messages ??= $ticket->messages()->with('creationAudits')->orderBy('created_at')->orderBy('id')->get();
         $messages->each(fn ($message) => $message->setRelation('ticket', $ticket));
         $routePrefix = $this->routePrefix();
+        $cards = app(\App\Services\MaintenanceService::class)->cards($ticket);
         $incomingIds = array_fill_keys($service->incomingIds($messages, $ticket, $this->actor()), true);
         return [
-            'cursor' => $snapshot ? $this->saveSnapshot($ticket->id, $messages->pluck('status', 'id')->all()) : null,
+            'cursor' => $snapshot ? $this->saveSnapshot($ticket->id, $messages->pluck('status', 'id')->all(), [], $cards) : null,
             'ticket' => [
                 'id' => $ticket->id,
                 'subject' => $ticket->subject,
                 'status' => $ticket->status,
                 'closed' => $service->isClosed($ticket),
                 'can_send' => $service->canReply($ticket, $this->actor()),
+                'maintenance' => app(\App\Services\MaintenanceService::class)->capabilities($ticket),
                 'context' => $routePrefix === 'tenants.customerService' ? '' : $ticket->sourceLabel(),
                 'reply_url' => route($routePrefix.'.reply', $ticket),
                 'show_url' => route($routePrefix.'.show', $ticket),
                 'mark_read_url' => route($routePrefix.'.markRead', $ticket),
                 'index_url' => route($routePrefix.'.index', ['ticket' => $ticket->id]),
             ],
+            'maintenance_cards' => $cards,
             'messages' => $messages->map(function ($message) use ($ticket, $service, $routePrefix, $incomingIds) {
                 $attachment = $service->attachmentPath($message);
                 $local = $message->created_at?->copy()->setTimezone('Asia/Kuala_Lumpur');
@@ -249,7 +254,7 @@ class TenantTicketController extends Controller
                     'read_at' => $message->read_at?->toIso8601String(),
                     'read_by' => $message->read_by,
                     'sender_type' => $message->sender_type,
-                    'sender_label' => $message->authorId() ? $message->sender_type : 'Unverified sender',
+                    'sender_label' => $message->sender_type === 'system' ? 'System' : ($message->authorId() ? $message->sender_type : 'Unverified sender'),
                     'text' => $attachment ? null : $message->message,
                     'attachment_url' => $attachment ? route($routePrefix.'.attachment', [$ticket, $message]) : null,
                     'extension' => $attachment ? strtolower(pathinfo($attachment, PATHINFO_EXTENSION)) : null,

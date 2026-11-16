@@ -12,7 +12,7 @@
                 <h1 class="text-2xl font-bold text-slate-900 mt-2">Add Room</h1>
             </div>
 
-            <x-form.form method="POST" action="{{ route('admin.rooms.store') }}">
+            <x-form.form :focus-errors="true" method="POST" action="{{ route('admin.rooms.store') }}">
                 {{-- 💡 組件內部已經包含了 @csrf，但為了保險起見我們維持原樣 --}}
                 @csrf
 

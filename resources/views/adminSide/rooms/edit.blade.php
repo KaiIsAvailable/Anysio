@@ -14,7 +14,7 @@
             </div>
 
             {{-- Action 改为 update，且必须有 @method('PUT') --}}
-            <x-form.form method="POST" action="{{ route('admin.rooms.update', $room->id) }}">
+            <x-form.form :focus-errors="true" method="POST" action="{{ route('admin.rooms.update', $room->id) }}">
                 @csrf
                 @method('PUT')
 

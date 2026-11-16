@@ -44,6 +44,29 @@ class Property extends Model
         ];
     }
 
+    public function scopeForManagement(Builder $query, User $manager): Builder
+    {
+        if (\Illuminate\Support\Facades\Gate::allows('super-admin')) {
+            return $query;
+        }
+
+        return $query->where(function (Builder $q) use ($manager) {
+            if ($manager->role === 'ownerAdmin') {
+                $q->where('properties.created_by', $manager->id)->orWhere('properties.owner_id', $manager->id);
+            } elseif ($manager->role === 'agentAdmin') {
+                $q->where('properties.created_by', $manager->id)
+                    ->orWhereIn('properties.owner_id', Owners::where('agent_id', $manager->id)->select('user_id'));
+            } else {
+                $q->whereRaw('1 = 0');
+            }
+        });
+    }
+
+    public function utilityServices(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(UtilityService::class, 'location');
+    }
+
     public function units(): HasMany
     {
         return $this->hasMany(Unit::class, 'property_id');

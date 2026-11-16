@@ -189,7 +189,7 @@ class DashboardController extends Controller
         $overdueInvoices = $paginatedOverdueInvoices;
 
         // 6. Setup Checks & Seeders
-        $checks = $checker->check(['property', 'tenant', 'template', 'owner', 'asset'], 'exists');
+        $checks = $checker->check(['property', 'tenant', 'template', 'owner'], 'exists');
 
         $seederPath = database_path('seeders');
         $seeders = collect(File::exists($seederPath) ? File::files($seederPath) : [])

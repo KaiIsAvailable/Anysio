@@ -148,13 +148,13 @@
                         {{-- 左侧按钮：View Agreement --}}
                         @canany(['super-admin', 'leases.view agreement'])
                         @if (!empty($lease->document_id))
-                            <x-form.primary-button type="button"
+                            <x-form.primary-button loading="loading" type="button"
                                 data-base-content="{{ $lease->documentTemplate?->html_template }}"
                                 data-rental-breakdown="{{ !$lease->stamping_status && !$lease->stamping_cert_path ? 'true' : 'false' }}"
                                 data-rental-basis="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementRentalBasis($lease)) }}"
                                 data-title="{{ $lease->documentTemplate?->title }}"
                                 data-replacements="{{ json_encode(app(\App\Services\LeaseService::class)->getAgreementVariables($lease), JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP) }}"
-                                @click="viewAgreement($el)"
+                                @click="loading = true; try { await viewAgreement($el); } finally { loading = false; }"
                                 class="ml-auto !text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50">
                                 VIEW AGREEMENT
                             </x-form.primary-button>
@@ -163,11 +163,11 @@
 
                         @canany(['super-admin', 'leases.view agreement'])
                         @if (!empty($lease->refund_document_id))
-                            <x-form.primary-button type="button"
+                            <x-form.primary-button loading="loading" type="button"
                                 data-template-id="{{ $lease->refund_document_id }}"
                                 data-lease-id="{{ $lease->id }}"
                                 data-check-out-date="{{ $lease->checked_out_at?->format('Y-m-d') }}"
-                                @click="viewRefund($el)"
+                                @click="loading = true; try { await viewRefund($el); } finally { loading = false; }"
                                 class="ml-auto !text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50">
                                 VIEW REFUND STATEMENT
                             </x-form.primary-button>
@@ -347,7 +347,7 @@
 
                             <!-- Add Manual Invoice Button -->
                             @canany(['super-admin', 'leases.add manual invoice'])
-                            <x-form.primary-button type="button"
+                            <x-form.primary-button loading="loading" type="button"
                                 x-show="activeId"
                                 @click="$dispatch('open-manual-modal', { 
                                     action: getManualInvoiceUrl(),
@@ -372,7 +372,7 @@
                             <h4 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-3 flex items-center gap-2">
                                 <span class="w-1.5 h-4 bg-emerald-500 rounded-full"></span>
                                 Invoices
-                                <x-form.primary-button type="button"
+                                <x-form.primary-button loading="loading" type="button"
                                     @click="$dispatch('open-modal', 'invoice-statement')"
                                     class="ml-auto !text-indigo-700 !bg-indigo-50 hover:!bg-indigo-100 !border-indigo-200 focus:!bg-indigo-50 active:!bg-indigo-50">View Statement</x-form.primary-button>
                             </h4>

@@ -1,4 +1,9 @@
 <x-app-layout>
+    @if(session('property_bulk_saved_draft_key'))
+        <script>
+            try { sessionStorage.removeItem(@js(session('property_bulk_saved_draft_key'))); } catch (error) {}
+        </script>
+    @endif
     <div class="py-12 bg-gray-50 min-h-screen font-sans">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
 
@@ -7,7 +12,12 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Properties</h1>
                     <p class="mt-2 text-sm text-gray-500">Manage and organize your property directory.</p>
                 </div>
-                <div class="flex-shrink-0" x-data="{creatingProperty: false}">
+                <div class="flex-shrink-0 flex flex-wrap items-center gap-2" x-data="{creatingProperty: false}">
+                    @canany(['super-admin', 'property.create', 'property.edit', 'unit.create', 'unit.edit', 'room.create', 'room.edit'])
+                        <div x-data="{ bulkEditLoading: false }">
+                            <x-form.primary-button type="button" loading="bulkEditLoading" @click="bulkEditLoading = true; window.location.href = '{{ route('admin.properties.bulk-edit') }}'">Bulk Edit</x-form.primary-button>
+                        </div>
+                    @endcanany
                     @canany(['super-admin', 'property.create'])
                         <x-form.primary-button
                             type="button"
@@ -15,7 +25,7 @@
                             @click="creatingProperty = true; window.location.href = '{{ route('admin.properties.create') }}'"
                             >
 
-                            <svg x-show="!creatingProperty" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg x-show="!creatingProperty" class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
                             Add New Property

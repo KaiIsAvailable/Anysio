@@ -73,9 +73,76 @@ class AccountPermissionTest extends TestCase
         return User::findOrFail($this->ids[$name]);
     }
 
+    public function test_staff_role_can_grant_utilities_only_without_invoice_property_or_lease_access(): void
+    {
+        DB::table('role_has_permissions')->delete();
+        foreach (['utilities.tab', 'utilities.enter readings'] as $index => $ability) {
+            DB::table('permissions')->insert(['id' => $index + 2, 'name' => $ability, 'guard_name' => 'web']);
+            DB::table('role_has_permissions')->insert(['role_id' => 1, 'permission_id' => $index + 2]);
+        }
+        $gate = Gate::forUser($this->user('staff-a'));
+        $this->assertTrue($gate->allows('utilities.tab'));
+        $this->assertTrue($gate->allows('utilities.enter readings'));
+        $this->assertSame('admin.utilities.index', app(\App\Services\LandingPageService::class)->routeFor($this->user('staff-a')));
+        foreach (['invoice.tab', 'property.edit', 'leases.add manual invoice', 'utilities.generate invoices',
+            'utilities.manage meters', 'utilities.edit tariffs'] as $ability) $this->assertFalse($gate->allows($ability));
+        DB::table('roles')->where('id', 1)->update(['team_id' => $this->ids['def']]);
+        $this->assertFalse($gate->allows('utilities.tab'));
+    }
+
     private function grant(string $name, array $permissions): void
     {
         DB::table('users')->where('id', $this->ids[$name])->update(['account_permissions' => json_encode($permissions)]);
+    }
+
+    public function test_authorized_staff_can_create_staff_in_their_own_management_account(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->boolean('is_agree')->default(false);
+        });
+        Schema::table('staff', function (Blueprint $table) {
+            $table->string('role')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+        DB::table('permissions')->insert(['id' => 2, 'name' => 'staff.create', 'guard_name' => 'web']);
+        DB::table('role_has_permissions')->insert(['role_id' => 1, 'permission_id' => 2]);
+        // The manager's own grants must not replace the acting staff's permissions.
+        $this->grant('abc', []);
+        DB::table('user_management')->insert(['id' => 'other-workspace', 'user_id' => $this->ids['def']]);
+
+        $this->actingAs($this->user('staff-a'))->post(route('admin.staff.store'), [
+            'name' => 'New colleague',
+            'email' => 'new-colleague@example.com',
+            'password' => 'test-password',
+            'password_confirmation' => 'test-password',
+            'role' => 'Accountant',
+            'verify_email_now' => '1',
+            'user_mgnt_id' => 'other-workspace',
+        ])->assertRedirect(route('admin.staff.index'))
+            ->assertSessionHas('success', 'Staff created successfully!');
+
+        $created = User::where('email', 'new-colleague@example.com')->firstOrFail();
+        $this->assertDatabaseHas('staff', [
+            'user_id' => $created->id,
+            'user_mgnt_id' => 'workspace',
+            'role' => 'Accountant',
+        ]);
+        $this->assertDatabaseHas('model_has_roles', [
+            'model_id' => $created->id,
+            'role_id' => 1,
+            'team_id' => $this->ids['abc'],
+        ]);
+        $this->assertTrue(Gate::forUser($created)->allows('staff.create'));
+    }
+
+    public function test_staff_without_create_permission_cannot_use_their_managers_grant(): void
+    {
+        $this->grant('abc', ['staff.create']);
+        $this->actingAs($this->user('staff-a'))->post(route('admin.staff.store'), [
+            'email' => 'blocked-colleague@example.com',
+        ])->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertDatabaseMissing('users', ['email' => 'blocked-colleague@example.com']);
     }
 
     public function test_migration_preserves_existing_accounts_and_new_accounts_start_without_grants(): void
@@ -310,6 +377,7 @@ class AccountPermissionTest extends TestCase
         foreach ([
             ['abc', ['property.tab', 'tenant.tab'], 'admin.tenants.index'],
             ['ghi', ['invoice.tab'], 'admin.invoices.index'],
+            ['ghi', ['utilities.tab', 'utilities.enter readings'], 'admin.utilities.index'],
             ['def', ['dashboard.tab', 'tenant.tab'], 'dashboard'],
         ] as [$name, $grants, $route]) {
             \Illuminate\Support\Facades\Auth::logout();

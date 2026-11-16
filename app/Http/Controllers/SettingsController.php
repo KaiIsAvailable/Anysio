@@ -12,6 +12,19 @@ class SettingsController extends Controller
 {
     public function index(SettingService $settingService)
     {
+        $utilityRequest = request('tab') === 'utility';
+        $canUtilityTariffs = Gate::any(['super-admin', 'settings.utility tab', 'settings.edit utility meter prices'])
+            || (Gate::allows('utilities.tab') && Gate::allows('utilities.tariff tab'));
+        if ($utilityRequest && !$canUtilityTariffs) return view('errors.403');
+
+        // Utilities-only staff and platform account selection use the same settings view,
+        // without loading unrelated payment settings or staff-role data.
+        if ($utilityRequest && (Gate::allows('super-admin') || Gate::denies('profile menu.setting'))) {
+            $tariffManager = app(\App\Services\UtilityBillingAccess::class)->manager(request(), true);
+            return view('adminSide.setting.index', ['utilityOnly' => true, 'tariffManager' => $tariffManager,
+                'settings' => $settingService->getEffectiveSettings($tariffManager)]);
+        }
+
         if (Gate::allows('super-admin')) {
             return app(AccountPermissionController::class)->index(request());
         }
@@ -103,6 +116,15 @@ class SettingsController extends Controller
 
     public function update(Request $request, SettingService $settingService)
     {
+        if ($request->has('utility_tariff_config')) {
+            if (Gate::denies('super-admin') && Gate::denies('settings.edit utility meter prices')) {
+                return redirect()->back()->with('error', 'You have no permission.');
+            }
+            $request->validate(['utility_tariff_config' => ['required', 'array']]);
+            app(\App\Services\UtilityTariffService::class)->save(get_effective_user()->id, $request->input('utility_tariff_config'));
+            return redirect()->route('admin.settings.index', ['tab' => 'utility', 'tariff' => $request->input('utility_tariff_config.profile_id')])
+                ->with('success', 'Utility meter prices updated successfully.');
+        }
         if ($request->has('due_date_config')) {
             if (Gate::denies('super-admin') && Gate::denies('settings.edit recurring invoice')) {
                 return redirect()->back()->with('error', 'You have no permission.');

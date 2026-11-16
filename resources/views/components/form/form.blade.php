@@ -1,4 +1,4 @@
-@props(['action' => '', 'method' => 'POST', 'async' => false, 'preserveTextareaEnter' => false, 'guardComposition' => false, 'autofocus' => true])
+@props(['action' => '', 'method' => 'POST', 'async' => false, 'preserveTextareaEnter' => false, 'guardComposition' => false, 'autofocus' => true, 'focusErrors' => false])
 
 @php
     $realMethod = in_array(strtoupper($method), ['GET', 'POST']) ? $method : 'POST';
@@ -6,6 +6,9 @@
 @endphp
 
 <form 
+    @if($focusErrors)
+    @invalid.capture="window.formValidation.focusInvalidForm($event)"
+    @endif
     {{ $attributes->merge([
         'action' => $action,
         'method' => $realMethod
@@ -42,7 +45,6 @@
 
             // 2. 核心修复：如果是最后一个元素，直接手动触发提交
             if (index === inputs.length - 1) {
-                @if(!$async) this.loading = true; @endif
                 // 确保阻止默认的回车行为（防止某些浏览器乱跳），然后主动提交表单
                 e.preventDefault();
                 $el.requestSubmit();
@@ -90,6 +92,10 @@
                 el.required = false;
             }
         });
+
+        @if($focusErrors)
+        if (window.formValidation.focusFormErrors($el, @js(isset($errors) ? array_keys($errors->getMessages()) : []))) return;
+        @endif
 
         // 2. Focus the first actual visible input
         @if($autofocus)

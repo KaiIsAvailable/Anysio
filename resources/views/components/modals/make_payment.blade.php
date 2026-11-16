@@ -7,6 +7,7 @@
 
     @php
         $payment = $invoice->latestPayment;
+        $subscriptionBank = app(\App\Services\BankAccountService::class)->getDefaultForSystemAdmin();
         $actionUrl = route('admin.payments.store', [
             'invoice' => $invoice,
         ]);
@@ -40,6 +41,14 @@
                         <h3 class="text-xl font-black text-slate-800">Subscription Payment</h3>
                         <p class="text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">Invoice: <span
                                 class="text-indigo-600">{{ $invoice?->invoice_no }}</span></p>
+                        @if(!$payment || $payment->status !== 'pending')
+                            <p class="mt-3 flex items-center gap-1.5 text-xs text-slate-500">
+                                <svg class="w-4 h-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 5v14m-6-6l6 6 6-6" />
+                                </svg>
+                                Scroll down to pay and upload your receipt.
+                            </p>
+                        @endif
                     </div>
                 </div>
 
@@ -98,7 +107,7 @@
                         </div>
                     </div>
                 @else
-                    <x-form.form action="{{ $actionUrl }}" enctype="multipart/form-data" class="flex flex-col h-full overflow-hidden">
+                    <x-form.form action="{{ $actionUrl }}" :autofocus="false" enctype="multipart/form-data" class="flex flex-col h-full min-h-0 overflow-hidden">
                         <div class="flex-1 overflow-y-auto px-6 py-5 space-y-5">
 
                             {{-- Rejected Alert --}}
@@ -143,6 +152,7 @@
                                                     contentExpr="content"
                                                     variablesExpr="vars"
                                                     itemsExpr="items"
+                                                    extraExpr="{ previewTarget: 'agreement' }"
                                                     buttonTextExpr="'View Invoice'"
                                                 />
                                             </div>
@@ -209,18 +219,52 @@
                                     <div class="w-full px-6 text-center">
                                         <div class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">Or Transfer Via</div>
                                         <div class="bg-slate-50 border border-slate-100 rounded-xl p-3 text-left space-y-1">
+                                            @if($subscriptionBank)
                                             <div class="flex justify-between text-xs">
                                                 <span class="text-slate-500">Bank:</span>
-                                                <span class="font-medium text-slate-800">Maybank</span>
+                                                <span class="font-medium text-slate-800">{{ $subscriptionBank->bank_name }}</span>
                                             </div>
                                             <div class="flex justify-between text-xs">
                                                 <span class="text-slate-500">Account No:</span>
-                                                <span class="font-semibold text-slate-800 tracking-wide">5580 4283 0633</span>
+                                                <div class="flex flex-col items-end gap-1" x-data="{ copied: false, copying: false, copyFailed: false }">
+                                                    <div class="flex items-center gap-2">
+                                                        <span x-ref="accountNumber" class="font-semibold text-slate-800 tracking-wide select-all">{{ $subscriptionBank->account_number }}</span>
+                                                        <button type="button"
+                                                            :disabled="copying"
+                                                            :aria-label="copied ? 'Account number copied' : 'Copy account number'"
+                                                            :title="copied ? 'Copied' : 'Copy account number'"
+                                                            class="inline-flex items-center justify-center rounded p-1 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50"
+                                                            @click="
+                                                                if (copying) return;
+                                                                copying = true; copied = false; copyFailed = false;
+                                                                try {
+                                                                    await navigator.clipboard.writeText($refs.accountNumber.textContent.trim());
+                                                                    copied = true;
+                                                                    setTimeout(() => copied = false, 2000);
+                                                                } catch (error) {
+                                                                    copyFailed = true;
+                                                                } finally {
+                                                                    copying = false;
+                                                                }
+                                                            ">
+                                                            <svg x-show="!copied" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 9h10v12H9V9zm6 0V3H3v12h6" />
+                                                            </svg>
+                                                            <svg x-show="copied" x-cloak class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                                                            </svg>
+                                                        </button>
+                                                    </div>
+                                                    <span x-show="copyFailed" x-cloak role="status" class="text-xs text-slate-500">Select the account number to copy it manually.</span>
+                                                </div>
                                             </div>
                                             <div class="flex justify-between text-xs">
                                                 <span class="text-slate-500">Recipient:</span>
-                                                <span class="font-medium text-slate-800">Anysio Technologies</span>
+                                                <span class="font-medium text-slate-800">{{ $subscriptionBank->account_holder_name }}</span>
                                             </div>
+                                            @else
+                                                <p class="text-xs text-slate-500">Bank transfer details are unavailable. Please contact support.</p>
+                                            @endif
                                         </div>
                                     </div>
 

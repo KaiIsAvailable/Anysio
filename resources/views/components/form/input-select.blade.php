@@ -1,5 +1,6 @@
 @props([
     'disabled' => false,
+    'disabledWhen' => null,
     'options' => [],
     'placeholder' => null,
     'name' => null,
@@ -35,7 +36,8 @@
         }
     }
 
-    $rawVal = request($name, old($name, $value));
+    $inputKey = $name ? rtrim(str_replace(['[', ']'], ['.', ''], $name), '.') : null;
+    $rawVal = $inputKey ? request($inputKey, old($inputKey, $value)) : $value;
 
     // Always normalize $selectedValues as an array for internal Alpine compatibility
     if (is_array($rawVal)) {
@@ -75,6 +77,9 @@
 
     get isDisabled() {
         if (@js($disabled)) return true;
+        @if($disabledWhen !== null)
+        return !!Alpine.evaluate(this.$el, @js($disabledWhen));
+        @endif
         if (typeof editing !== 'undefined' && !editing) return true;
         if (typeof editingPendingRenewal !== 'undefined' && !editingPendingRenewal) return true;
         
@@ -121,6 +126,7 @@
 
         // 1. Run immediately when the component mounts to catch pre-filled values
         syncSelection(this.selectedValues);
+        this.$watch('options', () => syncSelection(this.selectedValues));
 
         // 2. Watch for any subsequent changes coming from the parent modal or x-model
         this.$watch('selectedValues', (newValues) => {
@@ -175,7 +181,7 @@
         }
     },
     removeOption(val) {
-        if (this.disabled) return;
+        if (this.isDisabled) return;
         let index = this.selectedValues.indexOf(String(val));
         if (index > -1) {
             this.selectedValues.splice(index, 1);
@@ -190,7 +196,7 @@
         this.$dispatch('change', { value: this.isMultiple ? this.selectedValues : (this.selectedValues[0] || null) });
     },
     toggleDropdown() {
-        if (this.disabled) return;
+        if (this.isDisabled) return;
         this.open = !this.open;
         if (this.open) {
             this.search = '';
@@ -232,10 +238,11 @@ x-modelable="selectedValues"
 @click.away="open = false" 
 class="relative w-full" 
 {{ $attributes->whereStartsWith('x-model') }}
-{!! $attributes->whereStartsWith('x-effect') !!}
+{!! $attributes->whereStartsWith('x-effect')->filter(fn ($value) => filled($value)) !!}
 {!! $attributes->only(['@change', 'x-on:change']) !!}
 >
 
+    @if($name)
     <!-- Hidden native input(s) for form submission -->
     <template x-if="isMultiple">
         <template x-for="val in selectedValues" :key="val">
@@ -252,6 +259,7 @@ class="relative w-full"
         <input type="hidden" name="{{ $name }}" :value="Array.isArray(selectedValues) ? (selectedValues[0] || '') : (selectedValues || '')" x-ref="hiddenInput" {{ $attributes->only('id') }}>
     </template>
 
+    @endif
     <!-- Input Container -->
     <div :class="[
             isMultiple ? 'min-h-[38px] py-1 px-2' : 'h-[38px] py-0 px-0',

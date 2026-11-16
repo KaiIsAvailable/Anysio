@@ -26,6 +26,29 @@ function setup(fetch) {
 }
 const event = { target: { action: '/payment' } };
 
+test('an empty payment date blocks submission and keeps the payment modal open', async () => {
+    let calls = 0;
+    const { modal, events } = setup(() => { calls++; });
+    modal.form.payment_date = '';
+    await modal.submitPayment(event);
+    assert.equal(calls, 0);
+    assert.equal(modal.openPayment, true);
+    assert.equal(modal.submittingPayment, false);
+    assert.equal(events.find(e => e.type === 'session-status').detail.message, 'Please select a payment date.');
+});
+
+test('clearing the visible date blocks submission even if the hidden date still has a value', async () => {
+    let calls = 0, focused = false;
+    const { modal } = setup(() => { calls++; });
+    modal.form.payment_date = '2026-11-15';
+    const altInput = { value: '', focus() { focused = true; } };
+    await modal.submitPayment({ target: { querySelector: () => ({ _flatpickr: { altInput } }) } });
+    assert.equal(calls, 0);
+    assert.equal(focused, true);
+    assert.equal(modal.openPayment, true);
+    assert.equal(modal.submittingPayment, false);
+});
+
 test('pending payment prevents a second financial submission', async () => {
     let resolve;
     let calls = 0;

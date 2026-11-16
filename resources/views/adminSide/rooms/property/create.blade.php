@@ -13,7 +13,7 @@
                 <h1 class="text-2xl font-bold text-slate-900 mt-2">Add Property</h1>
             </div>
 
-            <x-form.form action="{{ route('admin.properties.store') }}">
+            <x-form.form :focus-errors="true" action="{{ route('admin.properties.store') }}">
 
                 {{-- Card Wrapper --}}
                 <div class="bg-white shadow-lg rounded-xl p-6 space-y-6">

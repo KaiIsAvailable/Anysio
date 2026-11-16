@@ -10,6 +10,7 @@ class FileService
     protected const PATH_MAP = [
         'tenant_ic'      => 'tenants/ic_photo',
         'tenant_ssm'     => 'tenants/ssm_certs',
+        'owner_ssm'      => 'owners/ssm_certs',
         'tenant_ticket'  => 'tenants/tickets',
         'lease_stamping' => 'leases/stamping_certs',
         'user_receipt'   => 'users/receipts',

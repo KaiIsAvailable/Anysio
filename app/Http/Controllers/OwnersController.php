@@ -2,15 +2,19 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\{Owners, User, Lease, Room, Unit, Property, Tenants, Payment, UserManagement};
+use App\Models\{Owners, User, Lease, Room, Unit, Property, Tenants, Payment};
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Gate;
+use App\Services\{BankAccountService, CompanyService, OwnerIdentityValidator};
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Storage;
 use App\WorldCountries;
-use App\Http\Requests\Owner\{StoreOwnerRequest, UpdateOwnerRequest};
+use App\Http\Requests\Owner\{OwnerDetailsRequest, StoreOwnerRequest, UpdateOwnerRequest};
 
 class OwnersController extends Controller
 {
@@ -21,8 +25,7 @@ class OwnersController extends Controller
         }
 
         $userId = get_effective_user();
-        $users = UserManagement::with('user')->get()->pluck('user');
-        $query = Owners::with('user');
+        $query = Owners::with('user.companies');
 
         if (!Gate::allows('super-admin')) {
             if ($userId) {
@@ -41,7 +44,7 @@ class OwnersController extends Controller
                     $uq->where('users.name', 'like', '%' . $search . '%')
                         ->orWhere('users.email', 'like', '%' . $search . '%');
                 })
-                    ->orWhere('owners.company_name', 'like', '%' . $search . '%')
+                    ->orWhereHas('user.companies', fn ($company) => $company->where('name', 'like', '%'.$search.'%'))
                     ->orWhere('owners.phone', 'like', '%' . $search . '%')
                     ->orWhere('owners.ic_number', 'like', '%' . $search . '%')
                     ->orWhere('owners.gender', 'like', '%' . $search . '%');
@@ -58,7 +61,10 @@ class OwnersController extends Controller
                     ->orderBy('users.name', $direction);
             } elseif (str_starts_with($sort, 'c_')) {
                 $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
-                $query->orderBy('owners.company_name', $direction);
+                $query->orderBy(\App\Models\Company::select('name')
+                    ->join('company_user', 'companies.id', '=', 'company_user.company_id')
+                    ->whereColumn('company_user.user_id', 'owners.user_id')
+                    ->orderBy('companies.id')->limit(1), $direction);
             } elseif (str_starts_with($sort, 'jd_')) {
                 $direction = str_ends_with($sort, '_asc') ? 'asc' : 'desc';
                 $query->orderBy('owners.created_at', $direction);
@@ -70,7 +76,7 @@ class OwnersController extends Controller
         }
 
         $owners = $query->paginate(10)->withQueryString()->onEachSide(1);
-        return view('adminSide.owners.index', compact('owners', 'users'));
+        return view('adminSide.owners.index', compact('owners'));
     }
 
     public function create()
@@ -87,108 +93,138 @@ class OwnersController extends Controller
     public function store(StoreOwnerRequest $request)
     {
         if (Gate::denies('super-admin') && Gate::denies('owner.create')) {
-            return redirect()->back()->with('error', 'You have no permission.');
+            return back()->with('error', 'You have no permission.');
         }
 
-        $validatedData = $request->validated();
-
-        $request->merge([
-            'random_email' => $request->has('random_email') ? true : false,
-        ]);
-
-        if ($validatedData['random_email']) {
-            $validatedData['email'] = Str::random(10) . '@example.com';
-            $validatedData['password'] = Hash::make(Str::random(10));
-        }
+        $data = $request->validated();
+        $uploads = [];
 
         try {
-            // Start a transaction to ensure both records are created safely
-            DB::beginTransaction();
+            DB::transaction(function () use ($request, $data, &$uploads) {
+                $managerId = get_effective_user()?->id ?? Auth::id();
+                $identity = app(OwnerIdentityValidator::class);
+                $identity->lockAccounts([$managerId]);
+                Validator::make($data, $identity->rules(null, $managerId))->validate();
+                $user = User::create([
+                    'name' => $data['name'],
+                    'email' => $data['random_email'] ? Str::random(10).'@example.com' : $data['email'],
+                    'password' => Hash::make(Str::random(20)),
+                    'role' => 'owner',
+                ]);
 
-            // Create the User record with random Email and Password
-            $user = User::create([
-                'name'     => $validatedData['name'],
-                'email'    => $validatedData['email'],
-                'password' => $validatedData['password'] ?? Hash::make('defaultPassword123'),
-                'role'     => 'owner',
-            ]);
+                Owners::create(array_merge($request->safe()->only([
+                    'ic_number', 'phone', 'gender', 'address', 'postcode', 'city', 'state',
+                ]), [
+                    'user_id' => $user->id,
+                    'agent_id' => $managerId,
+                ]));
 
-            // Create the Owner record using the new $user->id
-            $ownerData = [
-                'user_id'      => $user->id,
-                'company_name' => $validatedData['company_name'],
-                'ic_number'    => $validatedData['ic_number'],
-                'phone'        => $validatedData['phone'],
-                'gender'       => $validatedData['gender'],
-                'address'      => $validatedData['address'] ?? null,
-                'postcode'     => $validatedData['postcode'] ?? null,
-                'city'         => $validatedData['city'] ?? null,
-                'state'        => $validatedData['state'] ?? null,
-            ];
-
-            $effectiveUser = get_effective_user();
-            $ownerData['agent_id'] = $effectiveUser ? $effectiveUser->id : Auth::id();
-
-            Owners::create($ownerData);
-
-            DB::commit();
-
-            return redirect()->route('admin.owners.index')->with('success', 'Owner and User account created successfully.');
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->withErrors(['error' => 'Failed to create owner: ' . $e->getMessage()]);
+                $this->saveOptionalDetails($request, $user, $uploads);
+            });
+        } catch (\Throwable $exception) {
+            $this->removeUploadedFiles($uploads);
+            if ($exception instanceof ValidationException) {
+                throw $exception;
+            }
+            report($exception);
+            return back()->withInput($request->except(['account_number', 'company_logo', 'ssm_cert_path']))
+                ->with('error', 'Unable to create owner. Please try again.');
         }
+
+        return redirect()->route('admin.owners.index')->with('success', 'Owner created successfully.');
     }
 
     public function edit(Owners $owner)
     {
-        if (Gate::denies('super-admin') && Gate::denies('owner.edit')) {
+        if ((Gate::denies('super-admin') && Gate::denies('owner.edit')) || !$this->canAccessOwner($owner)) {
             return view('errors.403');
         }
 
+        $owner->load('user.companies');
+        $company = $owner->user?->companies->first();
+        $bankDetail = $owner->user
+            ? app(BankAccountService::class)->getDefaultForUser($owner->user) : null;
         $worldCountries = WorldCountries::worldCountries();
-        return view('adminSide.owners.edit', compact('owner', 'worldCountries'));
+
+        return view('adminSide.owners.edit', compact('owner', 'worldCountries', 'company', 'bankDetail'));
     }
 
     public function update(UpdateOwnerRequest $request, Owners $owner)
     {
-
-        if (Gate::denies('super-admin') && Gate::denies('owner.edit')) {
-            return redirect()->back()->with('error', 'You have no permission.');
+        if ((Gate::denies('super-admin') && Gate::denies('owner.edit')) || !$this->canAccessOwner($owner)) {
+            return back()->with('error', 'You have no permission.');
         }
 
-        // 1. Update the associated User's name and email
-        if ($owner->user) {
-            $userData = [
-                'name'  => $request->input('name'),
-                'email' => $request->input('email'),
-            ];
-
-            $userData['email_verified_at'] = $owner->user->email === $request->input('email')
-                ? $owner->user->email_verified_at
-                : null;
-
-            $owner->user->update($userData);
+        if (!$owner->user) {
+            return back()->with('error', 'The owner account is unavailable.');
         }
 
-        // 2. Update the Owner's specific details (including the new address fields)
-        $owner->update($request->only([
-            'company_name',
-            'ic_number',
-            'phone',
-            'gender',
-            'address',
-            'postcode',
-            'city',
-            'state'
-        ]));
+        $uploads = [];
+        try {
+            DB::transaction(function () use ($request, $owner, &$uploads) {
+                $identity = app(OwnerIdentityValidator::class);
+                $identity->lockAccounts([$owner->agent_id]);
+                Validator::make($request->validated(), $identity->rules($owner, $owner->agent_id))->validate();
+                $user = User::whereKey($owner->user_id)->lockForUpdate()->firstOrFail();
+                $user->update(array_merge($request->safe()->only(['name', 'email']), [
+                    'email_verified_at' => $user->email === $request->validated('email') ? $user->email_verified_at : null,
+                ]));
+                $owner->update($request->safe()->only([
+                    'ic_number', 'phone', 'gender', 'address', 'postcode', 'city', 'state',
+                ]));
+                $this->saveOptionalDetails($request, $user, $uploads);
+            });
+        } catch (\Throwable $exception) {
+            $this->removeUploadedFiles($uploads);
+            if ($exception instanceof ValidationException) {
+                throw $exception;
+            }
+            report($exception);
+            return back()->withInput($request->except(['account_number', 'company_logo', 'ssm_cert_path']))
+                ->with('error', 'Unable to update owner. Please try again.');
+        }
 
         return redirect()->route('admin.owners.index')->with('success', 'Owner updated successfully.');
     }
 
+    private function canAccessOwner(Owners $owner): bool
+    {
+        return Gate::allows('super-admin')
+            || ($owner->agent_id !== null && $owner->agent_id === get_effective_user()?->id);
+    }
+
+    private function saveOptionalDetails(OwnerDetailsRequest $request, User $user, array &$uploads): void
+    {
+        if ($request->filled('company_name')) {
+            app(CompanyService::class)->saveProfileForUser(
+                $user,
+                $request->safe()->only(['company_name', 'ssm_old_number', 'ssm_new_number', 'company_address', 'company_phone', 'company_email']),
+                $request->file('ssm_cert_path'),
+                $request->file('company_logo'),
+                function (string $disk, string $path) use (&$uploads): void {
+                    $uploads[] = [$disk, $path];
+                },
+                'owner_ssm',
+            );
+        }
+
+        if ($request->filled('bank_name')) {
+            app(BankAccountService::class)->saveForUser($user, $request->safe()->only([
+                'bank_name', 'bank_code', 'account_holder_name', 'account_number',
+            ]));
+        }
+    }
+
+    private function removeUploadedFiles(array $uploads): void
+    {
+        foreach ($uploads as [$disk, $path]) {
+            Storage::disk($disk)->delete($path);
+        }
+    }
+
     public function destroy(Owners $owner)
     {
-        if (Gate::denies('super-admin') && Gate::denies('owner.delete')) {
+        if ((Gate::denies('super-admin') && Gate::denies('owner.delete')) || !$this->canAccessOwner($owner)) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -210,6 +246,9 @@ class OwnersController extends Controller
 
         // Find the owner including inactive ones (just in case your global scopes filter them out)
         $owner = Owners::with('user')->findOrFail($id);
+        if (!$this->canAccessOwner($owner)) {
+            return back()->with('error', 'You have no permission.');
+        }
 
         if ($owner->user) {
             $owner->user->update([
@@ -222,12 +261,14 @@ class OwnersController extends Controller
 
     public function show(Owners $owner)
     {
-        if (Gate::denies('super-admin') && Gate::denies('owner.show')) {
+        if ((Gate::denies('super-admin') && Gate::denies('owner.show')) || !$this->canAccessOwner($owner)) {
             return view('errors.403');
         }
 
         // Owner profile
-        $owner->load('user');
+        $owner->load('user.companies');
+        $company = $owner->user?->companies->first();
+        $bankDetail = $owner->user ? app(BankAccountService::class)->getDefaultForUser($owner->user) : null;
 
         // Property / Unit 的 owner_id 都储存 users.id
         $ownerUserId = $owner->user_id;
@@ -254,10 +295,24 @@ class OwnersController extends Controller
 
         return view('adminSide.owners.details', compact(
             'owner',
+            'company',
+            'bankDetail',
             'properties',
             'units',
             'rooms'
         ));
+    }
+
+    public function companyCertificate(Owners $owner)
+    {
+        if ((Gate::denies('super-admin') && Gate::denies('owner.show') && Gate::denies('owner.edit')) || !$this->canAccessOwner($owner)) {
+            return view('errors.403');
+        }
+
+        $path = $owner->user?->companies()->first()?->ssm_cert_path;
+        abort_unless($path && Storage::disk('local')->exists($path), 404);
+
+        return app(\App\Services\FileService::class)->getStreamResponse($path);
     }
 
     public function dashboard()

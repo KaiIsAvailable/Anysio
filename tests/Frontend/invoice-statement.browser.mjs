@@ -63,7 +63,7 @@ try {
             }
             assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
             const rows = dialog.locator('[data-statement-event]');
-            assert.equal(await rows.first().locator('td').count(), entry === 'invoice-entry' ? 7 : 6);
+            assert.equal(await rows.first().locator('td').count(), entry === 'invoice-entry' ? 6 : 5);
             assert.equal(await rows.first().locator('td').first().locator('button svg').count(), 1);
             assert.equal(await rows.first().locator('td').last().locator('button').count(), 0);
             assert.equal(await dialog.getByRole('button', { name: /^Details/ }).count(), 0);

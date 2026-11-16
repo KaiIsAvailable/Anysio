@@ -59,11 +59,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-y-10 gap-x-12">
 
                         <div class="space-y-4">
-                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Professional Info</h3>
-                            <div class="pl-4">
-                                <label class="text-xs font-medium text-gray-400">Company Name</label>
-                                <p class="text-sm font-bold text-slate-900 mt-0.5 tracking-tight">{{ $owner->company_name ?? 'Individual Owner' }}</p>
-                            </div>
+                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Identity</h3>
                             <div class="pl-4">
                                 <label class="text-xs font-medium text-gray-400">IC / Passport Number</label>
                                 <p class="text-sm font-semibold text-slate-700 mt-0.5">{{ $owner->ic_number ?? '—' }}</p>
@@ -93,6 +89,54 @@
                         </div>
 
                     </div>
+                        @if($company)
+                            <section class="mt-8 space-y-4 border-t border-gray-100 pt-6">
+                                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Company Details</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 rounded-xl border border-gray-200 bg-slate-50 p-5">
+                                        @if(filled($company->logo_path))
+                                            <div class="md:col-span-2 lg:col-span-3">
+                                                <img src="{{ asset('storage/' . $company->logo_path) }}" alt="{{ $company->name }} logo" class="h-20 w-20 object-contain" />
+                                            </div>
+                                        @endif
+                                        @foreach(['name' => 'Company Name', 'ssm_old_number' => 'SSM Old Number', 'ssm_new_number' => 'SSM New Number', 'phone' => 'Company Phone', 'email' => 'Company Email', 'address' => 'Company Address'] as $field => $label)
+                                            @if(filled($company->{$field}))
+                                                <div class="min-w-0">
+                                                    <p class="text-xs font-medium text-gray-400">{{ $label }}</p>
+                                                    <p class="mt-1 text-sm font-semibold text-slate-900 break-words">{{ $company->{$field} }}</p>
+                                                </div>
+                                            @endif
+                                        @endforeach
+                                        @if(filled($company->ssm_cert_path))
+                                            <div class="md:col-span-2 lg:col-span-3">
+                                                <a href="{{ route('admin.owners.company-certificate', $owner) }}" target="_blank" rel="noopener" class="inline-flex rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50">Preview SSM Certificate</a>
+                                            </div>
+                                        @endif
+                                    </div>
+                            </section>
+                        @endif
+
+                        @if($bankDetail)
+                            <section class="mt-8 space-y-4 border-t border-gray-100 pt-6">
+                                <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-widest border-l-4 border-indigo-500 pl-3">Bank Details</h3>
+                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 rounded-xl border border-gray-200 bg-slate-50 p-5">
+                                    @foreach(['bank_name' => 'Bank Name', 'bank_code' => 'Bank Code', 'account_holder_name' => 'Account Holder'] as $field => $label)
+                                        @if(filled($bankDetail->{$field}))
+                                            <div>
+                                                <p class="text-xs font-medium text-gray-400">{{ $label }}</p>
+                                                <p class="mt-1 text-sm font-semibold text-slate-900 break-words">{{ $bankDetail->{$field} }}</p>
+                                            </div>
+                                        @endif
+                                    @endforeach
+                                    @if(filled($bankDetail->account_number))
+                                        <div>
+                                            <p class="text-xs font-medium text-gray-400">Account Number</p>
+                                            <p class="mt-1 text-sm font-semibold text-slate-900">******{{ substr($bankDetail->account_number, -4) }}</p>
+                                        </div>
+                                    @endif
+                                </div>
+                            </section>
+                        @endif
+
                     {{-- Property / Unit / Room --}}
                     <div class="mt-12 pt-8 border-t border-gray-100">
 

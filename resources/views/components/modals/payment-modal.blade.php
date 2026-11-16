@@ -1,5 +1,6 @@
 {{-- components/payment-modal.blade.php --}}
 @php
+    $defaultPaymentDate = now()->toDateString();
     $processingFeeSettings = app(\App\Services\SettingService::class)->getEffectiveSettings();
     $processingFeeConfig = [
         'enabled' => filter_var(data_get($processingFeeSettings, 'processing_fee_config.is_active', false), FILTER_VALIDATE_BOOLEAN),
@@ -27,7 +28,11 @@
                 selectedItems = paymentData.invoiceItems.map((_, i) => i);
                 payFull = true;
             }
-            form.payment_date = '{{ date('Y-m-d') }}';
+            form.payment_date = '{{ $defaultPaymentDate }}';
+            $nextTick(() => {
+                const dateInput = $el.querySelector('[name=payment_date]');
+                dateInput?._flatpickr?.setDate(form.payment_date, false);
+            });
             form.due_date = paymentData.dueDate || '';
             form.amount_balance = parseFloat(String(paymentData.totalAmount || '0').replace(/,/g, '')) || 0;
             updatePenalty();
@@ -54,7 +59,7 @@
             processingFeeCancelled: false,
 
             form: {
-                payment_date: '',
+                payment_date: '{{ $defaultPaymentDate }}',
                 due_date: '',
                 amount_balance: 0
             },
@@ -174,6 +179,15 @@
 
             async submitPayment(event) {
                 if (this.submittingPayment || this.penaltyLoading || this.penaltyError) return;
+                const dateInput = event.target.querySelector?.('[name=payment_date]');
+                const visibleDateInput = dateInput?._flatpickr?.mobileInput || dateInput?._flatpickr?.altInput || dateInput;
+                if (!this.form.payment_date || (visibleDateInput && !visibleDateInput.value.trim())) {
+                    window.dispatchEvent(new CustomEvent('session-status', {
+                        detail: { type: 'error', message: 'Please select a payment date.' }
+                    }));
+                    visibleDateInput?.focus();
+                    return;
+                }
                 this.submittingPayment = true;
                 this.paymentError = '';
                 this.$dispatch('form-loading', true);
@@ -441,9 +455,10 @@
                             {{-- Date & Method --}}
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div>
-                                    <x-form.input-label value="Payment Date" class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
-                                    <x-form.date-input id="payment-date" name="payment_date" label="Payment Date" value="{{ date('Y-m-d') }}" 
+                                    <x-form.input-label value="Payment Date" required class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1" />
+                                    <x-form.date-input id="payment-date" name="payment_date" label="Payment Date" :value="$defaultPaymentDate"
                                         x-model="form.payment_date"
+                                        required
                                         max-date="today"
                                         @change="updatePenalty()" />
                                     <x-form.input-error :messages="$errors->get('payment_date')" class="mt-1" />

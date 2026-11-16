@@ -7,6 +7,13 @@ use Illuminate\Support\Facades\DB;
 
 class BankAccountService
 {
+    public function getDefaultForSystemAdmin(): ?BankDetail
+    {
+        $admin = User::where('role', 'admin')->oldest()->orderBy('id')->first();
+
+        return $admin ? $this->getDefaultForUser($admin) : null;
+    }
+
     public function getUserBankDetails(?User $user): array
     {
         if (!$user) {

@@ -1,0 +1,39 @@
+{
+    "database": "SQLite in-memory",
+    "bcrypt_rounds": 12,
+    "uploads": false,
+    "single_300_rejected_seconds": 0.211,
+    "batches": [
+        {
+            "rows": 50,
+            "seconds": 14.504,
+            "queries": 303
+        },
+        {
+            "rows": 50,
+            "seconds": 14.643,
+            "queries": 303
+        },
+        {
+            "rows": 50,
+            "seconds": 14.723,
+            "queries": 303
+        },
+        {
+            "rows": 50,
+            "seconds": 14.783,
+            "queries": 303
+        },
+        {
+            "rows": 50,
+            "seconds": 14.681,
+            "queries": 303
+        },
+        {
+            "rows": 50,
+            "seconds": 14.717,
+            "queries": 303
+        }
+    ],
+    "total_seconds": 88.051
+}

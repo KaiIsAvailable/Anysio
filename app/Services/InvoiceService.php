@@ -72,6 +72,11 @@ class InvoiceService
                 'kind' => $event->event_kind,
                 'label' => $label,
                 'lease_id' => $invoice?->lease_id,
+                'lease_label' => $asset?->room_no ?? $asset?->unit_no ?? $asset?->name,
+                'billing_period' => $invoice?->period?->format('M Y'),
+                'due_date' => $invoice?->due_date?->format('d/m/Y'),
+                'invoice_paid' => $invoice?->amount_paid,
+                'invoice_balance' => $invoice?->amount_balance,
                 'status' => $event->event_kind === 'invoice' ? ucfirst($event->source_type ?? 'Not recorded') : 'Recorded',
                 'linked_wallet' => $children->all(),
                 'stored_paid' => $payment?->amount_paid,
@@ -99,6 +104,7 @@ class InvoiceService
                 // Fee lines are invoice context, not a guessed allocation of partial payments.
                 'fees' => $invoice?->items->map(fn ($item) => [
                     'name' => $item->feeType?->name ?? 'Not recorded',
+                    'amount' => $item->amount,
                     'description' => filled($item->description) ? $item->description : null,
                 ])->all() ?? [],
             ];
@@ -205,20 +211,38 @@ class InvoiceService
         $request = request();
         if ($request->hasSession()) {
             DB::afterCommit(function () use ($request, $summary) {
-                $combined = $request->attributes->get('generated_wallet_summary');
-                if ($combined) {
-                    $combined['wallet_used_cents'] += $summary['wallet_used_cents'];
-                    $combined['wallet_remaining_cents'] = $summary['wallet_remaining_cents'];
-                    foreach (['payments', 'skipped', 'notes'] as $key) {
-                        $combined[$key] = array_merge($combined[$key], $summary[$key]);
-                    }
-                    $combined['source_invoice_no'] .= ', '.$summary['source_invoice_no'];
-                } else $combined = $summary;
+                $combined = $this->mergeWalletPaymentSummary($request->attributes->get('generated_wallet_summary'), $summary);
                 $request->attributes->set('generated_wallet_summary', $combined);
                 $request->session()->flash('wallet_auto_payment_summary', $combined);
             });
         }
         return $summary;
+    }
+
+    public function mergeWalletPaymentSummary(?array $combined, array $summary): array
+    {
+        $wallets = $combined['wallet_balances'] ?? [];
+        if (isset($summary['wallet_id'])) {
+            $id = $summary['wallet_id'];
+            $wallets[$id] = ['remaining_cents' => $summary['wallet_remaining_cents'],
+                'available_cents' => $wallets[$id]['available_cents'] ?? ($summary['wallet_available_cents'] ?? 0),
+                'reserved_cents' => $wallets[$id]['reserved_cents'] ?? ($summary['wallet_reserved_cents'] ?? 0)];
+        }
+        if (!$combined) $combined = $summary;
+        else {
+            $combined['wallet_used_cents'] += $summary['wallet_used_cents'];
+            $combined['wallet_remaining_cents'] = $summary['wallet_remaining_cents'];
+            foreach (['payments', 'skipped', 'notes'] as $key) $combined[$key] = array_merge($combined[$key], $summary[$key]);
+            $combined['source_invoice_no'] .= ', '.$summary['source_invoice_no'];
+        }
+        if ($wallets) {
+            $combined['wallet_balances'] = $wallets;
+            $combined['wallet_count'] = count($wallets);
+            $combined['wallet_remaining_cents'] = array_sum(array_column($wallets, 'remaining_cents'));
+            $combined['wallet_available_cents'] = array_sum(array_column($wallets, 'available_cents'));
+            $combined['wallet_reserved_cents'] = array_sum(array_column($wallets, 'reserved_cents'));
+        }
+        return $combined;
     }
     /**
      * Record a payment against an invoice.

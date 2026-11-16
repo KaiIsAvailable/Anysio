@@ -72,7 +72,7 @@ class StaffController extends Controller
         }
 
         // 1. Determine the management ID based on user role (Admin can choose, others use their own)
-        $currentUser = $request->user();
+        $currentUser = get_effective_user();
         
         if ($currentUser->role === 'admin') {
             $request->validate([

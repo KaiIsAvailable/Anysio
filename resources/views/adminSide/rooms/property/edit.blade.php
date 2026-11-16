@@ -26,7 +26,7 @@
             @endif
 
             {{-- 注意这里的 Action 和 Method --}}
-            <x-form.form action="{{ route('admin.properties.update', $property) }}">
+            <x-form.form :focus-errors="true" action="{{ route('admin.properties.update', $property) }}">
                 @method('PUT') {{-- 必须加这个，否则 Laravel 不认 --}}
 
                 <div class="bg-white shadow-lg rounded-xl p-6 space-y-6">

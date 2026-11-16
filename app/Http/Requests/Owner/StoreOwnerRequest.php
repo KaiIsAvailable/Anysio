@@ -2,18 +2,8 @@
 
 namespace App\Http\Requests\Owner;
 
-use Illuminate\Foundation\Http\FormRequest;
-
-class StoreOwnerRequest extends FormRequest
+class StoreOwnerRequest extends OwnerDetailsRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
-    public function authorize(): bool
-    {
-        return true;
-    }
-
     /**
      * Prepare the data for validation.
      */
@@ -30,20 +20,15 @@ class StoreOwnerRequest extends FormRequest
      */
     public function rules(): array
     {
+        if (!$this->canManageOwner()) {
+            return [];
+        }
+
         $isRandomEmail = $this->boolean('random_email');
 
-        return [
-            'name'         => ['required', 'string', 'max:255'],
-            'email'        => $isRandomEmail ? ['nullable'] : ['required', 'email', 'unique:users,email'],
+        return $this->ownerDetailsRules() + [
+            'email' => $isRandomEmail ? ['nullable'] : ['required', 'email', 'max:255', 'unique:users,email'],
             'random_email' => ['required', 'boolean'],
-            'company_name' => ['nullable', 'string', 'max:255'],
-            'ic_number'    => ['nullable', 'string', 'max:20'],
-            'phone'        => ['required', 'string', 'max:20'],
-            'gender'       => ['required', 'string', 'in:Male,Female'],
-            'address'      => ['nullable', 'string'],
-            'postcode'     => ['nullable', 'string', 'max:10'],
-            'city'         => ['nullable', 'string', 'max:100'],
-            'state'        => ['nullable', 'string', 'max:100'],
         ];
     }
 }

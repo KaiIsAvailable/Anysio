@@ -29,6 +29,7 @@ class DatabaseSeeder extends Seeder
             // Call your DocumentTemplateSeeder
             $this->call([
                 DocumentTemplateSeeder::class,
+                FeeTypeSeeder::class,
             ]);
             
         });

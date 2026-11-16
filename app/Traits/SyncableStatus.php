@@ -9,7 +9,9 @@ trait SyncableStatus
     public static function bootSyncableStatus(): void
     {
         static::created(function ($model) {
-            $model->syncParentStatus();
+            if (! $model->syncingStatusFromChildren) {
+                $model->syncParentStatus();
+            }
         });
 
         static::updated(function ($model) {
@@ -18,6 +20,17 @@ trait SyncableStatus
                 $model->syncParentStatus();
             }
         });
+    }
+
+    public function saveWithoutStatusSynchronization(): bool
+    {
+        $previous = $this->syncingStatusFromChildren;
+        $this->syncingStatusFromChildren = true;
+        try {
+            return $this->save();
+        } finally {
+            $this->syncingStatusFromChildren = $previous;
+        }
     }
 
     // Apply explicit status changes downward without firing child save hooks.
@@ -35,7 +48,7 @@ trait SyncableStatus
         }
     }
 
-    public function syncStatus(): void
+    public function syncStatus(bool $syncParent = true): void
     {
         if (method_exists($this, 'childrenItems')) {
             $statuses = $this->childrenItems()->pluck('status')
@@ -61,7 +74,9 @@ trait SyncableStatus
         }
 
         // Continue even for a room, or when this model's status has not changed.
-        $this->syncParentStatus();
+        if ($syncParent) {
+            $this->syncParentStatus();
+        }
     }
 
     protected function syncParentStatus(): void

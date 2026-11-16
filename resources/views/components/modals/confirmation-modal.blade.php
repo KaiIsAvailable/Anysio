@@ -2,7 +2,9 @@
     'id' => 'modalOpen',
     'title' => 'Are you sure?',
     'maxWidth' => 'sm:max-w-md',
-    'zIndex' => 'z-[120]'
+    'zIndex' => 'z-[120]',
+    'show' => false,
+    'closable' => true,
 ])
 
 @php
@@ -10,7 +12,7 @@
 @endphp
 
 <template x-teleport="body">
-    <div x-data="{ {{ $jsVar }}: false, shake: false }" 
+    <div x-data="{ {{ $jsVar }}: @js((bool) $show), shake: false }" 
          @open-{{ $id }}.window="{{ $jsVar }} = true"
          @close-{{ $id }}.window="{{ $jsVar }} = false"
          x-show="{{ $jsVar }}" 
@@ -37,7 +39,9 @@
             {{-- Header --}}
             <div class="px-6 pt-6 pb-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
                 <h3 class="text-lg font-black text-slate-800">{{ $title }}</h3>
-                <button type="button" @click="{{ $jsVar }} = false" class="text-gray-400 hover:text-rose-500 transition-colors text-2xl font-light">&times;</button>
+                @if($closable)
+                    <button type="button" @click="{{ $jsVar }} = false" class="text-gray-400 hover:text-rose-500 transition-colors text-2xl font-light">&times;</button>
+                @endif
             </div>
 
             {{-- Dynamic Body Slot --}}

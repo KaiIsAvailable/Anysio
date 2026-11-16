@@ -21,7 +21,7 @@
             <x-form.text-input id="statement_invoice" name="statement_invoice" maxlength="100" />
         </div>
         <div class="flex flex-wrap gap-3 sm:col-span-2 lg:col-span-4">
-            <x-form.primary-button type="submit">Search history</x-form.primary-button>
+            <x-form.primary-button loading="loading" type="submit">Search history</x-form.primary-button>
             <x-form.secondary-button @click="clearFilters($event.currentTarget.form)">Clear</x-form.secondary-button>
         </div>
     </x-form.form>

@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\{BankUser, Tenants, UserManagement};
+use App\Models\{BankUser, Tenants};
 use App\Services\{LeaseService};
 use App\Models\User;
 use App\Models\Room;
@@ -24,6 +24,7 @@ use App\Models\Invoice;
 class TenantsController extends Controller
 {
     use RoleBasedDataTrait;
+    use \App\Http\Controllers\Concerns\HandlesBulkOperations;
 
     public const IC_DOCUMENT_RULES = 'nullable|file|max:2048|mimes:jpeg,png,jpg,gif,pdf|mimetypes:image/jpeg,image/png,image/gif,application/pdf';
 
@@ -87,6 +88,150 @@ class TenantsController extends Controller
         return view('tenantSide.tenants.leases.show', compact('lease'));
     }
 
+    public function bulkEdit(\App\Services\TenantBulkService $bulkService)
+    {
+        if (Gate::denies('super-admin') && (Gate::denies('tenant.tab') ||
+            (Gate::denies('tenant.edit') && Gate::denies('tenant.create')))) {
+            return view('errors.403');
+        }
+
+        $user = get_effective_user();
+        if (!$user || $user->role === 'tenant') {
+            return view('errors.403');
+        }
+
+        $canEditBank = Gate::allows('super-admin') || Gate::allows('tenant.modify bank details');
+        $query = Tenants::with(['user.companies', 'emergencyContacts'])->where('status', 'active');
+        $query->forManagement($user);
+        if ($canEditBank) {
+            $query->with(['user.bankDetails' => fn ($banks) => $banks->wherePivot('is_default', true)]);
+        }
+
+        $input = request()->validate([
+            'after' => ['nullable', 'ulid'],
+            'ids' => ['sometimes', 'array', 'min:1', 'max:50'],
+            'ids.*' => ['required', 'ulid', 'distinct'],
+        ]);
+        if (request()->expectsJson() && isset($input['ids'])) {
+            $query->whereIn('id', $input['ids']);
+        } elseif (request()->expectsJson() && !empty($input['after'])) {
+            $query->where('id', '>', $input['after']);
+        }
+        $tenants = $query->orderBy('id')->simplePaginate(50, ['*'], 'page', 1);
+        $canViewDocuments = Gate::allows('super-admin') || Gate::allows('tenant.view IC');
+        $rows = $tenants->getCollection()->map(function (Tenants $tenant) use ($canEditBank, $canViewDocuments, $bulkService): array {
+            $company = $tenant->user?->companies->first();
+            $bank = $canEditBank ? $tenant->user?->bankDetails->first() : null;
+            $existingFiles = [];
+            foreach (['icPhoto' => $tenant->ic_photo_path, 'companyLogo' => $company?->logo_path, 'ssmCertificate' => $company?->ssm_cert_path] as $field => $path) {
+                if (!$path || ($field !== 'companyLogo' && !$canViewDocuments)) continue;
+                $existingFiles[$field] = ['name' => basename($path), 'url' => route('admin.tenants.bulk-file', ['tenant' => $tenant->id, 'field' => $field]), 'isPdf' => strtolower(pathinfo($path, PATHINFO_EXTENSION)) === 'pdf'];
+            }
+
+            return [
+                'key' => $tenant->id,
+                'version' => $bulkService->revision($tenant, $canEditBank),
+                'existingFiles' => $existingFiles,
+                'name' => $tenant->user?->name ?? '',
+                'email' => $tenant->user?->email ?? '',
+                'type' => $tenant->tenant_type,
+                'phone' => $tenant->phone ?? '',
+                'ic' => $tenant->ic_number ?? '',
+                'passport' => $tenant->passport ?? '',
+                'nationality' => $tenant->nationality ?? '',
+                'gender' => $tenant->gender ?? '',
+                'occupation' => $tenant->occupation ?? '',
+                'companyName' => $company?->name ?? '',
+                'ssmOld' => $company?->ssm_old_number ?? '',
+                'ssmNew' => $company?->ssm_new_number ?? '',
+                'companyPhone' => $company?->phone ?? '',
+                'companyEmail' => $company?->email ?? '',
+                'companyAddress' => $company?->address ?? '',
+                'bankName' => $bank?->bank_name ?? '',
+                'bankCode' => $bank?->bank_code ?? '',
+                'accountHolder' => $bank?->account_holder_name ?? '',
+                'accountNumber' => '',
+                'accountLastFour' => $bank?->account_number ? substr($bank->account_number, -4) : '',
+                'contacts' => $tenant->emergencyContacts->map(fn ($contact) => [
+                    'name' => $contact->name, 'phone' => $contact->phone, 'relationship' => $contact->relationship,
+                ])->values()->all(),
+            ];
+        })->values();
+
+        $gridConfig = ['rowsUrl' => route('admin.tenants.bulk-edit'),
+            'nextCursor' => !isset($input['ids']) && $tenants->hasMorePages() ? $rows->last()['key'] : null];
+        if (request()->expectsJson()) {
+            return response()->json(['rows' => $rows, 'nextCursor' => $gridConfig['nextCursor']])->header('Cache-Control', 'no-store');
+        }
+
+        $draftKey = $this->bulkDraftKey($user, $tenants->currentPage());
+
+        $saveRequestKey = (string) Str::uuid();
+        $pending = \App\Models\TenantBulkOperation::where('actor_id', Auth::id())->where('manager_id', $user->id);
+        if (request()->filled('operation')) {
+            if (!Str::isUuid(request('operation'))) abort(404);
+            $operation = $pending->where('request_key', request('operation'))->firstOrFail();
+        } else {
+            $operation = $pending->where('page', $tenants->currentPage())->whereNull('acknowledged_at')->latest()->first();
+        }
+        $operationKey = $operation && !$operation->acknowledged_at ? $operation->request_key : null;
+        $progressConfig = ['statusUrl' => route('admin.tenants.bulk-progress', '__KEY__'), 'completeUrl' => route('admin.tenants.bulk-complete', '__KEY__'),
+            'initialProgress' => $operationKey ? app(\App\Services\TenantBulkOperationService::class)->progress($operation) : null];
+
+        return view('adminSide.tenants.bulk-edit', compact('tenants', 'rows', 'canEditBank', 'draftKey', 'saveRequestKey', 'operationKey', 'progressConfig', 'gridConfig'));
+    }
+
+    public function bulkFile(Tenants $tenant, string $field, FileService $files)
+    {
+        $manager = get_effective_user();
+        if (!$manager || $manager->role === 'tenant' || (Gate::denies('super-admin') &&
+            (Gate::denies('tenant.tab') || ($field !== 'companyLogo' && Gate::denies('tenant.view IC'))))) {
+            return response()->view('errors.403', [], 403);
+        }
+        if (Gate::denies('super-admin') && ($manager->role === 'owner' ? $tenant->owner_id : $tenant->created_by) !== $manager->id) abort(404);
+        $tenant->loadMissing('user.companies');
+        $path = match ($field) {
+            'icPhoto' => $tenant->ic_photo_path,
+            'companyLogo' => $tenant->user?->companies->first()?->logo_path,
+            'ssmCertificate' => $tenant->user?->companies->first()?->ssm_cert_path,
+            default => null,
+        };
+        if (!$path) abort(404);
+        if ($field === 'companyLogo') {
+            $disk = \Illuminate\Support\Facades\Storage::disk('public');
+            if (!$disk->exists($path)) abort(404);
+            return $disk->response($path, basename($path), ['X-Content-Type-Options' => 'nosniff']);
+        }
+        $response = $files->getStreamResponse($path);
+        $response->headers->set('X-Content-Type-Options', 'nosniff');
+        return $response;
+    }
+
+    public function bulkSave(\App\Http\Requests\BulkTenantRequest $request, \App\Services\TenantBulkOperationService $operations)
+    {
+        $manager = get_effective_user();
+        return $this->startBulkSave($request, $operations, 'admin.tenants', $manager ? $this->bulkDraftKey($manager, $request->integer('page')) : '');
+    }
+
+    public function bulkProgress(string $requestKey, \App\Services\TenantBulkOperationService $operations)
+    {
+        return $this->operationProgress($requestKey, $operations);
+    }
+
+    public function bulkComplete(string $requestKey, \App\Services\TenantBulkOperationService $operations)
+    {
+        return $this->completeBulkSave($requestKey, $operations, 'admin.tenants', 'tenant');
+    }
+
+    private function bulkDraftKey(User $manager, int $page): string
+    {
+        return 'tenant-bulk:v1:'.Auth::id().':'.$manager->id.':'.$page.':'.implode('', [
+            (int) Gate::allows('super-admin'), (int) Gate::allows('tenant.create'),
+            (int) Gate::allows('tenant.edit'), (int) Gate::allows('tenant.delete'),
+            (int) (Gate::allows('super-admin') || Gate::allows('tenant.modify bank details')),
+        ]);
+    }
+
     public function index(Request $request)
     {
         if (Gate::denies('super-admin') && Gate::denies('tenant.tab')) {
@@ -94,7 +239,6 @@ class TenantsController extends Controller
         }
 
         $user = get_effective_user();
-        $users = UserManagement::with('user')->get()->pluck('user');
 
         if ($user->role === 'tenant') {
             return view('adminSide.tenants.dashboard');
@@ -152,7 +296,7 @@ class TenantsController extends Controller
 
         $tenants = $query->paginate(10)->onEachSide(1)->withQueryString();
 
-        return view('adminSide.tenants.index', compact('tenants', 'users'));
+        return view('adminSide.tenants.index', compact('tenants'));
     }
     /**
      * Show the form for creating a new resource.
@@ -244,7 +388,7 @@ class TenantsController extends Controller
 
             $tenant = Tenants::create($data);
 
-            if ($canModifyBankDetails) {
+            if ($canModifyBankDetails && $request->filled('bank_name')) {
                 $bankAccountService->saveForUser($user, $request->only([
                     'bank_name',
                     'bank_code',
@@ -357,7 +501,7 @@ class TenantsController extends Controller
 
             $tenant->update($data);
 
-            if ($canModifyBankDetails) {
+            if ($canModifyBankDetails && $request->filled('bank_name')) {
                 $bankAccountService->saveForUser($tenant->user, $request->only([
                     'bank_name',
                     'bank_code',
@@ -574,7 +718,7 @@ class TenantsController extends Controller
             $companyId = $userId ? User::findOrFail($userId)->companies()->first()?->id : null;
             $rules['ssm_new_number'] = ['required', 'string', 'max:50', Rule::unique('companies', 'ssm_new_number')->ignore($companyId)];
             $rules['ssm_old_number'] = 'nullable|string|max:255';
-            $rules['company_phone'] = 'nullable|string|max:50';
+            $rules['company_phone'] = 'nullable|string|regex:/^[0-9]+$/|max:20';
             $rules['company_email'] = 'nullable|email|max:255';
             $rules['company_logo'] = 'nullable|image|mimes:jpeg,png,webp|max:2048';
             $rules['company_address'] = 'required|string|max:500';
@@ -601,17 +745,16 @@ class TenantsController extends Controller
         }
 
         if ($canModifyBankDetails) {
-            $rules['bank_name'] = 'required|string|max:255';
+            $hasBankInput = $request->anyFilled(['bank_name', 'bank_code', 'account_holder_name', 'account_number']);
+            $rules['bank_name'] = ($hasBankInput ? 'required' : 'nullable').'|string|max:255';
             $rules['bank_code'] = 'nullable|string|max:100';
-            $rules['account_holder_name'] = 'required|string|max:255';
+            $rules['account_holder_name'] = ($hasBankInput ? 'required' : 'nullable').'|string|max:255';
             $hasExistingBankAccount = $userId
                 ? BankUser::where('user_id', $userId)
                     ->where('is_default', true)
                     ->exists()
                 : false;
-            $rules['account_number'] = $hasExistingBankAccount
-                ? 'nullable|string|max:50'
-                : 'required|string|max:50';
+            $rules['account_number'] = ($hasExistingBankAccount || !$hasBankInput ? 'nullable' : 'required').'|string|regex:/^[0-9]+$/|max:50';
             $rules['is_default'] = 'nullable|boolean';
         }
 

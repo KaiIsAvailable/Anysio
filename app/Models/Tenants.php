@@ -2,16 +2,27 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use App\Traits\Auditable;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use App\Traits\Auditable;
 
 class Tenants extends Model
 {
-    use HasUlids, Auditable;
+    use Auditable, HasUlids;
+
     protected $table = 'tenants';
+
+    public function scopeForManagement(\Illuminate\Database\Eloquent\Builder $query, User $manager): \Illuminate\Database\Eloquent\Builder
+    {
+        if (\Illuminate\Support\Facades\Gate::allows('super-admin')) {
+            return $query;
+        }
+
+        return $query->where($manager->role === 'owner' ? 'owner_id' : 'created_by', $manager->id);
+    }
+
     protected $fillable = [
         'user_id',
         'created_by',

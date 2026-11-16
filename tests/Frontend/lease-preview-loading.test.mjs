@@ -68,7 +68,11 @@ test('refund completion keeps its request identity', async () => {
 
 test('closed or superseded preview ignores late success and error events', () => {
     const elements = { 'modal-content': { innerHTML: 'old' }, 'modal-title': { innerText: '' } };
-    const context = { agreementBreakdown: () => ({ resetBreakdown() {} }), document: { getElementById: id => elements[id], body: { style: {} } } };
+    const context = {
+        agreementBreakdown: () => ({ resetBreakdown() {} }),
+        document: { getElementById: id => elements[id], body: { style: {} } },
+        window: { dispatchEvent() {} }, CustomEvent,
+    };
     vm.createContext(context);
     const data = modal.match(/<div x-data="([\s\S]*?)"\s/)[1];
     context.state = vm.runInContext(`(${data})`, context);

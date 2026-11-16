@@ -84,11 +84,20 @@ test('Opening another payment clears processing fee edits and cancellation', () 
     modal.updatePenalty = () => {};
     const handler = blade.match(/@open-payment.window="([\s\S]*?)"/)[1]
         .replace(/{{[\s\S]*?}}/g, '2026-11-10');
-    const context = vm.createContext({ modal, $event: { detail: {} }, $el: { querySelectorAll: () => [] } });
+    let displayedDate;
+    const context = vm.createContext({ modal, $event: { detail: {} },
+        $nextTick: callback => callback(),
+        $el: {
+            querySelectorAll: () => [],
+            querySelector: () => ({ _flatpickr: { setDate: date => { displayedDate = date; } } })
+        }
+    });
     vm.runInContext('with (modal) { ' + handler + ' }', context);
     assert.equal(modal.overrideProcessingFeeAmount, null);
     assert.equal(modal.processingFeeCancelled, false);
     assert.equal(modal.processingFeeDetails.amount, 10);
+    assert.equal(modal.form.payment_date, '2026-11-10');
+    assert.equal(displayedDate, modal.form.payment_date);
 });
 
 test('Amount Paid includes the active processing fee and reacts to edits, removal and method changes', () => {

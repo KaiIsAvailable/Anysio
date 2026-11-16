@@ -25,6 +25,7 @@ class Unit extends Model
         'sqft',
         'electricity_acc_no',
         'water_acc_no',
+        'indah_water_acc_no',
         'status',
         'has_rooms',
         'total_rooms',
@@ -38,6 +39,11 @@ class Unit extends Model
     {
         // 确保这里返回的是 Property 类
         return $this->belongsTo(Property::class, 'property_id'); 
+    }
+
+    public function utilityServices(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(UtilityService::class, 'location');
     }
 
     /**

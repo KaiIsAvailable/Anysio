@@ -29,6 +29,7 @@ class LandingPageService
             'property.tab' => 'admin.properties.index',
             'leases.tab' => 'admin.leases.index',
             'invoice.tab' => 'admin.invoices.index',
+            'utilities.tab' => 'admin.utilities.index',
             'staff.tab' => 'admin.staff.index',
             'maintenance-tickets' => 'admin.maintenance.index',
             'leases.agreement template' => 'admin.document-templates.index',

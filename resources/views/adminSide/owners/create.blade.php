@@ -13,7 +13,7 @@
             </div>
 
             <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-                <x-form.form method="POST" action="{{ route('admin.owners.store') }}" class="p-8">
+                <x-form.form method="POST" action="{{ route('admin.owners.store') }}" class="p-8" enctype="multipart/form-data">
                     
                     <div class="space-y-6">
                         {{-- Full Name --}}
@@ -34,7 +34,7 @@
                             <div class="flex items-center justify-between mb-2">
                                 <x-form.input-label value="Email Address" :required="true" class="mb-0" />
                                 <label class="inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" name="random_email" id="random_email" class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
+                                    <input type="checkbox" name="random_email" id="random_email" @checked(old('random_email')) class="rounded border-gray-300 text-indigo-600 shadow-sm focus:ring-indigo-500">
                                     <span class="ml-2 text-xs font-medium text-indigo-600 uppercase tracking-wider">Generate Random</span>
                                 </label>
                             </div>
@@ -49,62 +49,53 @@
                             <x-form.input-error :messages="$errors->get('email')" class="mt-1" />
                         </div>
 
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {{-- Company Name --}}
-                            <div>
-                                <x-form.input-label value="Company Name" class="mb-1" />
-                                <x-form.text-input 
-                                    name="company_name" 
-                                    id="company_name" 
-                                    value="{{ old('company_name') }}" 
-                                    class="w-full" 
-                                />
-                                <x-form.input-error :messages="$errors->get('company_name')" class="mt-1" />
-                            </div>
-
-                            {{-- IC Number --}}
-                            <div>
-                                <x-form.input-label value="IC Number" :required="true" class="mb-1" />
-                                <x-form.text-input 
-                                    name="ic_number" 
-                                    id="ic_number" 
-                                    value="{{ old('ic_number') }}" 
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 items-start">
+                            <div class="min-w-0">
+                                <x-form.input-label for="ic_number" value="IC Number" :required="true" class="mb-1" />
+                                <x-form.text-input
+                                    name="ic_number"
+                                    id="ic_number"
+                                    :value="old('ic_number')"
                                     class="w-full"
-                                    required 
-                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
-                                    maxlength="12" 
+                                    required
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                    maxlength="12"
                                     inputmode="numeric"
+                                    aria-describedby="ic_number_help"
                                 />
-                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 0109xxxxxxxx</p>
+                                <p id="ic_number_help" class="mt-2 text-xs text-gray-500">12 digits without spaces or dashes.</p>
                                 <x-form.input-error :messages="$errors->get('ic_number')" class="mt-1" />
                             </div>
 
-                            {{-- Phone Number --}}
-                            <div>
-                                <x-form.input-label value="Phone Number" :required="true" class="mb-1" />
-                                <x-form.text-input 
-                                    name="phone" 
-                                    id="phone" 
-                                    value="{{ old('phone') }}" 
+                            <div class="min-w-0">
+                                <x-form.input-label for="phone" value="Phone Number" :required="true" class="mb-1" />
+                                <x-form.text-input
+                                    type="tel"
+                                    name="phone"
+                                    id="phone"
+                                    :value="old('phone')"
                                     class="w-full"
-                                    required 
-                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')" 
-                                    maxlength="20" 
+                                    required
+                                    oninput="this.value = this.value.replace(/[^0-9]/g, '')"
+                                    maxlength="20"
                                     inputmode="numeric"
+                                    autocomplete="tel"
+                                    aria-describedby="phone_help"
                                 />
-                                <p id="helper_text" class="mt-2 text-xs text-gray-500 italic">Example: 01xxxxxxxxx</p>
+                                <p id="phone_help" class="mt-2 text-xs text-gray-500">Example: 0123456789</p>
                                 <x-form.input-error :messages="$errors->get('phone')" class="mt-1" />
                             </div>
 
-                            {{-- Gender --}}
-                            <div>
-                                <x-form.input-label value="Gender" :required="true" class="mb-1" />
-                                <x-form.input-select 
-                                    name="gender" 
-                                    id="gender" 
+                            <div class="min-w-0">
+                                <x-form.input-label for="gender" value="Gender" :required="true" class="mb-1" />
+                                <x-form.input-select
+                                    name="gender"
+                                    id="gender"
+                                    :value="old('gender')"
                                     :options="['Male' => 'Male', 'Female' => 'Female']"
+                                    placeholder="Select gender"
                                     class="w-full"
-                                    required 
+                                    required
                                 />
                                 <x-form.input-error :messages="$errors->get('gender')" class="mt-1" />
                             </div>
@@ -115,8 +106,8 @@
                             <div class="space-y-4">
                                 {{-- Street Address (1 Full Row) --}}
                                 <div>
-                                    <x-form.input-label value="Address" class="mb-1" />
-                                    <textarea name="address" rows="3"
+                                    <x-form.input-label for="owner_address" value="Owner Address" class="mb-1" />
+                                    <textarea name="address" id="owner_address" rows="3"
                                             class="w-full rounded-lg border-gray-300 focus:border-indigo-500 focus:ring-indigo-500 shadow-sm">{{ old('address') }}</textarea>
                                     @error('address') <div class="text-red-500 text-xs mt-1">{{ $message }}</div> @enderror
                                 </div>
@@ -168,6 +159,8 @@
                             </div>
                         </div>
 
+                        @include('adminSide.owners.partials.company-bank-fields')
+
                         {{-- Actions --}}
                         <div class="pt-4 border-t border-gray-100 flex justify-end gap-3" >
                             <a href="{{ route('admin.owners.index') }}" class="px-6 py-2.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
@@ -201,6 +194,7 @@
                     emailInput.classList.remove('bg-gray-100', 'cursor-not-allowed');
                 }
             });
+            randomCheckbox.dispatchEvent(new Event('change'));
         });
     </script>
 </x-app-layout>

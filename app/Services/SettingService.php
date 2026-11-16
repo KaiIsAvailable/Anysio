@@ -85,6 +85,11 @@ class SettingService
 
         // Merge database settings over the top of config defaults
         $resolved = array_replace_recursive($normalizedDefaults, $dbSettings);
+        // Each saved tariff schedule replaces its tiers as a whole, even if shorter.
+        foreach (data_get($dbSettings, 'utility_tariff_config.value.profiles', []) as $id => $profile) {
+            $defaults = data_get($normalizedDefaults, 'utility_tariff_config.value.profiles.'.$id, []);
+            $resolved['utility_tariff_config']['value']['profiles'][$id] = array_replace($defaults, $profile);
+        }
         // Category selections are a complete list, including an intentionally empty list.
         // Recursive array replacement otherwise silently restores default categories.
         $penaltyValue = data_get($dbSettings, 'late_penalty_config.value', []);

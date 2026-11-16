@@ -182,7 +182,7 @@
             <div class="flex flex-wrap justify-end gap-2">
                 <x-form.secondary-button x-show="appliedBreakdown" @click="removeBreakdown()">Remove Breakdown</x-form.secondary-button>
                 <x-form.secondary-button @click="$dispatch('close-rental-breakdown')">Cancel</x-form.secondary-button>
-                <x-form.primary-button type="submit">Apply</x-form.primary-button>
+                <x-form.primary-button loading="loading" type="submit">Apply</x-form.primary-button>
             </div>
         </x-form.form>
     </x-modals.confirmation-modal>

@@ -13,7 +13,7 @@
                 <h1 class="text-2xl font-bold text-slate-900 mt-2">Edit Unit</h1>
             </div>
 
-            <x-form.form method="POST" action="{{ route('admin.units.update', $unit->id) }}">
+            <x-form.form :focus-errors="true" method="POST" action="{{ route('admin.units.update', $unit->id) }}">
                 @csrf
                 @method('PUT')
 
@@ -110,7 +110,10 @@
                                 <x-form.input-label value="Floor" class="mb-1" />
                                 <x-form.text-input 
                                     type="text" 
-                                    name="floor" 
+                                    name="floor"
+                                    placeholder="e.g. G or 2"
+                                    pattern="G|(?:\+|-)?[0-9]+"
+                                    title="Enter G for Ground Floor or a whole floor number."
                                     value="{{ old('floor', $unit->floor) }}"
                                     class="w-full" 
                                 />

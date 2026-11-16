@@ -1,4 +1,8 @@
 import './bootstrap';
+import { focusFormErrors, focusInvalidForm } from './form-validation';
+window.formValidation = { focusFormErrors, focusInvalidForm };
+import { enableBulkGridNavigation } from './bulk-grid-navigation';
+enableBulkGridNavigation();
 import { replaceTemplateVariables } from './template-variable-replacement';
 window.replaceDocumentTemplateVariables = replaceTemplateVariables;
 import './lease-invoice-documents';
@@ -7,10 +11,23 @@ import collapse from '@alpinejs/collapse';
 import { invoiceStatement } from './invoice-statement';
 import { invoiceTable } from './invoice-table';
 import { agreementBreakdown } from './agreement-breakdown';
+import { utilityReadings, utilityAllocationEditor } from './utility-readings';
+import { utilityTariffSettings, utilityTariffManager } from './utility-tariff-settings';
 
+import { tenantBulkEditor } from './tenant-bulk-editor';
+import { ownerBulkEditor } from './owner-bulk-editor';
+import { propertyBulkEditor } from './property-bulk-editor';
+
+Alpine.data('tenantBulkEditor', tenantBulkEditor);
+Alpine.data('ownerBulkEditor', ownerBulkEditor);
+Alpine.data('propertyBulkEditor', propertyBulkEditor);
 Alpine.plugin(collapse);
 Alpine.data('invoiceStatement', invoiceStatement);
 Alpine.data('invoiceTable', invoiceTable);
+Alpine.data('utilityReadings', utilityReadings);
+Alpine.data('utilityAllocationEditor', utilityAllocationEditor);
+Alpine.data('utilityTariffSettings', utilityTariffSettings);
+Alpine.data('utilityTariffManager', utilityTariffManager);
 window.agreementBreakdown = agreementBreakdown;
 window.Alpine = Alpine;
 Alpine.start();

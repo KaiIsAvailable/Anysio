@@ -1,3 +1,5 @@
+@props(['title' => 'Payment Receipt', 'imageAlt' => 'Payment Receipt Image'])
+
 <template x-teleport="body">
     <div x-show="openReceipt" x-cloak class="fixed inset-0 z-[999] overflow-y-auto">
         <x-ui.blur-overlay show="openReceipt" onClose="openReceipt = false" zIndex="z-[998]" />
@@ -8,7 +10,7 @@
                 <!-- Modal Header -->
                 <div class="flex items-center justify-between p-6 border-b">
                     <div>
-                        <h3 class="text-xl font-bold text-slate-800">Payment Receipt</h3>
+                        <h3 class="text-xl font-bold text-slate-800">{{ $title }}</h3>
                         <p class="text-xs text-slate-500 mt-1"><span x-text="receiptUser"></span></p>
                     </div>
                     <button @click="openReceipt=false" class="p-2 rounded-full hover:bg-gray-100">
@@ -33,7 +35,7 @@
 
                             <!-- Image Viewer -->
                             <template x-if="!isPdf">
-                                <img :src="receiptImage" class="max-h-[70vh] rounded-xl shadow-lg object-contain" alt="Payment Receipt Image">
+                                <img :src="receiptImage" class="max-h-[70vh] rounded-xl shadow-lg object-contain" alt="{{ $imageAlt }}">
                             </template>
 
                         </div>

@@ -46,7 +46,7 @@
                                 <h2 class="text-lg font-semibold text-slate-900">Assets to Add</h2>
                             </div>
                             <div class="flex space-x-2">
-                                <x-form.primary-button type="button"
+                                <x-form.primary-button loading="loading" type="button"
                                     onclick="openAssetModal()"
                                     class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-lg shadow-md transition transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-1">
                                     {{-- SVG 图标 --}}

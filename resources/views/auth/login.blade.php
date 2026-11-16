@@ -18,6 +18,7 @@
             <x-form.password-input id="password" 
                                 class="block mt-1 w-full"
                                 name="password"
+                                @keydown.enter.stop.prevent="if (!loading && !$event.isComposing && $event.keyCode !== 229) $el.form.requestSubmit()"
                                 required 
                             autocomplete="current-password" />
 

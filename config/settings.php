@@ -1,6 +1,11 @@
 <?php
 
 return [
+    // Reuse the reference schedules so tariff defaults have one source of truth.
+    'utility_tariff_config' => [
+        'default_profile' => 'water_perak_domestic',
+        'profiles' => (require __DIR__.'/utility_tariffs.php')['profiles'],
+    ],
     'late_penalty_config' => [
         'grace_period_days' => 0,
         'calculation_type' => 'fixed',

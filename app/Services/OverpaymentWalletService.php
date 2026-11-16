@@ -18,6 +18,7 @@ class OverpaymentWalletService
         if ($newInvoice && $startingBalance <= 0) return null;
         $summary = ['source_invoice_no' => $source->invoice_no, 'wallet_used_cents' => 0,
             'wallet_remaining_cents' => $startingBalance, 'payments' => [], 'skipped' => [], 'notes' => []];
+        $summary['wallet_id'] = $wallet->id;
         $summary['trigger'] = $newInvoice ? 'invoice_created' : 'overpayment';
         $walletService = app(WalletService::class);
         $summary['wallet_available_cents'] = $walletService->automaticSpendableBalance($wallet);

@@ -31,6 +31,11 @@ class Room extends Model
         return $this->belongsTo(Unit::class, 'unit_id');
     }
 
+    public function utilityServices(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    {
+        return $this->morphMany(UtilityService::class, 'location');
+    }
+
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'owner_id');

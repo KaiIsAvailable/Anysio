@@ -1,5 +1,7 @@
+@props(['reloadAfterCreate' => true])
+
 <template x-teleport="body">
-    <div x-show="showRoleModal" x-cloak 
+    <div x-show="showRoleModal" x-cloak x-data="{ roleSaving: false, selectedTargetUserId: [], reloadAfterCreate: @js($reloadAfterCreate) }"
          class="fixed inset-0 z-[101] flex items-center justify-center p-4 sm:p-6"
          @click="
              isShaking = true; 
@@ -24,9 +26,10 @@
             </div>
 
             <!-- Custom Form Component -->
-            <x-form.form action="{{ route('admin.roles.store') }}" method="POST" loading="loading"
-                         @submit.prevent="
-                            loading = true;
+            <x-form.form action="{{ route('admin.roles.store') }}" method="POST" :async="true"
+                         @submit.prevent.stop="
+                            if (roleSaving) return;
+                            roleSaving = true;
                             errorMessage = '';
 
                             let formData = new FormData($el);
@@ -36,7 +39,7 @@
                                 user_id: formData.get('user_id')
                             };
 
-                            fetch('{{ route('admin.roles.store') }}', {
+                            return fetch('{{ route('admin.roles.store') }}', {
                                 method: 'POST',
                                 headers: {
                                     'Content-Type': 'application/json',
@@ -48,17 +51,23 @@
                             .then(res => res.json().then(data => ({ status: res.status, body: data })))
                             .then(res => {
                                 if (res.status === 200 || res.status === 201) {
-                                    sessionStorage.setItem('role_success_message', 'Role created successfully!');
-                                    window.location.reload();
+                                    if (reloadAfterCreate) {
+                                        window.location.reload();
+                                    } else {
+                                        $dispatch('staff-role-created', { role: res.body.role });
+                                        $dispatch('session-status', { type: 'success', message: res.body.message });
+                                        showRoleModal = false;
+                                        newRoleName = '';
+                                        selectedPermissions = [];
+                                    }
                                 } else {
-                                    loading = false;
                                     errorMessage = res.body.message || 'Failed to create role.';
                                 }
                             })
                             .catch(() => {
-                                loading = false;
                                 errorMessage = 'An error occurred. Please try again.';
                             })
+                            .finally(() => { roleSaving = false; })
                          ">
                 <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                     {{-- Admin User Selection Field --}}
@@ -78,7 +87,7 @@
                                     ->toArray();
                             @endphp
 
-                            <label class="block text-xs font-semibold text-gray-700 uppercase mb-1">Assign Role To User / Management</label>
+                            <x-form.input-label for="user_id" value="Assign Role To User / Management" class="mb-1" />
                             <x-form.input-select 
                                 id="user_id" 
                                 name="user_id" 
@@ -93,8 +102,8 @@
                     @endif
 
                     <div>
-                        <label class="block text-xs font-semibold text-gray-700 uppercase">Role Name</label>
-                        <input type="text" x-model="newRoleName" class="mt-1 w-full border-gray-300 rounded-md shadow-sm text-sm focus:ring-indigo-500 focus:border-indigo-500">
+                        <x-form.input-label for="new_role_name" value="Role Name" required />
+                        <x-form.text-input id="new_role_name" name="name" type="text" x-model="newRoleName" class="mt-1" required maxlength="255" />
                         <span x-text="errorMessage" class="text-xs text-red-600 mt-1 block" x-show="errorMessage"></span>
                     </div>
 
@@ -218,7 +227,7 @@
                         Cancel
                     </button>
                     
-                    <x-form.primary-button type="submit" loading="loading" class="px-4 py-2 text-xs font-semibold">
+                    <x-form.primary-button type="submit" loading="roleSaving" class="px-4 py-2 text-xs font-semibold">
                         Save Role
                     </x-form.primary-button>
                 </div>

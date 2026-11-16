@@ -6,11 +6,16 @@
     </x-slot>
 
     @php
+        $utilityOnly = $utilityOnly ?? false;
+        $canUtilityTariffs = Gate::any(['super-admin', 'settings.utility tab', 'settings.edit utility meter prices'])
+            || (Gate::allows('utilities.tab') && Gate::allows('utilities.tariff tab'));
         $availableTabs = collect([
             'payment' => 'settings.payment tab',
             'lease' => 'settings.lease tab',
+            'utility' => 'settings.utility tab',
             'permissions' => 'settings.user role tab',
-        ])->filter(fn ($permission) => Gate::allows($permission))->keys()->all();
+        ])->filter(fn ($permission, $tab) => (!$utilityOnly || $tab === 'utility')
+            && ($tab === 'utility' ? $canUtilityTariffs : Gate::any(['super-admin', $permission])))->keys()->all();
         $initialTab = in_array(request('tab'), $availableTabs, true) ? request('tab') : ($availableTabs[0] ?? '');
     @endphp
     <div class="py-12" x-data="{ activeTab: @js($initialTab) }">
@@ -18,6 +23,7 @@
             
             <!-- Navigation Tabs Header -->
             <div class="bg-white shadow sm:rounded-lg p-4 flex space-x-4 border-b border-gray-200">
+                @unless($utilityOnly)
                 @canany(['super-admin', 'settings.payment tab'])
                 <button type="button" 
                         @click="activeTab = 'payment'" 
@@ -36,6 +42,19 @@
                 </button>
                 @endcanany
 
+                @endunless
+                @if($canUtilityTariffs)
+                @canany(['super-admin', 'settings.utility tab', 'settings.edit utility meter prices', 'utilities.tariff tab'])
+                <button type="button"
+                        @click="activeTab = 'utility'"
+                        :class="activeTab === 'utility' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="py-2 px-1 border-b-2 font-medium text-sm transition">
+                    {{ __('Utility') }}
+                </button>
+                @endcanany
+
+                @endif
+                @unless($utilityOnly)
                 @canany(['super-admin', 'settings.user role tab'])
                 <button type="button" 
                         @click="activeTab = 'permissions'" 
@@ -45,6 +64,7 @@
                 </button>
                 @endcanany
 
+                @endunless
                 <!--<button type="button" 
                         @click="activeTab = 'tenant'" 
                         :class="activeTab === 'tenant' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
@@ -60,6 +80,7 @@
                 </button>-->
             </div>
 
+            @unless($utilityOnly)
             <!-- TAB 1: LEASE SETTINGS -->
             <div x-show="activeTab === 'payment'" x-cloak class="space-y-6">
                 @canany(['super-admin', 'settings.late payment setting'])
@@ -699,6 +720,16 @@
                 @endcanany
             </div>
 
+            @endunless
+            @if($canUtilityTariffs)
+            @canany(['super-admin', 'settings.utility tab', 'settings.edit utility meter prices', 'utilities.tariff tab'])
+            <div x-show="activeTab === 'utility'" x-cloak>
+                @include('adminSide.setting.partials.utility-meter-prices')
+            </div>
+            @endcanany
+            @endif
+
+            @unless($utilityOnly)
             @canany(['super-admin', 'settings.user role tab'])
                 @include('adminSide.setting.partials.staff-role-permissions')
             @endcanany
@@ -718,7 +749,7 @@
                     </div>
 
                     <div class="flex items-center gap-4">
-                        <x-form.primary-button>{{ __('Save Tenant Settings') }}</x-form.primary-button>
+                        <x-form.primary-button loading="loading">{{ __('Save Tenant Settings') }}</x-form.primary-button>
                     </div>
                 </form>
             </div>
@@ -738,11 +769,12 @@
                     </div>
 
                     <div class="flex items-center gap-4">
-                        <x-form.primary-button>{{ __('Save Other Settings') }}</x-form.primary-button>
+                        <x-form.primary-button loading="loading">{{ __('Save Other Settings') }}</x-form.primary-button>
                     </div>
                 </form>
             </div>
 
+            @endunless
         </div>
     </div>
 </x-app-layout>

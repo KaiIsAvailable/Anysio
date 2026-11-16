@@ -13,6 +13,8 @@
     'showChargeField' => false,
     'tenants' => [],
     'properties' => [],
+    'customFilterDefaults' => [],
+    'showUtilityFilters' => false,
 ])
 
 <div x-data="{ 
@@ -30,6 +32,7 @@
         status: '{{ request('status') }}',
         pending_renewal: '{{ request('pending_renewal') }}',
         stampingStatus: '{{ request('stampingStatus') }}',
+        customFilters: @js(array_replace($customFilterDefaults, request()->only(array_keys($customFilterDefaults)))),
 
         resetFilters() {
             this.leaseable_name = '';
@@ -43,6 +46,8 @@
             this.status = '';
             this.pending_renewal = '';
             this.stampingStatus = '';
+            this.customFilters = @js($customFilterDefaults);
+            this.$refs.searchRoot.querySelectorAll('[data-custom-filter-date]').forEach(input => input._flatpickr?.clear());
 
             // Directly clear Flatpickr instances using their IDs
             const startInput = document.getElementById('start-date');
@@ -55,7 +60,7 @@
                 endInput._flatpickr.clear();
             }
         }
-    }" class="relative w-full">
+    }" x-ref="searchRoot" class="relative w-full">
     <!-- Main Search Bar Row[cite: 2] -->
     <div class="flex items-center justify-between gap-3 w-full">
         <!-- Search Input & Submit Button Group[cite: 2] -->
@@ -109,7 +114,7 @@
                 @click="
                     loading = true; 
                     const form = $el.closest('form');
-                    {{ $async ? 'form.requestSubmit(); loading = false;' : 'form.submit();' }}
+                    {{ $async ? 'form.requestSubmit(); loading = false;' : '$nextTick(() => requestAnimationFrame(() => requestAnimationFrame(() => form.submit())));' }}
                 "
                 class="!rounded-l-none !rounded-r-xl shadow-sm focus:z-10 relative h-10 px-5 !py-0 flex items-center justify-center whitespace-nowrap"
             >
@@ -166,6 +171,71 @@
             <div class="max-h-[60vh] overflow-y-auto pr-2">
                 <!-- Form Body Grid (4 Columns) -->
                 <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    @if($showUtilityFilters)
+                        <div class="sm:col-span-3">
+                            <div class="space-y-5">
+                                <p class="text-sm text-gray-500">Fill in any combination. Results must match every filled field. Reading filters use the latest record shown in the table.</p>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    @foreach([
+                                        'utility_property' => ['Property', 'e.g. Property 1'],
+                                        'utility_unit' => ['Unit', 'e.g. A-01'],
+                                        'utility_room' => ['Room', 'e.g. R1'],
+                                        'utility_tenant' => ['Current tenant', 'Tenant name'],
+                                        'utility_label' => ['Service label', 'Service name'],
+                                        'utility_account' => ['Account number', 'Supplier account'],
+                                        'utility_meter' => ['Meter number', 'Physical meter number'],
+                                        'utility_parent' => ['Parent service', 'Parent service label'],
+                                    ] as $name => [$label, $placeholder])
+                                        <div>
+                                            <x-form.input-label :for="$name" :value="$label" class="mb-1.5" />
+                                            <x-form.text-input :id="$name" :name="$name" x-model="customFilters.{{ $name }}" :placeholder="$placeholder" :value="request($name)" maxlength="255" />
+                                        </div>
+                                    @endforeach
+                                    @foreach([
+                                        'utility_location_type' => ['Location level', ['' => 'All levels', 'property' => 'Property', 'unit' => 'Unit', 'room' => 'Room']],
+                                        'utility_status' => ['Service status', ['' => 'All statuses', 'unconfirmed' => 'Unconfirmed', 'active' => 'Active', 'inactive' => 'Inactive']],
+                                        'utility_method' => ['Billing method', ['' => 'All methods', 'metered' => 'Metered', 'fixed' => 'Fixed', 'shared' => 'Shared']],
+                                        'utility_readings' => ['Reading history', ['' => 'All services', 'recorded' => 'Has reading record', 'missing' => 'No reading record']],
+                                    ] as $name => [$label, $options])
+                                        <div>
+                                            <x-form.input-label :for="$name" :value="$label" class="mb-1.5" />
+                                            <x-form.input-select :id="$name" :name="$name" x-model="customFilters.{{ $name }}" :options="$options" :value="request($name)" :placeholder="reset($options)" />
+                                        </div>
+                                    @endforeach
+                                </div>
+                                <div class="border-t border-gray-100 pt-4">
+                                    <p class="mb-3 text-sm font-semibold text-gray-700">Readings and charges</p>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        @foreach(['previous' => 'Previous reading', 'current' => 'Current reading', 'usage' => 'Usage', 'amount' => 'Amount (RM)'] as $field => $label)
+                                            <div>
+                                                <x-form.input-label :for="'utility_'.$field.'_min'" :value="$label" class="mb-1.5" />
+                                                <div class="grid grid-cols-2 gap-2">
+                                                    @foreach(['min' => 'Minimum', 'max' => 'Maximum'] as $bound => $placeholder)
+                                                        @php($name = 'utility_'.$field.'_'.$bound)
+                                                        <x-form.text-input :id="$name" :name="$name" type="number" :step="$field === 'amount' ? '0.01' : '0.001'" x-model="customFilters.{{ $name }}" :placeholder="$placeholder" :aria-label="$label.' '.$placeholder" :value="request($name)" />
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                                <div class="border-t border-gray-100 pt-4">
+                                    <p class="mb-3 text-sm font-semibold text-gray-700">Record dates</p>
+                                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        @foreach(['recorded' => 'Recorded', 'updated' => 'Updated'] as $field => $label)
+                                            @foreach(['from' => 'from', 'to' => 'to'] as $bound => $suffix)
+                                                @php($name = 'utility_'.$field.'_'.$bound)
+                                                <div>
+                                                    <x-form.input-label :for="$name" :value="$label.' '.$suffix" class="mb-1.5" />
+                                                    <x-form.date-input :id="$name" :name="$name" x-model="customFilters.{{ $name }}" :value="request($name)" data-custom-filter-date />
+                                                </div>
+                                            @endforeach
+                                        @endforeach
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
                     <!-- Status Field[cite: 2] -->
                     @if($showLeaseableNameField)
                         <div>

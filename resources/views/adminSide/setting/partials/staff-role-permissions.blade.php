@@ -3,7 +3,8 @@
     $roleOptions = $roles->map(fn ($role) => ['value' => $role->name, 'label' => $role->name])->all();
 @endphp
 <div x-show="activeTab === 'permissions'" x-cloak
-     x-data="{ roleTab: @js($initialRole), editingPermissions: false, savingPermissions: false, showRoleModal: false, newRoleName: '', selectedPermissions: [], isLoading: false, errorMessage: '', isShaking: false }">
+     x-data="{ roleTab: @js($initialRole), editingPermissions: false, savingPermissions: false, roleToDelete: null, deletingRole: false, showRoleModal: false, newRoleName: '', selectedPermissions: [], isLoading: false, errorMessage: '', isShaking: false }"
+     @pageshow.window="deletingRole = false">
     <section class="bg-white shadow-sm rounded-lg border border-gray-200 p-4 sm:p-5 space-y-4">
         <header class="flex flex-wrap items-start justify-between gap-3">
             <div>
@@ -37,19 +38,19 @@
                     <div x-show="roleTab === @js($role->name)" x-cloak class="space-y-3"
                          x-data="{ selected: @js($grants), original: @js($grants), search: '' }"
                          @reset-staff-permissions.window="selected = [...original]">
-                        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-gray-100 pt-3">
+                        <div class="sticky top-0 z-30 flex flex-wrap items-center justify-between gap-3 border-y border-gray-100 bg-white py-3 shadow-sm">
                             <div>
                                 <p class="text-sm font-semibold text-gray-900">{{ $role->name }}</p>
                                 <p class="text-xs text-gray-500"><span x-text="selected.length"></span> {{ __('permissions selected') }}</p>
                             </div>
                             <div class="flex flex-wrap items-center gap-3">
-                                <input type="search" x-model="search" aria-label="{{ __('Find module') }}" placeholder="{{ __('Find module...') }}" class="w-36 sm:w-48 rounded-md border-gray-300 text-sm py-1.5 focus:ring-indigo-500 focus:border-indigo-500">
+                                <x-form.text-input type="search" x-model="search" aria-label="{{ __('Find module') }}" placeholder="{{ __('Find module...') }}" class="w-36 sm:w-48" />
                                 @canany(['super-admin', 'settings.edit user role'])
                                     <button type="button" x-show="!editingPermissions" @click="editingPermissions = true" class="text-sm font-medium text-indigo-600 hover:text-indigo-800">{{ __('Edit Permissions') }}</button>
                                 @endcanany
                                 @canany(['super-admin', 'settings.delete user role'])
-                                    <button type="button" :disabled="savingPermissions"
-                                            @click="if (confirm(@js(__('Delete this staff role?')))) document.getElementById('delete-role-form-{{ $role->id }}').submit()"
+                                    <button type="button" :disabled="savingPermissions || deletingRole"
+                                            @click="roleToDelete = @js(['name' => $role->name, 'url' => route('admin.roles.destroy', $role->id)]); $dispatch('open-delete-staff-role')"
                                             class="text-sm font-medium text-red-600 hover:text-red-800 disabled:opacity-50">{{ __('Delete Role') }}</button>
                                 @endcanany
                             </div>
@@ -67,13 +68,23 @@
                 @endcanany
             </form>
 
-            @foreach($roles as $role)
-                <form id="delete-role-form-{{ $role->id }}" action="{{ route('admin.roles.destroy', $role->id) }}" method="POST" class="hidden">
-                    @csrf
-                    @method('DELETE')
+            @canany(['super-admin', 'settings.delete user role'])
+            <x-modals.confirmation-modal id="delete-staff-role" :title="__('Delete Staff Role')">
+                <x-form.form method="DELETE" x-bind:action="roleToDelete?.url || ''" :autofocus="false"
+                    @submit.capture="if (!roleToDelete || deletingRole) { $event.preventDefault(); } else { deletingRole = true; }">
                     <input type="hidden" name="active_tab" value="permissions">
-                </form>
-            @endforeach
+                    <div class="px-6 py-5 text-sm text-gray-600">
+                        {{ __('Are you sure you want to delete the staff role') }}
+                        <strong class="text-gray-900" x-text="roleToDelete?.name || ''"></strong>?
+                        {{ __('This action cannot be undone.') }}
+                    </div>
+                    <div class="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
+                        <x-form.secondary-button type="button" x-bind:disabled="deletingRole" @click="$dispatch('close-delete-staff-role')">{{ __('Cancel') }}</x-form.secondary-button>
+                        <x-form.primary-button type="submit" loading="deletingRole" class="bg-red-600 hover:bg-red-700 focus:bg-red-700 active:bg-red-800">{{ __('Delete Role') }}</x-form.primary-button>
+                    </div>
+                </x-form.form>
+            </x-modals.confirmation-modal>
+            @endcanany
         @endif
     </section>
 </div>

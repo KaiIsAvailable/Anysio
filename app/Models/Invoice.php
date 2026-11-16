@@ -324,11 +324,21 @@ class Invoice extends Model
         $outstanding = static::query()->visibleTo($actualId, $effectiveId, $superAdmin)
             ->when($leaseId !== null, fn ($q) => $q->forLease($leaseId))->unpaid()->sum('amount_balance');
         $wallet = null;
+        $context = null;
         if ($leaseId !== null) {
-            $lease = static::statementLeases($actualId, $effectiveId, $superAdmin)->with('tenant')->find($leaseId);
+            $lease = static::statementLeases($actualId, $effectiveId, $superAdmin)->with(['tenant.user', 'leasable'])->find($leaseId);
             if ($lease?->tenant?->user_id) $wallet = Wallet::where('user_id', $lease->tenant->user_id)->value('balance');
+            if ($lease) {
+                $asset = $lease->leasable;
+                $context = [
+                    'tenant' => $lease->tenant?->user?->name,
+                    'asset' => $asset?->room_no ?? $asset?->unit_no ?? $asset?->name,
+                    'start_date' => $lease->start_date?->format('d/m/Y'),
+                    'end_date' => $lease->end_date?->format('d/m/Y'),
+                ];
+            }
         }
-        return ['outstanding' => $outstanding, 'wallet' => $wallet];
+        return ['outstanding' => $outstanding, 'wallet' => $wallet, 'context' => $context];
     }
 
     public static function statementDetails(array $invoiceIds, array $userIds): array

@@ -75,7 +75,7 @@ class InvoiceStatementTest extends TestCase
         $html = Blade::render('<x-invoice-statement-modal endpoint="/statement" />');
         $this->assertStringContainsString('aria-label="Close Invoice Statement"', $html);
         $this->assertStringContainsString('<svg', $html);
-        $this->assertStringNotContainsString('Loading statement', $html);
+        $this->assertStringContainsString('Loading statement', $html);
         $this->assertStringContainsString('shake = true; setTimeout', $html);
         $this->assertStringContainsString('x-on:keydown.escape.window="show = false"', $html);
         foreach (['<form', 'statement_from', 'statement_to', 'Search History', 'Record Type', 'Clear'] as $filter) {
@@ -185,6 +185,50 @@ class InvoiceStatementTest extends TestCase
         $this->assertSame(0, app(InvoiceService::class)->getStatement(null, null, false)->total());
     }
 
+    public function test_statement_layout_separates_charges_payments_wallet_and_voided_records(): void
+    {
+        Schema::table('invoices', function (Blueprint $t) {
+            $t->date('period')->nullable(); $t->date('due_date')->nullable(); $t->bigInteger('amount_paid')->default(0);
+        });
+        Schema::table('invoice_items', fn (Blueprint $t) => $t->bigInteger('amount')->nullable());
+        Schema::table('leases', function (Blueprint $t) { $t->date('start_date')->nullable(); $t->date('end_date')->nullable(); });
+        Schema::table('properties', fn (Blueprint $t) => $t->string('name')->nullable());
+        DB::table('properties')->where('id', 'p')->update(['name' => 'Sample Property']);
+        DB::table('leases')->where('id', 'la')->update(['start_date' => '2026-10-01', 'end_date' => '2027-08-31']);
+        DB::table('invoices')->where('id', 'ia')->update([
+            'status' => 'partial', 'period' => '2026-10-01', 'due_date' => '2026-10-08',
+            'amount_paid' => 70000, 'amount_balance' => 30000,
+        ]);
+        DB::table('invoice_items')->where('id', 'item1')->update(['amount' => 90000]);
+        DB::table('invoice_items')->where('id', 'item2')->update(['amount' => 10000]);
+        DB::table('transactions')->where('id', 'receipt')->update(['payment_date' => '2026-10-19', 'amount_applied' => 70000]);
+        $this->insert('invoices', ['id' => 'void-rent', 'lease_id' => 'la', 'invoice_no' => 'INV-VOID', 'status' => 'void', 'total_amount' => 100000]);
+        $service = app(InvoiceService::class);
+        $html = view('components.invoice-statement', [
+            'statement' => $service->getStatement('manager', 'manager', false, [], 'la'),
+            'summary' => $service->getStatementSummary('manager', 'manager', false, 'la'),
+        ])->render();
+        $dom = new \DOMDocument();
+        @$dom->loadHTML('<?xml encoding="UTF-8">'.$html);
+        $xpath = new \DOMXPath($dom);
+        $cell = fn ($id, $column) => trim($xpath->query('//tr[@data-statement-event="'.$id.'"]/td['.$column.']')->item(0)->textContent);
+        $this->assertStringContainsString('RM 1,000.00', $cell('invoice:ia', 3));
+        $this->assertSame('—', $cell('invoice:ia', 4));
+        $this->assertSame('—', $cell('payment:receipt', 3));
+        $this->assertSame('RM 700.00', $cell('payment:receipt', 4));
+        $this->assertSame('—', $cell('wallet_credit:credit', 3));
+        $this->assertSame('—', $cell('wallet_credit:credit', 4));
+        $this->assertStringContainsString('Wallet credited RM200.00', $cell('wallet_credit:credit', 2));
+        $this->assertStringContainsString('19/10/2026', $cell('payment:receipt', 1));
+        $this->assertStringContainsString('Rental, Service fee', $cell('invoice:ia', 2));
+        $this->assertStringContainsString('Oct 2026', $cell('invoice:ia', 2));
+        $this->assertSame(1, $xpath->query('//tr[@data-statement-event="invoice:void-rent"]/td[3]/span[contains(@class,"line-through")]')->length);
+        foreach (['Outstanding invoice balance', 'Sample Property', '31/08/2027', 'Current remaining balance', 'RM 300.00', 'RM 900.00', 'Wallet used', 'Receipt totals'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+        $this->assertSame(99999999, DB::table('wallets')->where('id', 'wa')->value('balance'));
+    }
+
     public function test_soft_deleted_records_and_mismatched_wallet_owners_do_not_leak(): void
     {
         $this->movement('wrong-owner', 'wb', 'ia', 999, 'manual_credit');
@@ -210,7 +254,7 @@ class InvoiceStatementTest extends TestCase
         $this->assertStringNotContainsString('Balance', $html);
         $this->assertStringContainsString('History credit', $html);
         $this->assertStringContainsString('History debit', $html);
-        foreach (['do not add again', 'not an additional receipt', 'may include wallet funds', 'no invoice payment allocation inferred', 'Wallet movement, not an invoice payment', 'not amounts to add together', 'No description'] as $explanation) {
+        foreach (['do not add again', 'not an additional receipt', 'no invoice payment allocation inferred', 'Wallet movement, not an invoice payment', 'not amounts to add together', 'No description'] as $explanation) {
             $this->assertStringNotContainsString($explanation, $html);
         }
         for ($i = 0; $i < 25; $i++) $this->movement('extra-'.$i, 'wa', 'ia', 1, 'manual_credit');
@@ -281,7 +325,8 @@ class InvoiceStatementTest extends TestCase
         }
         $this->assertSame(8, $page->total());
         $html = Blade::render('<x-invoice-statement :statement="$statement" />', ['statement' => $page]);
-        $this->assertSame(1, substr_count($html, '>Amount</th>'));
+        $this->assertSame(1, substr_count($html, '>Charges</th>'));
+        $this->assertSame(1, substr_count($html, '>Payment applied</th>'));
         $this->assertStringNotContainsString('Wallet movement (RM)', $html);
         $this->assertSame(8, substr_count($html, 'data-statement-event='));
         DB::table('invoices')->where('id', 'ia')->update(['total_amount' => 0]);
@@ -412,7 +457,7 @@ class InvoiceStatementTest extends TestCase
         $this->assertCount(1, $rows->firstWhere('id', 'payment:sort-00')['linked_wallet']);
         $this->assertSame($first->getCollection()->pluck('id')->all(), $service->getStatement('manager', 'manager', false, [], 'la')->getCollection()->pluck('id')->all());
         $html = view('components.invoice-statement', ['statement' => $first])->render();
-        $this->assertStringContainsString('Payment date: 01/09/2026', $html);
+        $this->assertMatchesRegularExpression('/Payment date<\/dt><dd>01\/09\/2026/', $html);
         $this->assertStringContainsString('Recorded: 20/10/2026 16:00:00', $html);
         $this->assertStringNotContainsString('Date / Time', $html);
         $this->assertSame('2026-09-01', DB::table('transactions')->where('id', 'backfill')->value('payment_date'));

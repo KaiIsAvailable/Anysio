@@ -1,9 +1,8 @@
 <?php
 
 use App\Http\Controllers\{ProfileController, TenantsController, TicketController, WelcomeController, UserController};
-use Illuminate\Support\Facades\{Artisan, Route, File, DB, Storage, Log, Gate, Auth};
+use Illuminate\Support\Facades\{Artisan, Route, File, Log, Gate, Auth};
 use Illuminate\Http\Request;
-use App\Models\{User, Tenants, EmergencyContact};
 use Spatie\Permission\PermissionRegistrar;
 
 // 1. 公开路由
@@ -54,9 +53,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
         require __DIR__.'/auditLogRoute.php';
         require __DIR__.'/notificationRoute.php';
         require __DIR__.'/invoiceRoute.php';
+        require __DIR__.'/utilityRoute.php';
         require __DIR__.'/paymentRoute.php';
         require __DIR__.'/feeTypeRoute.php';
-        require __DIR__.'/excelImportRoute.php';
         require __DIR__.'/settingRoute.php';
         require __DIR__.'/roleRoute.php';
         require __DIR__.'/refundRoute.php';
@@ -110,32 +109,6 @@ Route::get('/run-migrations-xyz', function (Request $request) {
         return redirect()->to($redirectTo)->with('error', 'Migration Error: ' . $e->getMessage());
     }
 })->name('run.migrations');
-
-Route::get('/debug-revert/{filename}', function ($filename) {
-    $filePath = 'imports/' . $filename;
-
-    if (Storage::disk('local')->exists($filePath)) {
-        $data = json_decode(Storage::disk('local')->get($filePath), true);
-
-        DB::transaction(function () use ($data) {
-            if (!empty($data['emergency_contacts'])) {
-                EmergencyContact::whereIn('id', $data['emergency_contacts'])->delete();
-            }
-            if (!empty($data['tenants'])) {
-                Tenants::whereIn('id', $data['tenants'])->delete();
-            }
-            if (!empty($data['users'])) {
-                User::whereIn('id', $data['users'])->delete();
-            }
-        });
-
-        Storage::disk('local')->delete($filePath);
-
-        return "Successfully reverted import batch and cleaned up database!";
-    }
-
-    return "Session file not found.";
-});
 
 Route::get('/check-php', function () {
     return phpversion();

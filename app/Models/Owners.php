@@ -30,6 +30,12 @@ class Owners extends Model
         'email_verify_at' => 'datetime',
     ];
 
+    public function scopeForManagement(\Illuminate\Database\Eloquent\Builder $query, User $manager): \Illuminate\Database\Eloquent\Builder
+    {
+        return \Illuminate\Support\Facades\Gate::allows('super-admin')
+            ? $query : $query->where('agent_id', $manager->id);
+    }
+
     public function owner()
     {
         return $this->unit()->with('owner');

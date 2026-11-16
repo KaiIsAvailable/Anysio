@@ -108,7 +108,7 @@
                             </div>
                             <div class="">
                                 <x-form.input-label for="company_phone" value="Company Phone" class="mb-1" />
-                                <x-form.text-input type="text" name="company_phone" id="company_phone" value="{{ old('company_phone', $tenant->user->companies->first()?->phone) }}" class="w-full" />
+                                <x-form.text-input type="text" name="company_phone" id="company_phone" value="{{ old('company_phone', $tenant->user->companies->first()?->phone) }}" class="w-full" inputmode="numeric" maxlength="20" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
                                 <x-form.input-error :messages="$errors->get('company_phone')" class="mt-1" />
                             </div>
                             <div class="">
@@ -194,8 +194,8 @@
                         <h2 class="text-xl font-semibold text-slate-800 mb-4">Bank Account</h2>
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
-                                <x-form.input-label for="bank_name" value="Bank Name" :required="true" class="mb-1" />
-                                <x-form.text-input name="bank_name" id="bank_name" value="{{ old('bank_name', $bankDetail?->bank_name) }}" class="w-full" required />
+                                <x-form.input-label for="bank_name" value="Bank Name" class="mb-1" />
+                                <x-form.text-input name="bank_name" id="bank_name" value="{{ old('bank_name', $bankDetail?->bank_name) }}" class="w-full" />
                                 <x-form.input-error :messages="$errors->get('bank_name')" class="mt-1" />
                             </div>
                             <div>
@@ -204,13 +204,13 @@
                                 <x-form.input-error :messages="$errors->get('bank_code')" class="mt-1" />
                             </div>
                             <div>
-                                <x-form.input-label for="account_holder_name" value="Account Holder Name" :required="true" class="mb-1" />
-                                <x-form.text-input name="account_holder_name" id="account_holder_name" value="{{ old('account_holder_name', $bankDetail?->account_holder_name) }}" class="w-full" required />
+                                <x-form.input-label for="account_holder_name" value="Account Holder Name" class="mb-1" />
+                                <x-form.text-input name="account_holder_name" id="account_holder_name" value="{{ old('account_holder_name', $bankDetail?->account_holder_name) }}" class="w-full" />
                                 <x-form.input-error :messages="$errors->get('account_holder_name')" class="mt-1" />
                             </div>
                             <div>
-                                <x-form.input-label for="account_number" value="Account Number" :required="!$bankDetail" class="mb-1" />
-                                <x-form.text-input name="account_number" id="account_number" value="{{ old('account_number', $bankDetail?->account_number) }}" class="w-full" autocomplete="off" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" required />
+                                <x-form.input-label for="account_number" value="Account Number" class="mb-1" />
+                                <x-form.text-input name="account_number" id="account_number" value="{{ old('account_number', $bankDetail?->account_number) }}" class="w-full" autocomplete="off" inputmode="numeric" pattern="[0-9]*" oninput="this.value = this.value.replace(/[^0-9]/g, '')" />
                                 @if($bankDetail?->account_number)
                                     <p class="mt-1 text-xs text-gray-500">Current account: ******{{ substr($bankDetail->account_number, -4) }}</p>
                                 @endif

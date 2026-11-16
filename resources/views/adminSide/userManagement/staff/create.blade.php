@@ -76,13 +76,18 @@
                     <div x-data="{ 
                         showRoleModal: false, 
                         newRoleName: '', 
-                        roles: @js($roles),
-                        selectedRole: '{{ old('role') }}',
+                        roles: @js(collect($roles)->map(fn ($role) => is_string($role) ? ['name' => $role] : ['name' => $role->name])->values()),
+                        selectedRole: @js(old('role') ? [old('role')] : []),
                         selectedPermissions: [],
                         isLoading: false,
                         errorMessage: '',
                         isShaking: false
-                    }">
+                    }"
+                    @staff-role-created.window="
+                        const role = $event.detail.role;
+                        if (!roles.some(existing => existing.name === role.name)) roles.push({ name: role.name });
+                        $nextTick(() => { selectedRole = [role.name]; });
+                    ">
                         <div class="flex items-center justify-between">
                             <x-form.input-label for="role" value="Staff Position / Role" required />
                             
@@ -105,6 +110,7 @@
                                 value-field="name"
                                 label-field="name"
                                 x-model="selectedRole"
+                                x-effect="options = roles.map(role => ({ value: role.name, label: role.name }))"
                                 :value="old('role')"
                                 required 
                             />
@@ -116,7 +122,7 @@
                             No custom roles found. Click "Add New Role" above to create one.
                         </p>
 
-                        <x-modals.staff-role-modal />
+                        <x-modals.staff-role-modal :reload-after-create="false" />
                     </div>
 
                     <!-- Action Buttons -->

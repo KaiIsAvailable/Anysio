@@ -60,7 +60,7 @@
                     <p class="text-sm text-amber-800">{{ $note }}</p>
                 @endforeach
                 <div class="flex justify-between border-t pt-4 font-semibold">
-                    <span>Wallet remaining</span><span>RM{{ number_format($summary['wallet_remaining_cents'] / 100, 2) }}</span>
+                    <span>{{ ($summary['wallet_count'] ?? 1) > 1 ? 'Wallet remaining (all affected wallets)' : 'Wallet remaining' }}</span><span>RM{{ number_format($summary['wallet_remaining_cents'] / 100, 2) }}</span>
                 </div>
                 @if($summary['payments'])
                     <p class="text-xs text-gray-500">These payments are already recorded. Closing this summary does not reverse them.</p>
@@ -69,5 +69,5 @@
                 @endif
             </div>
             <div class="px-6 py-4 bg-gray-50 border-t flex justify-end">
-                <x-form.primary-button type="button" @click="$dispatch('close-wallet-payment-summary')">OK</x-form.primary-button>
+                <x-form.primary-button loading="loading" type="button" @click="$dispatch('close-wallet-payment-summary')">OK</x-form.primary-button>
             </div>

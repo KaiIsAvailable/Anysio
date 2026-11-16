@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\{User, DocumentTemplate, Owners, Tenants, RefCodePackage};
 use App\Services\SubscriptionService;
+use App\Services\AccountDefaultsService;
+use App\Services\AccountPermissionService;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,7 +22,8 @@ use Carbon\Carbon;
 class RegisteredUserController extends Controller
 {
     public function __construct(
-        private readonly SubscriptionService $subscriptionService
+        private readonly SubscriptionService $subscriptionService,
+        private readonly AccountDefaultsService $accountDefaultsService
     ) {}
 
     public function create(): View
@@ -127,6 +130,12 @@ class RegisteredUserController extends Controller
                     'role'     => $finalRole,
                 ], $complianceData));
 
+                if (!$existingUser) {
+                    $user->forceFill([
+                        'account_permissions' => AccountPermissionService::names(),
+                    ])->save();
+                }
+
                 // 2. 如果是旧用户，确保数据被更新（同步新密码、状态等）
                 if ($existingUser) {
                     $user->update(array_merge([
@@ -145,6 +154,8 @@ class RegisteredUserController extends Controller
                         $finalRole
                     );
                 }
+
+                $this->accountDefaultsService->initialize($user);
             }
 
             event(new Registered($user));

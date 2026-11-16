@@ -25,6 +25,7 @@ function form(html) {
     const context = vm.createContext({
         $el: { querySelectorAll: () => [subject, details, hiddenFile], requestSubmit: () => submitted++ },
         setTimeout: (callback) => callback(),
+        $dispatch: () => {},
     });
     context.state = vm.runInContext('(' + attribute(html, 'x-data') + ')', context);
     const run = (name, event = {}) => {

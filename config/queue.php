@@ -15,6 +15,10 @@ return [
 
     'default' => env('QUEUE_CONNECTION', 'database'),
 
+    'bulk_pending_timeout' => (int) env('BULK_PENDING_TIMEOUT', 300),
+    'bulk_processing_timeout' => (int) env('BULK_PROCESSING_TIMEOUT', 660),
+    'bulk_scheduled_worker' => (bool) env('BULK_SCHEDULED_WORKER', false),
+
     /*
     |--------------------------------------------------------------------------
     | Queue Connections
@@ -30,6 +34,23 @@ return [
     */
 
     'connections' => [
+        'bulk' => [
+            'driver' => 'database',
+            'connection' => null,
+            'table' => 'jobs',
+            'queue' => 'bulk',
+            'retry_after' => 900,
+            'after_commit' => false,
+        ],
+
+        'tenant_bulk' => [
+            'driver' => 'database',
+            'connection' => null,
+            'table' => 'jobs',
+            'queue' => 'tenant-bulk',
+            'retry_after' => 900,
+            'after_commit' => false,
+        ],
 
         'sync' => [
             'driver' => 'sync',

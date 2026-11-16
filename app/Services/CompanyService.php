@@ -9,10 +9,15 @@ use Illuminate\Support\Facades\Storage;
 
 class CompanyService
 {
-    public function saveForTenant(User $user, array $data, ?UploadedFile $certificate = null, ?UploadedFile $logo = null): Company
+    public function saveForTenant(User $user, array $data, ?UploadedFile $certificate = null, ?UploadedFile $logo = null, ?callable $onUpload = null): Company
     {
-        return DB::transaction(function () use ($user, $data, $certificate, $logo): Company {
-            $company = $user->companies()->first();
+        return $this->saveProfileForUser($user, $data, $certificate, $logo, $onUpload);
+    }
+
+    public function saveProfileForUser(User $user, array $data, ?UploadedFile $certificate = null, ?UploadedFile $logo = null, ?callable $onUpload = null, string $certificateCategory = 'tenant_ssm'): Company
+    {
+        return DB::transaction(function () use ($user, $data, $certificate, $logo, $onUpload, $certificateCategory): Company {
+            $company = $user->relationLoaded('companies') ? $user->companies->first() : $user->companies()->first();
             $company ??= new Company();
             $oldPath = $company->ssm_cert_path;
             $newPath = null;
@@ -22,8 +27,8 @@ class CompanyService
             try {
                 $company->fill([
                     'name' => $data['company_name'],
-                    'ssm_new_number' => $data['ssm_new_number'],
-                    'address' => $data['company_address'],
+                    'ssm_new_number' => $data['ssm_new_number'] ?? null,
+                    'address' => $data['company_address'] ?? null,
                 ]);
 
                 foreach (['ssm_old_number' => 'ssm_old_number', 'company_phone' => 'phone', 'company_email' => 'email'] as $input => $attribute) {
@@ -38,14 +43,16 @@ class CompanyService
                         throw new \RuntimeException('Unable to upload the company logo.');
                     }
                     $company->logo_path = $newLogoPath;
+                    if ($onUpload) $onUpload('public', $newLogoPath);
                 }
 
                 if ($certificate) {
-                    $newPath = app(FileService::class)->upload($certificate, $user->id, 'tenant_ssm');
+                    $newPath = app(FileService::class)->upload($certificate, $user->id, $certificateCategory);
                     if (!$newPath) {
                         throw new \RuntimeException('Unable to upload the SSM certificate.');
                     }
                     $company->ssm_cert_path = $newPath;
+                    if ($onUpload) $onUpload('local', $newPath);
                 }
 
                 $company->save();

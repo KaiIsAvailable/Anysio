@@ -1,4 +1,4 @@
-@props(['loading' => false, 'size' => 'md'])
+@props(['loading' => false, 'size' => 'md', 'disabledWhen' => null])
 
 @php
     // 判断传入的是否是 Alpine.js 的变量名字符串（比如 'loading' 或 'openUpload'）
@@ -12,9 +12,28 @@
 @endphp
 
 <button
-    @if($isAlpine)
-    x-data="{ loading: false }"
-    @form-loading.window="loading = $event.detail"
+    @if($isAlpine && $loading === 'loading')
+    x-data="{
+        loading: false,
+        isSubmitter: false,
+        selectSubmitter(event) {
+            if (!this.$el.form || event.target !== this.$el.form) return;
+            const submitter = event.submitter || this.$el.form.querySelector('button[type=submit], button:not([type]), input[type=submit]');
+            this.isSubmitter = submitter === this.$el;
+        },
+        syncFormLoading(event) {
+            if (!this.$el.form || event.target !== this.$el.form) return;
+            this.loading = !!event.detail && this.isSubmitter;
+        },
+        startNativeSubmit(event) {
+            if (this.$el.form && event.target === this.$el.form && !event.defaultPrevented) {
+                this.loading = this.isSubmitter;
+            }
+        }
+    }"
+    @submit.window.capture="selectSubmitter($event)"
+    @submit.window="startNativeSubmit($event)"
+    @form-loading.window.capture="syncFormLoading($event)"
     @endif
     {{ $attributes->merge([
     'type' => 'submit',
@@ -22,7 +41,8 @@
 ]) }} 
 {{-- 兼容 Alpine 和原生 Blade 的 disabled 绑定 --}}
 @if($isAlpine)
-    :disabled="{{ $loading }}"
+    :disabled="{{ $loading }}{{ $disabledWhen ? ' || ('.$disabledWhen.')' : '' }}"
+    :aria-busy="{{ $loading }}"
     {{-- Only add the pageshow reset if it's a direct variable name, not a comparison expression containing '===' --}}
     @if(!str_contains($loading, '==='))
         @pageshow.window="{{ $loading }} = false"
@@ -30,6 +50,7 @@
         @pageshow.window="subAction = ''"
     @endif
 @else
+    @if($disabledWhen) :disabled="{{ $disabledWhen }}" @endif
     {{ $loading ? 'disabled' : '' }}
 @endif
 >

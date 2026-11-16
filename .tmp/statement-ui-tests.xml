@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Tests\Feature\InvoiceStatementTest" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" tests="20" assertions="233" errors="0" failures="2" skipped="0" time="1.939259">
+    <testcase name="test_statement_modal_hides_filters_and_opts_into_existing_shake_only" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="73" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="15" time="0.419202"/>
+    <testcase name="test_scope_labels_have_no_rendered_text_or_dedicated_container" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="89" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="8" time="0.031017"/>
+    <testcase name="test_statement_endpoints_enforce_permissions_and_lease_scope" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="102" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="22" time="0.168993"/>
+    <testcase name="test_statement_endpoints_deny_users_without_existing_permissions" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="136" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="4" time="0.031922"/>
+    <testcase name="test_lease_history_groups_explicit_sources_without_join_multiplication_or_balance_fabrication" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="153" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="18" time="0.040445"/>
+    <testcase name="test_global_scope_is_not_limited_to_invoice_list_page_and_excludes_other_managers" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="175" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="10" time="0.052011"/>
+    <testcase name="test_statement_layout_separates_charges_payments_wallet_and_voided_records" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="188" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="13" time="0.060887">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">Tests\Feature\InvoiceStatementTest::test_statement_layout_separates_charges_payments_wallet_and_voided_records&#13;
+Failed asserting that 2 is identical to 1.
+&#13;
+C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php:225</failure>
+    </testcase>
+    <testcase name="test_soft_deleted_records_and_mismatched_wallet_owners_do_not_leak" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="232" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="7" time="0.037141"/>
+    <testcase name="test_filters_pagination_and_safe_shared_blade" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="241" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="20" time="0.065258"/>
+    <testcase name="test_date_validation_allows_open_ended_range_and_rejects_invalid_input" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="267" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="8" time="0.029630"/>
+    <testcase name="test_existing_owner_visibility_applies_to_property_unit_and_room" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="277" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="8" time="0.057034"/>
+    <testcase name="test_unresolved_references_and_existing_refund_history_are_read_only" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="290" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="8" time="0.066497"/>
+    <testcase name="test_semantic_amounts_zero_partial_and_wallet_payments" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="304" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="25" time="0.117529"/>
+    <testcase name="test_nonempty_descriptions_are_preserved_read_only" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="338" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="7" time="0.060132"/>
+    <testcase name="test_explicit_wallet_children_stay_with_their_receipt_before_pagination" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="353" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="8" time="0.077222"/>
+    <testcase name="test_partial_wallet_mixed_and_multi_invoice_allocations_are_not_reported_as_cash" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="372" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="10" time="0.043775"/>
+    <testcase name="test_explicit_link_must_have_correct_owner_type_and_unambiguous_reference" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="392" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="7" time="0.052678"/>
+    <testcase name="test_summary_uses_full_authorized_persisted_balances_without_wallet_duplication" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="406" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="9" time="0.241755"/>
+    <testcase name="test_recorded_time_orders_same_day_backdated_and_grouped_events_before_pagination" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="428" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="20" time="0.178780"/>
+    <testcase name="test_optional_descriptions_survive_charge_initial_and_recurring_invoice_writes" file="C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php" line="466" class="Tests\Feature\InvoiceStatementTest" classname="Tests.Feature.InvoiceStatementTest" assertions="6" time="0.107351">
+      <failure type="PHPUnit\Framework\ExpectationFailedException">Tests\Feature\InvoiceStatementTest::test_optional_descriptions_survive_charge_initial_and_recurring_invoice_writes&#13;
+Failed asserting that 0 is identical to 1.
+&#13;
+C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php:508
+C:\xampp\htdocs\dashboard\Anysio\vendor\laravel\framework\src\Illuminate\Database\Eloquent\Concerns\HasEvents.php:454
+C:\xampp\htdocs\dashboard\Anysio\tests\Feature\InvoiceStatementTest.php:501</failure>
+    </testcase>
+  </testsuite>
+</testsuites>

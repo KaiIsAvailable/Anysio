@@ -872,5 +872,11 @@ class OverpaymentWalletTest extends TestCase
         foreach (['Auto record payment using wallet', 'Wallet balance used', 'Paid Invoices', 'INV-water',
             'Water Bill', 'INV-keys', 'Late Key Charges', 'RM100.00', 'RM90.00', 'RM10.00', 'RM0.00',
             'Wallet remaining', 'open-wallet-payment-summary'] as $text) $this->assertStringContainsString($text, $html);
+        $this->assertStringContainsString('walletPaymentSummary: true', $html);
+        session()->forget('wallet_auto_payment_summary');
+        $html = \Illuminate\Support\Facades\Blade::render('<x-modals.wallet-payment-summary />');
+        $this->assertStringContainsString('walletPaymentSummary: false', $html);
+        $other = \Illuminate\Support\Facades\Blade::render('<x-modals.confirmation-modal id="unrelated" />');
+        $this->assertStringContainsString('unrelated: false', $other);
     }
 }

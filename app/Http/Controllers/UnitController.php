@@ -88,6 +88,7 @@ class UnitController extends Controller
                 Rule::unique('units')->where(fn($query) => $query->where('property_id', $request->property_id))
             ],
             'type'      => 'nullable|string|max:255',
+            'floor' => ['nullable', new \App\Rules\UnitFloor],
             'has_rooms' => 'required|boolean',
             'total_rooms' => 'nullable|integer|min:0',
 
@@ -309,6 +310,7 @@ class UnitController extends Controller
             ],
             'type'           => 'nullable|string|max:255',
             'owner_id'       => 'nullable|exists:users,id',
+            'floor'          => ['nullable', new \App\Rules\UnitFloor],
             'management_fee' => 'nullable|numeric|min:0',
             'sqft'           => 'nullable|numeric|min:0',
             'has_rooms'      => 'required|Boolean',

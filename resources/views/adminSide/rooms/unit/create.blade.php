@@ -13,7 +13,7 @@
                 <h1 class="text-2xl font-bold text-slate-900 mt-2">Add New Unit</h1>
             </div>
 
-            <x-form.form method="POST" action="{{ route('admin.units.store') }}">
+            <x-form.form :focus-errors="true" method="POST" action="{{ route('admin.units.store') }}">
                 @csrf
 
                 <div class="bg-white shadow-lg rounded-xl p-6 space-y-8">
@@ -116,7 +116,10 @@
                                 <x-form.input-label value="Floor" class="mb-1" />
                                 <x-form.text-input 
                                     type="text" 
-                                    name="floor" 
+                                    name="floor"
+                                    placeholder="e.g. G or 2"
+                                    pattern="G|(?:\+|-)?[0-9]+"
+                                    title="Enter G for Ground Floor or a whole floor number."
                                     value="{{ old('floor') }}"
                                     class="w-full" 
                                 />

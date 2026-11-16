@@ -73,11 +73,21 @@
                         </x-nav-link>
                     @endcanany
 
-                    <!--@can('maintenance-tickets')
+                    @canany(['super-admin', 'utilities.tab'])
+                        @cannot('is-tenant')
+                            @cannot('is-owner')
+                                <x-nav-link :href="route('admin.utilities.index')" :active="request()->routeIs('admin.utilities.*')">
+                                    {{ __('Utilities') }}
+                                </x-nav-link>
+                            @endcannot
+                        @endcannot
+                    @endcanany
+
+                    @can('maintenance-tickets')
                         <x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
                             {{ __('Service Request') }}
                         </x-nav-link>
-                    @endcan-->
+                    @endcan
 
                     <!--@can('owner-admin')
                         <x-nav-link :href="route('admin.document-templates.index')" :active="request()->routeIs('admin.document-templates.*')">
@@ -303,6 +313,16 @@
                 {{ __('Invoices') }}
             </x-responsive-nav-link>
             @endcan
+
+            @canany(['super-admin', 'utilities.tab'])
+                @cannot('is-tenant')
+                    @cannot('is-owner')
+                        <x-responsive-nav-link :href="route('admin.utilities.index')" :active="request()->routeIs('admin.utilities.*')">
+                            {{ __('Utilities') }}
+                        </x-responsive-nav-link>
+                    @endcannot
+                @endcannot
+            @endcanany
 
             @can('super-admin')
                 <x-responsive-nav-link :href="route('admin.packages.index')" :active="request()->routeIs('admin.packages.*')">

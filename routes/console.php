@@ -15,5 +15,8 @@ Schedule::command('invoices:generate-recurring')->dailyAt('00:10')
 
 if (config('queue.bulk_scheduled_worker')) {
     Schedule::command('queue:work bulk --queue=bulk --stop-when-empty --max-time=50 --timeout=600 --tries=1')
-        ->everyMinute()->withoutOverlapping(15);
+        ->everyMinute()->withoutOverlapping(15)->runInBackground();
+
+    Schedule::command('queue:work tenant_bulk --queue=tenant-bulk --stop-when-empty --max-time=50 --timeout=600 --tries=1')
+        ->everyMinute()->withoutOverlapping(15)->runInBackground();
 }

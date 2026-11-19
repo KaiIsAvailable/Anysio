@@ -13,7 +13,9 @@ php artisan migrate --path=database/migrations/2026_11_16_000000_create_tenant_b
 php artisan config:clear
 ```
 
-Keep a dedicated worker running from the same application installation:
+For cron-based processing, enable `BULK_SCHEDULED_WORKER=true`, clear the config cache, and run `php artisan schedule:run` once per minute. This single scheduler cron processes tenant, owner and property bulk saves. No separate tenant cron is needed. See [shared bulk editing](bulk-editing.md) for deployment details.
+
+Alternatively, keep a dedicated worker running from the same application installation:
 
 ```sh
 php artisan queue:work tenant_bulk --queue=tenant-bulk --timeout=600 --tries=1

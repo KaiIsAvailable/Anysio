@@ -29,9 +29,9 @@ class UtilitySetupTest extends TestCase
         $this->assertSame(':memory:', config('database.connections.sqlite.database'));
         foreach ([
             'users' => ['name', 'role', 'email_verified_at'], 'owners' => ['user_id', 'agent_id'],
-            'properties' => ['name', 'owner_id', 'created_by'],
-            'units' => ['unit_no', 'property_id', 'owner_id', 'created_by', 'water_acc_no', 'electricity_acc_no', 'indah_water_acc_no'],
-            'rooms' => ['room_no', 'unit_id', 'owner_id', 'created_by'],
+            'properties' => ['name', 'owner_id', 'created_by', 'status'],
+            'units' => ['unit_no', 'property_id', 'owner_id', 'created_by', 'status', 'water_acc_no', 'electricity_acc_no', 'indah_water_acc_no'],
+            'rooms' => ['room_no', 'unit_id', 'owner_id', 'created_by', 'status'],
             'tenants' => ['user_id', 'created_by'],
             'leases' => ['tenant_id', 'leasable_type', 'leasable_id', 'status', 'start_date', 'end_date', 'cancelled_at', 'checked_out_at', 'agreement_ended_at', 'parent_lease_id'],
             'invoice_items' => ['invoice_id', 'fee_type_id', 'lease_charge_id', 'description', 'amount'],
@@ -278,6 +278,37 @@ class UtilitySetupTest extends TestCase
         }
         Gate::define('utilities.manage meters', fn () => false);
         $this->assertStringNotContainsString('water_meter[', \Illuminate\Support\Facades\Blade::render('<x-utilities.water-meter-fields />'));
+    }
+
+    public function test_utilities_hide_inactive_leasables_and_their_descendants_without_losing_history(): void
+    {
+        $this->initialize();
+        $readings = app(UtilityReadingService::class);
+        $manager = User::findOrFail($this->ids['a']);
+        $initialRows = $readings->rows($manager, '2026-11');
+        $this->assertCount(3, $initialRows);
+        $roomRow = collect($initialRows)->firstWhere('locationType', 'room');
+        foreach ([['rooms', 'ra', ' Inactive ', 2], ['units', 'ua', 'inactive', 1], ['properties', 'pa', 'Removed', 0]] as [$table, $key, $status, $remaining]) {
+            foreach (['properties' => 'pa', 'units' => 'ua', 'rooms' => 'ra'] as $resetTable => $resetKey) {
+                DB::table($resetTable)->where('id', $this->ids[$resetKey])->update(['status' => 'Vacant']);
+            }
+            DB::table($table)->where('id', $this->ids[$key])->update(['status' => $status]);
+            try { $this->saveReading($this->readingInput($roomRow)); $this->fail('Inactive location accepted a reading.'); }
+            catch (ValidationException $exception) { $this->assertArrayHasKey('readings', $exception->errors()); }
+            $response = $this->get(route('admin.utilities.index'))->assertOk();
+            $this->assertSame($remaining, $response->viewData('services')->total());
+            $rows = $readings->rows($manager, '2026-11');
+            $this->assertCount($remaining, $rows);
+            $nodes = $readings->hierarchy($manager, $rows);
+            $this->assertCount($remaining, $nodes);
+        }
+        $this->assertSame(3, UtilityService::forManagement($manager->id)->count());
+        $this->assertSame(1, Utility::count());
+        foreach (['properties' => 'pa', 'units' => 'ua', 'rooms' => 'ra'] as $table => $key) {
+            DB::table($table)->where('id', $this->ids[$key])->update(['status' => 'Vacant']);
+        }
+        $this->assertCount(3, $readings->rows($manager, '2026-11'));
+        $this->get(route('admin.utilities.index'))->assertOk()->assertViewHas('services', fn ($services) => $services->total() === 3);
     }
 
     private function initialize(string $manager = 'a', string $type = 'water'): array

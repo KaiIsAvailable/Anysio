@@ -38,6 +38,11 @@ class UtilityService extends Model
         return $id ? $query->where('management_user_id', $id) : $query->whereRaw('1 = 0');
     }
 
+    public function scopeForActiveLocations(Builder $query): Builder
+    {
+        return $query->whereHasMorph('location', [Property::class, Unit::class, Room::class], fn ($q) => $q->forActiveHierarchy());
+    }
+
     public static function filterRules(array $input = []): array
     {
         $rules = [

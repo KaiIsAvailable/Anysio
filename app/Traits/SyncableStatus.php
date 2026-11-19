@@ -4,6 +4,18 @@ namespace App\Traits;
 
 trait SyncableStatus
 {
+    public function scopeForActiveHierarchy(\Illuminate\Database\Eloquent\Builder $query): \Illuminate\Database\Eloquent\Builder
+    {
+        $status = $query->getModel()->qualifyColumn('status');
+        $query->where(fn ($q) => $q->whereNull($status)->orWhereRaw("LOWER(TRIM({$status})) NOT IN ('inactive', 'removed')"));
+        if ($this instanceof \App\Models\Room) {
+            $query->whereHas('unit', fn ($q) => $q->forActiveHierarchy());
+        } elseif ($this instanceof \App\Models\Unit) {
+            $query->whereHas('property', fn ($q) => $q->forActiveHierarchy());
+        }
+        return $query;
+    }
+
     protected bool $syncingStatusFromChildren = false;
 
     public static function bootSyncableStatus(): void

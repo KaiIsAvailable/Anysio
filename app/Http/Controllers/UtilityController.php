@@ -44,7 +44,7 @@ class UtilityController extends Controller
         $type = $filters['type'] ?? 'water';
         $managers = Gate::allows('super-admin')
             ? User::whereIn('role', [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN])->orderBy('name')->get(['id', 'name']) : collect();
-        $services = UtilityService::forManagement($manager?->id)->where('type', $type)
+        $services = UtilityService::forManagement($manager?->id)->forActiveLocations()->where('type', $type)
             ->search($filters['search'] ?? null)
             ->applyFilters($filters)
             ->with(['parentService', 'latestRecord.invoiceItem.invoice.documentTemplate', 'latestRecord.allocations', 'location' => function (MorphTo $morphTo) {

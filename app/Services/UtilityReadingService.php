@@ -61,7 +61,7 @@ class UtilityReadingService
     public function rows(User $manager, string $month, ?string $search = null): array
     {
         $period = $month.'-01';
-        $services = UtilityService::forManagement($manager->id)->where('type', 'water')
+        $services = UtilityService::forManagement($manager->id)->forActiveLocations()->where('type', 'water')
             ->whereIn('billing_method', ['metered', 'fixed'])->whereIn('status', ['active', 'unconfirmed'])->search($search)
             ->with(['meterEvents' => fn ($q) => $q->whereNull('consumed_by_utility_id'), 'location' => fn (MorphTo $morph) => $morph->morphWith([Unit::class => ['property'], Room::class => ['unit.property']])])
             ->orderBy('location_type')->orderBy('location_id')->get();
@@ -81,8 +81,8 @@ class UtilityReadingService
     public function hierarchy(User $manager, array $rows): array
     {
         $setup = app(UtilitySetupService::class);
-        $properties = $setup->managedLocations(Property::class, $manager)->keyBy('id');
-        $units = $setup->managedLocations(Unit::class, $manager);
+        $properties = $setup->managedLocations(Property::class, $manager, true)->keyBy('id');
+        $units = $setup->managedLocations(Unit::class, $manager, true);
         // A managed unit can sit inside a property managed by someone else. Its name
         // is location context; no other account's meter or units are exposed.
         foreach ($units as $unit) if ($unit->property) $properties->put($unit->property->id, $unit->property);
@@ -201,7 +201,7 @@ class UtilityReadingService
             $period = $data['month'].'-01'; $count = 0;
             foreach ($entries as $entry) {
                 foreach (['previous', 'current', 'previousDate', 'rate'] as $field) if ($entry[$field] === '') $entry[$field] = null;
-                $service = UtilityService::forManagement($manager->id)->where('type', 'water')->whereIn('billing_method', ['metered', 'fixed'])
+                $service = UtilityService::forManagement($manager->id)->forActiveLocations()->where('type', 'water')->whereIn('billing_method', ['metered', 'fixed'])
                     ->whereIn('status', ['active', 'unconfirmed'])->whereKey($entry['id'])->lockForUpdate()->first();
                 if (!$service || !$service->location || app(UtilitySetupService::class)->managerFor($service->location)?->id !== $manager->id) {
                     throw ValidationException::withMessages(['readings' => 'A selected meter is unavailable or outside this management account.']);

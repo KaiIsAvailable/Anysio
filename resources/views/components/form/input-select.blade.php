@@ -10,6 +10,7 @@
     'maxHeight' => 'max-h-60',
     'multiple' => false,
     'ignoreCheckoutOrRenew' => false,
+    'openOnFocus' => true,
 ])
 
 @php
@@ -292,7 +293,9 @@ class="relative w-full"
             {{ $attributes->whereStartsWith(':disabled') }}
             :disabled="isDisabled"
             :value="open ? search : (selectedLabel || '')"
-            @focus="if(isDisabled) return; open = true; search = ''; $nextTick(() => checkPosition())"
+            @focus="if(isDisabled || !@js($openOnFocus)) return; open = true; search = ''; $nextTick(() => checkPosition())"
+            @click="if (!isDisabled && !open) toggleDropdown()"
+            @keydown.arrow-down.prevent="if (!isDisabled && !open) toggleDropdown()"
             @input="if(isDisabled) return; open = true; search = $event.target.value; $nextTick(() => checkPosition())"
             @blur="
                 // Prevent premature clearing if clicking an option

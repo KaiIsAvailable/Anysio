@@ -30,9 +30,9 @@ class UtilitySetupService
         };
     }
 
-    public function managedLocations(string $model, User $manager)
+    public function managedLocations(string $model, User $manager, bool $onlyActive = false)
     {
-        return $this->locations($model, $manager)->get()
+        return $this->locations($model, $manager)->when($onlyActive, fn ($q) => $q->forActiveHierarchy())->get()
             ->filter(fn ($location) => $this->managerFor($location)?->id === $manager->id)->values();
     }
 

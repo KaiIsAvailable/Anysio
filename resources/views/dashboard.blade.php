@@ -123,6 +123,7 @@
                                             <x-form.input-select 
                                                 name="lease_month" 
                                                 id="lease_month_filter"
+                                                :openOnFocus="false"
                                                 :options="$monthOptions"
                                                 :value="request('lease_month', '')"
                                                 placeholder="All Months"
@@ -436,6 +437,7 @@
                                             <div class="w-44">
                                                 <x-form.input-select 
                                                     name="invoice_month" 
+                                                :openOnFocus="false"
                                                     id="invoice_month_filter"
                                                     :options="$invoiceMonthOptions"
                                                     :value="request('invoice_month', '')"

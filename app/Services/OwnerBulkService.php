@@ -29,7 +29,7 @@ class OwnerBulkService implements BulkSaveHandler
     public function authorizeRows(array $rows, User $manager): array
     {
         $super = Gate::allows('super-admin');
-        if (! $super && Gate::denies('owner.tab')) {
+        if (! $super && (Gate::denies('owner.tab') || Gate::denies('owner.bulk edit'))) {
             throw new AuthorizationException;
         }
         $permissions = [];

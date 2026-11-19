@@ -7,12 +7,14 @@ import { replaceTemplateVariables } from './template-variable-replacement';
 window.replaceDocumentTemplateVariables = replaceTemplateVariables;
 import './lease-invoice-documents';
 import Alpine from 'alpinejs';
+import { serviceRequestNavigation } from './service-request-navigation';
 import collapse from '@alpinejs/collapse';
 import { invoiceStatement } from './invoice-statement';
 import { invoiceTable } from './invoice-table';
 import { agreementBreakdown } from './agreement-breakdown';
 import { utilityReadings, utilityAllocationEditor } from './utility-readings';
 import { utilityTariffSettings, utilityTariffManager } from './utility-tariff-settings';
+import { feeTypeSettings } from './fee-type-settings';
 
 import { tenantBulkEditor } from './tenant-bulk-editor';
 import { ownerBulkEditor } from './owner-bulk-editor';
@@ -28,8 +30,10 @@ Alpine.data('utilityReadings', utilityReadings);
 Alpine.data('utilityAllocationEditor', utilityAllocationEditor);
 Alpine.data('utilityTariffSettings', utilityTariffSettings);
 Alpine.data('utilityTariffManager', utilityTariffManager);
+Alpine.data('feeTypeSettings', feeTypeSettings);
 window.agreementBreakdown = agreementBreakdown;
 window.Alpine = Alpine;
+Alpine.data('serviceRequestNavigation', serviceRequestNavigation);
 Alpine.start();
 
 import { initAjaxSearch } from './ajax-search';

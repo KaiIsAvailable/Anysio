@@ -3,6 +3,9 @@
     'show' => false,
     'maxWidth' => '2xl',
     'shakeOnBackdrop' => false,
+    'centered' => false,
+    'overflowVisible' => false,
+    'returnTo' => null,
 ])
 
 @php
@@ -40,6 +43,9 @@ $maxWidth = [
             {{ $attributes->has('focusable') ? 'setTimeout(() => firstFocusable().focus(), 100)' : '' }}
         } else {
             document.body.classList.remove('overflow-y-hidden');
+            @if($returnTo)
+            $dispatch('open-modal', @js($returnTo));
+            @endif
         }
     })"
     x-on:open-modal.window="$event.detail == '{{ $name }}' ? show = true : null"
@@ -66,10 +72,15 @@ $maxWidth = [
         <div class="absolute inset-0 bg-gray-500 opacity-75"></div>
     </div>
 
+    @if($centered)
+    <div class="relative flex min-h-[calc(100dvh-3rem)] items-center justify-center"
+        x-on:click.self="{{ $shakeOnBackdrop ? 'shake = true; setTimeout(() => shake = false, 400)' : 'show = false' }}">
+    @endif
     <div
         x-show="show"
         :class="{ 'animate-shake': shake }"
-        class="mb-6 bg-white rounded-lg overflow-hidden shadow-xl transform transition-all sm:w-full {{ $maxWidth }} sm:mx-auto"
+        @class(['bg-white rounded-lg shadow-xl transform transition-all sm:w-full sm:mx-auto', $maxWidth,
+            'mb-6' => !$centered, 'relative w-full' => $centered, 'overflow-visible' => $overflowVisible, 'overflow-hidden' => !$overflowVisible])
         x-transition:enter="ease-out duration-300"
         x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
         x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100"
@@ -79,4 +90,5 @@ $maxWidth = [
     >
         {{ $slot }}
     </div>
+    @if($centered)</div>@endif
 </div>

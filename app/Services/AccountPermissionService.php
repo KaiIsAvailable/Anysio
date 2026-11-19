@@ -6,6 +6,14 @@ use App\Models\{Role, Staff, User, UserManagement};
 
 class AccountPermissionService
 {
+    public function delegatablePermissions(User $manager): array
+    {
+        if ($manager->role === User::ROLE_ADMIN) return self::names();
+        if (!in_array($manager->role, [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN], true)) return [];
+
+        return array_values(array_intersect(self::names(), $manager->account_permissions ?? []));
+    }
+
     public static function names(): array
     {
         $names = [];
@@ -41,12 +49,13 @@ class AccountPermissionService
         // Resolve from the actor, including Gate::forUser(), rather than the session user.
         $staff = Staff::where('user_id', $user->id)->first();
         $manager = $staff ? UserManagement::find($staff->user_mgnt_id)?->user : null;
-        if (!$manager || !in_array($manager->role, [User::ROLE_ADMIN, User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN], true)) {
+        if (!$manager || !in_array($manager->role, [User::ROLE_ADMIN, User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN], true)
+            || !$this->allows($manager, $ability)) {
             return false;
         }
 
-        // Staff access comes from assigned roles in their own workspace, independently
-        // of the manager's personal grants. Direct grants cannot bypass those roles.
+        // Both the managing account and the staff role must grant the action.
+        // Keep saved roles intact so revocation never rewrites other assignments.
         return Role::where('team_id', $manager->id)
             ->whereHas('permissions', fn ($query) => $query->where('name', $ability)->where('guard_name', 'web'))
             ->whereHas('users', function ($query) use ($user, $manager) {

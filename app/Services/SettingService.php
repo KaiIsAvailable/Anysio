@@ -109,14 +109,9 @@ class SettingService
      */
     public function isFeeTypeActive($feeType, array $resolvedSettings = null, ?string $userId = null): bool
     {
-        if (!$resolvedSettings && $userId) {
-            $resolvedSettings = $this->getEffectiveSettings($userId);
-        }
-
-        $categoryValue = is_object($feeType->category) ? $feeType->category->value : $feeType->category;
-        $slug = Str::slug(strtolower($categoryValue . '_' . $feeType->name), '_');
-
-        return filter_var(data_get($resolvedSettings, "fee_types_config.value.{$slug}.is_active", true), FILTER_VALIDATE_BOOLEAN);
+        if (!$feeType->is_active) return false;
+        if ($resolvedSettings === null) $resolvedSettings = $this->getEffectiveSettings($userId);
+        return filter_var(data_get($resolvedSettings, 'fee_types_config.value.'.$feeType->settingKey().'.is_active', true), FILTER_VALIDATE_BOOLEAN);
     }
 
     /**
@@ -128,15 +123,7 @@ class SettingService
 
         $collection = $feeTypes instanceof \Illuminate\Database\Eloquent\Builder ? $feeTypes->get() : $feeTypes;
 
-        return $collection->filter(function ($feeType) use ($settings) {
-            $categoryValue = is_object($feeType->category) ? $feeType->category->value : $feeType->category;
-            $slug = Str::slug(strtolower($categoryValue . '_' . $feeType->name), '_');
-
-            // Explicitly pass true as the default fallback if the slug path is missing
-            $isActive = data_get($settings, "fee_types_config.value.{$slug}.is_active", true);
-
-            return filter_var($isActive, FILTER_VALIDATE_BOOLEAN);
-        });
+        return $collection->filter(fn ($feeType) => $this->isFeeTypeActive($feeType, $settings));
     }
 
     /**
@@ -215,39 +202,8 @@ class SettingService
             }
         }
 
-        // 2. Process fee types config
         if (isset($requestData['fee_types_config'])) {
-            $isActive = filter_var($activeStates['fee_types_config'] ?? true, FILTER_VALIDATE_BOOLEAN);
-
-            // Check what the current late penalty master setting is
-            $latePenaltySetting = Setting::where('user_id', $userId)->where('key', 'late_penalty_config')->first();
-            $isLatePenaltyActive = $latePenaltySetting ? filter_var(data_get($latePenaltySetting->value, 'is_active', $latePenaltySetting->is_active), FILTER_VALIDATE_BOOLEAN) : false;
-
-            // Fetch existing fee types from DB so we don't lose previous states
-            $existingSetting = Setting::where('user_id', $userId)->where('key', 'fee_types_config')->first();
-            $existingFeeTypes = $existingSetting->value ?? [];
-
-            $feeTypesConfig = collect($requestData['fee_types_config'])->map(function ($feeType, $slug) use ($isLatePenaltyActive, $existingFeeTypes) {
-                if ($slug === 'service_late_payment_penalty') {
-                    $feeType['is_active'] = $isLatePenaltyActive;
-                } else {
-                    // If 'is_active' is missing or not provided in the request, fallback to its existing database state
-                    $isActiveValue = $feeType['is_active'] ?? $existingFeeTypes[$slug]['is_active'] ?? false;
-                    $feeType['is_active'] = filter_var($isActiveValue, FILTER_VALIDATE_BOOLEAN);
-                }
-                return $feeType;
-            })->toArray();
-
-            Log::channel('testing')->info('Saving Fee Types Config', [
-                'user_id' => $userId,
-                'value' => $feeTypesConfig,
-                'is_active' => $isActive,
-            ]);
-
-            Setting::updateOrCreate(
-                ['user_id' => $userId, 'key' => 'fee_types_config'],
-                ['value' => $feeTypesConfig, 'is_active' => $isActive]
-            );
+            app(FeeTypeService::class)->saveActivationSettings($userId, $requestData['fee_types_config']);
         }
 
         // 4. Process pending renewal config

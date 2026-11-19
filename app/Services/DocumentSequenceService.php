@@ -63,4 +63,9 @@ class DocumentSequenceService
     {
         return $this->generateNumber($user, 'receipt', 'REC');
     }
+
+    public function generateMaintenanceNumber(User $user): string
+    {
+        return $this->generateNumber($user, 'maintenance', 'MNT');
+    }
 }

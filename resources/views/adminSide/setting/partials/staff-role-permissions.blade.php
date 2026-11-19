@@ -1,4 +1,5 @@
 @php
+    $allowedPermissions = app(\App\Services\AccountPermissionService::class)->delegatablePermissions(get_effective_user());
     $initialRole = $roles->firstWhere('name', request('role_tab'))?->name ?? $roles->first()?->name ?? '';
     $roleOptions = $roles->map(fn ($role) => ['value' => $role->name, 'label' => $role->name])->all();
 @endphp
@@ -9,7 +10,7 @@
         <header class="flex flex-wrap items-start justify-between gap-3">
             <div>
                 <h3 class="text-lg font-medium text-gray-900">{{ __('Staff Role Permissions') }}</h3>
-                <p class="text-sm text-gray-500">{{ __('Choose a role to control its staff access. Staff role permissions are independent of your account permissions.') }}</p>
+                <p class="text-sm text-gray-500">{{ __('Choose a role to control its staff access. Only permissions granted to your account can be assigned to staff. Removing your access also blocks staff access.') }}</p>
             </div>
             @canany(['super-admin', 'settings.create new role'])
                 <button type="button" @click="showRoleModal = true" class="rounded-md bg-indigo-600 px-3 py-2 text-sm font-medium text-white hover:bg-indigo-700">{{ __('Create New Role') }}</button>
@@ -34,7 +35,7 @@
                 <input type="hidden" name="role_tab" :value="roleTab">
 
                 @foreach($roles as $role)
-                    @php $grants = $role->permissions->where('guard_name', 'web')->pluck('name')->values()->all(); @endphp
+                    @php $grants = $role->permissions->where('guard_name', 'web')->pluck('name')->intersect($allowedPermissions)->values()->all(); @endphp
                     <div x-show="roleTab === @js($role->name)" x-cloak class="space-y-3"
                          x-data="{ selected: @js($grants), original: @js($grants), search: '' }"
                          @reset-staff-permissions.window="selected = [...original]">
@@ -56,7 +57,7 @@
                             </div>
                         </div>
 
-                        <x-permissions.module-grid :modules="$modules" :role-id="$role->id" editing-state="editingPermissions" />
+                        <x-permissions.module-grid :modules="$modules" :role-id="$role->id" :allowed-permissions="$allowedPermissions" editing-state="editingPermissions" />
                     </div>
                 @endforeach
 
@@ -80,7 +81,7 @@
                     </div>
                     <div class="flex justify-end gap-3 border-t border-gray-100 bg-gray-50 px-6 py-4">
                         <x-form.secondary-button type="button" x-bind:disabled="deletingRole" @click="$dispatch('close-delete-staff-role')">{{ __('Cancel') }}</x-form.secondary-button>
-                        <x-form.primary-button type="submit" loading="deletingRole" class="bg-red-600 hover:bg-red-700 focus:bg-red-700 active:bg-red-800">{{ __('Delete Role') }}</x-form.primary-button>
+                        <x-form.primary-button type="submit" variant="danger" loading="deletingRole">{{ __('Delete Role') }}</x-form.primary-button>
                     </div>
                 </x-form.form>
             </x-modals.confirmation-modal>

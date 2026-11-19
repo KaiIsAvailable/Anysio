@@ -46,6 +46,12 @@ class RoleController extends Controller
 
         $request->validate($validationRules);
 
+        $manager = \App\Models\User::find($userId);
+        $allowed = $manager ? app(\App\Services\AccountPermissionService::class)->delegatablePermissions($manager) : [];
+        if (array_diff($request->input('permissions', []), $allowed)) {
+            return redirect()->back()->withInput()->with('error', 'You have no permission.');
+        }
+
         // 3. Set Spatie's permission team context
         app(PermissionRegistrar::class)->setPermissionsTeamId($userId);
 

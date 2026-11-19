@@ -30,6 +30,12 @@ class BulkPropertyRequest extends BulkEditRequest
             if (($row['action'] ?? '') === 'remove' || ! $this->validateRowDetails) {
                 continue;
             }
+            $rules += [
+                $prefix.'waterHasMeter' => ['sometimes', 'required', 'boolean'],
+                $prefix.'waterMeterNumber' => ['exclude_unless:'.$prefix.'waterHasMeter,1', 'nullable', 'string', 'max:255'],
+                $prefix.'waterOpeningReading' => ['exclude_unless:'.$prefix.'waterHasMeter,1', 'nullable', 'numeric', 'min:0', 'max:999999999999.999', 'decimal:0,3', 'required_with:'.$prefix.'waterOpeningDate'],
+                $prefix.'waterOpeningDate' => ['exclude_unless:'.$prefix.'waterHasMeter,1', 'nullable', 'date_format:Y-m-d', 'before_or_equal:today', 'required_with:'.$prefix.'waterOpeningReading'],
+            ];
             if ($entity === 'property') {
                 $rules += [
                     $prefix.'name' => ['required', 'string', 'max:255'],

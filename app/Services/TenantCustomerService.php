@@ -94,14 +94,16 @@ class TenantCustomerService
 
     public function canUseMaintenance(User $user): bool
     {
-        return Gate::forUser($user)->allows('maintenance-tickets');
+        return Gate::forUser($user)->allows('service-request-tickets');
     }
 
     public function canReply(Ticket $ticket, User $actor): bool
     {
-        // maintenance.tab grants staff viewing only; reply/upload permission is pending.
+        $canManageMaintenance = Gate::forUser($actor)->any(['is-tenant', 'owner-admin', 'is-owner'])
+            || (Gate::forUser($actor)->allows('is-staff') && Gate::forUser($actor)->allows('service request.reply'));
+
         return $this->canAccess($ticket, $actor) && !$this->isClosed($ticket)
-            && Gate::forUser($actor)->any(['is-tenant', 'owner-admin', 'is-owner']);
+            && $canManageMaintenance;
     }
 
     private function managementUser(User $actor): ?User
@@ -115,16 +117,16 @@ class TenantCustomerService
         return $effective;
     }
 
-    public function canAccess(Ticket $ticket, User $user): bool
+    public function canAccess(Ticket $ticket, User $user, string $moduleAbility = 'service-request-tickets'): bool
     {
-        return $this->checkAccess($ticket, $user);
+        return $this->checkAccess($ticket, $user, moduleAbility: $moduleAbility);
     }
 
-    private function checkAccess(Ticket $ticket, User $user, ?array $batch = null): bool
+    private function checkAccess(Ticket $ticket, User $user, ?array $batch = null, string $moduleAbility = 'service-request-tickets'): bool
     {
         if ($batch === null && Gate::forUser($user)->allows('is-tenant')) return $ticket->sender_id === $user->id;
         $sender = $ticket->sender;
-        if (($batch === null && !$this->canUseMaintenance($user)) || !$sender instanceof User
+        if (($batch === null && Gate::forUser($user)->denies($moduleAbility)) || !$sender instanceof User
             || ($batch === null ? Gate::forUser($sender)->denies('is-tenant') : !($batch['senders'][$sender->id] ?? false))
             || !$ticket->receive_id) return false;
         $manager = $batch === null ? $this->managementUser($user) : $batch['manager'];
@@ -143,10 +145,10 @@ class TenantCustomerService
             : isset($batch['legacyOwners'][$ticket->receive_id]);
     }
 
-    public function visibleTickets(User $user)
+    public function visibleTickets(User $user, string $moduleAbility = 'service-request-tickets')
     {
         if (Gate::forUser($user)->allows('is-tenant')) return Ticket::where('sender_id', $user->id);
-        abort_unless($this->canUseMaintenance($user) && ($manager = $this->managementUser($user)), 403);
+        abort_unless(Gate::forUser($user)->allows($moduleAbility) && ($manager = $this->managementUser($user)), 403);
         // Apply precisely the same relationship checks as show/reply/download before pagination.
         $tickets = Ticket::whereHas('sender', fn ($q) => $q->where('role', User::ROLE_TENANT))
             ->with(['sender', 'lease.tenant', 'lease.leasable'])->get();
@@ -166,6 +168,21 @@ class TenantCustomerService
         ];
         $ids = $tickets->filter(fn ($ticket) => $this->checkAccess($ticket, $user, $batch))->modelKeys();
         return Ticket::whereIn('id', $ids);
+    }
+
+    public function totalUnreadMessages(User $viewer): int
+    {
+        $unreadCount = 0;
+        $tenantViewer = Gate::forUser($viewer)->allows('is-tenant');
+        $this->visibleTickets($viewer)
+            ->whereHas('messages', fn ($query) => $query->where('status', 'unread')
+                ->when(!$tenantViewer, fn ($query) => $query->where('sender_type', User::ROLE_TENANT)))
+            ->with('sender')->chunkById(100, function ($tickets) use ($viewer, &$unreadCount) {
+                $this->loadUnreadCounts($tickets, $viewer);
+                $unreadCount += (int) $tickets->sum('unread_count');
+            });
+
+        return $unreadCount;
     }
 
     public function authorize(Ticket $ticket, User $user): void

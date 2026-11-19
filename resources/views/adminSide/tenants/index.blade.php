@@ -20,10 +20,12 @@
                 
                 <!-- Added 'flex items-center gap-3' here -->
                 <div class="flex-shrink-0 flex items-center gap-3" x-data="{loading: false}">
-                    @canany(['super-admin', 'tenant.edit', 'tenant.create'])
-                        <div x-data="{ bulkEditLoading: false }">
-                            <x-form.primary-button type="button" loading="bulkEditLoading" @click="bulkEditLoading = true; window.location.href = '{{ route('admin.tenants.bulk-edit') }}'">Bulk Edit</x-form.primary-button>
-                        </div>
+                    @canany(['super-admin', 'tenant.bulk edit'])
+                        @canany(['super-admin', 'tenant.edit', 'tenant.create'])
+                            <div x-data="{ bulkEditLoading: false }">
+                                <x-form.primary-button type="button" loading="bulkEditLoading" @click="bulkEditLoading = true; window.location.href = '{{ route('admin.tenants.bulk-edit') }}'">Bulk Edit</x-form.primary-button>
+                            </div>
+                        @endcanany
                     @endcanany
 
                     @canany(['super-admin', 'tenant.create'])

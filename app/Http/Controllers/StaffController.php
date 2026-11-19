@@ -7,6 +7,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\{DB, Auth, Gate};
+use Illuminate\Validation\Rule;
 use Spatie\Permission\PermissionRegistrar;
 
 class StaffController extends Controller
@@ -33,14 +34,39 @@ class StaffController extends Controller
                     $sub->whereHas('user_management.user', function ($uq) use ($s) {
                         $uq->where('name', 'like', "%{$s}%")
                         ->orWhere('email', 'like', "%{$s}%");
-                    })->orWhere('staff.role', 'like', "%{$s}%");
+                    })->orWhere('staff.role', 'like', "%{$s}%")
+                        ->orWhere('staff.phone', 'like', "%{$s}%");
                 });
             })
             ->orderByDesc('staff.created_at')
             ->paginate(5)
             ->onEachSide(1);
 
-        return view('adminSide.userManagement.staff.index', compact('staff'));
+        $staffCreateData = null;
+        if (Gate::any(['super-admin', 'staff.create'])) {
+            $managementOptions = [];
+            $managementId = $user->user_management?->id;
+            $roles = Role::where('guard_name', 'web')
+                ->when($user->role !== 'admin', fn ($query) => $query
+                    ->where(fn ($scope) => $scope->where('team_id', $user->id)->orWhereNull('team_id')))
+                ->get(['name', 'team_id']);
+
+            if ($user->role === 'admin') {
+                $rolesByTeam = $roles->groupBy('team_id');
+                $managementOptions = UserManagement::with('user')->has('user')->get()->map(fn ($management) => [
+                    'value' => $management->id,
+                    'label' => $management->user->name,
+                    'user_id' => $management->user_id,
+                    'roles' => $rolesByTeam->get($management->user_id, collect())
+                        ->merge($rolesByTeam->get('', collect()))->unique('name')->values(),
+                ])->all();
+            }
+
+            $staffCreateData = compact('roles', 'managementId', 'managementOptions');
+            $staffCreateData['managementUserId'] = $user->id;
+        }
+
+        return view('adminSide.userManagement.staff.index', compact('staff', 'staffCreateData'));
     }
 
     public function create(Request $request)
@@ -49,25 +75,13 @@ class StaffController extends Controller
             return view('errors.403');
         }
 
-        $currentUser = get_effective_user();
-        $managementList = [];
-        $roles = collect();
-
-        if ($currentUser->role === 'admin') {
-            $managementList = UserManagement::with('user')->get();
-            // Admin gets all custom roles (with user_id) so Alpine.js can filter them based on the selected management account
-            $roles = Role::pluck('name', 'name')->toArray();
-        } else {
-            // Non-admin only sees their own custom roles
-            $roles = Role::where('team_id', $currentUser->id)->get();
-        }
-
-        return view('adminSide.userManagement.staff.create', compact('managementList', 'roles'));
+        return redirect()->route('admin.staff.index', ['create' => 1]);
     }
 
     public function store(Request $request)
     {
         if (Gate::denies('super-admin') && Gate::denies('staff.create')) {
+            if ($request->expectsJson()) return response()->json(['message' => 'You have no permission.'], 403);
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -84,12 +98,18 @@ class StaffController extends Controller
             abort_unless($currentMgntId, 403, 'Management profile not found.');
         }
 
+        $ownerUserId = $currentUser->role === 'admin'
+            ? UserManagement::findOrFail($currentMgntId)->user_id : $currentUser->id;
+        $availableRoles = Role::where('guard_name', 'web')->where(fn ($query) => $query
+            ->where('team_id', $ownerUserId)->orWhereNull('team_id'))->pluck('name')->all();
+
         // 2. Validation Rules (Added verify_email_now boolean validation)
         $data = $request->validate([
             'name'             => 'required|string|max:255',
             'email'            => 'required|string|email|max:255|unique:users,email',
+            'phone'            => 'nullable|string|regex:/^[0-9]+$/|max:20',
             'password'         => 'required|string|min:8|confirmed',
-            'role'             => 'required|string', 
+            'role'             => ['required', 'string', Rule::in($availableRoles)],
             'verify_email_now' => 'nullable|boolean',
         ]);
 
@@ -110,45 +130,53 @@ class StaffController extends Controller
             ]);
 
             // 4. Create Staff record (operational role linkage)
-            Staff::create([
+            $newStaff = Staff::create([
                 'id'           => (string) Str::ulid(),
                 'user_id'      => $newUser->id,
                 'user_mgnt_id' => $currentMgntId, 
+                'phone'        => $data['phone'] ?? null,
                 'role'         => $data['role'], 
                 'is_active'    => true,
             ]);
 
             // 5. 👇 ASSIGN SPATIE ROLE & TEAM CONTEXT
             // Find the user ID of the owner/agency that owns this management account
-            $ownerUserId = ($currentUser->role === 'admin') 
-                ? UserManagement::where('id', $currentMgntId)->value('user_id') 
-                : $currentUser->id;
-
             // Set Spatie's team context if you use teams (or leave as needed)
             // app(PermissionRegistrar::class)->...
 
             // Find the specific role created by this owner user
             $role = Role::where('name', $data['role'])
+                ->where('guard_name', 'web')
                 ->where('team_id', $ownerUserId)
                 ->first();
 
             // Fallback to a global role (where user_id is null) if a custom one isn't found
             if (!$role) {
                 $role = Role::where('name', $data['role'])
+                    ->where('guard_name', 'web')
                     ->whereNull('team_id')
                     ->firstOrFail();
             }
 
             // Assign the found role instance directly to the new user
+            app(PermissionRegistrar::class)->setPermissionsTeamId($ownerUserId);
             $newUser->assignRole($role);
 
             DB::commit();
 
+            if ($request->expectsJson()) {
+                session()->flash('success', 'Staff created successfully!');
+                return response()->json(['message' => 'Staff created successfully!', 'staff' => [
+                    'id' => $newStaff->id, 'name' => $newUser->name, 'email' => $newUser->email,
+                    'management_user_id' => $ownerUserId,
+                ]], 201);
+            }
             // 5. Return and flash success session data
             return redirect()->route('admin.staff.index')->with('success', 'Staff created successfully!');
 
         } catch (\Exception $e) {
             DB::rollBack();
+            if ($request->expectsJson()) return response()->json(['message' => 'Unable to create staff. Please try again.'], 500);
             return back()
                 ->withErrors(['error' => 'Failed to create staff: ' . $e->getMessage()])
                 ->withInput();
@@ -233,15 +261,16 @@ class StaffController extends Controller
         $user = $staff->user;
 
         // Validate request inputs (including role validation scoped to the team)
-        $request->validate([
+        $data = $request->validate([
             'name'         => 'required|string|max:255',
             'email'        => 'required|email|unique:users,email,' . $user->id,
+            'phone'        => 'nullable|string|regex:/^[0-9]+$/|max:20',
             'role'         => 'required|string',
             'is_active'    => 'required|in:0,1',
             'verify_email' => 'nullable|boolean',
         ]);
 
-        DB::transaction(function () use ($request, $user, $staff) {
+        DB::transaction(function () use ($request, $user, $staff, $data) {
             // 1. Prepare User update data
             $userData = [
                 'name'  => $request->name,
@@ -281,6 +310,7 @@ class StaffController extends Controller
             $staff->update([
                 'role'      => $request->role, // Stores the role name
                 'is_active' => $request->is_active,
+                'phone'     => array_key_exists('phone', $data) ? $data['phone'] : $staff->phone,
             ]);
         });
 

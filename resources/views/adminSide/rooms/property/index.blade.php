@@ -13,10 +13,12 @@
                     <p class="mt-2 text-sm text-gray-500">Manage and organize your property directory.</p>
                 </div>
                 <div class="flex-shrink-0 flex flex-wrap items-center gap-2" x-data="{creatingProperty: false}">
-                    @canany(['super-admin', 'property.create', 'property.edit', 'unit.create', 'unit.edit', 'room.create', 'room.edit'])
-                        <div x-data="{ bulkEditLoading: false }">
-                            <x-form.primary-button type="button" loading="bulkEditLoading" @click="bulkEditLoading = true; window.location.href = '{{ route('admin.properties.bulk-edit') }}'">Bulk Edit</x-form.primary-button>
-                        </div>
+                    @canany(['super-admin', 'property.bulk edit'])
+                        @canany(['super-admin', 'property.create', 'property.edit', 'unit.create', 'unit.edit', 'room.create', 'room.edit'])
+                            <div x-data="{ bulkEditLoading: false }">
+                                <x-form.primary-button type="button" loading="bulkEditLoading" @click="bulkEditLoading = true; window.location.href = '{{ route('admin.properties.bulk-edit') }}'">Bulk Edit</x-form.primary-button>
+                            </div>
+                        @endcanany
                     @endcanany
                     @canany(['super-admin', 'property.create'])
                         <x-form.primary-button

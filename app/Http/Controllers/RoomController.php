@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\UtilitySetupService;
+
 use App\Models\{Room, RoomAsset, Owners, Asset, Tenants, Unit};
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -97,6 +99,12 @@ class RoomController extends Controller
         if (Gate::denies('super-admin') && Gate::denies('room.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
+
+        if ($request->has('water_meter') && !UtilitySetupService::canManageWaterMeters()) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+        $waterMeter = $request->validate(['water_meter' => ['sometimes', 'array']])['water_meter'] ?? null;
+        if ($waterMeter !== null) app(UtilitySetupService::class)->validateWaterMeter($waterMeter);
         $data = $request->validate([
             'unit_id'   => 'required|exists:units,id',
             'room_no'   => 'required|string|max:255',
@@ -110,7 +118,7 @@ class RoomController extends Controller
 
         $unit = Unit::findOrFail($data['unit_id']);
         
-        DB::transaction(function () use ($data) {
+        DB::transaction(function () use ($data, $waterMeter) {
             $room = Room::create([
                 'unit_id'   => $data['unit_id'],
                 'room_no'   => $data['room_no'],
@@ -118,6 +126,8 @@ class RoomController extends Controller
                 'status'    => $data['status'] ?? 'vacant',
                 'created_by'=> Auth::id(),
             ]);
+
+            if ($waterMeter !== null) app(UtilitySetupService::class)->saveWaterMeter($room, $waterMeter);
 
             if (!empty($data['assets'])) {
                 foreach ($data['assets'] as $assetData) {
@@ -203,6 +213,12 @@ class RoomController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
+        if ($request->has('water_meter') && !UtilitySetupService::canManageWaterMeters()) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+        $waterMeter = $request->validate(['water_meter' => ['sometimes', 'array']])['water_meter'] ?? null;
+        if ($waterMeter !== null) app(UtilitySetupService::class)->validateWaterMeter($waterMeter, $room);
+
         $data = $request->validate([
             'room_no'   => 'required|string|max:255',
             'room_type' => 'required|string|max:255',
@@ -212,12 +228,14 @@ class RoomController extends Controller
             'assets.*.qty' => 'required_with:assets|integer|min:0',
         ]);
 
-        DB::transaction(function () use ($data, $room) {
+        DB::transaction(function () use ($data, $room, $waterMeter) {
             $room->update([
                 'room_no'   => $data['room_no'],
                 'room_type' => $data['room_type'],
                 'status'    => $data['status'],
             ]);
+
+            if ($waterMeter !== null) app(UtilitySetupService::class)->saveWaterMeter($room, $waterMeter);
 
             RoomAsset::where('room_id', $room->id)
                 ->where('status', 'Active')

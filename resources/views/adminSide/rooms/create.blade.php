@@ -155,6 +155,8 @@
                     </div>
 
                     {{-- Actions --}}
+                    <x-utilities.water-meter-fields />
+
                     <div class="flex justify-end gap-2 pt-2">
                         <a href="{{ route('admin.rooms.index') }}"
                            class="bg-white hover:bg-gray-50 text-slate-900 font-bold py-2 px-6 rounded-lg shadow border border-gray-200 transition">

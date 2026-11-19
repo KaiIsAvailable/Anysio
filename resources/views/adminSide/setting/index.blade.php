@@ -7,22 +7,37 @@
 
     @php
         $utilityOnly = $utilityOnly ?? false;
-        $canUtilityTariffs = Gate::any(['super-admin', 'settings.utility tab', 'settings.edit utility meter prices'])
-            || (Gate::allows('utilities.tab') && Gate::allows('utilities.tariff tab'));
+        $feeTypesOnly = $feeTypesOnly ?? false;
+        $canFeeTypes = isset($feeTypes) && Gate::any(['super-admin', 'fee types.view']);
+        $canUtilityTariffs = !$feeTypesOnly && (Gate::any(['super-admin', 'settings.utility tab', 'settings.edit utility meter prices'])
+            || (Gate::allows('utilities.tab') && Gate::allows('utilities.tariff tab')));
         $availableTabs = collect([
             'payment' => 'settings.payment tab',
             'lease' => 'settings.lease tab',
             'utility' => 'settings.utility tab',
             'permissions' => 'settings.user role tab',
-        ])->filter(fn ($permission, $tab) => (!$utilityOnly || $tab === 'utility')
-            && ($tab === 'utility' ? $canUtilityTariffs : Gate::any(['super-admin', $permission])))->keys()->all();
-        $initialTab = in_array(request('tab'), $availableTabs, true) ? request('tab') : ($availableTabs[0] ?? '');
+            'fee-types' => 'fee types.view',
+        ])->filter(fn ($permission, $tab) => $tab === 'fee-types' ? $canFeeTypes : ((!$utilityOnly || $tab === 'utility')
+            && ($tab === 'utility' ? $canUtilityTariffs : Gate::any(['super-admin', $permission]))))->keys()->all();
+        $requestedTab = session('fee_types_tab') || old('tab') === 'fee-types' ? 'fee-types' : request('tab');
+        $initialTab = $feeTypesOnly ? 'fee-types' : (in_array($requestedTab, $availableTabs, true) ? $requestedTab : ($availableTabs[0] ?? ''));
     @endphp
     <div class="py-12" x-data="{ activeTab: @js($initialTab) }">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
             
             <!-- Navigation Tabs Header -->
             <div class="bg-white shadow sm:rounded-lg p-4 flex space-x-4 border-b border-gray-200">
+                @if($feeTypesOnly)
+                    @canany(['super-admin'])
+                    <a href="{{ route('admin.settings.index') }}" class="py-2 px-1 border-b-2 border-transparent text-gray-500 text-sm font-medium">{{ __('Account Permissions') }}</a>
+                    @else
+                    @foreach(['payment' => ['Payment', 'settings.payment tab'], 'lease' => ['Lease', 'settings.lease tab'], 'utility' => ['Utility', 'settings.utility tab'], 'permissions' => ['Staff Role Permissions', 'settings.user role tab']] as $tab => [$label, $permission])
+                        @canany(['super-admin', $permission])
+                        <a href="{{ route('admin.settings.index', ['tab' => $tab]) }}" class="py-2 px-1 border-b-2 border-transparent text-gray-500 text-sm font-medium">{{ __($label) }}</a>
+                        @endcanany
+                    @endforeach
+                    @endcanany
+                @endif
                 @unless($utilityOnly)
                 @canany(['super-admin', 'settings.payment tab'])
                 <button type="button" 
@@ -65,7 +80,12 @@
                 @endcanany
 
                 @endunless
-                <!--<button type="button" 
+                @if($canFeeTypes)
+                <button type="button" @click="activeTab = 'fee-types'"
+                    :class="activeTab === 'fee-types' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="py-2 px-1 border-b-2 font-medium text-sm transition">{{ __('Fee Types') }}</button>
+                @endif
+                <!--<button type="button"
                         @click="activeTab = 'tenant'" 
                         :class="activeTab === 'tenant' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
                         class="py-2 px-1 border-b-2 font-medium text-sm transition">
@@ -79,6 +99,13 @@
                     {{ __('Other Settings') }}
                 </button>-->
             </div>
+
+            <div class="space-y-6">
+            @if($canFeeTypes)
+            <div x-show="activeTab === 'fee-types'" x-cloak>
+                @include('adminSide.setting.partials.fee-types')
+            </div>
+            @endif
 
             @unless($utilityOnly)
             <!-- TAB 1: LEASE SETTINGS -->
@@ -607,117 +634,6 @@
                 </x-form.form>
                 @endcanany
 
-                <!-- 3. FEE TYPES SETTINGS FORM -->
-                @canany(['super-admin', 'settings.lease configuration setting'])
-                <x-form.form 
-                    method="POST" 
-                    action="{{ route('admin.settings.update') }}" 
-                    class="space-y-6" 
-                    x-data="{ loading: false, editingFeeType: false }" 
-                    @submit="loading = true"
-                >
-                    @csrf
-                    @method('PATCH')
-                    <input type="hidden" name="tab" value="lease">
-
-                    <div class="p-4 sm:p-8 bg-white shadow sm:rounded-lg space-y-6">
-                         <header class="flex items-center justify-between">
-                            <div>
-                                <h2 class="text-lg font-medium text-gray-900">{{ __('Lease Configuration') }}</h2>
-                                <p class="mt-1 text-sm text-gray-600">{{ __('Manage default lease charges and policies.') }}</p>
-                            </div>
-                            @canany(['super-admin', 'settings.edit lease configuration'])
-                            <x-form.section-edit-button state="editingFeeType" />
-                            @endcanany
-                        </header>
-
-                        <div class="space-y-6">
-                            <h3 class="text-md font-medium text-gray-900">{{ __('Adjust System Fee Types') }}</h3>
-                            <p class="text-sm text-gray-600">{{ __('Toggle which fee types are active and allowed to be selected when creating leases or invoices.') }}</p>
-
-                            <div class="space-y-6">
-                                @php
-                                    $allFeeTypesGroups = [
-                                        'Rent' => $rentFeeTypes,
-                                        'Deposit' => $depositFeeTypes,
-                                        'Utility' => $utilityFeeTypes,
-                                        'Service' => $serviceFeeTypes,
-                                        'Penalty' => $penaltyFeeTypes,
-                                        'Management' => $managementFeeTypes,
-                                    ];
-                                @endphp
-
-                                @foreach($allFeeTypesGroups as $groupName => $feeTypes)
-                                    @if($feeTypes->isNotEmpty())
-                                        <div class="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                                            <h4 class="text-xs font-bold text-gray-400 uppercase tracking-wider mb-3">{{ $groupName }} Fees</h4>
-                                            
-                                            <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                                                @foreach($feeTypes as $feeType)
-                                                    @php
-                                                        $slug = Str::slug(strtolower($feeType->category->value . '_' . $feeType->name), '_');
-                                                        $isEnabled = filter_var(
-                                                            data_get($settings, "fee_types_config.value.{$slug}.is_active", true), 
-                                                            FILTER_VALIDATE_BOOLEAN
-                                                        );
-                                                        $isLatePenaltyFee = Str::contains($slug, 'late_payment_penalty');
-                                                        $info = 'Controlled by the <b>Late Payment Penalty</b> setting.';
-                                                    @endphp
-                                                    <div class="flex items-center justify-between p-3 border border-gray-100 bg-gray-50 rounded-lg">
-                                                        <div class="flex items-center justify-between w-full mr-2 min-w-0">
-                                                            <div class="flex items-center space-x-1.5 min-w-0">
-                                                                <span class="text-xs font-medium text-gray-800 truncate" title="{{ $feeType->name }}">{{ $feeType->name }}</span>
-                                                                
-                                                                @if($feeType->is_system)
-                                                                    <span class="inline-block px-1.5 py-0.2 text-[10px] bg-gray-200 text-gray-600 rounded shrink-0">System</span>
-                                                                @endif
-
-                                                                @if($isLatePenaltyFee)
-                                                                    <div class="relative flex items-center shrink-0" x-data="{ open: false }">
-                                                                        <button type="button" 
-                                                                            @mouseenter="open = true" 
-                                                                            @mouseleave="open = false" 
-                                                                            class="text-gray-400 hover:text-indigo-600 focus:outline-none">
-                                                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                                                                            </svg>
-                                                                        </button>
-                                                                        <div x-show="open" x-cloak class="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-56 p-2 bg-gray-900 text-white text-xs rounded-md shadow-xl z-50 pointer-events-auto normal-case font-normal text-left [&>b]:font-bold">
-                                                                            {!! $info !!}
-                                                                        </div>
-                                                                    </div>
-                                                                @endif
-                                                            </div>
-                                                        </div>
-
-                                                        <label class="relative inline-flex items-center shrink-0 transition-opacity"
-                                                                :class="(!editingFeeType || @json($isLatePenaltyFee)) ? 'opacity-65 cursor-not-allowed' : 'cursor-pointer'">
-                                                            <input type="hidden" name="fee_types_config[{{ $slug }}][is_active]" value="false">
-                                                            <input type="checkbox" name="fee_types_config[{{ $slug }}][is_active]" value="true" 
-                                                                class="sr-only peer" 
-                                                                {{ $isEnabled ? 'checked' : '' }} 
-                                                                x-bind:disabled="!editingFeeType @if($isLatePenaltyFee) || true @endif">
-                                                            <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
-                                                        </label>
-                                                    </div>
-                                                @endforeach
-                                            </div>
-                                        </div>
-                                    @endif
-                                @endforeach
-                            </div>
-                        </div>
-
-                        <x-form.input-error :messages="$errors->get('charges')" class="mt-1" />
-
-                        @canany(['super-admin', 'settings.edit lease configuration'])
-                        <div class="flex items-center gap-4" x-show="editingFeeType" x-cloak>
-                            <x-form.primary-button x-bind:disabled="!editingFeeType" loading="loading">{{ __('Save Fee Type Settings') }}</x-form.primary-button>
-                        </div>
-                        @endcanany
-                    </div>
-                </x-form.form>
-                @endcanany
             </div>
 
             @endunless
@@ -775,6 +691,7 @@
             </div>
 
             @endunless
+            </div>
         </div>
     </div>
 </x-app-layout>

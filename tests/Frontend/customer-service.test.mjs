@@ -4,7 +4,6 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 
 const source = readFileSync(new URL('../../resources/js/customer-service.js', import.meta.url), 'utf8')
-    .replace("import { renderMaintenanceCards } from './maintenance';", 'const renderMaintenanceCards = () => {};')
     .replace('chats.set(root, api);', 'chats.set(root, api); root.testApi = api;')
     .replace("import { createPdfThumbnails } from './ticket-pdf-thumbnails';", 'const createPdfThumbnails = () => ({ scan() {}, reset() {}, destroy() {} });');
 class Element {
@@ -58,7 +57,9 @@ class Element {
     reset() { this.fields = this.fields.filter(([name]) => name === '_token'); }
 }
 class FormDataMock {
-    constructor(form) { this.values = [...(form?.fields || [])]; }
+    constructor(form) {
+        this.values = (form?.fields || []).filter(([name]) => !(form?.controls || []).some(control => control.name === name && control.disabled));
+    }
     append(name, value) { this.values.push([name, value]); }
     get(name) { return this.values.find(([key]) => key === name)?.[1] ?? null; }
 }
@@ -1201,6 +1202,85 @@ test('A delayed poll cannot update a switched subject or a hidden/departed page'
         release(); await settle();
         assert.notEqual(dynamicChats[0].node('[data-chat-subject]').textContent, 'STALE');
         assert.notEqual(node('[data-ticket-list]').innerHTML, 'STALE');
+    }
+});
+
+test('Maintenance system notices keep details and evidence inside the chat history', async () => {
+    const notice = { id: 'maintenance-complete', sender_type: 'system', sender_label: 'System',
+        maintenance_status: 'completed',
+        maintenance_status_class: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+        text: 'Maintenance completed\nReference: MNT-1\nIssue: <repair>\nLease: 80-1 - Room\nStatus: Completed\nDescription: Light bulb', incoming: true, status: 'unread',
+        maintenance_evidence: [{ filename: '<proof>.png', url: '/private/evidence' }] };
+    const { node, chatRoot, ticket } = setup({ chat: true, messages: [notice] });
+    await settle();
+    const row = node('[data-chat-messages]').querySelectorAll('[data-message-id]')[0];
+    assert.equal(row.className, 'flex justify-center');
+    const bubble = row.children[0];
+    const lines = bubble.children[1].children;
+    assert.equal(lines[0].children[0].tagName, 'STRONG');
+    assert.equal(lines[0].children[0].textContent, 'Maintenance completed');
+    assert.equal(lines[0].children[1].textContent, 'COMPLETED');
+    assert.ok(lines[0].children[1].className.includes('bg-emerald-100'));
+    assert.equal(lines.length, 5);
+    for (const [index, label] of ['Reference:', 'Issue:', 'Lease:', 'Description:'].entries()) {
+        assert.equal(lines[index + 1].children[0].tagName, 'STRONG');
+        assert.equal(lines[index + 1].children[0].textContent, label);
+    }
+    assert.equal(lines[2].children[1].textContent, ' <repair>');
+    assert.equal(lines[3].children[1].textContent, ' 80-1 - Room');
+    const evidence = bubble.children.find(child => child.tagName === 'DETAILS');
+    assert.equal(evidence.open, false);
+    assert.equal(evidence.children[0].textContent, 'Completion evidence (1)');
+    const links = evidence.children[1].children[0].children;
+    assert.equal(links[0].href, '/private/evidence');
+    assert.equal(links[0].textContent, '<proof>.png');
+    assert.equal(links[1].href, '/private/evidence?download=1');
+    evidence.open = true;
+    chatRoot.testApi.merge({ ticket, messages: [], receipts: [] });
+    assert.equal(row.children[0].children.find(child => child.tagName === 'DETAILS'), evidence);
+    assert.equal(evidence.open, true);
+});
+
+test('Closed and read-only conversations retain CSRF when confirming read without enabling replies', async () => {
+    for (const status of ['completed', 'closed', 'pending']) {
+        const { node, ticket, chatRoot, answers, requests } = setup({ chat: true, canSend: false });
+        await settle();
+        const form = node('[data-chat-form]');
+        const token = new Element('input');
+        token.name = '_token'; token.type = 'hidden'; token.value = 'csrf-token'; token.disabled = false;
+        form.controls = [token, node('[data-chat-draft]'), node('[data-chat-send]')];
+        chatRoot.testApi.apply({
+            ticket: { ...ticket, status, closed: status !== 'pending', can_send: false, mark_read_url: '/read-receipts' },
+            messages: [{ id: 'manager', incoming: true, status: 'unread', text: 'Repair completed' }],
+        });
+        answers.push({ data: { ticket_id: ticket.id, unread_count: 0, messages: [{ id: 'manager', status: 'read' }] } });
+        await node('[data-chat-messages]').fire('touchstart');
+        assert.equal(requests.at(-1).url, '/read-receipts');
+        assert.equal(requests.at(-1).body.get('_token'), 'csrf-token');
+        assert.equal(token.disabled, false);
+        assert.equal(node('[data-chat-messages]').querySelectorAll('[data-message-id]')[0].dataset.messageStatus, 'read');
+        assert.equal(form.hidden, true);
+        assert.equal(node('[data-chat-send]').disabled, true);
+        const count = requests.length;
+        await form.fire('submit');
+        assert.equal(requests.length, count);
+    }
+});
+
+test('Maintenance completion makes an open conversation read-only for every chat role', async () => {
+    for (const role of ['tenant', 'staff', 'agentAdmin', 'ownerAdmin', 'owner']) {
+        const { node, ticket, chatRoot, requests } = setup({ chat: true, role });
+        await settle();
+        const before = requests.length;
+        chatRoot.testApi.merge({ ticket: { ...ticket, status: 'completed', closed: true, can_send: false, maintenance: [] }, messages: [], receipts: [] });
+        assert.equal(node('[data-chat-status]').textContent, 'COMPLETED');
+        assert.equal(node('[data-chat-form]').hidden, true);
+        assert.equal(node('[data-chat-closed]').hidden, false);
+        assert.equal(node('[data-chat-attach]').disabled, true);
+        assert.equal(node('[data-create-maintenance]').hidden, true);
+        node('[data-chat-draft]').value = 'Must not send';
+        await node('[data-chat-form]').fire('submit');
+        assert.equal(requests.length, before);
     }
 });
 

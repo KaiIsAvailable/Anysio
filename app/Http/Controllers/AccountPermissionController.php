@@ -22,7 +22,10 @@ class AccountPermissionController extends Controller
             : null;
         $modules = config('permissions.modules', []);
 
-        return view('adminSide.setting.account-permissions', compact('accounts', 'account', 'modules'));
+        return view('adminSide.setting.account-permissions', compact('accounts', 'account', 'modules') +
+            app(\App\Services\FeeTypeService::class)->settingsData($request->only('search', 'category')) + [
+                'settings' => app(\App\Services\SettingService::class)->getEffectiveSettings(),
+            ]);
     }
 
     public function update(Request $request, User $user)

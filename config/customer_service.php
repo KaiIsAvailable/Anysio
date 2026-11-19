@@ -8,7 +8,7 @@ return [
     'max_total_kb' => 102400,
     'max_text_length' => 20000,
     'max_items' => 50,
-    'closed_statuses' => ['done', 'complete', 'archive', 'closed'],
+    'closed_statuses' => ['done', 'complete', 'completed', 'archive', 'closed'],
     'types' => [
         'jpg' => ['max_kb' => 2048, 'mimes' => ['image/jpeg']],
         'jpeg' => ['max_kb' => 2048, 'mimes' => ['image/jpeg']],

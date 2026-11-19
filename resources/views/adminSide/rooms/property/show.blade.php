@@ -18,19 +18,30 @@
                         {{ $property->address }}, {{ $property->postcode }} {{ $property->city }}
                     </div>
                 </div>
-                <div class="flex-shrink-0" x-data="{creatingUnit: false}">
+                <div class="flex flex-shrink-0 flex-wrap items-center gap-3" x-data="{creatingUnit: false, editingProperty: false}">
+                    @canany(['super-admin', 'property.edit'])
+                        <x-form.secondary-button
+                            loading="editingProperty"
+                            @click="editingProperty = true; window.location.href = '{{ route('admin.properties.edit', $property->id) }}'">
+                            <svg x-show="!editingProperty" class="mr-2 inline-block h-4 w-4 align-middle" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit Property
+                        </x-form.secondary-button>
+                    @endcanany
                     @canany(['super-admin', 'unit.create'])
                     <x-form.primary-button
                         type="button"
                         loading="creatingUnit"
                         @click="creatingUnit = true; window.location.href = '{{ route('admin.units.create', ['property_id' => $property->id]) }}'">
 
-                        <svg x-show="!creatingUnit" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg x-show="!creatingUnit" class="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                         Add New Unit
                     </x-form.primary-button>
                     @endcanany
+                    <x-maintenance.history :leasable="$property" />
                 </div>
             </div>
 
@@ -120,6 +131,7 @@
                             </dd>
                         </div>
 
+                        <x-utilities.water-meter-details :location="$property" />
                     </dl>
                 </div>
             </div>

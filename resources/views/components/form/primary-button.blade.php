@@ -1,4 +1,4 @@
-@props(['loading' => false, 'size' => 'md', 'disabledWhen' => null])
+@props(['loading' => false, 'size' => 'md', 'disabledWhen' => null, 'variant' => 'primary'])
 
 @php
     // 判断传入的是否是 Alpine.js 的变量名字符串（比如 'loading' 或 'openUpload'）
@@ -9,6 +9,9 @@
         'sm' => 'px-3 py-1.5 text-xs',
         'md' => 'px-4 py-2 text-xs',
     ][$size] ?? 'px-4 py-2 text-xs';
+    $colorClasses = $variant === 'danger'
+        ? 'bg-red-600 hover:bg-red-700 focus:bg-red-700 active:bg-red-800 focus:ring-red-500'
+        : 'bg-indigo-600 hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-800 focus:ring-indigo-500';
 @endphp
 
 <button
@@ -37,7 +40,7 @@
     @endif
     {{ $attributes->merge([
     'type' => 'submit',
-    'class' => "inline-flex items-center justify-center {$sizeClasses} bg-indigo-600 border border-transparent rounded-md font-semibold text-white uppercase tracking-widest hover:bg-indigo-700 focus:bg-indigo-700 active:bg-indigo-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition ease-in-out duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
+    'class' => "inline-flex items-center justify-center {$sizeClasses} {$colorClasses} border border-transparent rounded-md font-semibold text-white uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-offset-2 transition ease-in-out duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
 ]) }} 
 {{-- 兼容 Alpine 和原生 Blade 的 disabled 绑定 --}}
 @if($isAlpine)

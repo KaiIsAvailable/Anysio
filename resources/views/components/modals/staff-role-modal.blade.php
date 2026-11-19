@@ -1,4 +1,7 @@
-@props(['reloadAfterCreate' => true])
+@php
+    $grantablePermissions = app(\App\Services\AccountPermissionService::class)->delegatablePermissions(get_effective_user());
+@endphp
+@props(['reloadAfterCreate' => true, 'managementUserId' => null, 'dynamicManagement' => false])
 
 <template x-teleport="body">
     <div x-show="showRoleModal" x-cloak x-data="{ roleSaving: false, selectedTargetUserId: [], reloadAfterCreate: @js($reloadAfterCreate) }"
@@ -71,7 +74,11 @@
                          ">
                 <div class="p-6 space-y-4 max-h-[60vh] overflow-y-auto">
                     {{-- Admin User Selection Field --}}
-                    @if(auth()->user()->role === 'admin' || app(\Illuminate\Contracts\Auth\Access\Gate::class)->allows('super-admin'))
+                    @if($dynamicManagement)
+                        <input type="hidden" name="user_id" :value="selectedManagementUserId">
+                    @elseif($managementUserId)
+                        <input type="hidden" name="user_id" value="{{ $managementUserId }}">
+                    @elseif(auth()->user()->role === 'admin' || app(\Illuminate\Contracts\Auth\Access\Gate::class)->allows('super-admin'))
                         <div>
                             @php
                                 $managementUsers = \App\Models\UserManagement::with('user')
@@ -125,6 +132,7 @@
                                         $flatPerms[] = "{$moduleName}.{$actionVal}";
                                     }
                                 }
+                                $flatPerms = array_values(array_intersect($flatPerms, $grantablePermissions));
                                 $modulePermsJson = json_encode($flatPerms);
                             @endphp
 
@@ -132,7 +140,7 @@
                                    x-data="{
                                        modulePerms: {{ $modulePermsJson }},
                                        get isAllChecked() {
-                                           return this.modulePerms.every(p => selectedPermissions.includes(p));
+                                           return this.modulePerms.length > 0 && this.modulePerms.every(p => selectedPermissions.includes(p));
                                        },
                                        toggleAll() {
                                            if (this.isAllChecked) {
@@ -158,6 +166,7 @@
                                             <input type="checkbox" 
                                                    @click="toggleAll()"
                                                    :checked="isAllChecked"
+                                                   :disabled="modulePerms.length === 0"
                                                    class="sr-only peer">
                                             <div class="w-8 h-4 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
                                         </label>
@@ -176,7 +185,7 @@
                                                 <span class="text-xs font-medium text-gray-800 truncate capitalize mr-2">{{ $actionKey }}</span>
                                                 <label class="relative inline-flex items-center shrink-0 cursor-pointer">
                                                     <input type="checkbox" 
-                                                           value="{{ $parentPermName }}" 
+                                                           value="{{ $parentPermName }}" @disabled(!in_array($parentPermName, $grantablePermissions, true))
                                                            x-model="selectedPermissions"
                                                            class="sr-only peer">
                                                     <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
@@ -192,7 +201,7 @@
                                                     <span class="text-xs font-medium text-indigo-900 truncate capitalize mr-2">↳ {{ $subAction }}</span>
                                                     <label class="relative inline-flex items-center shrink-0 cursor-pointer">
                                                         <input type="checkbox" 
-                                                               value="{{ $subPermName }}" 
+                                                               value="{{ $subPermName }}" @disabled(!in_array($subPermName, $grantablePermissions, true))
                                                                x-model="selectedPermissions"
                                                                class="sr-only peer">
                                                         <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
@@ -208,7 +217,7 @@
                                                 <span class="text-xs font-medium text-gray-800 truncate capitalize mr-2">{{ $actionVal }}</span>
                                                 <label class="relative inline-flex items-center shrink-0 cursor-pointer">
                                                     <input type="checkbox" 
-                                                           value="{{ $permName }}" 
+                                                           value="{{ $permName }}" @disabled(!in_array($permName, $grantablePermissions, true))
                                                            x-model="selectedPermissions"
                                                            class="sr-only peer">
                                                     <div class="w-9 h-5 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>

@@ -49,7 +49,7 @@ class UtilityController extends Controller
             ->applyFilters($filters)
             ->with(['parentService', 'latestRecord.invoiceItem.invoice.documentTemplate', 'latestRecord.allocations', 'location' => function (MorphTo $morphTo) {
                 $morphTo->morphWith([Unit::class => ['property'], Room::class => ['unit.property']]);
-            }])->orderBy('location_type')->orderBy('location_id')->paginate(25)->withQueryString();
+            }])->orderBy('location_type')->orderBy('location_id')->paginate(10)->withQueryString();
 
         $locationIds = $services->pluck('location_id');
         $leases = $manager && $locationIds->isNotEmpty()
@@ -68,19 +68,6 @@ class UtilityController extends Controller
         }
         $hasAdvancedFilters = collect(array_intersect_key($filters, $utilityFilterDefaults))->contains(fn ($value) => filled($value));
         return view('adminSide.utilities.index', compact('services', 'manager', 'managers', 'type', 'tenants', 'utilityFilterDefaults', 'hasAdvancedFilters'));
-    }
-
-    public function initialize(Request $request, UtilitySetupService $setup)
-    {
-        if (!$this->canAccess('utilities.manage meters')) return redirect()->back()->with('error', 'You have no permission.');
-        $manager = $this->managementAccount($request);
-        if (!$manager) {
-            return redirect()->route('admin.utilities.index')->with('error', 'Select a management account first.');
-        }
-        $data = $request->validate(['type' => ['required', Rule::in(UtilityService::TYPES)]]);
-        $result = $setup->initialize($manager, $data['type']);
-        return redirect()->route('admin.utilities.index', ['management_user_id' => $manager->id, 'type' => $data['type']])
-            ->with('success', "Created {$result['created']} unconfirmed services; {$result['existing']} already exist; {$result['linked']} historical records linked; {$result['review']} locations need ownership review. No readings or invoices were created.");
     }
 
     public function edit(Request $request, UtilityService $utilityService, UtilitySetupService $setup)

@@ -1,8 +1,8 @@
-<nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
+<nav x-data="serviceRequestNavigation($el.dataset.unreadUrl)" @can('is-tenant') data-unread-url="{{ route('tenants.customerService.unread') }}" @elsecan('service-request-tickets') data-unread-url="{{ route('admin.maintenance.unread') }}" @endcan class="bg-white border-b border-gray-100">
     <!-- Primary Navigation Menu -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-            <div class="flex">
+        <div class="flex h-16 items-stretch justify-between gap-3">
+            <div class="flex min-w-0">
                 <!-- Logo -->
                 <div class="shrink-0 flex items-center">
                     @php
@@ -14,110 +14,9 @@
                     </a>
                 </div>
 
-                <!-- Navigation Links -->
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <!--Admin, Owner and Tenant dashboard-->
-                    @canany(['super-admin', 'dashboard.tab'])
-                        <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                            {{ __('Dashboard') }}
-                        </x-nav-link>
-                    @endcanany
-
-                    @can('is-owner')
-                        <x-nav-link :href="route('admin.owners.dashboard')" :active="request()->routeIs('admin.owners.dashboard')">
-                            {{ __('Dashboard') }}
-                        </x-nav-link>
-                    @endcan
-
-                    @can('is-tenant')
-                        <x-nav-link :href="route('tenants.dashboard')" :active="request()->routeIs('tenants.dashboard')">
-                            {{ __('Dashboard') }}
-                        </x-nav-link>
-                        <x-nav-link :href="route('tenants.customerService.index')" :active="request()->routeIs('tenants.customerService.*')">
-                            {{ __('Help & Support') }}
-                        </x-nav-link>
-                    @endcan
-
-                    @canany(['super-admin', 'owner.tab'])
-                        <x-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*') && !request()->routeIs('admin.owners.dashboard')">
-                            {{ __('Owners') }}
-                        </x-nav-link>
-                    @endcan
-
-                    @canany(['super-admin', 'tenant.tab'])
-                        <x-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*') && !request()->routeIs('admin.tenants.dashboard')">
-                            {{ __('Tenants') }}
-                        </x-nav-link>
-                    @endcanany
-
-                    @canany(['super-admin', 'property.tab'])
-                        <x-nav-link :href="route('admin.properties.index')" 
-                            :active="request()->routeIs('admin.properties.*') || request()->routeIs('admin.units.*') || request()->routeIs('admin.rooms.*') || request()->routeIs('admin.roomAsset.*')">
-                            {{ __('Properties') }}
-                        </x-nav-link>
-                    @endcanany
-
-                    <!--<x-nav-link :href="route('admin.rooms.index')" :active="request()->routeIs('admin.rooms.*')">
-                        {{ __('Rooms') }}
-                    </x-nav-link>-->
-
-                    @canany(['super-admin', 'leases.tab'])
-                        <x-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*', 'admin.document-templates.*')">
-                            {{ __('Leases') }}
-                        </x-nav-link>
-                    @endcanany
-
-                    @canany(['super-admin', 'invoice.tab'])
-                        <x-nav-link :href="route('admin.invoices.index')" :active="request()->routeIs('admin.invoices.*')">
-                            {{ __('Invoices') }}
-                        </x-nav-link>
-                    @endcanany
-
-                    @canany(['super-admin', 'utilities.tab'])
-                        @cannot('is-tenant')
-                            @cannot('is-owner')
-                                <x-nav-link :href="route('admin.utilities.index')" :active="request()->routeIs('admin.utilities.*')">
-                                    {{ __('Utilities') }}
-                                </x-nav-link>
-                            @endcannot
-                        @endcannot
-                    @endcanany
-
-                    @can('maintenance-tickets')
-                        <x-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
-                            {{ __('Service Request') }}
-                        </x-nav-link>
-                    @endcan
-
-                    <!--@can('owner-admin')
-                        <x-nav-link :href="route('admin.document-templates.index')" :active="request()->routeIs('admin.document-templates.*')">
-                            {{ __('Document Templates') }}
-                        </x-nav-link>
-                    @endcan-->
-
-                    @can('super-admin')
-                        <x-nav-link :href="route('admin.packages.index')" :active="request()->routeIs('admin.packages.*')">
-                            {{ __('Packages') }}
-                        </x-nav-link>
-                    @endcan
-
-                    @can('super-admin')
-                        <x-nav-link :href="route('admin.userManagement.index')" :active="request()->routeIs('admin.userManagement.*')">
-                            {{ __('Users') }}
-                        </x-nav-link>
-                    @endcan
-
-                    @canany(['super-admin', 'staff.tab'])
-                        <x-nav-link :href="route('admin.staff.index')" :active="request()->routeIs('admin.staff.*')">
-                            {{ __('Staff') }}
-                        </x-nav-link>
-                    @endcanany
-
-                    @can('super-admin')
-                        <x-nav-link :href="route('admin.audit.index')" :active="request()->routeIs('admin.audit.*')">
-                            {{ __('Audit Log') }}
-                        </x-nav-link>
-                    @endcan
+                <!-- Shared desktop navigation -->
+                <div class="hidden xl:-my-px xl:ms-8 xl:flex xl:gap-5" aria-label="{{ __('Main navigation') }}">
+                    <x-navigation-menu />
                 </div>
             </div>
 
@@ -143,7 +42,7 @@
                     TotalAvailableLease: '{{ get_effective_user()->user_management?->package?->base_lease?? 0 }}',
                     status: '{{ get_effective_user()->user_management?->package?->status ?? "N/A" }}'
                 } 
-            }" class="hidden sm:flex sm:items-center sm:ms-6">
+            }" class="flex min-w-0 items-center ms-auto gap-1 sm:gap-2">
 
                 <div class="flex items-center">
                     <x-ui.notification-dropdown />
@@ -151,21 +50,15 @@
 
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
-                        <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none transition ease-in-out duration-150">
-                            <div>{{ Auth::user()->name }}</div>
-                            
-                            {{-- 
-                            这里有一个技巧：你可以通过 x-bind 监听组件内部的 open 状态。
-                            如果 Dropdown 提供了 Alpine 接口，你可以通过如下方式获取：
-                            --}}
-                            <div class="ms-1" x-data @click.stop="open = !open">
-                                <svg class="fill-current h-4 w-4 transition-transform duration-300 ease-in-out" 
-                                    :class="open ? 'rotate-90' : ''"
-                                    :class="$refs.dropdownContent.classList.contains('hidden')" 
-                                    viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
-                                </svg>
-                            </div>
+                        <button type="button" :aria-expanded="open" aria-label="{{ __('Profile menu') }}"
+                                class="inline-flex items-center gap-1 rounded-md border border-transparent bg-white px-2 py-2 text-sm font-medium text-gray-500 transition hover:text-gray-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-600">
+                            <span class="hidden max-w-32 truncate sm:block">{{ Auth::user()->name }}</span>
+                            <svg class="h-5 w-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM4 21a8 8 0 0116 0" />
+                            </svg>
+                            <svg class="h-4 w-4 transition-transform" :class="open && 'rotate-180'" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+                            </svg>
                         </button>
                     </x-slot>
 
@@ -178,7 +71,7 @@
                             {{-- 2. 直接使用父级的 openSetting 控制显示 --}}
                             @canany(['super-admin', 'profile menu.boost limit', 'profile menu.view package', 'document template.create'])
                             <div class="relative"> 
-                                <div @click.stop="openSetting = !openSetting" 
+                                <button type="button" @click.stop="openSetting = !openSetting" :aria-expanded="openSetting"
                                     class="flex items-center justify-between w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 cursor-pointer">
                                     <span>{{ __('Quick Actions') }}</span>
                                     <svg class="w-4 h-4 ml-1 text-gray-400 transition-transform duration-200"
@@ -186,7 +79,7 @@
                                         fill="currentColor" viewBox="0 0 20 20">
                                         <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
                                     </svg>
-                                </div>
+                                </button>
 
                                 {{-- 3. 这里不再定义 x-data --}}
                                 <div x-show="openSetting" 
@@ -221,9 +114,9 @@
                             @endcanany
 
                             @canany(['super-admin', 'profile menu.setting'])
-                            <x-dropdown-link :href="route('admin.settings.index')">{{ __('Setting') }}</x-dropdown-link>
+                            <x-dropdown-link :href="route('admin.settings.index')">{{ __('Settings') }}</x-dropdown-link>
                             @endcanany
-                        @endcan
+                        @endcanany
 
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
@@ -242,8 +135,8 @@
             </div>
 
             <!-- Hamburger -->
-            <div class="-me-2 flex items-center sm:hidden">
-                <button @click="open = ! open" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 focus:text-gray-500 transition duration-150 ease-in-out">
+            <div class="-me-2 flex shrink-0 items-center xl:hidden">
+                <button type="button" @click="open = !open" :aria-expanded="open" aria-controls="mobile-navigation" aria-label="{{ __('Toggle navigation') }}" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 focus:text-gray-500 transition duration-150 ease-in-out">
                     <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
                         <path :class="{'hidden': open, 'inline-flex': ! open }" class="inline-flex" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
                         <path :class="{'hidden': ! open, 'inline-flex': open }" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
@@ -253,119 +146,11 @@
         </div>
     </div>
 
-    <!-- Responsive Navigation Menu -->
-    <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
-        <div class="pt-2 pb-3 space-y-1">
-            @can('maintenance-tickets')
-                <x-responsive-nav-link :href="route('admin.maintenance.index')" :active="request()->routeIs('admin.maintenance.*')">
-                    {{ __('Maintenance') }}
-                </x-responsive-nav-link>
-            @endcan
-            @can('dashboard.tab')
-                <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                    {{ __('Dashboard') }}
-                </x-responsive-nav-link>
-            @endcan
-
-            @can('is-owner')
-                <x-responsive-nav-link :href="route('admin.owners.dashboard')" :active="request()->routeIs('admin.owners.dashboard')">
-                    {{ __('Dashboard') }}
-                </x-responsive-nav-link>
-            @endcan
-
-            @can('is-tenant')
-                <x-responsive-nav-link :href="route('tenants.dashboard')" :active="request()->routeIs('tenants.dashboard')">
-                    {{ __('Dashboard') }}
-                </x-responsive-nav-link>
-                <x-responsive-nav-link :href="route('tenants.customerService.index')" :active="request()->routeIs('tenants.customerService.*')">
-                    {{ __('Customer Service') }}
-                </x-responsive-nav-link>
-            @endcan
-
-            @can('owner.tab')
-                <x-responsive-nav-link :href="route('admin.owners.index')" :active="request()->routeIs('admin.owners.*') && !request()->routeIs('admin.owners.dashboard')">
-                    {{ __('Owners') }}
-                </x-responsive-nav-link>
-            @endcan
-
-            @can('tenant.tab')
-                <x-responsive-nav-link :href="route('admin.tenants.index')" :active="request()->routeIs('admin.tenants.*') && !request()->routeIs('admin.tenants.dashboard')">
-                    {{ __('Tenants') }}
-                </x-responsive-nav-link>
-
-            @endcan
-
-            @can('property.tab')
-                <x-responsive-nav-link :href="route('admin.properties.index')"
-                    :active="request()->routeIs('admin.properties.*') || request()->routeIs('admin.units.*') || request()->routeIs('admin.rooms.*') || request()->routeIs('admin.roomAsset.*')">
-                    {{ __('Properties') }}
-                </x-responsive-nav-link>
-            @endcan
-
-            @can('leases.tab')
-            <x-responsive-nav-link :href="route('admin.leases.index')" :active="request()->routeIs('admin.leases.*') || request()->routeIs('admin.document-templates.*')">
-                {{ __('Leases') }}
-            </x-responsive-nav-link>
-            @endcan
-
-            @can('invoice.tab')
-            <x-responsive-nav-link :href="route('admin.invoices.index')" :active="request()->routeIs('admin.invoices.*')">
-                {{ __('Invoices') }}
-            </x-responsive-nav-link>
-            @endcan
-
-            @canany(['super-admin', 'utilities.tab'])
-                @cannot('is-tenant')
-                    @cannot('is-owner')
-                        <x-responsive-nav-link :href="route('admin.utilities.index')" :active="request()->routeIs('admin.utilities.*')">
-                            {{ __('Utilities') }}
-                        </x-responsive-nav-link>
-                    @endcannot
-                @endcannot
-            @endcanany
-
-            @can('super-admin')
-                <x-responsive-nav-link :href="route('admin.packages.index')" :active="request()->routeIs('admin.packages.*')">
-                    {{ __('Packages') }}
-                </x-responsive-nav-link>
-
-                <x-responsive-nav-link :href="route('admin.userManagement.index')" :active="request()->routeIs('admin.userManagement.*')">
-                    {{ __('Users') }}
-                </x-responsive-nav-link>
-
-                <x-responsive-nav-link :href="route('admin.audit.index')" :active="request()->routeIs('admin.audit.*')">
-                    {{ __('Audit Log') }}
-                </x-responsive-nav-link>
-            @endcan
-        </div>
-
-        <!-- Responsive Settings Options -->
-        <div class="pt-4 pb-1 border-t border-gray-200">
-            <div class="px-4">
-                <div class="font-medium text-base text-gray-800">{{ Auth::user()->name }}</div>
-                <div class="font-medium text-sm text-gray-500">{{ Auth::user()->email }}</div>
-            </div>
-
-            <div class="mt-3 space-y-1">
-                <x-responsive-nav-link :href="route('profile.edit')">
-                    {{ __('Profile') }}
-                </x-responsive-nav-link>
-
-                @can('profile menu.setting')
-                    <x-responsive-nav-link :href="route('admin.settings.index')" :active="request()->routeIs('admin.settings.*')">{{ __('Settings') }}</x-responsive-nav-link>
-                @endcan
-
-                <!-- Authentication -->
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-
-                    <x-responsive-nav-link :href="route('logout')"
-                            onclick="event.preventDefault();
-                                        this.closest('form').submit();">
-                        {{ __('Log Out') }}
-                    </x-responsive-nav-link>
-                </form>
-            </div>
+    <!-- Same navigation groups and permissions on mobile and tablet. -->
+    <div id="mobile-navigation" x-show="open" x-cloak @keydown.escape.stop="open = false"
+         class="max-h-[calc(100dvh-4rem)] overflow-y-auto border-t border-gray-100 xl:hidden">
+        <div class="space-y-1 py-3" aria-label="{{ __('Main navigation') }}">
+            <x-navigation-menu :mobile="true" />
         </div>
     </div>
 </nav>

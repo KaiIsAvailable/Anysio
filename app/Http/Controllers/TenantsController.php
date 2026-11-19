@@ -90,6 +90,10 @@ class TenantsController extends Controller
 
     public function bulkEdit(\App\Services\TenantBulkService $bulkService)
     {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.bulk edit')) {
+            return view('errors.403');
+        }
+
         if (Gate::denies('super-admin') && (Gate::denies('tenant.tab') ||
             (Gate::denies('tenant.edit') && Gate::denies('tenant.create')))) {
             return view('errors.403');
@@ -183,6 +187,10 @@ class TenantsController extends Controller
 
     public function bulkFile(Tenants $tenant, string $field, FileService $files)
     {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.bulk edit')) {
+            return response()->view('errors.403', [], 403);
+        }
+
         $manager = get_effective_user();
         if (!$manager || $manager->role === 'tenant' || (Gate::denies('super-admin') &&
             (Gate::denies('tenant.tab') || ($field !== 'companyLogo' && Gate::denies('tenant.view IC'))))) {
@@ -209,17 +217,29 @@ class TenantsController extends Controller
 
     public function bulkSave(\App\Http\Requests\BulkTenantRequest $request, \App\Services\TenantBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.bulk edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $manager = get_effective_user();
         return $this->startBulkSave($request, $operations, 'admin.tenants', $manager ? $this->bulkDraftKey($manager, $request->integer('page')) : '');
     }
 
     public function bulkProgress(string $requestKey, \App\Services\TenantBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.bulk edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         return $this->operationProgress($requestKey, $operations);
     }
 
     public function bulkComplete(string $requestKey, \App\Services\TenantBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('tenant.bulk edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         return $this->completeBulkSave($requestKey, $operations, 'admin.tenants', 'tenant');
     }
 

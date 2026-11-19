@@ -221,3 +221,33 @@ test('Laravel errors map restored submission indexes to their sheets and focus t
     restored.clearCellErrors(restored.rows.find(row => row.key === unit.key), 'floor');
     assert.equal(restored.entityHasErrors('unit'), false);
 });
+
+
+test('water setup defaults to no meter and serializes only for permitted staff', () => {
+    const editor = factory()([], true, { ...hierarchy(), canManageWaterMeters: true });
+    const row = editor.visibleRows('property')[0];
+    assert.equal(row.waterHasMeter, '0');
+    assert.equal(editor.hasChanges(), false);
+    assert.equal(editor.isCellDisabled(row, 'waterOpeningReading'), true);
+    Object.assign(row, values, { waterHasMeter: '1', waterMeterNumber: 'MAIN-1', waterOpeningReading: '0', waterOpeningDate: '2026-01-01' });
+    editor.markChanged(row, 'waterHasMeter');
+    assert.equal(editor.isCellDisabled(row, 'waterOpeningReading'), false);
+    assert.equal(editor.submissionRows()[0].waterOpeningReading, '0');
+    assert.equal(editor.validateBeforeSave({ checkValidity: () => true }), true);
+    const restricted = factory()([{ key: 'existing-property', ...values, waterHasMeter: '1', waterMeterNumber: 'PRIVATE' }], false, hierarchy());
+    restricted.markChanged(restricted.rows[0], 'name');
+    assert.equal(restricted.isCellDisabled(restricted.rows[0], 'waterHasMeter'), true);
+    assert.equal(Object.hasOwn(restricted.submissionRows()[0], 'waterMeterNumber'), false);
+});
+
+test('water opening reading needs its date and water errors focus their own column', () => {
+    const editor = factory()([{ key: 'existing-property', ...values, waterHasMeter: '1', waterOpeningReading: '0' }], false, { ...hierarchy(), canManageWaterMeters: true });
+    editor.markChanged(editor.rows[0], 'waterOpeningReading');
+    assert.equal(editor.validateBeforeSave({ checkValidity: () => true }), false);
+    assert.equal(editor.rowErrors(editor.rows[0])[0].field, 'waterOpeningDate');
+    editor.rows[0].waterOpeningDate = '2026-01-01';
+    assert.equal(editor.validateBeforeSave({ checkValidity: () => true }), true);
+    editor.rows[0].waterSetupLocked = true;
+    assert.equal(editor.isCellDisabled(editor.rows[0], 'waterHasMeter'), true);
+    assert.equal(Object.hasOwn(editor.submissionRows()[0], 'waterHasMeter'), false);
+});

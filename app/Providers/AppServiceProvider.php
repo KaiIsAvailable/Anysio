@@ -37,28 +37,28 @@ class AppServiceProvider extends ServiceProvider
             // Optional: Delete old hyphenated permissions automatically on boot
             Permission::where('name', 'like', '%-%')->delete();
 
-            // Auto-register config permissions (supporting nested structures)
+            // Read configured permission names once; create only missing entries.
+            $permissionNames = [];
             foreach (config('permissions.modules') as $module => $actions) {
                 foreach ($actions as $key => $value) {
                     if (is_array($value)) {
-                        // $key is 'record payment', and $value is the sub-permissions array
-                        // 1. Register the parent action itself (e.g., 'invoice.record payment')
-                        Permission::firstOrCreate(['name' => "{$module}.{$key}"]);
-
-                        // 2. Register each nested sub-action (e.g., 'invoice.edit penalty', 'invoice.remove penalty')
+                        $permissionNames[] = "{$module}.{$key}";
                         foreach ($value as $subAction) {
-                            Permission::firstOrCreate(['name' => "{$module}.{$subAction}"]);
+                            $permissionNames[] = "{$module}.{$subAction}";
                         }
                     } else {
-                        // Standard string action (e.g., 'invoice.tab', 'invoice.void')
-                        Permission::firstOrCreate(['name' => "{$module}.{$value}"]);
+                        $permissionNames[] = "{$module}.{$value}";
                     }
                 }
+            }
+            $existing = Permission::whereIn('name', $permissionNames)->pluck('name')->all();
+            foreach (array_diff(array_unique($permissionNames), $existing) as $name) {
+                Permission::firstOrCreate(['name' => $name]);
             }
         }
 
         Gate::before(function ($user, $ability) {
-            $structuralGates = ['super-admin', 'owner-admin', 'agent-admin', 'is-staff', 'is-owner', 'is-tenant', 'maintenance-tickets'];
+            $structuralGates = ['super-admin', 'owner-admin', 'agent-admin', 'is-staff', 'is-owner', 'is-tenant', 'service-request-tickets'];
             if (in_array($ability, $structuralGates)) {
                 return null; 
             }
@@ -66,10 +66,10 @@ class AppServiceProvider extends ServiceProvider
             return app(\App\Services\AccountPermissionService::class)->allows($user, $ability);
         });
 
-        Gate::define('maintenance-tickets', function (User $user) {
+        Gate::define('service-request-tickets', function (User $user) {
             $gate = Gate::forUser($user);
             return $gate->denies('is-tenant')
-                && $gate->any(['is-owner', 'maintenance.tab']);
+                && $gate->any(['is-owner', 'service request.tab']);
         });
 
         Gate::define('super-admin', function (User $user) {

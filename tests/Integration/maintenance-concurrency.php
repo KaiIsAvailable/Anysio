@@ -23,7 +23,7 @@ if (!$worker) {
     mkdir($temporary, 0700, true);
     foreach (['DB_HOST','DB_PORT','DB_USERNAME','DB_PASSWORD'] as $key) putenv($key.'='.($env[$key] ?? ''));
 }
-foreach (['APP_ENV'=>'testing', 'DB_CONNECTION'=>'mysql', 'DB_DATABASE'=>$database, 'CACHE_STORE'=>'array',
+foreach (['APP_ENV'=>'testing', 'APP_CONFIG_CACHE'=>'bootstrap/cache/config.testing.php', 'DB_CONNECTION'=>'mysql', 'DB_DATABASE'=>$database, 'CACHE_STORE'=>'array',
     'SESSION_DRIVER'=>'array', 'QUEUE_CONNECTION'=>'sync', 'MAIL_MAILER'=>'array', 'MAINTENANCE_TEST_FILES'=>$temporary] as $key=>$value) {
     putenv("$key=$value"); $_ENV[$key]=$value; $_SERVER[$key]=$value;
 }
@@ -40,14 +40,14 @@ if ($worker) {
     bootTestApp($root, $database, $temporary);
     [$script, $mode, $action, $key, $orderId, $version, $slot, $barrier] = $argv;
     Auth::setUser(User::where('role','agentAdmin')->firstOrFail());
-    $ticket = Ticket::firstOrFail();
+    $ticket = isset($argv[8]) ? Ticket::findOrFail($argv[8]) : Ticket::firstOrFail();
     $order = $orderId === '-' ? null : Maintenance::findOrFail($orderId);
     $data = ['request_key'=>$key];
     if ($action === 'create') $data += ['title'=>'Concurrent repair','desc'=>'Verified issue','location_detail'=>'Bedroom'];
     else $data['version'] = (int) $version;
-    if ($action === 'assign') $data += ['contractor_name'=>'External tester','contractor_phone'=>''];
+    if ($action === 'assign') $data += ['assigned_staff_id' => DB::table('staff')->value('id')];
     $request = Request::create('/maintenance-test', 'POST', $data);
-    if ($action !== 'assign') {
+    if (!in_array($action, ['assign', 'refund-save', 'refund-process'], true)) {
         $path = $temporary.'/upload-'.$slot.'.txt'; file_put_contents($path, 'identical evidence');
         $request->files->set('attachments', [new UploadedFile($path, 'evidence.txt', 'text/plain', null, true)]);
     }
@@ -56,12 +56,27 @@ if ($worker) {
     while (!is_file($barrier)) { if (microtime(true)>$deadline) throw new RuntimeException('Barrier timeout'); usleep(10000); }
     $start = microtime(true);
     // Hold the actual ticket row lock briefly to force overlap with the other connection.
-    DB::listen(function ($query) { if (str_contains($query->sql, 'for update') && str_contains($query->sql, 'tickets')) usleep(250000); });
+    DB::listen(function ($query) use ($action) { if (str_contains($query->sql, 'for update') && str_contains($query->sql, str_starts_with($action, 'refund-') ? 'leases' : 'tickets')) usleep(250000); });
     try {
-        $result = app(MaintenanceService::class)->execute($request, $ticket, $action, $order);
+        if (str_starts_with($action, 'refund-')) {
+            $invoices = Mockery::mock(App\Services\InvoiceService::class);
+            $invoices->shouldReceive('settleOutstandingInvoicesFromDeposit')->andReturn(0);
+            $refundService = Mockery::mock(App\Services\RefundService::class, [new App\Services\RefundCalculationService(), $invoices])->makePartial();
+            $refundService->shouldReceive('getDepositCollectedCents')->andReturn(100000);
+            $refundService->shouldReceive('getWalletRefundCents')->andReturn(0);
+            $deduction = ['fee_type_id' => DB::table('fee_types')->value('id'), 'type' => 'damage', 'qty' => 1, 'amount_cents' => 1000];
+            $result = $action === 'refund-save'
+                ? $refundService->saveAsDraft($ticket->lease, [], [$deduction, $deduction, $deduction])
+                : $refundService->processDisbursement(App\Models\Refund::firstOrFail(), ['checked_out_at' => today()->toDateString(),
+                    'refund_document_id' => 'refund-template', 'method' => 'bank_transfer', 'status' => 'successful'], Auth::user());
+        } else {
+            $result = app(MaintenanceService::class)->execute($request, $ticket, $action, $order);
+        }
         echo json_encode(['status'=>200,'id'=>$result->id,'start'=>$start,'end'=>microtime(true)]);
     } catch (Symfony\Component\HttpKernel\Exception\HttpException $e) {
         echo json_encode(['status'=>$e->getStatusCode(),'start'=>$start,'end'=>microtime(true)]);
+    } catch (Illuminate\Validation\ValidationException $e) {
+        echo json_encode(['status'=>422,'start'=>$start,'end'=>microtime(true)]);
     }
     exit;
 }
@@ -74,17 +89,23 @@ try {
     $manager=(string) Str::ulid(); $owner=(string) Str::ulid(); $tenant=(string) Str::ulid();
     foreach ([$manager=>'agentAdmin',$owner=>'owner',$tenant=>'tenant'] as $id=>$role) DB::table('users')->insert([
         'id'=>$id,'name'=>$role,'role'=>$role,'email'=>$id.'@example.test','email_verified_at'=>now(),
-        'account_permissions'=>$role==='agentAdmin'?json_encode(['maintenance.tab','maintenance.view','maintenance.create','maintenance.assign','maintenance.complete']):null]);
+        'account_permissions'=>$role==='agentAdmin'?json_encode(['service request.tab','maintenance.tab','maintenance.view','maintenance.create','maintenance.assign','maintenance.complete']):null]);
+    $staffUser = (string) Str::ulid();
+    $managementId = (string) Str::ulid();
+    DB::table('users')->insert(['id' => $staffUser, 'name' => 'Assigned staff', 'role' => 'staff', 'status' => 'active', 'email' => $staffUser.'@example.test']);
+    DB::table('user_management')->insert(['id' => $managementId, 'user_id' => $manager]);
+    DB::table('staff')->insert(['id' => (string) Str::ulid(), 'user_id' => $staffUser, 'user_mgnt_id' => $managementId]);
     $tenantId=(string) Str::ulid();$property=(string) Str::ulid();$lease=(string) Str::ulid();$ticket=(string) Str::ulid();
     DB::table('tenants')->insert(['id'=>$tenantId,'user_id'=>$tenant,'created_by'=>$manager]);
     DB::table('properties')->insert(['id'=>$property,'name'=>'Isolated property','owner_id'=>$owner,'created_by'=>$manager]);
     DB::table('leases')->insert(['id'=>$lease,'tenant_id'=>$tenantId,'leasable_type'=>App\Models\Property::class,'leasable_id'=>$property,'status'=>'New','is_current'=>1]);
     DB::table('tickets')->insert(['id'=>$ticket,'sender_id'=>$tenant,'receive_id'=>$owner,'lease_id'=>$lease,'category'=>'complain','subject'=>'Concurrency','status'=>'pending']);
-    $race = function (string $action, ?string $order, int $version, bool $same = true) use ($temporary, $root) {
+    $race = function (string $action, string|array|null $order, int $version, bool $same = true, array $ticketIds = []) use ($temporary, $root) {
         $tag=bin2hex(random_bytes(4));$barrier=$temporary.'/go-'.$tag;$key=(string) Str::uuid();$processes=[];
         foreach ([0,1] as $i) {
             $slot=$tag.'-'.$i;
-            $command=[PHP_BINARY,__FILE__,'worker',$action,$same?$key:(string) Str::uuid(),$order??'-',(string)$version,$slot,$barrier];
+            $command=[PHP_BINARY,__FILE__,'worker',$action,$same?$key:(string) Str::uuid(),is_array($order)?$order[$i]:($order??'-'),(string)$version,$slot,$barrier];
+            if ($ticketIds) $command[] = $ticketIds[$i];
             $process=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes,$root);
             check(is_resource($process),'Worker could not start'); fclose($pipes[0]);
             $processes[]=[$process,$pipes,$slot];
@@ -101,13 +122,17 @@ try {
         }
         check(max(array_column($results,'start'))<min(array_column($results,'end')),'Requests did not actually overlap');
         $statuses=array_column($results,'status');sort($statuses);
-        check($statuses===($same?[200,200]:[200,409]),'Unexpected concurrent results: '.json_encode($results));
-        if($same) check($results[0]['id']===$results[1]['id'],'Duplicate result IDs');
-        echo $action.' '.($same?'same request':'competing versions').': '.json_encode($statuses).' (overlap confirmed)'.PHP_EOL;
+        $expected = $action === 'refund-process' ? [200,422] : ($same || $ticketIds ? [200,200] : [200,409]);
+        check($statuses===$expected,'Unexpected concurrent results: '.json_encode($results));
+        if($same && !$ticketIds) check($results[0]['id']===$results[1]['id'],'Duplicate result IDs');
+        if($ticketIds) check($results[0]['id']!==$results[1]['id'],'Different conversations reused one order');
+        echo $action.' '.($ticketIds ? 'different conversations' : ($same?'same request':'competing versions')).': '.json_encode($statuses).' (overlap confirmed)'.PHP_EOL;
         return $results[0]['id']??$results[1]['id'];
     };
     $order=$race('create',null,0);
     check(Maintenance::count()===1 && DB::table('maintenance_events')->count()===1 && DB::table('maintenance_attachments')->count()===1,'Duplicate creation artifacts');
+    check(Maintenance::findOrFail($order)->maintenance_number === 'MNT00001', 'Unexpected maintenance sequence number');
+    check(json_decode(DB::table('document_sequences')->where('category', 'maintenance')->sole()->sequence, true)['next_number'] === 2, 'Duplicate creation consumed another maintenance number');
     $race('assign',$order,1);
     check(DB::table('maintenance_events')->count()===2 && DB::table('ticket_msgs')->count()===2,'Duplicate assignment notice/event');
     $race('assign',$order,2,false);
@@ -117,6 +142,40 @@ try {
     check(count(Storage::disk('local')->allFiles())===2,'Duplicate or orphan evidence files');
     check(Maintenance::findOrFail($order)->status==='completed','Completion missing');
     echo "PASS: 1 order, 4 events (including reassignment), 3 notices, 2 evidence rows/files.\n";
+    $ticketIds = [(string) Str::ulid(), (string) Str::ulid()];
+    foreach ($ticketIds as $ticketId) DB::table('tickets')->insert(['id'=>$ticketId,'sender_id'=>$tenant,'receive_id'=>$owner,'lease_id'=>$lease,'category'=>'complain','subject'=>'Sequence concurrency','status'=>'pending']);
+    $race('create', null, 0, false, $ticketIds);
+    check(Maintenance::whereIn('ticket_id', $ticketIds)->orderBy('maintenance_number')->pluck('maintenance_number')->all() === ['MNT00002', 'MNT00003'], 'Concurrent conversations did not receive consecutive unique numbers');
+    check(json_decode(DB::table('document_sequences')->where('category', 'maintenance')->sole()->sequence, true)['next_number'] === 4, 'Concurrent conversations advanced the sequence incorrectly');
+    echo "PASS: Different conversations receive consecutive account sequence numbers.\n";
+    DB::table('fee_types')->insert(['id' => (string) Str::ulid(), 'user_id' => $manager, 'category' => 'item', 'name' => 'Checkout repair']);
+    $refundId = $race('refund-save', null, 0);
+    check(DB::table('refund_items')->where('refund_id', $refundId)->count() === 3, 'Concurrent refund saves duplicated deduction rows');
+    check(Maintenance::where('refund_id', $refundId)->count() === 0, 'Draft saves must not create maintenance');
+    DB::table('refunds')->where('id', $refundId)->update(['status' => 'approved']);
+    $race('refund-process', null, 0, false);
+    check(DB::table('refund_disbursements')->where('refund_id', $refundId)->count() === 1, 'Concurrent processing duplicated refund payout');
+    check(Maintenance::where('refund_id', $refundId)->count() === 3, 'Concurrent processing duplicated maintenance');
+    check(json_decode(DB::table('document_sequences')->where('category', 'maintenance')->sole()->sequence, true)['next_number'] === 7, 'Concurrent refund saves consumed extra maintenance numbers');
+    echo "PASS: Draft saves create no work orders; concurrent processing creates one payout and three work orders.\n";
+    Auth::setUser(User::findOrFail($manager));
+    $service = app(MaintenanceService::class);
+    foreach (Maintenance::where('refund_id', $refundId)->get() as $refundOrder) {
+        $service->execute(Request::create('/maintenance-test', 'POST', ['request_key' => (string) Str::uuid(),
+            'version' => 1, 'assigned_staff_id' => DB::table('staff')->value('id')]), null, 'assign', $refundOrder);
+        $service->execute(Request::create('/maintenance-test', 'POST', ['request_key' => (string) Str::uuid(),
+            'version' => 2]), null, 'complete', $refundOrder->fresh());
+    }
+    $remaining = Maintenance::whereIn('ticket_id', $ticketIds)->orderBy('ticket_id')->get();
+    foreach ($remaining as $remainingOrder) {
+        $service->execute(Request::create('/maintenance-test', 'POST', ['request_key' => (string) Str::uuid(),
+            'version' => 1, 'assigned_staff_id' => DB::table('staff')->value('id')]), $remainingOrder->ticket, 'assign', $remainingOrder);
+    }
+    check(strtolower(DB::table('properties')->where('id', $property)->value('status')) === 'maintenance', 'Remaining work must block vacancy');
+    $race('complete', $remaining->modelKeys(), 2, false, $remaining->pluck('ticket_id')->all());
+    check(Maintenance::whereRaw('LOWER(status) != ?', ['completed'])->count() === 0, 'Some work orders are still open');
+    check(DB::table('properties')->where('id', $property)->value('status') === 'Vacant', 'Concurrent last completions did not restore vacancy');
+    echo "PASS: Completing the final two work orders concurrently restores vacancy.\n";
 } finally {
     DB::disconnect();
     $server->exec("DROP DATABASE `$database`");

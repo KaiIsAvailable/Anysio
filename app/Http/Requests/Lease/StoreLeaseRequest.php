@@ -131,7 +131,7 @@ class StoreLeaseRequest extends FormRequest
             ],
             'charges.*.fee_type_id' => [
                 'required_with:charges',
-                'exists:fee_types,id',
+                Rule::exists('fee_types', 'id')->whereIn('category', $this->filled('charges') ? \App\Services\FeeTypeService::allowedCategories() : []),
             ],
             'charges.*.amount' => [
                 'required_with:charges',

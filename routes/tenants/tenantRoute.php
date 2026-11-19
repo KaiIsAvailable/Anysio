@@ -17,6 +17,7 @@ Route::get('/tenant/invoices', [TenantsController::class, 'invoices'])
 Route::middleware(\App\Http\Middleware\AuthorizeTicketModule::class.':is-tenant')->prefix('tenant/customer-service')->name('customerService.')->group(function () {
     Route::get('/', [\App\Http\Controllers\TenantTicketController::class, 'index'])->name('index');
     Route::post('/', [\App\Http\Controllers\TenantTicketController::class, 'store'])->name('store');
+    Route::get('/unread', [\App\Http\Controllers\TenantTicketController::class, 'unread'])->name('unread');
     Route::get('/{ticket}', [\App\Http\Controllers\TenantTicketController::class, 'show'])->name('show');
     Route::post('/{ticket}/messages', [\App\Http\Controllers\TenantTicketController::class, 'reply'])->name('reply');
     Route::post('/{ticket}/read', [\App\Http\Controllers\TenantTicketController::class, 'markRead'])->name('markRead');

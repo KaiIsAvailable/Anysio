@@ -114,8 +114,7 @@ class UtilitySetupTest extends TestCase
         $this->assertSame('12.470', $this->service('ra')->records()->sole()->curr_reading);
         $this->get(route('admin.utilities.history'))->assertViewIs('errors.403');
         $this->get(route('admin.utilities.edit', $row['id']))->assertViewIs('errors.403');
-        $this->post(route('admin.utilities.initialize'), ['type' => 'water'])->assertRedirect()
-            ->assertSessionHas('error', 'You have no permission.');
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.utilities.initialize'));
         $this->post(route('admin.utilities.readings.invoices.generate'), [])->assertRedirect()
             ->assertSessionHas('error', 'You have no permission.');
     }
@@ -176,9 +175,134 @@ class UtilitySetupTest extends TestCase
             ->assertSessionHas('error', 'You have no permission.');
     }
 
+    public function test_water_meter_registration_is_explicit_repeatable_and_supports_zero_opening(): void
+    {
+        $setup = app(UtilitySetupService::class);
+        $property = Property::findOrFail($this->ids['pa']);
+        Model::withoutEvents(fn () => $setup->saveWaterMeter($property, ['has_meter' => '0']));
+        $this->assertSame(0, UtilityService::count());
+        foreach ([Property::findOrFail($this->ids['pa']), Unit::findOrFail($this->ids['ua']), Room::findOrFail($this->ids['ra'])] as $location) {
+            Model::withoutEvents(fn () => $setup->saveWaterMeter($location, ['has_meter' => '1',
+                'meter_number' => 'M-'.$location->id, 'opening_reading' => '0', 'opening_reading_date' => '2026-11-01']));
+            $service = $location->utilityServices()->sole();
+            $this->assertSame('active', $service->status);
+            $this->assertSame('0.000', $service->opening_reading);
+            $this->assertTrue(Str::isUlid($service->id));
+            Model::withoutEvents(fn () => $setup->saveWaterMeter($location, ['has_meter' => '1',
+                'meter_number' => 'M-'.$location->id, 'opening_reading' => '0', 'opening_reading_date' => '2026-11-01']));
+            $this->assertSame($service->id, $location->utilityServices()->sole()->id);
+        }
+        $this->assertSame(3, UtilityService::count());
+        $this->assertSame(0, UtilityService::forManagement($this->ids['b'])->count());
+    }
+
+    public function test_location_water_meter_details_show_opening_readings_and_saved_charges(): void
+    {
+        $setup = app(UtilitySetupService::class);
+        foreach ([Property::findOrFail($this->ids['pa']), Unit::findOrFail($this->ids['ua']), Room::findOrFail($this->ids['ra'])] as $location) {
+            $render = fn () => \Illuminate\Support\Facades\Blade::render('<x-utilities.water-meter-details :location="$location" />', ['location' => $location]);
+            $this->assertStringContainsString('Not installed', $render());
+            Model::withoutEvents(fn () => $setup->saveWaterMeter($location, ['has_meter' => '1', 'meter_number' => 'METER-01',
+                'opening_reading' => '0', 'opening_reading_date' => '2026-11-01']));
+            $opening = $render();
+            foreach (['METER-01', '0.000', '01/11/2026', 'Opening reading', 'Not calculated'] as $text) $this->assertStringContainsString($text, $opening);
+            $record = Model::withoutEvents(fn () => $location->utilityServices()->sole()->records()->create([
+                'type' => 'water', 'prev_reading' => '0', 'curr_reading' => '3.125', 'amount' => 1250, 'status' => 'confirmed',
+                'prev_reading_date' => '2026-11-01', 'curr_reading_date' => '2026-11-08', 'period' => '2026-11-01',
+            ]));
+            foreach (['3.125', 'RM 12.50', '08/11/2026'] as $text) $this->assertStringContainsString($text, $render());
+            Model::withoutEvents(fn () => $record->update(['amount' => 0]));
+            $this->assertStringContainsString('RM 0.00', $render());
+            Model::withoutEvents(fn () => $record->update(['status' => 'draft']));
+            $this->assertStringContainsString('Not calculated', $render());
+        }
+    }
+
+    public function test_water_meter_details_respect_utilities_permission_and_management_boundaries(): void
+    {
+        $location = Unit::findOrFail($this->ids['ua']);
+        Model::withoutEvents(fn () => app(UtilitySetupService::class)->saveWaterMeter($location, ['has_meter' => '1', 'meter_number' => 'PRIVATE-METER']));
+        $render = fn () => \Illuminate\Support\Facades\Blade::render('<x-utilities.water-meter-details :location="$location" />', ['location' => $location]);
+        $this->assertStringContainsString('PRIVATE-METER', $render());
+        $this->actingAs(User::findOrFail($this->ids['b']));
+        $this->assertStringNotContainsString('Water Meter', $render());
+        $this->actingAs(User::findOrFail($this->ids['a']));
+        Gate::define('utilities.tab', fn () => false);
+        $this->assertStringNotContainsString('PRIVATE-METER', $render());
+    }
+
+    public function test_water_meter_registration_requires_permission_account_ownership_and_a_complete_opening_pair(): void
+    {
+        $setup = app(UtilitySetupService::class);
+        $location = Room::findOrFail($this->ids['ra']);
+        foreach ([['has_meter' => '1', 'opening_reading' => '0'], ['has_meter' => '1', 'opening_reading_date' => '2026-11-01']] as $input) {
+            try { $setup->saveWaterMeter($location, $input); $this->fail('Incomplete opening pair accepted.'); }
+            catch (ValidationException $e) { $this->assertNotEmpty($e->errors()); }
+        }
+        try { $setup->saveWaterMeter(Room::findOrFail($this->ids['rb']), ['has_meter' => '1']); $this->fail('Foreign location accepted.'); }
+        catch (ValidationException $e) { $this->assertArrayHasKey('water_meter', $e->errors()); }
+        Gate::define('utilities.manage meters', fn () => false);
+        try { $setup->saveWaterMeter($location, ['has_meter' => '1']); $this->fail('Permission denial bypassed.'); }
+        catch (ValidationException $e) { $this->assertSame(['You have no permission.'], $e->errors()['water_meter']); }
+        $this->assertSame(0, UtilityService::count());
+    }
+
+    public function test_registration_preserves_reading_history_and_can_restore_only_unused_meter_setup(): void
+    {
+        $setup = app(UtilitySetupService::class);
+        $location = Room::findOrFail($this->ids['ra']);
+        Model::withoutEvents(fn () => $setup->saveWaterMeter($location, ['has_meter' => '1']));
+        $service = $location->utilityServices()->sole();
+        Model::withoutEvents(fn () => $setup->saveWaterMeter($location, ['has_meter' => '0']));
+        $this->assertTrue($service->fresh()->trashed());
+        Model::withoutEvents(fn () => $setup->saveWaterMeter($location, ['has_meter' => '1', 'opening_reading' => '0', 'opening_reading_date' => '2026-11-01']));
+        $this->assertSame($service->id, $location->utilityServices()->sole()->id);
+        $this->insert('utilities', 'registered-reading', ['utility_service_id' => $service->id, 'type' => 'water', 'period' => '2026-11-01']);
+        foreach ([['has_meter' => '0'], ['has_meter' => '1', 'opening_reading' => '99', 'opening_reading_date' => '2026-11-01']] as $input) {
+            try { Model::withoutEvents(fn () => $setup->saveWaterMeter($location, $input)); $this->fail('History protection bypassed.'); }
+            catch (ValidationException $e) { $this->assertNotEmpty($e->errors()); }
+        }
+        $this->assertSame('0.000', $service->fresh()->opening_reading);
+        $this->assertSame(1, $service->records()->count());
+    }
+
+    public function test_shared_water_meter_form_uses_existing_fields_and_preserves_saved_values(): void
+    {
+        $location = Room::findOrFail($this->ids['ra']);
+        Model::withoutEvents(fn () => app(UtilitySetupService::class)->saveWaterMeter($location, ['has_meter' => '1',
+            'meter_number' => 'ROOM-123', 'opening_reading' => '0', 'opening_reading_date' => '2026-11-01']));
+        $html = \Illuminate\Support\Facades\Blade::render('<x-utilities.water-meter-fields :location="$location" />', compact('location'));
+        foreach (['Water Meter', 'Has physical water meter?', 'Physical Meter Number', 'Opening Reading',
+            'water_meter[has_meter]', 'water_meter[meter_number]', 'water_meter[opening_reading]', 'water_meter[opening_reading_date]', 'ROOM-123', 'DD/MM/YYYY'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+        Gate::define('utilities.manage meters', fn () => false);
+        $this->assertStringNotContainsString('water_meter[', \Illuminate\Support\Facades\Blade::render('<x-utilities.water-meter-fields />'));
+    }
+
     private function initialize(string $manager = 'a', string $type = 'water'): array
     {
-        return Model::withoutEvents(fn () => app(UtilitySetupService::class)->initialize(User::findOrFail($this->ids[$manager]), $type));
+        return Model::withoutEvents(function () use ($manager, $type) {
+            $manager = User::findOrFail($this->ids[$manager]);
+            $setup = app(UtilitySetupService::class);
+            $result = ['created' => 0, 'existing' => 0, 'review' => 0, 'linked' => 0];
+            foreach ([Property::class, Unit::class, Room::class] as $model) {
+                foreach ($setup->managedLocations($model, $manager) as $location) {
+                    $service = $location->utilityServices()->withTrashed()->where('type', $type)->first();
+                    if ($service) { $result['existing']++; continue; }
+                    $service = $location->utilityServices()->create([
+                        'management_user_id' => $manager->id, 'type' => $type,
+                        'billing_method' => $type === 'indah_water' ? 'fixed' : 'metered',
+                        'label' => class_basename($location).' '.($location->name ?? $location->unit_no ?? $location->room_no).' '.$type,
+                        'status' => 'unconfirmed',
+                    ]);
+                    $result['created']++;
+                    $leaseIds = \App\Models\Lease::where('leasable_type', $location->getMorphClass())->where('leasable_id', $location->id)->pluck('id');
+                    $result['linked'] += DB::table('utilities')->whereNull('utility_service_id')->whereIn('lease_id', $leaseIds)->where('type', $type)->update(['utility_service_id' => $service->id]);
+                }
+            }
+            return $result;
+        });
     }
 
     private function service(string $location): UtilityService
@@ -194,7 +318,7 @@ class UtilitySetupTest extends TestCase
         ]));
     }
 
-    public function test_migrations_preserve_legacy_values_and_initialization_is_account_scoped_and_repeatable(): void
+    public function test_migrations_preserve_legacy_values_and_existing_service_history(): void
     {
         $legacy = Utility::findOrFail($this->ids['legacy']);
         $this->assertSame('100.000', $legacy->prev_reading);
@@ -221,7 +345,7 @@ class UtilitySetupTest extends TestCase
     {
         DB::table('properties')->where('id', $this->ids['pa'])->update(['created_by' => $this->ids['b']]);
         $result = $this->initialize();
-        $this->assertSame(1, $result['review']);
+        $this->assertNull(app(UtilitySetupService::class)->managerFor(Property::findOrFail($this->ids['pa'])));
         $this->assertSame(2, $result['created']);
         $this->initialize('b', 'indah_water');
         $this->assertSame('fixed', $this->service('ub')->billing_method);
@@ -288,28 +412,20 @@ class UtilitySetupTest extends TestCase
         $this->get(route('admin.utilities.history'))->assertOk()->assertSee('25.00');
     }
 
-    public function test_super_admin_must_select_account_and_view_only_user_cannot_initialize(): void
+    public function test_super_admin_must_select_account_and_initialization_route_is_removed(): void
     {
         $this->initialize();
         Gate::define('super-admin', fn () => true);
         $response = $this->get(route('admin.utilities.index'));
         $response->assertOk();
         $this->assertSame(0, $response->viewData('services')->total());
-        $this->post(route('admin.utilities.initialize'), ['type' => 'water'])
-            ->assertRedirect(route('admin.utilities.index'))
-            ->assertSessionHas('error', 'Select a management account first.');
-        Gate::define('super-admin', fn () => false);
-        Gate::define('owner-admin', fn () => false);
-        Gate::define('utilities.manage meters', fn () => false);
-        $this->post(route('admin.utilities.initialize'), ['type' => 'water'])->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('admin.utilities.initialize'));
+
     }
 
     public function test_setup_form_and_mutation_routes_save_only_to_the_effective_management_account(): void
     {
-        $response = Model::withoutEvents(fn () => $this->post(route('admin.utilities.initialize'), [
-            'type' => 'water', 'management_user_id' => $this->ids['b'],
-        ]));
-        $response->assertRedirect()->assertSessionHas('success');
+        $this->initialize();
         $this->assertSame(3, UtilityService::forManagement($this->ids['a'])->count());
         $this->assertSame(0, UtilityService::forManagement($this->ids['b'])->count());
         $service = $this->service('ra');

@@ -49,6 +49,7 @@
                         <div class="ml-6">
                             <h2 class="text-2xl font-bold text-slate-900 tracking-tight">{{ $staff->user->name ?? 'N/A' }}</h2>
                             <p class="text-sm text-gray-500 font-medium">{{ $staff->user->email ?? 'N/A' }}</p>
+                            <p class="mt-1 text-sm text-gray-500">Phone: {{ $staff->phone ?: 'Not provided' }}</p>
                         </div>
                         <div class="ml-auto text-right">
                             <span class="inline-flex items-center px-4 py-1.5 rounded-full text-xs font-bold tracking-wide bg-blue-100 text-blue-800">

@@ -1,6 +1,7 @@
 <x-app-layout>
     <div class="py-12 bg-gray-50 min-h-screen font-sans" 
         x-data="{ showRoleModal: false, 
+                  selectedRole: @js(old('role', $staff->role) ? [old('role', $staff->role)] : []),
                   newRoleName: '', 
                   selectedPermissions: [],
                   errorMessage: '', 
@@ -34,6 +35,12 @@
                                 <x-form.input-label for="name" value="Full Name" required />
                                 <x-form.text-input id="name" name="name" type="text" class="mt-1 block w-full" :value="old('name', $staff->user->name)" required autocomplete="name" />
                                 <x-form.input-error :messages="$errors->get('name')" class="mt-2" />
+                            </div>
+
+                            <div>
+                                <x-form.input-label for="phone" value="Phone Number" />
+                                <x-form.text-input id="phone" name="phone" type="tel" :value="old('phone', $staff->phone)" autocomplete="tel" inputmode="numeric" pattern="[0-9]*" maxlength="20" oninput="this.value = this.value.replace(/[^0-9]/g, '')" class="mt-1 block w-full" />
+                                <x-form.input-error :messages="$errors->get('phone')" class="mt-2" />
                             </div>
 
                             <!-- Email -->

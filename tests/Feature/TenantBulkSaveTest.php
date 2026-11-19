@@ -556,8 +556,33 @@ class TenantBulkSaveTest extends TestCase
     {
         Gate::partialMock()->shouldReceive('allows')->with('super-admin')->once()->andReturn(false);
         Gate::shouldReceive('denies')->with('tenant.tab')->once()->andReturn(false);
+        Gate::shouldReceive('denies')->with('tenant.bulk edit')->once()->andReturn(false);
         Gate::shouldReceive('allows')->with('tenant.modify bank details')->once()->andReturn(false);
         Gate::shouldReceive('allows')->with('tenant.create')->once()->andReturn(true);
         $this->assertSame([false, false], app(TenantBulkService::class)->authorizeRows(array_fill(0, 300, $this->row()), $this->manager));
+    }
+
+    public function test_revoking_bulk_edit_denies_the_page_save_and_queued_writes(): void
+    {
+        \Illuminate\Support\Facades\Queue::fake();
+        $this->manager->update(['email_verified_at' => now()]);
+        $operations = app(\App\Services\TenantBulkOperationService::class);
+        $operation = $operations->start([$this->row()], $this->manager, [], (string) Str::uuid(), 1, 'draft');
+        Gate::partialMock()->shouldReceive('allows')->andReturnUsing(fn ($ability) => $ability !== 'super-admin');
+        Gate::shouldReceive('denies')->andReturnUsing(fn ($ability) => in_array($ability, ['super-admin', 'tenant.bulk edit'], true));
+
+        $view = app(\App\Http\Controllers\TenantsController::class)->bulkEdit(app(TenantBulkService::class));
+        $this->assertSame('errors.403', $view->name());
+        $this->post(route('admin.tenants.bulk-save'), ['rows_json' => json_encode([$this->row()]), 'page' => 1])
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->get(route('admin.tenants.bulk-progress', $operation->request_key))
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->get(route('admin.tenants.bulk-complete', $operation->request_key))
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertNull($operation->fresh()->acknowledged_at);
+        $operations->process($operation->id);
+        $this->assertSame('failed', $operation->fresh()->status);
+        $this->assertSame(['bulk' => ['You have no permission.']], $operation->fresh()->errors);
+        $this->assertDatabaseCount('tenants', 0);
     }
 }

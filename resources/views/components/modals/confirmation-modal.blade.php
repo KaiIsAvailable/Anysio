@@ -5,6 +5,7 @@
     'zIndex' => 'z-[120]',
     'show' => false,
     'closable' => true,
+    'overflowVisible' => false,
 ])
 
 @php
@@ -28,7 +29,7 @@
         </div>
 
         {{-- Modal Box --}}
-        <div class="relative bg-white rounded-[2rem] shadow-2xl w-full {{ $maxWidth }} overflow-hidden transition-all duration-200 z-10"
+        <div class="relative bg-white rounded-[2rem] shadow-2xl w-full {{ $maxWidth }} {{ $overflowVisible ? 'overflow-visible' : 'overflow-hidden' }} transition-all duration-200 z-10"
              x-show="{{ $jsVar }}"
              x-transition:enter="transition ease-out duration-300"
              x-transition:enter-start="opacity-0 scale-95"
@@ -37,7 +38,7 @@
              @click.stop>
              
             {{-- Header --}}
-            <div class="px-6 pt-6 pb-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+            <div class="px-6 pt-6 pb-4 bg-gray-50/50 rounded-t-[2rem] border-b border-gray-100 flex items-center justify-between">
                 <h3 class="text-lg font-black text-slate-800">{{ $title }}</h3>
                 @if($closable)
                     <button type="button" @click="{{ $jsVar }} = false" class="text-gray-400 hover:text-rose-500 transition-colors text-2xl font-light">&times;</button>
@@ -45,7 +46,7 @@
             </div>
 
             {{-- Dynamic Body Slot --}}
-            <div class="bg-white">
+            <div class="bg-white rounded-b-[2rem]">
                 {{ $slot }}
             </div>
         </div>

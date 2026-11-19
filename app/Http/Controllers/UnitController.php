@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\UtilitySetupService;
+
 use Illuminate\Http\Request;
 use App\Models\Unit;
 use App\Models\RoomAsset;
@@ -73,6 +75,12 @@ class UnitController extends Controller
         if (Gate::denies('super-admin') && Gate::denies('unit.create')) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
+
+        if ($request->has('water_meter') && !UtilitySetupService::canManageWaterMeters()) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+        $waterMeter = $request->validate(['water_meter' => ['sometimes', 'array']])['water_meter'] ?? null;
+        if ($waterMeter !== null) app(UtilitySetupService::class)->validateWaterMeter($waterMeter);
 
         $effectiveUser = get_effective_user();
         $effectiveUserId = $effectiveUser ? $effectiveUser->id : Auth::id();
@@ -180,6 +188,8 @@ class UnitController extends Controller
                 }
             }
 
+            if ($waterMeter !== null) app(UtilitySetupService::class)->saveWaterMeter($unit, $waterMeter);
+
             DB::commit();
 
             if (method_exists($unit, 'syncStatus')) {
@@ -189,6 +199,9 @@ class UnitController extends Controller
 
             return redirect()->route('admin.properties.show', ['property' => $request->property_id])
                 ->with('success', 'Unit created successfully!');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            throw $e;
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Error: ' . $e->getMessage())->withInput();
@@ -296,7 +309,13 @@ class UnitController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
+        if ($request->has('water_meter') && !UtilitySetupService::canManageWaterMeters()) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+        $waterMeter = $request->validate(['water_meter' => ['sometimes', 'array']])['water_meter'] ?? null;
+
         $unit = Unit::findOrFail($id);
+        if ($waterMeter !== null) app(UtilitySetupService::class)->validateWaterMeter($waterMeter, $unit);
 
         // 1. 验证数据
         $request->validate([
@@ -339,10 +358,15 @@ class UnitController extends Controller
             // 既然 Edit 页面不处理 Room 和 Assets，这里绝对不能执行 delete()
             // 否则每次点 Save，房间资产就全没了。
 
+            if ($waterMeter !== null) app(UtilitySetupService::class)->saveWaterMeter($unit, $waterMeter);
+
             DB::commit();
 
             return redirect()->route('admin.properties.show', $request->property_id)
                 ->with('success', 'Unit updated successfully!');
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            throw $e;
         } catch (\Exception $e) {
             DB::rollBack();
             return back()->with('error', 'Update Failed: ' . $e->getMessage())->withInput();

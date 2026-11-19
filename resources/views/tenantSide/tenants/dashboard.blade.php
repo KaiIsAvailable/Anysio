@@ -8,10 +8,59 @@
     <div class="py-6 sm:py-10 bg-gray-50 min-h-screen">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" data-complaint-create data-redirect-after-create="true">
 
-            @foreach($banners as $banner)
-                <x-notification-banner :type="$banner['type']" :message="$banner['message']"
-                    :actionLabel="$banner['actionLabel'] ?? null" :actionUrl="$banner['actionUrl'] ?? '#'" />
-            @endforeach
+            {{-- Show tenant alerts whenever the tenant enters the dashboard. --}}
+            @php
+                $dashboardAlerts = collect($banners ?? [])
+                    ->sortByDesc(fn ($banner) => str_starts_with($banner['message'] ?? '', 'Lease '));
+                $showDashboardAlerts = $dashboardAlerts->isNotEmpty();
+            @endphp
+
+            @if($showDashboardAlerts)
+                <x-modals.confirmation-modal
+                    id="tenant-dashboard-alerts"
+                    title="Tenancy Reminders"
+                    maxWidth="sm:max-w-3xl"
+                    :show="true"
+                >
+                    <div class="max-h-[75vh] overflow-y-auto px-5 py-5 sm:px-8">
+                        <p class="mb-4 text-sm text-slate-600">
+                            Please review these important updates about your tenancy.
+                        </p>
+
+                        <div class="space-y-3">
+                            @foreach($dashboardAlerts as $banner)
+                                @php
+                                    $alertType = $banner['type'] ?? 'info';
+                                    $alertStyle = match ($alertType) {
+                                        'error', 'danger' => 'border-rose-200 bg-rose-50',
+                                        'warning' => 'border-amber-200 bg-amber-50',
+                                        'success' => 'border-emerald-200 bg-emerald-50',
+                                        default => 'border-indigo-200 bg-indigo-50',
+                                    };
+                                @endphp
+                                <div class="rounded-xl border p-4 {{ $alertStyle }}">
+                                    <p class="text-sm leading-6 text-slate-800">{{ $banner['message'] ?? '' }}</p>
+                                    @if(!empty($banner['actionLabel']) && !empty($banner['actionUrl']) && $banner['actionUrl'] !== '#')
+                                        <a href="{{ $banner['actionUrl'] }}"
+                                           class="mt-3 inline-flex items-center text-sm font-semibold text-indigo-700 hover:text-indigo-900 hover:underline">
+                                            {{ $banner['actionLabel'] }}
+                                            <span aria-hidden="true" class="ml-1">&rarr;</span>
+                                        </a>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
+
+                    <div class="flex flex-wrap justify-end gap-3 border-t border-gray-100 bg-gray-50 px-5 py-4 sm:px-8">
+                        <button type="button"
+                                @click="$dispatch('close-tenant-dashboard-alerts')"
+                                class="inline-flex items-center justify-center rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                            Got It
+                        </button>
+                    </div>
+                </x-modals.confirmation-modal>
+            @endif
 
             <div class="bg-white rounded-2xl border border-gray-100 p-5 mb-6 flex flex-wrap items-center gap-4">
                 <button type="button" data-open-complaint @disabled($creationReason) class="rounded-xl bg-indigo-600 px-5 py-3 text-sm font-semibold text-white disabled:opacity-50">Complaint</button>

@@ -34,7 +34,6 @@
         @php($maintenanceCapability = $ticket ? app(\App\Services\MaintenanceService::class)->capabilities($ticket) : [])
         <button type="button" data-create-maintenance data-create-url="{{ $maintenanceCapability['create_url'] ?? '' }}" data-context-url="{{ $maintenanceCapability['context_url'] ?? '' }}" title="{{ $maintenanceCapability['reason'] ?? 'Create Maintenance' }}" @if(empty($maintenanceCapability['create_url'])) hidden @endif class="shrink-0 rounded-lg border border-indigo-200 px-3 py-2 text-sm text-indigo-700">Create Maintenance</button>
     </header>
-    <div data-maintenance-cards data-initial="{{ json_encode($ticket ? app(\App\Services\MaintenanceService::class)->cards($ticket) : []) }}" hidden class="max-h-48 shrink-0 overflow-auto space-y-2 border-b bg-indigo-50 p-3" aria-label="Maintenance progress"></div>
     <p data-chat-context class="shrink-0 px-5 py-2 text-sm text-gray-600" @if(!$context) hidden @endif>{{ $context }}</p>
     <div data-chat-messages aria-live="polite" class="overflow-y-auto space-y-3 bg-gray-50 p-4 sm:p-6 {{ $embedded ? 'flex-1 min-h-0' : 'h-[55vh] min-h-64' }}">
         @php($previousDate = null)
@@ -61,9 +60,10 @@
                     <span class="h-px flex-1 bg-indigo-100"></span>
                 </div>
             @endif
-            <div data-sent-at="{{ $message['sent_at'] ?? '' }}" data-date-key="{{ $message['date_key'] ?? '' }}" data-message-id="{{ $message['id'] ?? '' }}" data-incoming="{{ ($message['incoming'] ?? false) ? 'true' : 'false' }}" data-message-status="{{ $message['status'] ?? '' }}" class="flex {{ $own ? 'justify-end' : 'justify-start' }}">
-                <article class="max-w-[85%] rounded-2xl px-4 py-3 text-slate-900 {{ $own ? 'bg-indigo-100' : 'bg-white border' }}">
-                    <p class="mb-1 text-xs text-gray-500">{{ $own ? 'You' : ($message['sender_label'] ?? $message['sender_type']) }} · {{ $message['created_at'] }}</p>
+            @php($system = ($message['sender_type'] ?? '') === 'system')
+            <div data-sent-at="{{ $message['sent_at'] ?? '' }}" data-date-key="{{ $message['date_key'] ?? '' }}" data-message-id="{{ $message['id'] ?? '' }}" data-incoming="{{ ($message['incoming'] ?? false) ? 'true' : 'false' }}" data-message-status="{{ $message['status'] ?? '' }}" class="flex {{ $system ? 'justify-center' : ($own ? 'justify-end' : 'justify-start') }}">
+                <article class="rounded-2xl px-4 py-3 text-slate-900 {{ $system ? 'w-full max-w-2xl border border-indigo-100 bg-indigo-50' : ('max-w-[85%] '.($own ? 'bg-indigo-100' : 'bg-white border')) }}">
+                    <p class="mb-1 text-xs text-gray-500">{{ $own ? 'You' : ($message['sender_label'] ?? 'Unverified sender') }} · {{ $message['created_at'] }}</p>
                     @if($message['attachment_url'])
                         @if($message['extension'] === 'pdf')
                             <x-customer-service.pdf-attachment :url="$message['attachment_url']" :filename="$message['filename'] ?? 'Attachment.pdf'" />
@@ -73,8 +73,42 @@
                             <video src="{{ $message['attachment_url'] }}" controls preload="metadata" class="max-h-64 max-w-full rounded-lg"></video>
                         @endif
                         <a href="{{ $message['attachment_url'] }}?download=1" class="inline-block mt-2 text-sm text-indigo-700 underline">Download {{ strtoupper($message['extension']) }} attachment</a>
+                    @elseif($system)
+                        @php($noticeLines = explode("\n", $message['text']))
+                        @php($noticeStatus = $message['maintenance_status'] ?? null)
+                        @php($statusLine = $noticeStatus ? array_search('Status: '.ucfirst($noticeStatus), $noticeLines, true) : false)
+                        <div class="space-y-1 text-sm break-words">
+                            @foreach($noticeLines as $lineIndex => $line)
+                                @continue($lineIndex === $statusLine)
+                                <p @class(['flex flex-wrap items-center gap-2' => $lineIndex === 0])>
+                                    @if($lineIndex === 0)
+                                        <strong>{{ $line }}</strong>
+                                        @if($noticeStatus)
+                                            <x-customer-service.ticket-status :status="$noticeStatus" />
+                                        @endif
+                                    @elseif(preg_match('/^(Reference|Issue|Quantity|Lease|Status|Description):\s?(.*)$/', $line, $parts))
+                                        <strong>{{ $parts[1] }}:</strong><span class="whitespace-pre-wrap">{{ ' '.$parts[2] }}</span>
+                                    @else
+                                        <span class="whitespace-pre-wrap">{{ $line }}</span>
+                                    @endif
+                                </p>
+                            @endforeach
+                        </div>
                     @else
                         <p class="text-sm whitespace-pre-wrap break-words">{{ $message['text'] }}</p>
+                    @endif
+                    @if(!empty($message['maintenance_evidence']))
+                        <details class="mt-3 border-t border-indigo-100 pt-2">
+                            <summary class="cursor-pointer text-sm font-semibold text-indigo-700">Completion evidence ({{ count($message['maintenance_evidence']) }})</summary>
+                            <ul class="mt-2 space-y-2">
+                                @foreach($message['maintenance_evidence'] as $file)
+                                    <li class="text-sm break-words">
+                                        <a href="{{ $file['url'] }}" target="_blank" rel="noopener" class="text-indigo-700 underline">{{ $file['filename'] }}</a>
+                                        <a href="{{ $file['url'] }}?download=1" class="ms-2 text-indigo-700 underline">Download</a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        </details>
                     @endif
                     @if($own)
                         <p data-read-receipt class="mt-1 text-right text-xs text-gray-500">{{ ($message['status'] ?? null) === 'read' ? 'Read' : (($message['status'] ?? null) === 'unread' ? 'Unread' : 'Read status unknown') }}</p>

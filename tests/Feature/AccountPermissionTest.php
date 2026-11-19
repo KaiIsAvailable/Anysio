@@ -41,8 +41,9 @@ class AccountPermissionTest extends TestCase
         Schema::create('staff', function (Blueprint $table) {
             $table->string('id')->primary(); $table->string('user_id'); $table->string('user_mgnt_id');
         });
+        (require database_path('migrations/2026_11_19_000001_add_phone_to_staff_table.php'))->up();
         Schema::create('roles', function (Blueprint $table) {
-            $table->increments('id'); $table->string('team_id')->nullable(); $table->string('name'); $table->string('guard_name');
+            $table->increments('id'); $table->string('team_id')->nullable(); $table->string('name'); $table->string('guard_name'); $table->timestamps();
         });
         Schema::create('permissions', function (Blueprint $table) {
             $table->increments('id'); $table->string('name'); $table->string('guard_name');
@@ -68,9 +69,44 @@ class AccountPermissionTest extends TestCase
         }
     }
 
+    public function test_permission_registration_preserves_existing_grants_and_uses_one_lookup_when_current(): void
+    {
+        Schema::table('permissions', fn (Blueprint $table) => $table->timestamps());
+        config(['permissions.modules' => ['leases' => ['show', 'check out lease' => ['save draft', 'approve refund']]]]);
+        $provider = new \App\Providers\AppServiceProvider(app());
+        $provider->boot();
+        foreach (['leases.show', 'leases.check out lease', 'leases.save draft', 'leases.approve refund'] as $name) {
+            $this->assertTrue(DB::table('permissions')->where('name', $name)->exists());
+        }
+        $this->assertTrue(DB::table('role_has_permissions')->where('permission_id', 1)->exists());
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $provider->boot();
+        $permissionReads = collect(DB::getQueryLog())->filter(fn ($entry) =>
+            str_starts_with(strtolower($entry['query']), 'select') && str_contains($entry['query'], '"permissions"'));
+        $this->assertCount(1, $permissionReads);
+        DB::disableQueryLog();
+        $this->assertSame(5, DB::table('permissions')->count());
+    }
+
     private function user(string $name): User
     {
         return User::findOrFail($this->ids[$name]);
+    }
+
+    public function test_ongoing_maintenance_dashboard_permission_requires_both_the_account_and_staff_role_grants(): void
+    {
+        $ability = 'dashboard.ongoing maintenance list';
+        $this->assertContains($ability, AccountPermissionService::names());
+        $this->grant('abc', [$ability]);
+        $this->assertTrue(Gate::forUser($this->user('abc'))->allows($ability));
+        $this->assertFalse(Gate::forUser($this->user('staff-a'))->allows($ability));
+        DB::table('permissions')->insert(['id' => 2, 'name' => $ability, 'guard_name' => 'web']);
+        DB::table('role_has_permissions')->insert(['role_id' => 1, 'permission_id' => 2]);
+        $this->assertTrue(Gate::forUser($this->user('staff-a'))->allows($ability));
+        $this->grant('abc', []);
+        $this->assertFalse(Gate::forUser($this->user('staff-a'))->allows($ability));
+        $this->assertTrue(Gate::forUser($this->user('system'))->allows($ability));
     }
 
     public function test_staff_role_can_grant_utilities_only_without_invoice_property_or_lease_access(): void
@@ -107,13 +143,14 @@ class AccountPermissionTest extends TestCase
         });
         DB::table('permissions')->insert(['id' => 2, 'name' => 'staff.create', 'guard_name' => 'web']);
         DB::table('role_has_permissions')->insert(['role_id' => 1, 'permission_id' => 2]);
-        // The manager's own grants must not replace the acting staff's permissions.
-        $this->grant('abc', []);
+        // Creating staff requires both the assigned role and the manager's grant.
+        $this->grant('abc', ['staff.create']);
         DB::table('user_management')->insert(['id' => 'other-workspace', 'user_id' => $this->ids['def']]);
 
         $this->actingAs($this->user('staff-a'))->post(route('admin.staff.store'), [
             'name' => 'New colleague',
             'email' => 'new-colleague@example.com',
+            'phone' => '01234567890123456789',
             'password' => 'test-password',
             'password_confirmation' => 'test-password',
             'role' => 'Accountant',
@@ -128,12 +165,32 @@ class AccountPermissionTest extends TestCase
             'user_mgnt_id' => 'workspace',
             'role' => 'Accountant',
         ]);
+        $this->assertDatabaseHas('staff', ['user_id' => $created->id, 'phone' => '01234567890123456789']);
         $this->assertDatabaseHas('model_has_roles', [
             'model_id' => $created->id,
             'role_id' => 1,
             'team_id' => $this->ids['abc'],
         ]);
         $this->assertTrue(Gate::forUser($created)->allows('staff.create'));
+
+        $this->grant('abc', ['staff.create', 'staff.edit']);
+        $this->actingAs($this->user('abc'));
+        $update = ['name' => $created->name, 'email' => $created->email, 'role' => 'Accountant', 'is_active' => '1'];
+        foreach ([str_repeat('1', 21), '+60123456789', '012 3456789', '012abc', '1e10', '123.45'] as $phone) {
+            $this->postJson(route('admin.staff.store'), $update + ['phone' => $phone, 'password' => 'test-password', 'password_confirmation' => 'test-password'])
+                ->assertUnprocessable()->assertJsonValidationErrors('phone');
+            $this->putJson(route('admin.staff.update', $created->id), $update + ['phone' => $phone])
+                ->assertUnprocessable()->assertJsonValidationErrors('phone');
+        }
+        $this->assertDatabaseHas('staff', ['user_id' => $created->id, 'phone' => '01234567890123456789']);
+        $this->put(route('admin.staff.update', $created->id), $update + ['phone' => '0123456789'])
+            ->assertRedirect()->assertSessionHas('success');
+        $this->assertDatabaseHas('staff', ['user_id' => $created->id, 'phone' => '0123456789']);
+        $this->put(route('admin.staff.update', $created->id), $update)->assertRedirect();
+        $this->assertDatabaseHas('staff', ['user_id' => $created->id, 'phone' => '0123456789']);
+        $this->put(route('admin.staff.update', $created->id), $update + ['phone' => ''])
+            ->assertRedirect()->assertSessionHas('success');
+        $this->assertDatabaseHas('staff', ['user_id' => $created->id, 'phone' => null]);
     }
 
     public function test_staff_without_create_permission_cannot_use_their_managers_grant(): void
@@ -143,6 +200,57 @@ class AccountPermissionTest extends TestCase
             'email' => 'blocked-colleague@example.com',
         ])->assertRedirect()->assertSessionHas('error', 'You have no permission.');
         $this->assertDatabaseMissing('users', ['email' => 'blocked-colleague@example.com']);
+    }
+
+    public function test_staff_create_page_redirects_to_the_reusable_modal_and_preserves_authorization(): void
+    {
+        $this->actingAs($this->user('abc'))->get(route('admin.staff.create'))
+            ->assertRedirect(route('admin.staff.index', ['create' => 1]));
+        $this->grant('abc', []);
+        $this->actingAs($this->user('abc'));
+        $this->assertSame('errors.403', app(\App\Http\Controllers\StaffController::class)->create(request())->name());
+    }
+
+    public function test_staff_list_reuses_creation_modal_with_scoped_management_roles(): void
+    {
+        view()->share('errors', new ViewErrorBag());
+        Schema::table('staff', fn (Blueprint $table) => $table->timestamps());
+        DB::table('user_management')->insert(['id' => 'other-workspace', 'user_id' => $this->ids['def']]);
+        DB::table('roles')->insert(['id' => 2, 'team_id' => $this->ids['def'], 'name' => 'Other role', 'guard_name' => 'web']);
+        $source = file_get_contents(resource_path('views/adminSide/userManagement/staff/index.blade.php'));
+        $source = str_replace(['<x-app-layout>', '</x-app-layout>'], ['<div>', '</div>'], $source);
+
+        foreach (['abc', 'system'] as $actor) {
+            $this->actingAs($this->user($actor));
+            $view = app(\App\Http\Controllers\StaffController::class)->index(request());
+            $data = $view->getData();
+            $modalData = $data['staffCreateData'];
+            if ($actor === 'abc') {
+                $this->assertSame('workspace', $modalData['managementId']);
+                $this->assertSame([], $modalData['managementOptions']);
+                $this->assertSame(['Accountant'], $modalData['roles']->pluck('name')->all());
+            } else {
+                $this->assertCount(2, $modalData['managementOptions']);
+                $this->assertSame(['Accountant'], $modalData['managementOptions'][0]['roles']->pluck('name')->all());
+                $this->assertSame(['Other role'], $modalData['managementOptions'][1]['roles']->pluck('name')->all());
+            }
+            $html = Blade::render($source, array_merge($data, ['errors' => new ViewErrorBag()]));
+            $this->assertStringContainsString('quick-staff-name', $html);
+            $this->assertStringContainsString('submitStaff($el)', $html);
+            $this->assertStringNotContainsString(route('admin.staff.create'), $html);
+        }
+    }
+
+    public function test_staff_fee_category_access_requires_both_manager_and_role_grants(): void
+    {
+        DB::table('permissions')->insert(['id' => 2, 'name' => 'fee types.deposit', 'guard_name' => 'web']);
+        DB::table('role_has_permissions')->insert(['role_id' => 1, 'permission_id' => 2]);
+        $this->grant('abc', ['fee types.deposit']);
+        $this->actingAs($this->user('staff-a'));
+        $this->assertSame(['deposit'], \App\Services\FeeTypeService::allowedCategories());
+        $this->grant('abc', []);
+        $this->assertSame([], \App\Services\FeeTypeService::allowedCategories());
+        $this->assertDatabaseHas('role_has_permissions', ['role_id' => 1, 'permission_id' => 2]);
     }
 
     public function test_migration_preserves_existing_accounts_and_new_accounts_start_without_grants(): void
@@ -170,7 +278,7 @@ class AccountPermissionTest extends TestCase
         $this->assertTrue(Gate::forUser($this->user('system'))->allows('tenant.edit'));
     }
 
-    public function test_shared_staff_roles_still_work_independently_of_manager_grants(): void
+    public function test_staff_access_requires_manager_grants_without_rewriting_shared_roles(): void
     {
         $this->actingAs($this->user('def'));
         // Gate::forUser must resolve the staff's own manager, not the signed-in account.
@@ -181,7 +289,7 @@ class AccountPermissionTest extends TestCase
         $this->grant('abc', []);
         $this->assertFalse(Gate::forUser($this->user('abc'))->allows('tenant.edit'));
         foreach (['staff-a', 'staff-b'] as $staff) {
-            $this->assertTrue(Gate::forUser($this->user($staff))->allows('tenant.edit'));
+            $this->assertFalse(Gate::forUser($this->user($staff))->allows('tenant.edit'));
         }
         $this->assertSame(1, DB::table('role_has_permissions')->count());
         $this->assertSame(2, DB::table('model_has_roles')->count());
@@ -198,7 +306,7 @@ class AccountPermissionTest extends TestCase
         $this->assertFalse(Gate::forUser($this->user('staff-a'))->allows('tenant.edit'));
     }
 
-    public function test_processing_fee_controls_follow_manager_and_staff_permissions_independently(): void
+    public function test_processing_fee_controls_require_both_manager_and_staff_permissions(): void
     {
         $abilities = ['invoice.edit processing fee', 'invoice.remove processing fee'];
         foreach ($abilities as $index => $ability) {
@@ -221,10 +329,10 @@ class AccountPermissionTest extends TestCase
                 foreach ($abilities as $ability) {
                     $this->assertSame($managerAllowed, Gate::forUser($this->user('abc'))->allows($ability));
                     foreach (['staff-a', 'staff-b'] as $staff) {
-                        $this->assertSame($staffAllowed, Gate::forUser($this->user($staff))->allows($ability));
+                        $this->assertSame($staffAllowed && $managerAllowed, Gate::forUser($this->user($staff))->allows($ability));
                     }
                 }
-                foreach (['abc' => $managerAllowed, 'staff-a' => $staffAllowed] as $actor => $allowed) {
+                foreach (['abc' => $managerAllowed, 'staff-a' => $staffAllowed && $managerAllowed] as $actor => $allowed) {
                     $this->actingAs($this->user($actor));
                     $html = Blade::render($section);
                     $this->assertSame(!$allowed, str_contains($html, 'readonly'));
@@ -234,7 +342,7 @@ class AccountPermissionTest extends TestCase
         }
     }
 
-    public function test_manager_can_delegate_processing_fee_actions_without_personally_having_them(): void
+    public function test_manager_can_only_delegate_processing_fee_permissions_they_have(): void
     {
         $this->grant('abc', ['settings.edit user role']);
         DB::table('permissions')->insert([
@@ -243,19 +351,21 @@ class AccountPermissionTest extends TestCase
         ]);
         $this->actingAs($this->user('abc'));
         $url = route('admin.settings.user-role-permissions.update');
-        $this->put($url, ['permissions' => [1 => [
+        $payload = ['permissions' => [1 => [
             'invoice.edit processing fee' => '1',
             'invoice.remove processing fee' => '1',
-        ]]])->assertRedirect()->assertSessionHas('success');
+        ]]];
+        $this->put($url, $payload)->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertDatabaseHas('role_has_permissions', ['role_id' => 1, 'permission_id' => 1]);
+        $this->assertFalse(Gate::forUser($this->user('staff-a'))->allows('invoice.edit processing fee'));
 
-        foreach (['invoice.edit processing fee', 'invoice.remove processing fee'] as $ability) {
-            $this->assertFalse(Gate::forUser($this->user('abc'))->allows($ability));
-            $this->assertTrue(Gate::forUser($this->user('staff-a'))->allows($ability));
-        }
-        $this->grant('abc', []);
+        $this->grant('abc', ['settings.edit user role', 'invoice.edit processing fee', 'invoice.remove processing fee']);
         $this->actingAs($this->user('abc'));
-        $this->put($url, ['permissions' => []])->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->put($url, $payload)->assertRedirect()->assertSessionHas('success');
         $this->assertTrue(Gate::forUser($this->user('staff-a'))->allows('invoice.edit processing fee'));
+        $this->grant('abc', []);
+        $this->assertFalse(Gate::forUser($this->user('staff-a'))->allows('invoice.edit processing fee'));
+        $this->assertDatabaseHas('role_has_permissions', ['role_id' => 1, 'permission_id' => 2]);
     }
 
     public function test_existing_staff_role_editor_still_changes_shared_permissions_only_in_its_workspace(): void
@@ -275,6 +385,44 @@ class AccountPermissionTest extends TestCase
         $this->put($url, ['permissions' => [1 => ['tenant.edit' => '1']]])->assertRedirect();
         $this->assertTrue(Gate::forUser($this->user('staff-a'))->allows('tenant.edit'));
         $this->assertTrue(Gate::forUser($this->user('staff-b'))->allows('tenant.edit'));
+    }
+
+    public function test_role_creation_cannot_assign_permissions_missing_from_the_manager(): void
+    {
+        $this->grant('abc', ['settings.create new role']);
+        $this->actingAs($this->user('abc'));
+        $payload = ['name' => 'New role', 'permissions' => ['tenant.edit']];
+        $this->post(route('admin.roles.store'), $payload)->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertDatabaseMissing('roles', ['name' => 'New role']);
+
+        $this->grant('abc', ['settings.create new role', 'tenant.edit']);
+        $this->actingAs($this->user('abc'));
+        $this->postJson(route('admin.roles.store'), $payload)->assertCreated();
+        $this->assertDatabaseHas('roles', ['name' => 'New role', 'team_id' => $this->ids['abc']]);
+    }
+
+    public function test_rejected_role_batch_does_not_partially_clear_other_roles(): void
+    {
+        $this->grant('abc', ['settings.edit user role', 'tenant.edit']);
+        DB::table('roles')->insert(['id' => 2, 'team_id' => $this->ids['abc'], 'name' => 'Second role', 'guard_name' => 'web']);
+        $this->actingAs($this->user('abc'))->put(route('admin.settings.user-role-permissions.update'), [
+            'permissions' => [1 => [], 2 => ['invoice.edit processing fee' => '1']],
+        ])->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertDatabaseHas('role_has_permissions', ['role_id' => 1, 'permission_id' => 1]);
+        $this->assertSame(1, DB::table('role_has_permissions')->count());
+    }
+
+    public function test_staff_editor_disables_permissions_not_granted_to_the_manager(): void
+    {
+        $this->grant('abc', ['settings.create new role', 'settings.edit user role', 'tenant.edit']);
+        $this->actingAs($this->user('abc'));
+        $html = view('adminSide.setting.partials.staff-role-permissions', [
+            'roles' => \App\Models\Role::with('permissions')->where('team_id', $this->ids['abc'])->get(),
+            'modules' => config('permissions.modules'), 'errors' => new ViewErrorBag(),
+        ])->render();
+        $this->assertStringContainsString('value="invoice.edit processing fee" x-model="selected" :disabled="!editingPermissions || true"', $html);
+        $this->assertStringContainsString('value="tenant.edit" x-model="selected" :disabled="!editingPermissions || false"', $html);
+        $this->assertMatchesRegularExpression('/value="invoice.edit processing fee"\s+disabled/', $html);
     }
 
     public function test_system_admin_can_save_only_the_selected_account_and_clear_all_grants(): void
@@ -337,6 +485,16 @@ class AccountPermissionTest extends TestCase
 
     public function test_settings_renders_compact_account_editor_for_system_admin(): void
     {
+        (require database_path('migrations/2026_01_03_144458_create_fee_type_table.php'))->up();
+        (require database_path('migrations/2026_10_20_112823_add_prices_to_fee_types_table.php'))->up();
+        foreach (\App\Services\FeeTypeService::REFERENCE_TABLES as $name) {
+            Schema::create($name, function (Blueprint $table) {
+                $table->id(); $table->string('fee_type_id')->nullable();
+            });
+        }
+        Schema::create('settings', function (Blueprint $table) {
+            $table->id(); $table->string('user_id'); $table->string('key'); $table->text('value'); $table->boolean('is_active');
+        });
         $this->actingAs($this->user('system'));
         $view = app(SettingsController::class)->index(app(SettingService::class));
         $this->assertSame('adminSide.setting.account-permissions', $view->name());
@@ -396,7 +554,7 @@ class AccountPermissionTest extends TestCase
         $this->post(route('login'), ['email' => 'staff-a@example.com', 'password' => 'test-password'])->assertRedirect(route('admin.tenants.index'));
 
         $this->grant('abc', ['dashboard.tab']);
-        $this->assertSame('admin.tenants.index', app(\App\Services\LandingPageService::class)->routeFor($this->user('staff-a')));
+        $this->assertSame('profile.edit', app(\App\Services\LandingPageService::class)->routeFor($this->user('staff-a')));
     }
 
     public function test_denied_dashboard_redirects_to_an_allowed_page_without_a_loop(): void

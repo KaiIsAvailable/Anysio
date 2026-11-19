@@ -30,7 +30,7 @@ class TenantBulkService implements \App\Contracts\BulkSaveHandler
     public function authorizeRows(array $rows, User $manager): array
     {
         $super = Gate::allows('super-admin');
-        if ($manager->role === 'tenant' || (! $super && Gate::denies('tenant.tab'))) {
+        if ($manager->role === 'tenant' || (! $super && (Gate::denies('tenant.tab') || Gate::denies('tenant.bulk edit')))) {
             throw new AuthorizationException;
         }
         $canBank = $super || Gate::allows('tenant.modify bank details');

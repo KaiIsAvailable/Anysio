@@ -297,6 +297,8 @@ class LeaseService
             return;
         }
 
+        $feeSettingsService = app(SettingService::class);
+        $feeSettings = $feeSettingsService->getEffectiveSettings();
         foreach ($data['charges'] as $index => $chargeData) {
             $amount = (float) ($chargeData['amount'] ?? 0);
 
@@ -305,6 +307,9 @@ class LeaseService
             }
 
             $feeType = FeeType::find($chargeData['fee_type_id']);
+            if (!$feeType || !$feeSettingsService->isFeeTypeActive($feeType, $feeSettings)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['charges' => 'This fee type is inactive for your account.']);
+            }
             $feeTypeName = $feeType->name;
 
             // Determine if it's refundable (deposit) or recurring/other fee
@@ -582,7 +587,7 @@ class LeaseService
         $tenants = $this->applyOwnershipFilter(Tenants::query(), $user)->get();
 
         // 5. Fee Types
-        $feeTypesQuery = FeeType::query()
+        $feeTypesQuery = FeeType::query()->visibleToActor()
             ->where('is_active', true)
             ->where(function ($query) use ($user) {
                 $query->where('is_system', true);
@@ -730,11 +735,6 @@ class LeaseService
             'tenant.user',
             'tenant.user.bankUsers.bankDetail',
             'charges.feeType',
-            'charges.invoice',
-            'charges.invoice.transactions',
-            'invoices.items.feeType',
-            'invoices.transactions',
-            'refunds.items.feeType',
             'leasable' => function ($morphTo) {
                 $morphTo->morphWith([
                     Room::class => ['unit.owner'],
@@ -748,9 +748,11 @@ class LeaseService
         $current = $lease;
         $cumulativeSecurity = 0;
         $cumulativeUtilities = 0;
+        $visitedLeaseIds = [];
 
-        while ($current) {
-            $current->loadMissing(['charges.feeType', 'charges.invoice', 'invoices.items.feeType']);
+        while ($current && !isset($visitedLeaseIds[(string) $current->getKey()])) {
+            $visitedLeaseIds[(string) $current->getKey()] = true;
+            $current->loadMissing('charges.feeType');
             $charges = $charges->concat($current->charges);
             $cumulativeSecurity += (int) ($current->security_deposit ?? 0);
             $cumulativeUtilities += (int) ($current->utilities_deposit ?? 0);
@@ -759,37 +761,11 @@ class LeaseService
                 : null;
         }
 
-        $chargeIds = $charges->pluck('id')->filter()->values();
-        $paidDepositInvoices = $chargeIds->isEmpty()
-            ? collect()
-            : Invoice::query()
-                ->where('status', Invoice::STATUS_PAID)
-                ->whereHas('items', fn ($query) => $query->whereIn('lease_charge_id', $chargeIds))
-                ->with([
-                    'items' => fn ($query) => $query->whereIn('lease_charge_id', $chargeIds),
-                    'transactions',
-                ])
-                ->get()
-                ->filter(function ($invoice) use ($charges) {
-                    return $invoice->items->contains(function ($item) use ($charges) {
-                        $charge = $charges->firstWhere('id', $item->lease_charge_id);
-                        $category = $charge?->feeType?->category;
+        $totalDepositCents = app(RefundService::class)->getDepositCollectedCents($lease, $charges);
+        $depositReceiptNumbers = $this->getDepositReceiptNumbers($lease, $charges);
 
-                        return $category === FeeTypeCategory::DEPOSIT
-                            || $category === FeeTypeCategory::DEPOSIT->value;
-                    });
-                });
-        $totalDepositCents = app(RefundService::class)->getDepositCollectedCents($lease);
-        $depositReceiptNumbers = $paidDepositInvoices
-            ->flatMap(fn ($invoice) => $invoice->transactions)
-            ->pluck('receipt_no')
-            ->filter()
-            ->unique()
-            ->values()
-            ->implode(', ');
-
-        $unpaidInvoices = $lease->invoices
-            ->filter(fn ($invoice) => !in_array(strtolower($invoice->status), ['paid', 'void'], true));
+        $unpaidInvoices = $lease->invoices()->with('items.feeType')
+            ->whereRaw('LOWER(status) NOT IN (?, ?)', [Invoice::STATUS_PAID, Invoice::STATUS_VOID])->get();
         $formattedUnpaidInvoices = $unpaidInvoices->map(function ($invoice) {
             $balanceCents = $invoice->amount_balance ?? $invoice->total_amount ?? 0;
             $description = $invoice->items
@@ -807,13 +783,14 @@ class LeaseService
             ];
         })->values()->all();
 
-        $activeRefund = $lease->refunds->sortByDesc('created_at')->first();
+        $activeRefund = $lease->refunds()->with('items.feeType')->latest('created_at')->first();
         if ($activeRefund) $activeRefund->setAttribute('settlement_fingerprint', app(RefundService::class)->settlementFingerprint($activeRefund));
         $walletRefundCents = $activeRefund?->status === \App\Enums\RefundStatus::PAID
             ? (int) $activeRefund->wallet_refund_cents
             : app(RefundService::class)->getWalletRefundCents($lease, $activeRefund?->id);
 
-        return array_merge($lease->toArray(), [
+        // Only scalar lease attributes and checkout fields; do not serialize payment/refund history.
+        return array_merge($lease->attributesToArray(), [
             'leasable_name' => $this->getLeasableName($lease->leasable),
             'leasable_address' => $this->getLeasableAddress($lease->leasable),
             'tenant_data' => [
@@ -824,8 +801,6 @@ class LeaseService
             'owner_data' => $this->getOwnerData($lease->leasable),
             'cumulative_security' => $cumulativeSecurity,
             'cumulative_utilities' => $cumulativeUtilities,
-            'charges' => $lease->charges,
-            'invoices' => $lease->invoices,
             'total_deposit_collected_cents' => $totalDepositCents,
             'wallet_refund_cents' => $walletRefundCents,
             'total_deposit_collected_formatted' => number_format($totalDepositCents / 100, 2),
@@ -838,19 +813,21 @@ class LeaseService
         ]);
     }
 
-    public function getDepositReceiptNumbers(Lease $lease): string
+    public function getDepositReceiptNumbers(Lease $lease, ?\Illuminate\Support\Collection $charges = null): string
     {
-        $current = $lease;
-        $charges = collect();
-        $visitedLeaseIds = [];
+        if ($charges === null) {
+            $current = $lease;
+            $charges = collect();
+            $visitedLeaseIds = [];
 
-        while ($current && !isset($visitedLeaseIds[(string) $current->getKey()])) {
-            $visitedLeaseIds[(string) $current->getKey()] = true;
-            $current->loadMissing(['charges.feeType']);
-            $charges = $charges->concat($current->charges);
-            $current = $current->parent_lease_id
-                ? Lease::find($current->parent_lease_id)
-                : null;
+            while ($current && !isset($visitedLeaseIds[(string) $current->getKey()])) {
+                $visitedLeaseIds[(string) $current->getKey()] = true;
+                $current->loadMissing(['charges.feeType']);
+                $charges = $charges->concat($current->charges);
+                $current = $current->parent_lease_id
+                    ? Lease::find($current->parent_lease_id)
+                    : null;
+            }
         }
 
         $depositChargeIds = $charges

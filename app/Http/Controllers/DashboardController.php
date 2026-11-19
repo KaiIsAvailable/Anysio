@@ -22,6 +22,27 @@ class DashboardController extends Controller
             return redirect()->route(app(\App\Services\LandingPageService::class)->routeFor(Auth::user()));
         }
 
+        $filters = $request->validate([
+            'maintenance_month' => ['nullable', 'regex:/^(0?[1-9]|1[0-2])$/'],
+            'refund_month' => ['nullable', 'regex:/^(0?[1-9]|1[0-2])$/'],
+            'maintenance_year' => ['nullable', 'integer', 'between:1,9999'],
+            'refund_year' => ['nullable', 'integer', 'between:1,9999'],
+            'maintenance_page' => ['nullable', 'integer', 'min:1'],
+            'refund_page' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $ongoingMaintenance = null;
+        if (Gate::allows('dashboard.ongoing maintenance list') && Gate::allows('maintenance.tab') && Gate::allows('maintenance.view')) {
+            $maintenanceService = app(\App\Services\MaintenanceService::class);
+            if ($maintenanceService->ready()) {
+                $ongoingMaintenance = $maintenanceService->visibleOrders()->ongoing()
+                    ->with(['leasable', 'lease.leasable', 'lease.tenant.user'])
+                    ->filter(['created_month' => $filters['maintenance_month'] ?? null,
+                        'created_year' => $request->filled('maintenance_month') ? ($filters['maintenance_year'] ?? now()->year) : null])
+                    ->orderBy('created_at')->orderBy('id')->paginate(5, ['*'], 'maintenance_page')
+                    ->onEachSide(1)->appends($request->query())->fragment('maintenance-section');
+            }
+        }
+
         $user = get_effective_user();
         $actualUserId = Auth::id();
         $effectiveUser = get_effective_user();
@@ -66,6 +87,7 @@ class DashboardController extends Controller
 
         // Reuse the same ownership scope before applying the attention filters.
         $incompleteRefundLeases = (clone $pendingOrEndedLeasesQuery)
+            ->endingInMonth($filters['refund_month'] ?? null, $request->filled('refund_month') ? (int) ($filters['refund_year'] ?? now()->year) : null)
             ->with('latestRefund')
             ->whereHas('latestRefund', fn ($query) => $query->whereIn('status', [
                 \App\Enums\RefundStatus::DRAFT,
@@ -207,6 +229,7 @@ class DashboardController extends Controller
             'seeders' => $seeders,
             'pendingOrEndedLeases' => $pendingOrEndedLeases,
             'incompleteRefundLeases' => $incompleteRefundLeases,
+            'ongoingMaintenance' => $ongoingMaintenance,
         ], $leaseModalData));
     }
 }

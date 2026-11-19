@@ -15,8 +15,9 @@
                     <h1 class="text-3xl font-bold text-slate-900 tracking-tight">Room Details</h1>
                 </div>
 
-                @canany(['super-admin', 'room.edit', 'room.delete'])
-                    <div class="flex items-center gap-3">
+                @canany(['super-admin', 'room.edit', 'room.delete', 'maintenance.view'])
+                    <div class="flex flex-wrap items-center gap-3">
+                        <x-maintenance.history :leasable="$room" />
                         {{-- Edit 按钮 --}}
                         @canany(['super-admin', 'room.edit'])
                         <a href="{{ route('admin.rooms.edit', $room->id) }}"
@@ -141,6 +142,7 @@
                             </dd>
                         </div>
 
+                        <x-utilities.water-meter-details :location="$room" />
                     </dl>
 
                 </div>

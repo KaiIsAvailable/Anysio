@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use App\Traits\Auditable;
 
@@ -26,7 +27,7 @@ class Ticket extends Model
         $name = $this->sender?->name ?? 'Unknown tenant';
         $lease = $this->lease;
         return $lease
-            ? $name.' · '.$lease->leasable_name.' · '.$lease->leasable_type_label.' · '.$lease->start_date?->format('d M Y').' – '.$lease->end_date?->format('d M Y')
+            ? $name.' · '.$lease->leasable_name.' · '.$lease->leasable_type_label.' · '.$lease->start_date?->format('d/m/Y').' to '.$lease->end_date?->format('d/m/Y')
             : $name.' · Lease not recorded';
     }
 
@@ -38,6 +39,11 @@ class Ticket extends Model
     public function messages(): HasMany
     {
         return $this->hasMany(TicketMsg::class);
+    }
+
+    public function maintenanceOrder(): HasOne
+    {
+        return $this->hasOne(Maintenance::class)->where('source_type', 'customer_service');
     }
 
     public function sender(): BelongsTo

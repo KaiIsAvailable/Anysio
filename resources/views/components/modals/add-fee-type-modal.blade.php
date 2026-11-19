@@ -4,8 +4,13 @@
             openFeeModal: false,
             shake: false,
             form: { name: '', category: 'invoice', original_price: '', sell_price: '' },
-            loading: false,
+            savingQuickFee: false,
+            allowedCategories: @js(\App\Services\FeeTypeService::allowedCategories()),
             openModal(category = 'invoice') {
+                if (!this.allowedCategories.includes(category)) {
+                    window.dispatchEvent(new CustomEvent('session-status', { detail: { type: 'error', message: 'You have no permission.' } }));
+                    return;
+                }
                 this.form.category = category;
                 this.form.name = '';
                 this.form.original_price = '';
@@ -14,7 +19,8 @@
                 this.openFeeModal = true;
             },
             submitForm() {
-                this.loading = true;
+                if (this.savingQuickFee) return;
+                this.savingQuickFee = true;
 
                 let payload = {
                     ...this.form,
@@ -22,8 +28,9 @@
                     sell_price: (this.form.category === 'item' && this.form.sell_price) ? Math.round(parseFloat(this.form.sell_price) * 100) : null
                 };
 
-                fetch('{{ route('admin.fee-types.store') }}', {
+                return fetch('{{ route('admin.fee-types.store') }}', {
                     method: 'POST',
+                    redirect: 'manual',
                     headers: {
                         'Content-Type': 'application/json',
                         'X-CSRF-TOKEN': '{{ csrf_token() }}',
@@ -31,9 +38,14 @@
                     },
                     body: JSON.stringify(payload)
                 })
-                .then(response => response.json())
+                .then(async response => {
+                    if (response.type === 'opaqueredirect') { window.location.reload(); return null; }
+                    const data = await response.json();
+                    if (data.session_status) window.dispatchEvent(new CustomEvent('session-status', { detail: data.session_status }));
+                    return response.ok ? data : null;
+                })
                 .then(data => {
-                    if (data.success || data.id) {
+                    if (data && (data.success || data.id)) {
                         window.dispatchEvent(new CustomEvent('fee-type-added', { 
                             detail: { 
                                 id: data.id || data.feeType.id, 
@@ -46,11 +58,12 @@
                         this.openFeeModal = false;
                     }
                 })
-                .catch(error => console.error('Error:', error))
-                .finally(() => this.loading = false);
+                .catch(() => window.dispatchEvent(new CustomEvent('session-status', { detail: { type: 'error', message: 'Unable to save the fee type. Please try again.' } })))
+                .finally(() => this.savingQuickFee = false);
             }
          }"
          @open-fee-type-modal.window="openModal($event.detail?.category || 'invoice')"
+         @pageshow.window="savingQuickFee = false"
          x-show="openFeeModal" 
          x-cloak
          class="fixed inset-0 z-[120] overflow-y-auto">
@@ -76,7 +89,7 @@
                  x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
                  x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100">
                 
-                <x-form.form @submit.prevent="submitForm()">
+                <x-form.form :async="true" @submit.prevent="submitForm()">
                     @csrf
                     <input type="hidden" name="category" x-model="form.category">
                     
@@ -105,8 +118,8 @@
                                 <x-form.input-label value="Original Price (Cost)" class="text-xs text-gray-500 mb-1" />
                                 <div class="relative">
                                     <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400 text-xs">RM</div>
-                                    <input type="number" step="0.01" x-model="form.original_price" placeholder="0.00"
-                                           class="block w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-right focus:ring-2 focus:ring-indigo-500">
+                                    <x-form.text-input type="number" min="0" step="0.01" x-model="form.original_price" placeholder="0.00"
+                                           class="block w-full pl-9 pr-3 py-2 text-xs font-semibold text-right" />
                                 </div>
                             </div>
 
@@ -114,8 +127,8 @@
                                 <x-form.input-label value="Sell Price (Default)" class="text-xs text-gray-500 mb-1" />
                                 <div class="relative">
                                     <div class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-gray-400 text-xs">RM</div>
-                                    <input type="number" step="0.01" x-model="form.sell_price" placeholder="0.00"
-                                           class="block w-full pl-9 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-xs font-semibold text-right focus:ring-2 focus:ring-indigo-500">
+                                    <x-form.text-input type="number" min="0" step="0.01" x-model="form.sell_price" placeholder="0.00"
+                                           class="block w-full pl-9 pr-3 py-2 text-xs font-semibold text-right" />
                                 </div>
                             </div>
                         </div>
@@ -126,7 +139,7 @@
                         <button type="button" @click="openFeeModal = false" class="px-5 py-2.5 border border-gray-200 text-gray-600 rounded-xl font-bold text-xs hover:bg-white transition-colors uppercase tracking-wider">
                             Cancel
                         </button>
-                        <x-form.primary-button loading="loading" class="px-6 py-2.5 rounded-xl text-xs shadow-md shadow-indigo-100 uppercase tracking-wider">
+                        <x-form.primary-button loading="savingQuickFee" class="px-6 py-2.5 rounded-xl text-xs shadow-md shadow-indigo-100 uppercase tracking-wider">
                             <span>Save</span>
                         </x-form.primary-button>
                     </div>

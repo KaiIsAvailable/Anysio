@@ -223,14 +223,6 @@ class LeaseController extends Controller
             ->where('status', 'active')
             ->firstOrFail();
         $requiredVariables = $documentTemplateService->extractVariableNames($template->html_template);
-        Log::channel('testing')->info('Lease preview request resolved:', [
-            'request' => $request->except(['_token']),
-            'category' => $category,
-            'template_id' => $template->id,
-            'template_title' => $template->title,
-            'template_html' => $template->html_template,
-            'required_variables' => $requiredVariables,
-        ]);
         $needsUserVariables = collect($requiredVariables)
             ->contains(fn (string $variable): bool => str_starts_with($variable, 'user_'));
         $needsTenantVariables = collect($requiredVariables)
@@ -478,7 +470,7 @@ class LeaseController extends Controller
         $totalDeposit = 0;
         $management = 0;
         $feeTypes = $category === 'agreement'
-            ? FeeType::whereIn('id', collect($request->input('charges', []))
+            ? FeeType::visibleToActor()->whereIn('id', collect($request->input('charges', []))
                 ->pluck('fee_type_id')
                 ->filter())
                 ->get()
@@ -517,13 +509,6 @@ class LeaseController extends Controller
             ];
         }
 
-        Log::channel('testing')->info('Lease preview variables before replacement:', [
-            'request_lease_id' => $leaseId,
-            'lease_found' => $lease !== null,
-            'lease' => $lease?->toArray(),
-            'category' => $category,
-            'variables' => $variables,
-        ]);
         $content = $documentTemplateService->replaceData($template->html_template, $variables);
         if ($category === 'refund') {
             $content = $documentTemplateService->replaceRefundTable($content, $refundItems ?? [], [
@@ -749,11 +734,7 @@ class LeaseController extends Controller
         });
 
         $userId = get_effective_user();
-        $feeTypes = FeeType::where('user_id', $userId->id)
-            ->where('category', 'invoice')
-            ->where('is_active', true)
-            ->where('is_system', false)
-            ->get();
+        $feeTypes = app(\App\Services\FeeTypeService::class)->getActiveInvoiceFeeTypes();
 
         $leaseModalData = $leaseService->getLeaseFormPayload($userId, $request);
 

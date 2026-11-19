@@ -14,7 +14,7 @@ class StoreInvoiceRequest extends FormRequest
             'post_refund_adjustment' => ['sometimes', 'boolean'],
             'adjustment_reason' => ['required_if:post_refund_adjustment,1', 'nullable', 'string', 'max:1000'],
             'items'               => ['required', 'array', 'min:1'],
-            'items.*.fee_type_id' => ['required', 'ulid', 'exists:fee_types,id'],
+            'items.*.fee_type_id' => ['required', 'ulid', \Illuminate\Validation\Rule::exists('fee_types', 'id')->whereIn('category', $this->filled('items') ? \App\Services\FeeTypeService::allowedCategories() : [])],
             'items.*.description' => ['nullable', 'string', 'max:255'],
             'items.*.amount'      => ['required', 'numeric', 'min:0.01'],
         ];

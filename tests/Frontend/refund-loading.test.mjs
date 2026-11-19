@@ -40,6 +40,75 @@ const preview = (status = 'approved', deposit = 100000) => ({
     active_refund: status ? { id: 'refund', status, items: [] } : null,
 });
 
+test('new checkout fee types update live deduction options and survive reopening without duplicates', () => {
+    const handle = blade.match(/handleFeeTypeAdded\(detail\) \{[\s\S]*?\n {32}\},/)[0];
+    const update = blade.match(/updateItemPrice\(index, eventOrId\) \{[\s\S]*?\n {32}\},/)[0];
+    const window = { allFeeTypes: [{ id: 'existing', name: 'Existing', sell_price: 1000 }] };
+    const state = vm.runInNewContext('({' + handle + update + '})', { window });
+    Object.assign(state, { availableFeeTypes: window.allFeeTypes, manualDeductions: [{ fee_type_id: '', qty: 1, sell_price: 0 }] });
+    const fee = { id: 'new', name: 'Cleaning', category: 'item', sell_price: 2500 };
+    state.handleFeeTypeAdded(fee);
+    assert.equal(state.availableFeeTypes.length, 2);
+    assert.equal(state.manualDeductions[0].fee_type_id, 'new');
+    assert.equal(state.manualDeductions[0].sell_price, 25);
+    assert.equal(window.allFeeTypes[1].name, 'Cleaning');
+    const optionsExpression = blade.match(/x-effect="options = (availableFeeTypes\.map\([^\n]+)"/)[1];
+    const options = vm.runInNewContext(optionsExpression, { availableFeeTypes: state.availableFeeTypes });
+    assert.equal(options[1].value, 'new');
+    assert.equal(options[1].label, 'Cleaning (Item)');
+    state.handleFeeTypeAdded({ ...fee, name: 'Updated Cleaning' });
+    assert.equal(state.availableFeeTypes.length, 2);
+    assert.equal(state.availableFeeTypes[1].name, 'Updated Cleaning');
+    state.handleFeeTypeAdded({ id: 'rent', name: 'Rental', category: 'invoice' });
+    assert.equal(state.availableFeeTypes.length, 2);
+    state.manualDeductions = [];
+    state.handleFeeTypeAdded({ id: 'another', name: 'Key', category: 'item', sell_price: 1000 });
+    assert.equal(state.availableFeeTypes.length, 3);
+    assert.equal(state.manualDeductions.length, 0);
+    assert.equal(window.allFeeTypes.length, 3);
+});
+
+test('fresh checkout data is assigned to each reactive store only once', async () => {
+    const { root, checkout, pending, load } = setup();
+    let rootWrites = 0, checkoutWrites = 0;
+    let rootValue = {}, checkoutValue = {};
+    Object.defineProperty(root, 'refundData', { get: () => rootValue, set: value => { rootWrites++; rootValue = value; } });
+    Object.defineProperty(checkout, 'refundData', { get: () => checkoutValue, set: value => { checkoutWrites++; checkoutValue = value; } });
+    const loading = load('a');
+    pending[0].resolve(preview());
+    await loading;
+    assert.equal(rootWrites, 1);
+    assert.equal(checkoutWrites, 1);
+});
+
+test('forced refresh keeps financial data fresh and concurrent selections share one request', async () => {
+    const { root, window, pending, load } = setup();
+    window.leasePreviewData.a = preview('draft', 100000);
+    root.refundForceRefresh = true;
+    const first = load('a');
+    const second = load('a');
+    assert.equal(pending.length, 1);
+    pending[0].resolve(preview('approved', 200000));
+    await Promise.all([first, second]);
+    assert.equal(root.refundData.a.total_deposit_collected_cents, 200000);
+    assert.equal(root.refundForceRefresh, false);
+});
+
+test('refund template context preserves current deposit wallet unpaid invoices and edited deductions', () => {
+    const source = blade.slice(blade.indexOf('const refundContext = {'), blade.indexOf("formData.set('refund_context'"));
+    const result = vm.runInNewContext(source + '\nrefundContext;', {
+        selectedLeaseData: { total_deposit_collected_cents: 100000, auto_deduction_total_cents: 30000, unpaid_invoices: [{ id: 'rent', balance_cents: 30000 }] },
+        checkoutData: { walletRefundAmount: 200, availableFeeTypes: [{ id: 'clean', name: 'Cleaning' }], manualDeductions: [{ fee_type_id: 'clean', qty: 2, sell_price: 25 }] },
+    });
+    assert.equal(result.total_deposit_collected_cents, 100000);
+    assert.equal(result.wallet_refund_cents, 20000);
+    assert.equal(result.auto_deduction_total_cents, 30000);
+    assert.equal(result.unpaid_invoices[0].id, 'rent');
+    assert.equal(result.active_refund.items[0].description, 'Cleaning');
+    assert.equal(result.active_refund.items[0].amount_cents, 5000);
+    assert.equal(result.active_refund.items[0].qty, 2);
+});
+
 test('Actions stay unavailable until the refund response has been populated', async () => {
     const { root, checkout, elements, pending, load } = setup();
     const loading = load('a');
@@ -105,7 +174,7 @@ test('Cached complete data is populated without another request', async () => {
 });
 
 test('The submit handler rejects calls while loading or after a load failure', async () => {
-    const method = 'async ' + blade.match(/submitCheckout\(routeUrl, actionName\) \{[\s\S]*?\n\s{40}\}/)[0];
+    const method = 'async ' + blade.match(/submitCheckout\(routeUrl, actionName, sourceForm = null\) \{[\s\S]*?\n\s{40}\}/)[0];
     let submissions = 0;
     let submittedUrl;
     const form = { action: '/leases/store' };
@@ -123,6 +192,59 @@ test('The submit handler rejects calls while loading or after a load failure', a
     assert.equal(form.action, '/leases/store');
     assert.equal(state.checkoutSubmitting, false);
     assert.equal(state.subAction, '');
+});
+
+test('refund correction opens a dialog and only confirms with a nonblank reason', async () => {
+    const request = blade.match(/requestRefundReason\(routeUrl, actionName\) \{[\s\S]*?\n {40}\},/)[0];
+    const confirm = 'async ' + blade.match(/confirmRefundReason\(dialog\) \{[\s\S]*?\n {40}\},/)[0];
+    const sourceForm = {}, events = [], submissions = [];
+    const state = vm.runInNewContext('({' + request + confirm + '})', { $el: { closest: () => sourceForm } });
+    Object.assign(state, { checkoutSubmitting: false, refundReady: true, refundLoading: false, refundLoadError: '', transitionReason: '' });
+    state.$dispatch = event => events.push(event);
+    state.submitCheckout = async (...args) => submissions.push(args);
+    let validity = '';
+    const field = { setCustomValidity: message => { validity = message; }, reportValidity: () => !validity };
+    const dialog = { querySelector: () => field };
+    for (const action of ['reject', 'revoke']) {
+        state.requestRefundReason('/' + action, action);
+        assert.equal(events.at(-1), 'open-refund-reason-modal');
+        const before = submissions.length;
+        assert.equal(submissions.length, before);
+        state.transitionReason = '   ';
+        await state.confirmRefundReason(dialog);
+        assert.equal(submissions.length, before);
+        assert.equal(validity, 'Enter a reason.');
+        state.transitionReason = 'Correct the deduction';
+        await state.confirmRefundReason(dialog);
+        assert.deepEqual(submissions.at(-1), ['/' + action, action, sourceForm]);
+        assert.equal(events.at(-1), 'close-refund-reason-modal');
+    }
+    state.refundLoading = true;
+    const count = events.length;
+    state.requestRefundReason('/reject', 'reject');
+    assert.equal(events.length, count);
+});
+
+test('cancelling a refund reason clears the pending action without submitting and allows reopening', () => {
+    const request = blade.match(/requestRefundReason\(routeUrl, actionName\) \{[\s\S]*?\n {40}\},/)[0];
+    const cancel = blade.match(/cancelRefundReason\(\) \{[\s\S]*?\n {40}\},/)[0];
+    const state = vm.runInNewContext('({' + request + cancel + '})', { $el: { closest: () => ({}) } });
+    Object.assign(state, { checkoutSubmitting: false, refundReady: true, refundLoading: false, refundLoadError: '', refundReasonOpen: false });
+    let submissions = 0;
+    state.sendLeaseForm = () => { submissions++; };
+    state.$dispatch = event => { state.refundReasonOpen = event === 'open-refund-reason-modal'; };
+    for (const action of ['reject', 'revoke']) {
+        state.requestRefundReason('/' + action, action);
+        assert.equal(state.refundReasonOpen, true);
+        state.cancelRefundReason();
+        assert.equal(state.refundReasonOpen, false);
+        assert.equal(state.transitionAction, '');
+        assert.equal(state.transitionRoute, '');
+        assert.equal(state.transitionForm, null);
+        assert.equal(state.checkoutSubmitting, false);
+        assert.equal(submissions, 0);
+    }
+    assert.match(blade, /<template x-if="refundReasonOpen">\s*<x-modals\.confirmation-modal id="refund-reason-modal"/);
 });
 
 function submission(fetch) {

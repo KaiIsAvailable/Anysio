@@ -73,6 +73,7 @@ class LeaseRefundStatusTest extends TestCase
 
     public function test_successful_payout_keeps_lease_checked_out_and_marks_refund_paid(): void
     {
+        $this->mock(\App\Services\MaintenanceService::class)->shouldReceive('createFromRefund')->once();
         $this->createRefundTables();
         Schema::create('leases', function (Blueprint $table) {
             $table->string('id')->primary();

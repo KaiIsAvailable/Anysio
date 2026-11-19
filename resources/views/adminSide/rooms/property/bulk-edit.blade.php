@@ -26,6 +26,16 @@
             ['title' => 'Room', 'fields' => ['parentKey' => 'Property / Unit', 'roomNo' => 'Room No.', 'roomType' => 'Room Type']],
         ], 'selectColumns' => ['parentKey' => ['parentEntity' => 'unit', 'placeholder' => 'Choose unit']]],
     ];
+    if ($gridConfig['canManageWaterMeters'] ?? false) {
+        foreach ($sheets as &$sheet) {
+            $sheet['groups'][] = ['title' => 'Water Meter', 'fields' => [
+                'waterHasMeter' => 'Has Physical Meter?', 'waterMeterNumber' => 'Physical Meter Number',
+                'waterOpeningReading' => 'Opening Reading (m³)', 'waterOpeningDate' => 'Opening Reading Date',
+            ]];
+            $sheet['selectColumns']['waterHasMeter'] = ['options' => ['0' => 'No', '1' => 'Yes']];
+        }
+        unset($sheet);
+    }
     if ($hierarchy) $sheets = array_filter($sheets, fn ($sheet, $entity) => $gridConfig['permissions'][$entity]['view'], ARRAY_FILTER_USE_BOTH);
     $editorFactory = 'propertyBulkEditor';
     $permissionModule = 'property';

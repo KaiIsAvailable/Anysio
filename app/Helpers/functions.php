@@ -125,7 +125,7 @@ if (!function_exists('get_status_badge')) {
             // General / System Statuses & Completed Checkouts
             'active', 'occupied', 'paid', 'completed' => 'bg-emerald-100 text-emerald-800 border border-emerald-200',
             'pending', 'vacant'  => 'bg-amber-100 text-amber-800 border border-amber-200',
-            'expired', 'maintenance', 'inactive' => 'bg-rose-100 text-rose-800 border border-rose-200',
+            'expired', 'maintenance', 'maintaining', 'inactive' => 'bg-rose-100 text-rose-800 border border-rose-200',
             
             // Lease Specific Statuses
             'new'           => 'bg-blue-100 text-blue-800 border border-blue-200',

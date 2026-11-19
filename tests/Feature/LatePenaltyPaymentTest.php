@@ -555,6 +555,7 @@ class LatePenaltyPaymentTest extends TestCase
     {
         DB::table('fee_types')->where('id', 'penalty')->delete();
         \Illuminate\Support\Facades\Gate::shouldReceive('denies')->once()->with('super-admin')->andReturn(false);
+        \Illuminate\Support\Facades\Gate::shouldReceive('allows')->once()->with('super-admin')->andReturn(true);
         $request = \Mockery::mock(\App\Http\Requests\Invoice\RecordPaymentRequest::class)->makePartial();
         $request->initialize();
         $request->shouldReceive('validated')->once()->andReturn(['payment_date' => '2026-10-20', 'amount_paid' => 110, 'payment_method' => 'Cash']);
@@ -1361,8 +1362,132 @@ class LatePenaltyPaymentTest extends TestCase
         $this->assertSame(2, Invoice::count());
     }
 
+    private function checkoutPreviewFixture(): void
+    {
+        $this->refundFixture('draft');
+        Schema::create('bank_user', function (Blueprint $t) {
+            $t->string('id')->primary(); $t->string('user_id'); $t->string('bank_detail_id'); $t->boolean('is_default');
+        });
+        Schema::create('bank_details', function (Blueprint $t) {
+            $t->string('id')->primary(); $t->string('bank_name'); $t->string('account_holder_name'); $t->text('account_number')->nullable();
+        });
+        Schema::table('leases', function (Blueprint $t) {
+            $t->date('checked_out_at')->nullable(); $t->string('refund_document_id')->nullable();
+        });
+        DB::table('leases')->where('id', 'lease')->update(['checked_out_at' => '2026-10-30', 'refund_document_id' => 'refund-template']);
+        DB::table('transactions')->insert([
+            'id' => 'deposit-receipt', 'invoice_id' => 'deposit-invoice', 'receipt_no' => 'REC-DEPOSIT',
+            'amount_paid' => 100000, 'amount_applied' => 100000,
+        ]);
+        DB::table('wallets')->insert(['id' => 'wallet', 'user_id' => 'tenant', 'balance' => 20000]);
+        DB::table('refunds')->where('id', 'refund')->update(['created_at' => now(), 'wallet_refund_cents' => 20000, 'net_amount_cents' => 105000]);
+        DB::table('bank_details')->insert([
+            'id' => 'bank', 'bank_name' => 'Test Bank', 'account_holder_name' => 'Tenant',
+            'account_number' => \Illuminate\Support\Facades\Crypt::encryptString('12345678'),
+        ]);
+        DB::table('bank_user')->insert(['id' => 'bank-link', 'bank_detail_id' => 'bank', 'user_id' => 'tenant', 'is_default' => true]);
+        Schema::create('companies', function (Blueprint $t) { $t->string('id')->primary(); });
+        Schema::create('company_user', function (Blueprint $t) { $t->string('company_id'); $t->string('user_id'); $t->timestamps(); });
+    }
+
+    public function test_checkout_preview_preserves_financial_fields_without_loading_full_history(): void
+    {
+        $this->checkoutPreviewFixture();
+        $service = app(\App\Services\LeaseService::class);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $preview = $service->getCheckoutPreviewData(\App\Models\Lease::findOrFail('lease'));
+        $queryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+        $this->assertSame(100000, $preview['total_deposit_collected_cents']);
+        $this->assertSame('REC-DEPOSIT', $preview['deposit_receipt_no']);
+        $this->assertSame(20000, $preview['wallet_refund_cents']);
+        $this->assertSame('5678', $preview['tenant_bank_details'][0]['account_last_four']);
+        $this->assertSame(10000, $preview['auto_deduction_total_cents']);
+        $this->assertSame('original', $preview['unpaid_invoices'][0]['id']);
+        $this->assertSame('refund', $preview['active_refund']->id);
+        $this->assertSame(app(\App\Services\RefundService::class)->settlementFingerprint($preview['active_refund']), $preview['active_refund']->settlement_fingerprint);
+        foreach (['invoices', 'refunds', 'tenant', 'leasable'] as $key) $this->assertArrayNotHasKey($key, $preview);
+
+        for ($i = 0; $i < 50; $i++) {
+            DB::table('invoices')->insert(['id' => 'history-'.$i, 'lease_id' => 'lease', 'status' => 'paid', 'total_amount' => 10000, 'amount_paid' => 10000]);
+            DB::table('invoice_items')->insert(['id' => 'history-item-'.$i, 'invoice_id' => 'history-'.$i, 'fee_type_id' => 'rent', 'amount' => 10000]);
+            DB::table('refunds')->insert(['id' => 'history-refund-'.$i, 'lease_id' => 'lease', 'status' => 'cancelled', 'created_at' => '2026-01-01']);
+        }
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $after = $service->getCheckoutPreviewData(\App\Models\Lease::findOrFail('lease'));
+        $this->assertSame($queryCount, count(DB::getQueryLog()));
+        DB::disableQueryLog();
+        $this->assertSame(json_encode($preview), json_encode($after));
+    }
+
+    public function test_checkout_preview_reuses_parent_deposit_charges_and_paid_wallet_snapshot(): void
+    {
+        $this->checkoutPreviewFixture();
+        DB::table('leases')->insert(['id' => 'parent', 'tenant_id' => 'tenant-record']);
+        DB::table('leases')->where('id', 'lease')->update(['parent_lease_id' => 'parent']);
+        DB::table('lease_charges')->where('id', 'deposit-charge')->update(['lease_id' => 'parent']);
+        DB::table('invoices')->where('id', 'deposit-invoice')->update(['lease_id' => 'parent']);
+        DB::table('refunds')->where('id', 'refund')->update(['status' => 'paid', 'wallet_refund_cents' => 30000]);
+        DB::enableQueryLog();
+        DB::flushQueryLog();
+        $preview = app(\App\Services\LeaseService::class)->getCheckoutPreviewData(\App\Models\Lease::findOrFail('lease'));
+        $chargeQueries = collect(DB::getQueryLog())->filter(fn ($q) => str_contains($q['query'], 'from "lease_charges"'));
+        DB::disableQueryLog();
+        $this->assertCount(2, $chargeQueries);
+        $this->assertSame(100000, $preview['total_deposit_collected_cents']);
+        $this->assertSame('REC-DEPOSIT', $preview['deposit_receipt_no']);
+        $this->assertSame(30000, $preview['wallet_refund_cents']);
+    }
+
+    public static function refundStatementContexts(): array
+    {
+        return ['current-modal-values' => [true], 'saved-statement' => [false]];
+    }
+
+    #[\PHPUnit\Framework\Attributes\DataProvider('refundStatementContexts')]
+    public function test_optimized_checkout_preserves_refund_statement_template_replacements(bool $live): void
+    {
+        $this->checkoutPreviewFixture();
+        Schema::table('document_templates', function (Blueprint $t) {
+            $t->string('title')->nullable(); $t->text('html_template')->nullable();
+        });
+        DB::table('document_templates')->insert([
+            'id' => 'refund-template', 'user_id' => 'admin', 'category' => 'refund', 'status' => 'active', 'title' => 'Refund',
+            'html_template' => '<p>Deposit: {{total_deposit_collected}}</p><p>Wallet: {{wallet_refund_amount}}</p>'
+                .'<p>Receipt: {{deposit_receipt_no}}</p><p>Auto: {{auto_deductions_total}}</p>'
+                .'<p>Custom: {{custom_deductions_total}}</p><p>Total: {{total_deductions}}</p>'
+                .'<p>Net: <span data-variable="nett_refund_amount">old</span></p><table><tbody id="dynamic-refund-tbody"></tbody></table>',
+        ]);
+        \Illuminate\Support\Facades\Gate::before(fn () => true);
+        $preview = app(\App\Services\LeaseService::class)->getCheckoutPreviewData(\App\Models\Lease::findOrFail('lease'));
+        $data = ['template_id' => 'refund-template', 'category' => 'refund', 'lease_id' => 'lease', 'check_out_date' => '2026-10-30'];
+        if ($live) {
+            $data['refund_context'] = [
+                'total_deposit_collected_cents' => $preview['total_deposit_collected_cents'],
+                'wallet_refund_cents' => $preview['wallet_refund_cents'],
+                'auto_deduction_total_cents' => $preview['auto_deduction_total_cents'],
+                'unpaid_invoices' => $preview['unpaid_invoices'],
+                'active_refund' => ['items' => $preview['active_refund']->items->where('origin', 'manual')->toArray()],
+            ];
+        }
+        $before = DB::table('refunds')->where('id', 'refund')->first();
+        $response = app(\App\Http\Controllers\LeaseController::class)->previewTemplate(
+            Request::create('/preview', 'POST', $data), app(\App\Services\DocumentTemplateService::class), app(\App\Services\LeaseService::class));
+        $html = $response->getData(true)['content'];
+        foreach (['Deposit: 1,000.00', 'Wallet: 200.00', 'Receipt: REC-DEPOSIT', 'Auto: 100.00', 'Custom: 50.00', 'Total: 150.00', '1,050.00', 'Cleaning'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+        $this->assertStringNotContainsString('{{', $html);
+        $this->assertStringNotContainsString('>old<', $html);
+        $this->assertEquals($before, DB::table('refunds')->where('id', 'refund')->first());
+    }
+
     private function refundFixture(string $stage): void
     {
+        // Operational work-order creation is covered by MaintenanceWorkOrderTest.
+        $this->mock(\App\Services\MaintenanceService::class)->shouldReceive('createFromRefund');
         $this->setting([], false);
         Schema::create('lease_charges', function (Blueprint $t) {
             $t->string('id')->primary(); $t->string('lease_id'); $t->string('fee_type_id');

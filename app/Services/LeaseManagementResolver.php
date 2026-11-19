@@ -6,6 +6,11 @@ use App\Models\{Lease, Owners, Property, Room, Unit, User};
 
 class LeaseManagementResolver
 {
+    public function resolveLeasable(Property|Unit|Room $leasable): ?User
+    {
+        return $this->resolve((new Lease())->setRelation('leasable', $leasable));
+    }
+
     /** Resolve the recorded management relationship; ambiguous records need review. */
     public function resolve(Lease $lease): ?User
     {

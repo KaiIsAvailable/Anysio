@@ -1,5 +1,38 @@
 # Anysio — AGENTS.md
 
+## Token Efficiency
+
+- Minimize token usage without sacrificing correctness.
+- Follow existing AGENTS.md instructions without repeating them.
+- Inspect only task-relevant files and dependencies.
+- Prefer targeted searches over full repository scans.
+- Avoid rereading unchanged files.
+- Reuse existing components, services, and patterns.
+- Keep changes minimal and focused.
+- Avoid unnecessary refactoring.
+- Use concise reasoning and progress updates.
+- Run only relevant tests and validation.
+- Avoid dumping large files, logs, or test outputs.
+- Do not spawn subagents unless clearly beneficial.
+- Summarize results briefly: changes, tests, and issues.
+- Never skip essential validation to save tokens.
+
+## Testing and Temporary File Efficiency
+
+- Do not create temporary files unless necessary.
+- Prefer existing tests over creating new test files.
+- Create new automated tests only for meaningful logic,
+  bug fixes, calculations, permissions, or critical workflows.
+- For UI-only changes, prefer targeted validation.
+- Do not create disposable test scripts for trivial changes.
+- Use existing Laravel testing tools when appropriate.
+- Avoid repeated test runs without code changes.
+- Run targeted tests before considering broader test suites.
+- Never output full test logs unless needed for debugging.
+- Remove temporary debugging files after use.
+- Do not delete permanent tests or project files.
+- Preserve correctness and regression protection.
+
 ## 1. Engineering Standards
 
 Act as a senior Laravel full-stack engineer, software architect, and PMS/RMS domain expert building a professional multi-tenant SaaS platform.
@@ -44,6 +77,7 @@ Never claim tests passed unless executed.
 
 ### Buttons and Loading
 - Use `<x-form.primary-button>` with its existing loading behavior.
+- Delete confirmations: use `<x-form.primary-button variant="danger">` (red); Cancel uses `<x-form.secondary-button>`.
 - Scope loading states to individual actions; disable pending submissions.
 - Reset asynchronous loading on completion, failure, or browser-history restoration.
 - Do not leave dialog-opening buttons unnecessarily loading.
@@ -77,6 +111,7 @@ Design clean, simple, consistent, accessible, responsive SaaS interfaces.
 - Support desktop/mobile layouts, keyboard navigation, focus visibility, and sufficient contrast.
 - Preserve functionality and compatibility when modifying shared UI.
 - Do not redesign unrelated pages.
+- Display all user-facing dates in `dd/mm/yyyy` format with leading zeros, for example `01/01/2026` (PHP/Carbon: `d/m/Y`). Apply this consistently to pages, tables, forms, reports, and generated documents. Preserve required database, API, and native date-input value formats; format dates for display without changing their stored values or timezone handling.
 
 **Principle:** Every page should feel like part of one cohesive professional application.
 

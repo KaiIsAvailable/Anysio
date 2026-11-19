@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\UtilitySetupService;
+
 use App\Models\{Property, Owners, Room, Unit};
 use App\Traits\RoleBasedDataTrait;
 use Illuminate\Http\Request;
@@ -124,6 +126,12 @@ class PropertyController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
+        if ($request->has('water_meter') && !UtilitySetupService::canManageWaterMeters()) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+        $waterMeter = $request->validate(['water_meter' => ['sometimes', 'array']])['water_meter'] ?? null;
+        if ($waterMeter !== null) app(UtilitySetupService::class)->validateWaterMeter($waterMeter);
+
         $effectiveUser = get_effective_user();
         $effectiveUserId = $effectiveUser ? $effectiveUser->id : Auth::id();
         $validated = $request->validate([
@@ -146,7 +154,10 @@ class PropertyController extends Controller
         // 确保 created_by 记录的是管理层主账号 ID
         $validated['created_by'] = $effectiveUserId;
 
-        Property::create($validated);
+        DB::transaction(function () use ($validated, $waterMeter) {
+            $property = Property::create($validated);
+            if ($waterMeter !== null) app(UtilitySetupService::class)->saveWaterMeter($property, $waterMeter);
+        });
 
         return redirect()->route('admin.properties.index')
             ->with('success', 'Property created successfully!');
@@ -247,6 +258,12 @@ class PropertyController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
+        if ($request->has('water_meter') && !UtilitySetupService::canManageWaterMeters()) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+        $waterMeter = $request->validate(['water_meter' => ['sometimes', 'array']])['water_meter'] ?? null;
+        if ($waterMeter !== null) app(UtilitySetupService::class)->validateWaterMeter($waterMeter, $property);
+
         $validated = $request->validate([
             'name'     => 'required|string|max:255',
             'address'  => 'required|string',
@@ -262,7 +279,10 @@ class PropertyController extends Controller
         // 💡 修复点 3：直接接收前端传来的 owner_id。如果有值就存，没值（没选）就是 null
         $validated['owner_id'] = $request->owner_id ?: null;
 
-        $property->update($validated);
+        DB::transaction(function () use ($validated, $waterMeter, $property) {
+            $property->update($validated);
+            if ($waterMeter !== null) app(UtilitySetupService::class)->saveWaterMeter($property, $waterMeter);
+        });
 
         return redirect()->route('admin.properties.index')
             ->with('success', 'Property updated successfully!');

@@ -1,4 +1,3 @@
-import { renderMaintenanceCards } from './maintenance';
 import { createPdfThumbnails } from './ticket-pdf-thumbnails';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,7 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         return data;
     };
-    const toggleControls = (form, disabled) => form.querySelectorAll('button, input, textarea').forEach((control) => { control.disabled = disabled; });
+    const toggleControls = (form, disabled) => form.querySelectorAll('button, input, textarea').forEach((control) => {
+        // Read receipts still need CSRF when the reply form is read-only.
+        if (control.name !== '_token') control.disabled = disabled;
+    });
 
     const selectionError = (attachments, incoming, limits) => {
         const all = [...attachments.map((item) => item.file), ...incoming];
@@ -416,6 +418,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         if (readIds.has(row.dataset.messageId)) row.dataset.messageStatus = 'read';
                     });
                     if (Number.isInteger(data.unread_count) && data.unread_count >= 0) onRead(data.ticket_id, data.unread_count);
+                    window.dispatchEvent(new CustomEvent('service-request-read'));
                 }
             } catch { /* Keep unread state; retry only on a later explicit interaction. */ }
             finally { if (version === conversationVersion) readPending = false; }
@@ -580,6 +583,7 @@ document.addEventListener('DOMContentLoaded', () => {
             find('[data-chat-context]').textContent = ticket.context || '';
             find('[data-chat-context]').hidden = !ticket.context;
             find('[data-chat-status]').textContent = String(ticket.status || '').toUpperCase();
+            find('[data-chat-status]').className = 'mt-2 shrink-0 rounded-full px-3 py-1 text-xs font-semibold ' + (ticket.status_badge_class || '');
             find('[data-chat-status]').hidden = false;
             chatForm.hidden = !canSend;
             updateComposer();
@@ -587,7 +591,6 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         const renderConversation = (data, newVisit = false, incremental = false) => {
             updateTicket(data.ticket);
-            renderMaintenanceCards(root, data.maintenance_cards);
             if (data.cursor && !incremental) syncCursor = data.cursor;
             const existing = new Map(Array.from(history.querySelectorAll('[data-message-id]')).map(row => [row.dataset.messageId, row]));
             if (incremental) {
@@ -674,12 +677,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 row.dataset.messageId = message.id;
                 row.dataset.incoming = String(message.incoming === true);
                 row.dataset.messageStatus = message.status || '';
-                row.className = own ? 'flex justify-end' : 'flex justify-start';
+                const system = message.sender_type === 'system';
+                row.className = system ? 'flex justify-center' : (own ? 'flex justify-end' : 'flex justify-start');
                 const bubble = document.createElement('article');
-                bubble.className = own ? 'max-w-[85%] rounded-2xl bg-indigo-100 px-4 py-3 text-slate-900' : 'max-w-[85%] rounded-2xl bg-white border px-4 py-3 text-slate-900';
+                bubble.className = system ? 'w-full max-w-2xl rounded-2xl border border-indigo-100 bg-indigo-50 px-4 py-3 text-slate-900'
+                    : (own ? 'max-w-[85%] rounded-2xl bg-indigo-100 px-4 py-3 text-slate-900' : 'max-w-[85%] rounded-2xl bg-white border px-4 py-3 text-slate-900');
                 const label = document.createElement('p');
                 label.className = 'mb-1 text-xs text-gray-500';
-                label.textContent = (own ? 'You' : (message.sender_label || message.sender_type)) + ' · ' + (sent ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(sent) : message.created_at || '');
+                label.textContent = (own ? 'You' : (message.sender_label || 'Unverified sender')) + ' · ' + (sent ? new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Kuala_Lumpur', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(sent) : message.created_at || '');
                 bubble.append(label);
                 if (message.attachment_url) {
                     const extension = message.extension;
@@ -731,10 +736,64 @@ document.addEventListener('DOMContentLoaded', () => {
                     download.className = 'inline-block mt-2 text-sm text-indigo-700 underline';
                     bubble.append(download);
                 } else {
-                    const text = document.createElement('p');
-                    text.className = 'text-sm whitespace-pre-wrap break-words';
-                    text.textContent = message.text;
+                    const text = document.createElement(system ? 'div' : 'p');
+                    text.className = system ? 'space-y-1 text-sm break-words' : 'text-sm whitespace-pre-wrap break-words';
+                    if (system) {
+                        const lines = String(message.text || '').split(/\r?\n/);
+                        const noticeStatus = message.maintenance_status;
+                        const statusLine = noticeStatus ? lines.findIndex(line => line === 'Status: ' + noticeStatus.charAt(0).toUpperCase() + noticeStatus.slice(1)) : -1;
+                        lines.forEach((line, index) => {
+                            if (index === statusLine) return;
+                            const paragraph = document.createElement('p');
+                            paragraph.className = index === 0 ? 'flex flex-wrap items-center gap-2 whitespace-pre-wrap' : 'whitespace-pre-wrap';
+                            const field = line.match(/^(Reference|Issue|Quantity|Lease|Status|Description):\s?(.*)$/);
+                            if (index === 0 || field) {
+                                const label = document.createElement('strong');
+                                label.textContent = index === 0 ? line : field[1] + ':';
+                                paragraph.append(label);
+                                if (index === 0 && noticeStatus) {
+                                    const badge = document.createElement('span');
+                                    badge.className = 'shrink-0 rounded-full px-3 py-1 text-xs font-semibold ' + (message.maintenance_status_class || '');
+                                    badge.textContent = noticeStatus.toUpperCase();
+                                    paragraph.append(badge);
+                                }
+                                if (index !== 0) {
+                                    const value = document.createElement('span');
+                                    value.textContent = ' ' + field[2];
+                                    paragraph.append(value);
+                                }
+                            } else paragraph.textContent = line;
+                            text.append(paragraph);
+                        });
+                    } else text.textContent = message.text;
                     bubble.append(text);
+                }
+                if (message.maintenance_evidence?.length) {
+                    const evidence = document.createElement('details');
+                    evidence.className = 'mt-3 border-t border-indigo-100 pt-2';
+                    const summary = document.createElement('summary');
+                    summary.className = 'cursor-pointer text-sm font-semibold text-indigo-700';
+                    summary.textContent = 'Completion evidence (' + message.maintenance_evidence.length + ')';
+                    const files = document.createElement('ul');
+                    files.className = 'mt-2 space-y-2';
+                    for (const file of message.maintenance_evidence) {
+                        const item = document.createElement('li');
+                        item.className = 'text-sm break-words';
+                        const open = document.createElement('a');
+                        open.href = file.url;
+                        open.target = '_blank';
+                        open.rel = 'noopener';
+                        open.className = 'text-indigo-700 underline';
+                        open.textContent = file.filename;
+                        const download = document.createElement('a');
+                        download.href = file.url + '?download=1';
+                        download.className = 'ms-2 text-indigo-700 underline';
+                        download.textContent = 'Download';
+                        item.append(open, download);
+                        files.append(item);
+                    }
+                    evidence.append(summary, files);
+                    bubble.append(evidence);
                 }
                 if (own) {
                     const receipt = document.createElement('p');
@@ -833,7 +892,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 syncCursor = data.cursor || syncCursor;
                 if (data.ticket) {
                     updateTicket(data.ticket);
-                    renderMaintenanceCards(root, data.maintenance_cards);
                     const knownIds = new Set(displayedMessages.map(message => message.id));
                     if (data.messages.some(message => !knownIds.has(message.id))) {
                         followBottom = history.scrollHeight - history.scrollTop - history.clientHeight < 80;
@@ -891,7 +949,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 ++readSequence;
                 empty = true;
                 root.dataset.empty = 'true';
-                renderMaintenanceCards(root, []);
                 const maintenanceButton = find('[data-create-maintenance]');
                 if (maintenanceButton) { maintenanceButton.hidden = true; maintenanceButton.dataset.createUrl = ''; }
                 suspended = false;

@@ -62,7 +62,7 @@
 
 <body class="font-sans antialiased">
 
-    <div class="min-h-screen bg-gray-100">
+    <div @class(['bg-gray-100', 'min-h-screen' => !$fullHeight, 'flex h-dvh flex-col overflow-hidden [&>nav]:shrink-0' => $fullHeight])>
 
         @include('layouts.navigation')
 
@@ -115,7 +115,7 @@
         --}}
         @if($mustPay ?? false)
 
-        <main x-data="{ openPayment: true }">
+        <main x-data="{ openPayment: true }" @class(['flex min-h-0 flex-1 flex-col' => $fullHeight])>
 
             @include(
             'components.modals.make_payment',
@@ -138,7 +138,7 @@
 
         @else
 
-        <main x-data="{ openPayment: false }">
+        <main x-data="{ openPayment: false }" @class(['flex min-h-0 flex-1 flex-col' => $fullHeight])>
 
             <x-auth-session-status
                 class="mb-4"

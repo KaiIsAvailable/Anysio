@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
-use App\Models\{Lease, Owners, Property, Room, Unit, User, Utility, UtilityService};
+use App\Models\{Lease, Owners, Property, Room, Unit, User, UtilityService};
 use Illuminate\Database\Eloquent\{Builder, Model};
-use Illuminate\Support\Facades\{DB, Validator};
+use Illuminate\Support\Facades\{Auth, DB, Gate, Validator};
 use Illuminate\Validation\{Rule, ValidationException};
 
 class UtilitySetupService
@@ -36,61 +36,91 @@ class UtilitySetupService
             ->filter(fn ($location) => $this->managerFor($location)?->id === $manager->id)->values();
     }
 
-    public function initialize(User $manager, string $type = 'water'): array
-    {
-        Validator::make(['type' => $type], ['type' => ['required', Rule::in(UtilityService::TYPES)]])->validate();
-        abort_unless(in_array($manager->role, [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN]), 422, 'Select a management account.');
+    public const WATER_FIELDS = ['waterHasMeter', 'waterMeterNumber', 'waterOpeningReading', 'waterOpeningDate'];
 
-        return DB::transaction(function () use ($manager, $type) {
+    public static function canManageWaterMeters(): bool
+    {
+        return Gate::allows('super-admin') || (Gate::allows('utilities.manage meters')
+            && !in_array(Auth::user()?->role, [User::ROLE_TENANT, User::ROLE_OWNER], true));
+    }
+
+    public function waterMeterData(Model $location): array
+    {
+        $service = $location->utilityServices->first(fn ($meter) => $meter->type === 'water'
+            && (Gate::allows('super-admin') || $meter->management_user_id === get_effective_user()?->id));
+        return ['has_meter' => $service && $service->billing_method === 'metered' ? '1' : '0',
+            'meter_number' => $service?->meter_number,
+            'opening_reading' => $service?->opening_reading,
+            'opening_reading_date' => $service?->opening_reading_date?->toDateString()];
+    }
+
+    public function validateWaterMeter(array $input, ?Model $location = null): array
+    {
+        if (!self::canManageWaterMeters()) {
+            throw ValidationException::withMessages(['water_meter' => 'You have no permission.']);
+        }
+        if ($location && ((!empty($input['has_meter'])) || $location->utilityServices()->where('type', 'water')->exists())) $this->waterManager($location);
+        return Validator::make(['water_meter' => $input], [
+            'water_meter.has_meter' => ['required', 'boolean'],
+            'water_meter.meter_number' => ['exclude_unless:water_meter.has_meter,1', 'nullable', 'string', 'max:255'],
+            'water_meter.opening_reading' => ['exclude_unless:water_meter.has_meter,1', 'nullable', 'numeric', 'min:0', 'max:999999999999.999', 'decimal:0,3', 'required_with:water_meter.opening_reading_date'],
+            'water_meter.opening_reading_date' => ['exclude_unless:water_meter.has_meter,1', 'nullable', 'date_format:Y-m-d', 'before_or_equal:today', 'required_with:water_meter.opening_reading'],
+        ])->validate()['water_meter'];
+    }
+
+    private function waterManager(Model $location): User
+    {
+        $manager = $this->managerFor($location);
+        if (!$manager || (!Gate::allows('super-admin') && $manager->id !== get_effective_user()?->id)) {
+            throw ValidationException::withMessages(['water_meter' => 'This location is outside your management account or its ownership needs review.']);
+        }
+        return $manager;
+    }
+
+    public function saveWaterMeter(Model $location, array $input): void
+    {
+        $data = $this->validateWaterMeter($input, $location);
+        if (!$data['has_meter'] && !$location->utilityServices()->where('type', 'water')->exists()) return;
+        $manager = $this->waterManager($location);
+        DB::transaction(function () use ($location, $data, $manager) {
             User::whereKey($manager->id)->lockForUpdate()->firstOrFail();
-            $result = ['created' => 0, 'existing' => 0, 'review' => 0, 'linked' => 0];
-            foreach ([Property::class, Unit::class, Room::class] as $model) {
-                $this->locations($model, $manager)->chunkById(100, function ($locations) use ($manager, $type, &$result) {
-                    foreach ($locations as $location) {
-                        if ($this->managerFor($location)?->id !== $manager->id) {
-                            $result['review']++;
-                            continue;
-                        }
-                        $service = UtilityService::withTrashed()->where('location_type', $location->getMorphClass())
-                            ->where('location_id', $location->id)->where('type', $type)->first();
-                        if ($service && $service->management_user_id !== $manager->id) {
-                            $result['review']++;
-                            continue;
-                        }
-                        if ($service?->trashed()) {
-                            $result['existing']++;
-                            continue;
-                        }
-                        if (!$service) {
-                            $service = UtilityService::create([
-                                'management_user_id' => $manager->id,
-                                'location_type' => $location->getMorphClass(), 'location_id' => $location->id,
-                                'type' => $type, 'billing_method' => $type === 'indah_water' ? 'fixed' : 'metered',
-                                'label' => class_basename($location).' '.($location->name ?? $location->unit_no ?? $location->room_no).' '.str_replace('_', ' ', $type),
-                                'status' => 'unconfirmed',
-                            ]);
-                            $result['created']++;
-                        } else {
-                            $result['existing']++;
-                        }
-                        // Link legacy rows only when the saved lease resolves to this account.
-                        // Do not invent reading dates, rates, invoices or a physical parent connection.
-                        $leases = Lease::where('leasable_type', $location->getMorphClass())->where('leasable_id', $location->id)->get();
-                        $leaseIds = $leases->filter(function ($lease) use ($location, $manager) {
-                            $lease->setRelation('leasable', $location);
-                            return app(LeaseManagementResolver::class)->resolve($lease)?->id === $manager->id;
-                        })->modelKeys();
-                        $aliases = match ($type) {
-                            'electricity' => ['electricity', 'electric'],
-                            'indah_water' => ['indah_water', 'indah water', 'iwk'],
-                            default => [$type],
-                        };
-                        $result['linked'] += DB::table('utilities')->whereNull('utility_service_id')->whereIn('lease_id', $leaseIds)
-                            ->whereIn(DB::raw('LOWER(TRIM(type))'), $aliases)->update(['utility_service_id' => $service->id]);
-                    }
-                });
+            $service = $location->utilityServices()->withTrashed()->where('type', 'water')->lockForUpdate()->first();
+            if ($service && $service->management_user_id !== $manager->id) {
+                throw ValidationException::withMessages(['water_meter' => 'The existing meter belongs to another management account.']);
             }
-            return $result;
+            if (!$data['has_meter']) {
+                if ($service && !$service->trashed()) {
+                    if ($service->records()->exists()) {
+                        throw ValidationException::withMessages(['water_meter.has_meter' => 'This meter has reading history. Manage or deactivate it in Utilities instead of removing its setup.']);
+                    }
+                    $this->delete($service);
+                }
+                return;
+            }
+            if ($service?->trashed()) {
+                if ($service->records()->exists()) {
+                    throw ValidationException::withMessages(['water_meter.has_meter' => 'This removed meter has history. Review it in Utilities before reusing its setup.']);
+                }
+                $service->restore();
+            }
+            if (!$service) {
+                $service = $location->utilityServices()->create([
+                    'management_user_id' => $manager->id, 'type' => 'water', 'billing_method' => 'metered',
+                    'billing_scope' => 'individual', 'status' => 'active',
+                    'label' => class_basename($location).' '.($location->name ?? $location->unit_no ?? $location->room_no).' water',
+                ]);
+            }
+            if ($service->billing_method !== 'metered') {
+                throw ValidationException::withMessages(['water_meter' => 'Manage this shared or fixed water service in Utilities.']);
+            }
+            $this->update($service, [
+                'label' => $service->label, 'billing_method' => $service->billing_method,
+                'billing_scope' => $service->billing_scope, 'parent_service_id' => $service->parent_service_id,
+                'status' => $service->status === 'inactive' ? 'inactive' : 'active',
+                'meter_number' => $data['meter_number'] ?? null,
+                'opening_reading' => $data['opening_reading'] ?? null,
+                'opening_reading_date' => $data['opening_reading_date'] ?? null,
+            ]);
         });
     }
 

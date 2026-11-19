@@ -36,26 +36,13 @@
                         @endcan
                         <div class="w-full sm:w-48" data-utility-auto-filter>
                             <x-form.input-label for="utility-type" value="Utility type" class="sr-only" />
-                            <x-form.input-select id="utility-type" name="type" :options="collect(\App\Models\UtilityService::TYPES)->mapWithKeys(fn ($option) => [$option => \Illuminate\Support\Str::headline($option)])" :value="$type" />
+                            <x-form.input-select id="utility-type" name="type" :options="['water' => 'Water']" value="water" />
                         </div>
                         <span class="py-2 text-xs text-gray-500">{{ number_format($services->total()) }} services</span>
                         <div class="w-full md:ml-auto md:w-auto">
                             <x-table.search :is-advance-search="true" :show-utility-filters="true" :custom-filter-defaults="$utilityFilterDefaults" placeholder="Search locations, tenants, meters, readings, amounts..." />
                         </div>
                     </x-form.form>
-                    @if($manager)
-                        @canany(['super-admin', 'utilities.manage meters'])
-                            <details class="rounded-lg border border-gray-200 bg-gray-50 p-3">
-                                <summary class="cursor-pointer text-sm font-semibold text-indigo-600">Initialize {{ \Illuminate\Support\Str::headline($type) }} Services</summary>
-                                <p class="my-3 text-sm text-gray-600">Create one unconfirmed service for every property, unit and room managed by {{ $manager->name }}. Existing services are skipped, including inactive and deleted ones. Existing readings are preserved and linked where ownership is clear. Parent connections and opening readings remain empty.</p>
-                                <x-form.form method="POST" action="{{ route('admin.utilities.initialize') }}" :autofocus="false">
-                                    <x-form.text-input type="hidden" name="management_user_id" :value="$manager->id" />
-                                    <x-form.text-input type="hidden" name="type" :value="$type" />
-                                    <x-form.primary-button loading="loading" type="submit">Initialize Services</x-form.primary-button>
-                                </x-form.form>
-                            </details>
-                        @endcanany
-                    @endif
                 </div>
                 <div class="overflow-x-auto">
                     <table class="w-full min-w-[1500px] divide-y divide-gray-200 text-left">
@@ -138,7 +125,7 @@
                                     </td>
                                 </tr>
                             @empty
-                                <tr><td colspan="10" class="px-6 py-16 text-center"><p class="text-sm font-semibold text-slate-900">{{ !$manager ? 'Select a management account first.' : (request()->filled('search') ? 'No services match your search.' : ($hasAdvancedFilters ? 'No services match your filters.' : 'No services configured yet.')) }}</p><p class="mt-2 text-sm text-gray-500">{{ !$manager ? 'Each account’s setup and reading history are kept separate.' : (request()->filled('search') || $hasAdvancedFilters ? 'Try another search or reset the filters to view more services.' : 'Initialize services to list your properties, units and rooms with empty readings.') }}</p></td></tr>
+                                <tr><td colspan="10" class="px-6 py-16 text-center"><p class="text-sm font-semibold text-slate-900">{{ !$manager ? 'Select a management account first.' : (request()->filled('search') ? 'No services match your search.' : ($hasAdvancedFilters ? 'No services match your filters.' : 'No services configured yet.')) }}</p><p class="mt-2 text-sm text-gray-500">{{ !$manager ? 'Each account’s setup and reading history are kept separate.' : (request()->filled('search') || $hasAdvancedFilters ? 'Try another search or reset the filters to view more services.' : 'Add water meters when creating or editing your properties, units or rooms.') }}</p></td></tr>
                             @endforelse
                         </tbody>
                     </table>

@@ -21,6 +21,10 @@ class OwnerBulkController extends Controller
 
     public function index(Request $request, OwnerBulkService $owners, OwnerBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('owner.bulk edit')) {
+            return view('errors.403');
+        }
+
         if (Gate::denies('super-admin') && (Gate::denies('owner.tab') || (Gate::denies('owner.create') && Gate::denies('owner.edit')))) {
             return view('errors.403');
         }
@@ -83,6 +87,10 @@ class OwnerBulkController extends Controller
 
     public function store(BulkOwnerRequest $request, OwnerBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('owner.bulk edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $manager = get_effective_user();
 
         return $this->startBulkSave($request, $operations, 'admin.owners', $manager ? $this->draftKey($manager) : '');
@@ -90,16 +98,28 @@ class OwnerBulkController extends Controller
 
     public function progress(string $requestKey, OwnerBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('owner.bulk edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         return $this->operationProgress($requestKey, $operations);
     }
 
     public function complete(string $requestKey, OwnerBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('owner.bulk edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         return $this->completeBulkSave($requestKey, $operations, 'admin.owners', 'owner');
     }
 
     public function file(Owners $owner, string $field, FileService $files)
     {
+        if (Gate::denies('super-admin') && Gate::denies('owner.bulk edit')) {
+            return response()->view('errors.403', [], 403);
+        }
+
         $manager = get_effective_user();
         if (! $manager || (Gate::denies('super-admin') && (Gate::denies('owner.tab') || (Gate::denies('owner.create') && Gate::denies('owner.edit'))))) {
             return response()->view('errors.403', [], 403);

@@ -9,4 +9,9 @@ class MaintenanceEvent extends Model
     use HasUlids;
     protected $guarded = [];
     protected $casts = ['changes' => 'array'];
+
+    public function actor(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(User::class, 'actor_id');
+    }
 }

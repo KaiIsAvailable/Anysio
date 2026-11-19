@@ -1,4 +1,4 @@
-@props(['modules', 'editingState' => 'editing', 'roleId' => null])
+@props(['modules', 'editingState' => 'editing', 'roleId' => null, 'allowedPermissions' => null])
 
 @if($roleId !== null)
     <template x-for="permission in selected" :key="permission">
@@ -15,6 +15,7 @@
                     $moduleNames[] = $module.'.'.$action;
                 }
             }
+            $moduleNames = array_values(array_intersect($moduleNames, $allowedPermissions ?? $moduleNames));
         @endphp
         <div class="rounded-lg border border-gray-200 overflow-hidden"
              x-show="@js(strtolower($module)).includes(search.toLowerCase())"
@@ -24,7 +25,7 @@
                 <label class="inline-flex items-center gap-2 text-xs text-gray-500 cursor-pointer">
                     {{ __('All') }}
                     <span class="relative inline-flex shrink-0">
-                        <input type="checkbox" :disabled="!{{ $editingState }}" :checked="names.every(name => selected.includes(name))"
+                        <input type="checkbox" :disabled="!{{ $editingState }} || names.length === 0" :checked="names.length > 0 && names.every(name => selected.includes(name))"
                            @change="selected = $event.target.checked ? [...new Set([...selected, ...names])] : selected.filter(name => !names.includes(name))"
                            class="sr-only peer" role="switch">
                         <span aria-hidden="true" class="block h-5 w-9 rounded-full bg-gray-200 transition-colors peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4"></span>
@@ -33,14 +34,18 @@
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 px-3 py-1">
                 @foreach($actions as $key => $value)
-                    @php $action = is_array($value) ? $key : $value; @endphp
+                    @php
+                        $action = is_array($value) ? $key : $value;
+                        $canDelegate = $allowedPermissions === null || in_array($module.'.'.$action, $allowedPermissions, true);
+                        $children = is_array($value) ? array_values(array_intersect(array_map(fn ($child) => $module.'.'.$child, $value), $allowedPermissions ?? $moduleNames)) : [];
+                    @endphp
                     <div class="{{ is_array($value) ? 'sm:col-span-2' : '' }}">
                         <label class="flex items-center justify-between gap-2 py-2 text-sm text-gray-700 cursor-pointer">
                             <span>{{ ucfirst($action) }}</span>
                             <span class="relative inline-flex shrink-0">
-                                <input type="checkbox" @if($roleId === null) name="permissions[]" @endif value="{{ $module.'.'.$action }}" x-model="selected" :disabled="!{{ $editingState }}"
+                                <input type="checkbox" @if($roleId === null) name="permissions[]" @endif value="{{ $module.'.'.$action }}" x-model="selected" :disabled="!{{ $editingState }} || @js(!$canDelegate)"
                                 @if(is_array($value))
-                                    @change="if ($event.target.checked) { selected = [...new Set([...selected, ...{{ \Illuminate\Support\Js::from(array_map(fn ($child) => $module.'.'.$child, $value)) }}])]; } else { selected = selected.filter(name => !{{ \Illuminate\Support\Js::from(array_map(fn ($child) => $module.'.'.$child, $value)) }}.includes(name)); }"
+                                    @change="if ($event.target.checked) { selected = [...new Set([...selected, ...{{ \Illuminate\Support\Js::from($children) }}])]; } else { selected = selected.filter(name => !{{ \Illuminate\Support\Js::from($children) }}.includes(name)); }"
                                 @endif
                                 class="sr-only peer" role="switch">
                                 <span aria-hidden="true" class="block h-5 w-9 rounded-full bg-gray-200 transition-colors peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4"></span>
@@ -49,10 +54,11 @@
                         @if(is_array($value))
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 border-l-2 border-indigo-100 pl-3 ml-1 mb-1">
                                 @foreach($value as $child)
+                                    @php $canDelegateChild = $allowedPermissions === null || in_array($module.'.'.$child, $allowedPermissions, true); @endphp
                                     <label class="flex items-center justify-between gap-2 py-1.5 text-xs text-gray-600 cursor-pointer">
                                         <span>{{ ucfirst($child) }}</span>
                                         <span class="relative inline-flex shrink-0">
-                                            <input type="checkbox" @if($roleId === null) name="permissions[]" @endif value="{{ $module.'.'.$child }}" x-model="selected" :disabled="!{{ $editingState }}" class="sr-only peer" role="switch">
+                                            <input type="checkbox" @if($roleId === null) name="permissions[]" @endif value="{{ $module.'.'.$child }}" x-model="selected" :disabled="!{{ $editingState }} || @js(!$canDelegateChild)" class="sr-only peer" role="switch">
                                             <span aria-hidden="true" class="block h-5 w-9 rounded-full bg-gray-200 transition-colors peer-checked:bg-indigo-600 peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-500 peer-focus-visible:ring-offset-2 peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-4"></span>
                                         </span>
                                     </label>

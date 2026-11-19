@@ -256,6 +256,8 @@
                                                             <option :value="feeType.id" x-text="feeType.name"></option>
                                                         </template>
                                                     </select>
+                                                    @canany(['super-admin', 'fee types.invoice'])
+                                                    @canany(['super-admin', 'leases.add fee type', 'fee types.create'])
                                                     <button type="button" 
                                                             @click="$dispatch('open-fee-type-modal', { category: 'invoice' })"
                                                             title="Add New Fee Type" 
@@ -264,6 +266,8 @@
                                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
                                                         </svg>
                                                     </button>
+                                                    @endcanany
+                                                    @endcanany
                                                 </div>
                                             </div>
 

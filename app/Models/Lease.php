@@ -418,6 +418,12 @@ class Lease extends Model
         return $timestamp ? date('YYYY-MM-DD', $timestamp) : null;
     }
 
+    public function scopeEndingInMonth($query, $month, ?int $year = null)
+    {
+        return $query->when($year, fn ($query) => $query->whereYear('end_date', $year))
+            ->when($month, fn ($query) => $query->whereMonth('end_date', $month));
+    }
+
     public function scopeApplyFilters($query, Request $request)
     {
         if ($request->filled('leaseable_name')) {

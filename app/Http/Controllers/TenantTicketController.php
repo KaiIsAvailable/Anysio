@@ -11,6 +11,14 @@ use Illuminate\Validation\ValidationException;
 
 class TenantTicketController extends Controller
 {
+    public function unread(TenantCustomerService $service)
+    {
+        abort_unless(Gate::allows('is-tenant') || $service->canUseMaintenance($this->actor()), 403);
+
+        return response()->json(['unread_count' => $service->totalUnreadMessages($this->actor())])
+            ->header('Cache-Control', 'no-store');
+    }
+
     public function index(Request $request, TenantCustomerService $service)
     {
         abort_unless(Gate::allows('is-tenant') || $service->canUseMaintenance($this->actor()), 403);
@@ -36,8 +44,13 @@ class TenantTicketController extends Controller
                 'creation_reason' => $creationReason,
             ]);
         }
+        if (!$selectedTicket) {
+            $selectedTicket = $tickets->first();
+        }
         $chatHtml = $selectedTicket ? $this->chatHtml($selectedTicket, $request, $service) : '';
-        return view('tenantSide.customerService.index', compact('tickets', 'creationReason', 'search', 'selectedTicket', 'chatHtml', 'complaintLeases', 'canCreate', 'routePrefix'));
+        $maintenance = app(\App\Services\MaintenanceService::class);
+        $itemOptions = !$canCreate && Gate::allows('maintenance.tab') && Gate::allows('maintenance.create') && $maintenance->ready() ? $maintenance->itemOptions() : [];
+        return view('tenantSide.customerService.index', compact('tickets', 'creationReason', 'search', 'selectedTicket', 'chatHtml', 'complaintLeases', 'canCreate', 'routePrefix', 'itemOptions'));
     }
 
     public function store(Request $request, TenantCustomerService $service)
@@ -93,7 +106,7 @@ class TenantTicketController extends Controller
         $currentRole = $this->actor()->role;
         $routePrefix = $this->routePrefix();
         $canSend = $service->canReply($ticket, $this->actor());
-        $canAttach = Gate::any(['is-tenant', 'owner-admin', 'is-owner']);
+        $canAttach = Gate::any(['is-tenant', 'owner-admin', 'is-owner', 'service request.reply']);
         return view('tenantSide.customerService.conversation', compact('ticket', 'messages', 'currentRole', 'canSend', 'routePrefix', 'canAttach', 'syncCursor'))->render();
     }
 
@@ -152,12 +165,12 @@ class TenantTicketController extends Controller
         ]);
     }
 
-    private function saveSnapshot(?string $ticket, array $messages, array $list = [], array $cards = []): string
+    private function saveSnapshot(?string $ticket, array $messages, array $list = []): string
     {
         $token = (string) \Illuminate\Support\Str::uuid();
         // Immutable snapshots tolerate lost responses and commits out of ULID order.
         \Illuminate\Support\Facades\Cache::put('ticket-sync:'.$this->actor()->id.':'.$token,
-            compact('ticket', 'messages', 'list', 'cards'), now()->addMinutes(2));
+            compact('ticket', 'messages', 'list'), now()->addMinutes(2));
         return $token;
     }
 
@@ -197,9 +210,7 @@ class TenantTicketController extends Controller
         $conversation['receipts'] = $receipts;
         $conversation['list_html'] = $list === ($previous['list'] ?? []) ? null
             : view('tenantSide.customerService.table', compact('tickets', 'canCreate', 'routePrefix'))->render();
-        $cards = $conversation['maintenance_cards'] ?? [];
-        $conversation['maintenance_cards'] = $cards === ($previous['cards'] ?? null) ? null : $cards;
-        $conversation['cursor'] = $this->saveSnapshot($ticket?->id, $states, $list, $cards);
+        $conversation['cursor'] = $this->saveSnapshot($ticket?->id, $states, $list);
         // Bound cache growth even for database cache stores which retain expired
         // rows. A lost response falls back to a deduplicated resync, never a gap.
         if (!empty($data['cursor'])) \Illuminate\Support\Facades\Cache::forget('ticket-sync:'.$this->actor()->id.':'.$data['cursor']);
@@ -222,15 +233,19 @@ class TenantTicketController extends Controller
     {
         $messages ??= $ticket->messages()->with('creationAudits')->orderBy('created_at')->orderBy('id')->get();
         $messages->each(fn ($message) => $message->setRelation('ticket', $ticket));
+        $authorIds = $messages->mapWithKeys(fn ($message) => [$message->id => $message->authorId()]);
+        $senderNames = $authorIds->filter()->isEmpty() ? collect()
+            : User::whereIn('id', $authorIds->filter()->unique())->pluck('name', 'id');
         $routePrefix = $this->routePrefix();
-        $cards = app(\App\Services\MaintenanceService::class)->cards($ticket);
+        $notices = app(\App\Services\MaintenanceService::class)->conversationNotices($ticket, $messages);
         $incomingIds = array_fill_keys($service->incomingIds($messages, $ticket, $this->actor()), true);
         return [
-            'cursor' => $snapshot ? $this->saveSnapshot($ticket->id, $messages->pluck('status', 'id')->all(), [], $cards) : null,
+            'cursor' => $snapshot ? $this->saveSnapshot($ticket->id, $messages->pluck('status', 'id')->all()) : null,
             'ticket' => [
                 'id' => $ticket->id,
                 'subject' => $ticket->subject,
                 'status' => $ticket->status,
+                'status_badge_class' => get_status_badge($ticket->status),
                 'closed' => $service->isClosed($ticket),
                 'can_send' => $service->canReply($ticket, $this->actor()),
                 'maintenance' => app(\App\Services\MaintenanceService::class)->capabilities($ticket),
@@ -240,22 +255,24 @@ class TenantTicketController extends Controller
                 'mark_read_url' => route($routePrefix.'.markRead', $ticket),
                 'index_url' => route($routePrefix.'.index', ['ticket' => $ticket->id]),
             ],
-            'maintenance_cards' => $cards,
-            'messages' => $messages->map(function ($message) use ($ticket, $service, $routePrefix, $incomingIds) {
+            'messages' => $messages->map(function ($message) use ($ticket, $service, $routePrefix, $incomingIds, $authorIds, $senderNames, $notices) {
                 $attachment = $service->attachmentPath($message);
                 $local = $message->created_at?->copy()->setTimezone('Asia/Kuala_Lumpur');
                 $today = now('Asia/Kuala_Lumpur')->startOfDay();
                 $dateLabel = !$local ? null : ($local->isSameDay($today) ? 'Today' : ($local->isSameDay($today->copy()->subDay()) ? 'Yesterday' : $local->format('d M Y')));
                 return [
                     'id' => $message->id,
-                    'own' => $message->authorId() === Auth::id(),
+                    'own' => $authorIds->get($message->id) === Auth::id(),
                     'incoming' => isset($incomingIds[$message->id]),
                     'status' => $message->status,
                     'read_at' => $message->read_at?->toIso8601String(),
                     'read_by' => $message->read_by,
                     'sender_type' => $message->sender_type,
-                    'sender_label' => $message->sender_type === 'system' ? 'System' : ($message->authorId() ? $message->sender_type : 'Unverified sender'),
-                    'text' => $attachment ? null : $message->message,
+                    'sender_label' => $message->sender_type === 'system' ? 'System' : ($senderNames->get($authorIds->get($message->id)) ?: 'Unverified sender'),
+                    'text' => $attachment ? null : ($notices[$message->id]['text'] ?? $message->message),
+                    'maintenance_evidence' => $notices[$message->id]['evidence'] ?? [],
+                    'maintenance_status' => $notices[$message->id]['status'] ?? null,
+                    'maintenance_status_class' => isset($notices[$message->id]['status']) ? get_status_badge($notices[$message->id]['status']) : null,
                     'attachment_url' => $attachment ? route($routePrefix.'.attachment', [$ticket, $message]) : null,
                     'extension' => $attachment ? strtolower(pathinfo($attachment, PATHINFO_EXTENSION)) : null,
                     'filename' => $attachment ? basename($attachment) : null,

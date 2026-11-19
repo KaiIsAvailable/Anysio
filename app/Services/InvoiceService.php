@@ -386,6 +386,7 @@ class InvoiceService
     {
         $totalCents = 0;
         $validatedItems = [];
+        $feeSettings = $this->settingService->getEffectiveSettings($owner);
 
         foreach ($rawItems as $item) {
             if (empty($item['fee_type_id']) || !isset($item['amount'])) {
@@ -406,6 +407,10 @@ class InvoiceService
                 })
                 ->where('is_active', true)
                 ->firstOrFail();
+
+            if (!$this->settingService->isFeeTypeActive($feeType, $feeSettings)) {
+                throw \Illuminate\Validation\ValidationException::withMessages(['items' => 'This fee type is inactive for your account.']);
+            }
 
             $validatedItems[] = [
                 'fee_type'     => $feeType,

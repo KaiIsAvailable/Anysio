@@ -20,7 +20,6 @@ Route::get('/utilities/readings', [UtilityController::class, 'readings'])->name(
 Route::post('/utilities/readings', [UtilityController::class, 'saveReadings'])->name('utilities.readings.save');
 Route::post('/utilities/readings/invoices', [UtilityController::class, 'generateReadingInvoices'])->name('utilities.readings.invoices.generate');
 Route::delete('/utilities/readings/meters', [UtilityController::class, 'deleteReadingMeters'])->name('utilities.readings.meters.delete');
-Route::post('/utilities/initialize', [UtilityController::class, 'initialize'])->name('utilities.initialize');
 Route::get('/utilities/services/{utilityService}/edit', [UtilityController::class, 'edit'])->name('utilities.edit');
 Route::patch('/utilities/services/{utilityService}', [UtilityController::class, 'update'])->name('utilities.update');
 Route::delete('/utilities/services/{utilityService}', [UtilityController::class, 'destroy'])->name('utilities.destroy');

@@ -239,13 +239,14 @@ class RefundService {
             }
 
             // 3. Save each item row into refund_items table
+            $feeIds = collect($items)->pluck('fee_type_id')->filter()->unique();
+            $feeNames = $feeIds->isNotEmpty() ? FeeType::whereIn('id', $feeIds)->pluck('name', 'id') : collect();
             foreach ($items as $item) {
                 $feeTypeId = $item['fee_type_id'] ?? null;
                 $description = $item['description'] ?? '';
                 
                 if ($feeTypeId && empty($description)) {
-                    $feeType = FeeType::find($feeTypeId);
-                    $description = $feeType ? $feeType->name : 'Custom Deduction';
+                    $description = $feeNames->get($feeTypeId, 'Custom Deduction');
                 }
 
                 $qty = (int) ($item['qty'] ?? 1);
@@ -314,17 +315,20 @@ class RefundService {
             ->all();
     }
 
-    public function getDepositCollectedCents(Lease $lease): int
+    public function getDepositCollectedCents(Lease $lease, ?\Illuminate\Support\Collection $charges = null): int
     {
-        $charges = collect();
-        $current = $lease;
-
-        while ($current) {
-            $current->load(['charges.feeType', 'charges.invoice']);
-            $charges = $charges->concat($current->charges);
-            $current = $current->parent_lease_id
-                ? Lease::find($current->parent_lease_id)
-                : null;
+        if ($charges === null) {
+            $charges = collect();
+            $current = $lease;
+            $visited = [];
+            while ($current && !isset($visited[(string) $current->getKey()])) {
+                $visited[(string) $current->getKey()] = true;
+                $current->load('charges.feeType');
+                $charges = $charges->concat($current->charges);
+                $current = $current->parent_lease_id
+                    ? Lease::find($current->parent_lease_id)
+                    : null;
+            }
         }
 
         $depositCharges = $charges->filter(function ($charge): bool {
@@ -525,6 +529,7 @@ class RefundService {
                         'paid_by' => $user->id,
                         'paid_at' => now(),
                     ]);
+                    app(MaintenanceService::class)->createFromRefund($lockedRefund);
 
                     $lease->update([
                         'status' => 'Check Out',

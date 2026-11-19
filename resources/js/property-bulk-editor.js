@@ -5,6 +5,7 @@ const hierarchyFields = {
     unit: ['parentKey', 'unitNo', 'ownerId', 'unitType', 'block', 'floor', 'sqft', 'electricityNo', 'waterNo', 'indahWaterNo'],
     room: ['parentKey', 'roomNo', 'roomType'],
 };
+const waterFields = ['waterHasMeter', 'waterMeterNumber', 'waterOpeningReading', 'waterOpeningDate'];
 const hierarchyRequired = { property: ['name', 'propertyType', 'address', 'postcode', 'city', 'state'], unit: ['parentKey', 'unitNo'], room: ['parentKey', 'roomNo', 'roomType'] };
 
 export function propertyBulkEditor(initialRows, canCreate = true, draftKey = null, saved = false, firstRow = 1, initialOperation = null, progressConfig = {}, serverErrors = {}, gridConfig = {}) {
@@ -27,8 +28,10 @@ export function propertyBulkEditor(initialRows, canCreate = true, draftKey = nul
                 ...Object.fromEntries((hierarchyFields[entity] || []).map(field => [field, ''])),
                 key: hierarchical ? `new-${entity}-${this.nextKey++}` : 'new-' + this.nextKey++,
                 entity, isNew: false, changed: false, removed: false,
-                uploadNames: {}, existingFiles: {}, ...values,
+                uploadNames: {}, existingFiles: {}, waterHasMeter: '0',
+                waterMeterNumber: '', waterOpeningReading: '', waterOpeningDate: '', ...values,
                 ownerIdSelection: [values.ownerId || ''], propertyTypeSelection: values.propertyType ? [values.propertyType] : [], stateSelection: values.state ? [values.state] : [],
+                waterHasMeterSelection: [String(values.waterHasMeter ?? '0')],
                 parentKeySelection: values.parentKey ? [values.parentKey] : [], selectedUploads: {}, previewFiles: {},
             };
         },
@@ -116,8 +119,8 @@ export function propertyBulkEditor(initialRows, canCreate = true, draftKey = nul
             const rows = this.submissionRows();
             return { created: rows.filter(row => row.action === 'create').length, updated: rows.filter(row => row.action === 'update').length, removed: rows.filter(row => row.action === 'remove').length };
         },
-        isCellDisabled(row, field) { return row.removed || this.ancestorRemoved(row) || !(permissions[row.entity]?.[row.isNew ? 'create' : 'edit']) || (field === 'parentKey' && !row.isNew); },
-        hasRowData(row) { return (hierarchyFields[row.entity] || []).some(field => String(row[field] ?? '').trim()); },
+        isCellDisabled(row, field) { return (waterFields.includes(field) && (!gridConfig.canManageWaterMeters || row.waterSetupLocked || (field !== 'waterHasMeter' && String(row.waterHasMeter) !== '1'))) || row.removed || this.ancestorRemoved(row) || !(permissions[row.entity]?.[row.isNew ? 'create' : 'edit']) || (field === 'parentKey' && !row.isNew); },
+        hasRowData(row) { return String(row.waterHasMeter) === '1' || (hierarchyFields[row.entity] || []).some(field => String(row[field] ?? '').trim()); },
         isFieldRequired(row, field) { return !row.removed && (row.isNew ? this.hasRowData(row) : row.changed) && hierarchyRequired[row.entity].includes(field); },
         markChanged(row, field = null) {
             if (field) this.clearCellErrors(row, field);
@@ -141,6 +144,7 @@ export function propertyBulkEditor(initialRows, canCreate = true, draftKey = nul
                 const action = row.isNew ? 'create' : (row.removed ? 'remove' : 'update');
                 const payload = { action, entity: row.entity, clientKey: row.key, id: row.isNew ? null : row.key, version: row.version || null, rowNumber: this.visibleRows(row.entity).indexOf(row) + firstRow };
                 if (action !== 'remove') for (const field of hierarchyFields[row.entity]) payload[field] = row[field];
+                if (action !== 'remove' && gridConfig.canManageWaterMeters && !row.waterSetupLocked) for (const field of waterFields) payload[field] = row[field] ?? '';
                 if (action === 'remove' && row.entity !== 'property') payload.parentKey = row.parentKey;
                 return [payload];
             });
@@ -148,7 +152,7 @@ export function propertyBulkEditor(initialRows, canCreate = true, draftKey = nul
         focusRowError(row, error) {
             this.switchEntity(row.entity);
             const field = this.errorCellField(error.field);
-            const target = hierarchyFields[row.entity].includes(field) ? error : { ...error, field: hierarchyFields[row.entity][0] };
+            const target = [...hierarchyFields[row.entity], ...waterFields].includes(field) ? error : { ...error, field: hierarchyFields[row.entity][0] };
             base.focusRowError.call(this, row, target);
         },
         validateBeforeSave(form) {
@@ -157,6 +161,7 @@ export function propertyBulkEditor(initialRows, canCreate = true, draftKey = nul
             if (submitted.length > 300) { this.setFieldError(this.rows.find(row => this.hasRowData(row)), 'name', 'Save up to 300 changed records at a time.'); }
             for (const row of this.rows) {
                 if (row.removed || this.ancestorRemoved(row) || (row.isNew ? !this.hasRowData(row) : !row.changed)) continue;
+                if (String(row.waterHasMeter) === '1' && ((row.waterOpeningReading !== '' && row.waterOpeningReading != null) !== !!row.waterOpeningDate)) this.setFieldError(row, row.waterOpeningDate ? 'waterOpeningReading' : 'waterOpeningDate', 'Enter both the opening reading and its date, or leave both blank.');
                 for (const field of hierarchyRequired[row.entity]) if (!String(row[field] ?? '').trim()) this.setFieldError(row, field, 'This field is required.');
                 if (row.entity === 'property' && row.postcode && !/^\d{5}$/.test(row.postcode)) this.setFieldError(row, 'postcode', 'Enter a five-digit postcode.');
                 if (row.entity !== 'property' && !this.parentRow(row)) this.setFieldError(row, 'parentKey', 'Choose an available parent record.');

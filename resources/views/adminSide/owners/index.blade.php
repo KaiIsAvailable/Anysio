@@ -15,10 +15,12 @@
                 </div>
                 
                 <div class="flex-shrink-0 flex flex-wrap items-center gap-2" x-data="{loading: false}">
-                    @canany(['super-admin', 'owner.create', 'owner.edit'])
-                        <div x-data="{ bulkEditLoading: false }">
-                            <x-form.primary-button type="button" loading="bulkEditLoading" @click="bulkEditLoading = true; window.location.href = '{{ route('admin.owners.bulk-edit') }}'">Bulk Edit</x-form.primary-button>
-                        </div>
+                    @canany(['super-admin', 'owner.bulk edit'])
+                        @canany(['super-admin', 'owner.create', 'owner.edit'])
+                            <div x-data="{ bulkEditLoading: false }">
+                                <x-form.primary-button type="button" loading="bulkEditLoading" @click="bulkEditLoading = true; window.location.href = '{{ route('admin.owners.bulk-edit') }}'">Bulk Edit</x-form.primary-button>
+                            </div>
+                        @endcanany
                     @endcanany
 
                     @canany(['super-admin', 'owner.create'])

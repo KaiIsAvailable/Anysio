@@ -59,7 +59,7 @@ class OwnerBulkSaveTest extends TestCase
         Storage::fake('local');
         Storage::fake('public');
         $this->manager = User::create(['name' => 'Manager', 'email' => 'manager@example.test', 'password' => 'secret', 'role' => 'ownerAdmin', 'email_verified_at' => now()]);
-        $this->grant(['owner.tab', 'owner.create', 'owner.edit', 'owner.delete']);
+        $this->grant(['owner.tab', 'owner.bulk edit', 'owner.create', 'owner.edit', 'owner.delete']);
         $this->actingAs($this->manager);
     }
 
@@ -188,7 +188,7 @@ class OwnerBulkSaveTest extends TestCase
         $row = $this->editRow($owner);
         $owner->update(['agent_id' => 'other-manager']);
         $this->post(route('admin.owners.bulk-save'), ['rows_json' => json_encode([$row]), 'page' => 1])->assertSessionHas('error', 'You have no permission.');
-        $this->grant(['owner.tab', 'owner.create']);
+        $this->grant(['owner.tab', 'owner.bulk edit', 'owner.create']);
         $owner->update(['agent_id' => $this->manager->id]);
         $this->post(route('admin.owners.bulk-save'), ['rows_json' => json_encode([$this->editRow($owner)]), 'page' => 1])->assertSessionHas('error', 'You have no permission.');
         $this->assertDatabaseCount('bulk_operations', 0);
@@ -206,7 +206,7 @@ class OwnerBulkSaveTest extends TestCase
         $this->assertDatabaseCount('owners', 1);
         $this->assertSame('Changed elsewhere', $owner->fresh()->user->name);
         $operation = $operations->start($this->validated([$this->row()]), $this->manager, [], (string) Str::uuid(), 1, 'draft');
-        $this->grant(['owner.tab']);
+        $this->grant(['owner.tab', 'owner.bulk edit']);
         $operations->process($operation->id);
         $this->assertSame('failed', $operation->fresh()->status);
         $this->assertDatabaseCount('owners', 1);
@@ -275,6 +275,7 @@ class OwnerBulkSaveTest extends TestCase
         $url = route('admin.owners.bulk-progress', $operation->request_key);
         $this->getJson($url)->assertOk()->assertJsonPath('percent', 99);
         $other = User::create(['name' => 'Other', 'email' => 'other@example.test', 'password' => 'secret', 'role' => 'ownerAdmin', 'email_verified_at' => now()]);
+        $other->forceFill(['account_permissions' => ['owner.tab', 'owner.bulk edit']])->save();
         $this->actingAs($other)->getJson($url)->assertNotFound();
         Cache::store('file')->forget('owner-bulk-progress:'.$operation->id);
     }
@@ -334,7 +335,7 @@ class OwnerBulkSaveTest extends TestCase
     {
         $owner = $this->create();
         $other = User::create(['name' => 'Manager B', 'email' => 'manager-b@example.test', 'password' => 'secret', 'role' => 'ownerAdmin', 'email_verified_at' => now()]);
-        $other->forceFill(['account_permissions' => ['owner.tab', 'owner.create', 'owner.edit']])->save();
+        $other->forceFill(['account_permissions' => ['owner.tab', 'owner.bulk edit', 'owner.create', 'owner.edit']])->save();
         $this->actingAs($other);
         app(OwnerBulkService::class)->save($this->validated([$this->row(['ic' => $owner->ic_number, 'phone' => $owner->phone])]), $other);
         $second = Owners::where('agent_id', $other->id)->firstOrFail();
@@ -379,6 +380,29 @@ class OwnerBulkSaveTest extends TestCase
                 'page' => 1,
             ])->assertSessionHasErrors('rows.1.'.$field);
         }
+        $this->assertDatabaseCount('owners', 0);
+    }
+
+    public function test_bulk_edit_grant_is_required_for_page_requests_and_queued_writes(): void
+    {
+        Queue::fake();
+        $operations = app(OwnerBulkOperationService::class);
+        $operation = $operations->start($this->validated([$this->row()]), $this->manager, [], (string) Str::uuid(), 1, 'draft');
+        $this->grant(array_values(array_diff($this->manager->account_permissions, ['owner.bulk edit'])));
+
+        $view = app(OwnerBulkController::class)->index(\Illuminate\Http\Request::create('/'), app(OwnerBulkService::class), $operations);
+        $this->assertSame('errors.403', $view->name());
+        $this->post(route('admin.owners.bulk-save'), ['rows_json' => json_encode([$this->row()]), 'page' => 1])
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->get(route('admin.owners.bulk-progress', $operation->request_key))
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->get(route('admin.owners.bulk-complete', $operation->request_key))
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertNull($operation->fresh()->acknowledged_at);
+
+        $operations->process($operation->id);
+        $this->assertSame('failed', $operation->fresh()->status);
+        $this->assertSame(['bulk' => ['You have no permission.']], $operation->fresh()->errors);
         $this->assertDatabaseCount('owners', 0);
     }
 }

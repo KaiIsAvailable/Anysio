@@ -8,6 +8,7 @@
     'showOwnerField' => false,
     'showleaseableField' => false,
     'showStatusField' => false,
+    'statusOptions' => null,
     'showStampingStatusField' => false,
     'showPendingRenewalField' => false,
     'showChargeField' => false,
@@ -333,7 +334,7 @@
                                 id="lease-status"
                                 x-model="status"
                                 value="{{ request('status') }}"
-                                :options="[
+                                :options="$statusOptions ?? [
                                     'N' => 'New',
                                     'R' => 'Renew',
                                     'E' => 'End',

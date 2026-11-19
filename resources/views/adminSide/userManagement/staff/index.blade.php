@@ -1,5 +1,9 @@
 <x-app-layout>
-    <div class="py-12 bg-gray-50 min-h-screen font-sans">
+    <div class="py-12 bg-gray-50 min-h-screen font-sans" x-data="{}" x-on:staff-created.window="
+        const url = new URL(window.location.href);
+        url.searchParams.delete('create');
+        window.location.assign(url.toString());
+    ">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             
             <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
@@ -8,13 +12,12 @@
                     <p class="mt-2 text-sm text-gray-500">Staff linked to your account.</p>
                 </div>
                 @canany(['super-admin', 'staff.create'])
-                <div class="flex-shrink-0" x-data="{loading: false}">
+                <div class="flex-shrink-0">
                     <x-form.primary-button
                         type="button"
-                        loading="loading"
-                        @click="loading = true; window.location.href = '{{ route('admin.staff.create') }}'"
+                        @click="$dispatch('open-modal', 'create-staff')"
                         >
-                        <svg x-show="!loading" class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                         </svg>
                         Add New Staff
@@ -89,6 +92,9 @@
                                                             @endif
                                                         </div>
                                                         <div class="text-xs text-gray-500 mt-0.5">{{ $staffUser->email ?? 'N/A' }}</div>
+                                                        @if($member->phone)
+                                                            <div class="text-xs text-gray-500 mt-0.5">{{ $member->phone }}</div>
+                                                        @endif
                                                     </div>
                                                 </div>
                                             </div>
@@ -150,5 +156,10 @@
                 @endif
             </div>
         </div>
+        @if($staffCreateData)
+            <x-staff.create-modal :roles="$staffCreateData['roles']" :management-id="$staffCreateData['managementId']"
+                :management-user-id="$staffCreateData['managementUserId']" :management-options="$staffCreateData['managementOptions']"
+                :show="request()->boolean('create')" />
+        @endif
     </div>
 </x-app-layout>

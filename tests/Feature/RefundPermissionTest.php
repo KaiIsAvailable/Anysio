@@ -55,6 +55,7 @@ class RefundPermissionTest extends TestCase
     {
         Gate::shouldReceive('denies')->once()->with('super-admin')->andReturn(true);
         Gate::shouldReceive('denies')->once()->with($permission)->andReturn(true);
+        if ($controller === FeeTypeController::class) Gate::shouldReceive('denies')->once()->with('fee types.create')->andReturn(true);
         $response = $this->controller($controller)->$method(Request::create('/action', 'POST'));
         $this->assertSame(302, $response->getStatusCode());
         $this->assertSame('You have no permission.', session('error'));
@@ -137,7 +138,8 @@ class RefundPermissionTest extends TestCase
         $this->assertSame('sqlite', DB::connection()->getDriverName());
         $this->assertSame(':memory:', config('database.connections.sqlite.database'));
         Schema::create('leases', function (Blueprint $table) { $table->string('id')->primary(); });
-        Schema::create('fee_types', function (Blueprint $table) { $table->string('id')->primary(); });
+        Gate::shouldReceive('any')->andReturn(true);
+        Schema::create('fee_types', function (Blueprint $table) { $table->string('id')->primary(); $table->string('category')->default('item'); });
         Schema::create('refunds', function (Blueprint $table) {
             $table->string('id')->primary(); $table->string('lease_id'); $table->string('status');
         });

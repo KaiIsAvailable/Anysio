@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use App\FeeTypeCategory;
 use App\Traits\Auditable;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Str;
 
 class FeeType extends Model
 {
@@ -58,5 +60,39 @@ class FeeType extends Model
     public function refundItems(): HasMany
     {
         return $this->hasMany(RefundItem::class, 'fee_type_id');
+    }
+
+    public function scopeForAccount(Builder $query, string $userId): Builder
+    {
+        return $query->where(fn (Builder $fees) => $fees->where('is_system', true)->orWhere('user_id', $userId));
+    }
+
+    // Apply only to user-facing catalogs. Historical references and automatic
+    // billing must continue to resolve existing fee types independently.
+    public function scopeVisibleToActor(Builder $query): Builder
+    {
+        return $query->whereIn('category', \App\Services\FeeTypeService::allowedCategories());
+    }
+
+    public function scopeSearch(Builder $query, ?string $search): Builder
+    {
+        return $query->when(filled($search), fn (Builder $fees) => $fees->where(function (Builder $match) use ($search) {
+            $match->where('name', 'like', '%'.$search.'%')->orWhere('category', 'like', '%'.$search.'%');
+        }));
+    }
+
+    public function settingKey(): string
+    {
+        return Str::slug(strtolower($this->category->value.'_'.$this->name), '_');
+    }
+
+    public function leaseCharges(): HasMany
+    {
+        return $this->hasMany(LeaseCharge::class)->withoutGlobalScopes();
+    }
+
+    public function maintenanceItems(): HasMany
+    {
+        return $this->hasMany(Maintenance::class)->withoutGlobalScopes();
     }
 }

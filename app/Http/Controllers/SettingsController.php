@@ -2,8 +2,8 @@
 namespace App\Http\Controllers;
 
 use App\FeeTypeCategory;
-use App\Models\{FeeType, Owners, Invoice, Role};
-use App\Services\{SettingService, InvoiceService};
+use App\Models\{Invoice, Role};
+use App\Services\{SettingService, InvoiceService, FeeTypeService};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\{Log, Auth, Gate};
 use Spatie\Permission\Models\{Permission};
@@ -12,6 +12,14 @@ class SettingsController extends Controller
 {
     public function index(SettingService $settingService)
     {
+        $feeTypesRequest = request('tab') === 'fee-types';
+        $canFeeTypes = Gate::any(['super-admin', 'fee types.view']);
+        if ($feeTypesRequest && !$canFeeTypes) return view('errors.403');
+        if ($feeTypesRequest && Gate::denies('super-admin') && Gate::denies('profile menu.setting')) {
+            return view('adminSide.setting.index', app(FeeTypeService::class)->settingsData(request()->only('search', 'category')) + [
+                'settings' => $settingService->getEffectiveSettings(), 'feeTypesOnly' => true, 'utilityOnly' => true,
+            ]);
+        }
         $utilityRequest = request('tab') === 'utility';
         $canUtilityTariffs = Gate::any(['super-admin', 'settings.utility tab', 'settings.edit utility meter prices'])
             || (Gate::allows('utilities.tab') && Gate::allows('utilities.tariff tab'));
@@ -22,7 +30,9 @@ class SettingsController extends Controller
         if ($utilityRequest && (Gate::allows('super-admin') || Gate::denies('profile menu.setting'))) {
             $tariffManager = app(\App\Services\UtilityBillingAccess::class)->manager(request(), true);
             return view('adminSide.setting.index', ['utilityOnly' => true, 'tariffManager' => $tariffManager,
-                'settings' => $settingService->getEffectiveSettings($tariffManager)]);
+                'settings' => $settingService->getEffectiveSettings($tariffManager),
+                'feeTypeSettings' => $canFeeTypes ? $settingService->getEffectiveSettings() : []] +
+                ($canFeeTypes ? app(FeeTypeService::class)->settingsData(request()->only('search', 'category')) : []));
         }
 
         if (Gate::allows('super-admin')) {
@@ -40,31 +50,6 @@ class SettingsController extends Controller
         $settings = $settingService->getEffectiveSettings($user->id);
 
         Log::channel('testing')->info('Resolved settings and fee_types_config:', $settings);
-
-        $feeTypesQuery = FeeType::query()
-            ->where('is_active', true)
-            ->where(function ($query) use ($user) {
-                $query->where('is_system', true);
-                if ($user->role === 'ownerAdmin') {
-                    $query->orWhere('user_id', $user->id);
-                } elseif ($user->role === 'agentAdmin') {
-                    $managedOwnerIds = Owners::where('agent_id', $user->id)->select('user_id');
-                    $query->orWhere('user_id', $user->id)
-                        ->orWhereIn('user_id', $managedOwnerIds);
-                }
-            });
-
-        $feeTypes = $feeTypesQuery
-            ->orderBy('category')
-            ->orderBy('name')
-            ->get();
-
-        $rentFeeTypes       = $feeTypes->where('category', 'rent')->values();
-        $depositFeeTypes    = $feeTypes->where('category', 'deposit')->values();
-        $utilityFeeTypes    = $feeTypes->where('category', 'utility')->values();
-        $serviceFeeTypes    = $feeTypes->where('category', 'service')->values();
-        $penaltyFeeTypes    = $feeTypes->where('category', 'penalty')->values();
-        $managementFeeTypes = $feeTypes->where('category', 'management')->values();
 
         $feeTypeCategoryOptions = collect(FeeTypeCategory::cases())->mapWithKeys(fn ($category) => [
             $category->value => ucfirst($category->value)
@@ -102,16 +87,10 @@ class SettingsController extends Controller
 
         return view('adminSide.setting.index', compact(
             'settings',
-            'rentFeeTypes',
-            'depositFeeTypes',
-            'utilityFeeTypes',
-            'serviceFeeTypes',
-            'penaltyFeeTypes',
-            'managementFeeTypes',
             'feeTypeCategoryOptions',
             'roles',
             'modules',
-        ));
+        ) + ($canFeeTypes ? app(FeeTypeService::class)->settingsData(request()->only('search', 'category')) : []));
     }
 
     public function update(Request $request, SettingService $settingService)
@@ -152,7 +131,7 @@ class SettingsController extends Controller
         foreach ([
             'settings.late_penalty_config' => 'settings.edit late payment',
             'settings.processing_fee_config' => 'settings.edit payment collection',
-            'fee_types_config' => 'settings.edit lease configuration',
+            'fee_types_config' => 'fee types.change status',
             'pending_renewal_config' => 'settings.edit pending renewal',
             'payment_config' => 'settings.edit payment collection',
         ] as $field => $permission) {
@@ -165,11 +144,15 @@ class SettingsController extends Controller
         $activeStates = $request->input('is_active', []);
 
         // Delegate persistence and configuration rule logic to the service
-        $settingService->saveSettings(
-            $userId, 
-            $request->only(['settings', 'fee_types_config', 'due_date_config', 'pending_renewal_config', 'payment_config']), 
-            $activeStates
-        );
+        try {
+            $settingService->saveSettings(
+                $userId,
+                $request->only(['settings', 'fee_types_config', 'due_date_config', 'pending_renewal_config', 'payment_config']),
+                $activeStates
+            );
+        } catch (\Illuminate\Auth\Access\AuthorizationException $exception) {
+            return back()->withInput()->with('error', 'You have no permission.');
+        }
 
         $activeTab = $request->input('tab') ?? $request->query('tab');
 
@@ -211,8 +194,15 @@ class SettingsController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
+        $request->validate([
+            'permissions' => ['sometimes', 'array'],
+            'permissions.*' => ['array'],
+            'permissions.*.*' => ['in:0,1'],
+        ]);
         $submittedData = $request->input('permissions', []);
-        $effectiveBossId = get_effective_user()?->id;
+        $manager = get_effective_user();
+        $effectiveBossId = $manager?->id;
+        $allowed = $manager ? app(\App\Services\AccountPermissionService::class)->delegatablePermissions($manager) : [];
 
         // 📝 Log incoming request data
         Log::channel('testing')->info('updateRolePermissions Request Received', [
@@ -222,6 +212,18 @@ class SettingsController extends Controller
 
         // 1. Fetch ALL roles for this team so we catch roles where everything was unchecked
         $roles = Role::where('team_id', $effectiveBossId)->get();
+
+        // Validate every role before changing any, so a forged later entry cannot
+        // leave earlier roles partially updated or cross workspace boundaries.
+        if (array_diff(array_keys($submittedData), $roles->modelKeys())) {
+            return redirect()->back()->withInput()->with('error', 'You have no permission.');
+        }
+        foreach ($submittedData as $rolePermissions) {
+            $requested = array_keys(array_filter($rolePermissions, fn ($value) => $value == '1'));
+            if (array_diff($requested, $allowed)) {
+                return redirect()->back()->withInput()->with('error', 'You have no permission.');
+            }
+        }
 
         foreach ($roles as $role) {
             // Grab submitted permissions for this role, or default to an empty array if all were unchecked

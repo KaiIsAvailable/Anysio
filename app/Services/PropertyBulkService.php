@@ -23,7 +23,8 @@ class PropertyBulkService implements BulkSaveHandler
 
     public function revision(Model $record): string
     {
-        return hash('sha256', json_encode($record->getAttributes(), JSON_THROW_ON_ERROR));
+        return hash('sha256', json_encode([$record->getAttributes(), UtilitySetupService::canManageWaterMeters()
+            ? $record->utilityServices->where('type', 'water')->map->getAttributes()->values()->all() : []], JSON_THROW_ON_ERROR));
     }
 
     public function permissions(): array
@@ -58,23 +59,27 @@ class PropertyBulkService implements BulkSaveHandler
         $active = fn ($query, $table) => $query->whereRaw("LOWER(TRIM({$table}.status)) NOT IN ('removed', 'inactive')");
         $properties = fn ($query) => $active($query->forManagement($manager), 'properties');
 
-        return match ($entity) {
+        $query = match ($entity) {
             'property' => $properties(Property::query()),
             'unit' => $active(Unit::whereHas('property', $properties), 'units'),
             'room' => $active(Room::whereHas('unit', fn ($q) => $active($q->whereHas('property', $properties), 'units')), 'rooms'),
             default => throw new AuthorizationException,
         };
+        return UtilitySetupService::canManageWaterMeters() ? $query->with(['utilityServices' => fn ($q) => $q->where('type', 'water')->where('management_user_id', $manager->id)]) : $query;
     }
 
     public function authorizeRows(array $rows, User $manager): array
     {
-        if (Gate::denies('super-admin') && Gate::denies('property.tab')) {
+        if (Gate::denies('super-admin') && (Gate::denies('property.tab') || Gate::denies('property.bulk edit'))) {
             throw new AuthorizationException;
         }
         $permissions = $this->permissions();
         foreach ($rows as $row) {
             $entity = $row['entity'] ?? 'property';
             $action = ['create' => 'create', 'update' => 'edit', 'remove' => 'delete'][$row['action']] ?? '';
+            if (array_intersect(UtilitySetupService::WATER_FIELDS, array_keys($row)) && !UtilitySetupService::canManageWaterMeters()) {
+                throw new AuthorizationException;
+            }
             if (! ($permissions[$entity][$action] ?? false)) {
                 throw new AuthorizationException;
             }
@@ -104,6 +109,12 @@ class PropertyBulkService implements BulkSaveHandler
             $row['parentKey'] = $record->getAttribute($entity === 'unit' ? 'property_id' : 'unit_id');
         }
 
+        if (UtilitySetupService::canManageWaterMeters()) {
+            $meter = app(UtilitySetupService::class)->waterMeterData($record);
+            $row += array_combine(UtilitySetupService::WATER_FIELDS, array_values($meter));
+            $service = $record->utilityServices->firstWhere('type', 'water');
+            $row['waterSetupLocked'] = $service && $service->billing_method !== 'metered';
+        }
         return $row;
     }
 
@@ -276,6 +287,21 @@ class PropertyBulkService implements BulkSaveHandler
                             $data += ['created_by' => $manager->id, 'status' => 'Vacant'];
                         }
                         $record->fill($data)->saveWithoutStatusSynchronization();
+                        if (array_key_exists('waterHasMeter', $row)) {
+                            try {
+                                app(UtilitySetupService::class)->saveWaterMeter($record, [
+                                    'has_meter' => $row['waterHasMeter'], 'meter_number' => $row['waterMeterNumber'] ?? null,
+                                    'opening_reading' => $row['waterOpeningReading'] ?? null, 'opening_reading_date' => $row['waterOpeningDate'] ?? null,
+                                ]);
+                            } catch (ValidationException $exception) {
+                                $errors = [];
+                                $fields = array_combine(['has_meter', 'meter_number', 'opening_reading', 'opening_reading_date'], UtilitySetupService::WATER_FIELDS);
+                                foreach ($exception->errors() as $field => $messages) {
+                                    $errors['rows.'.$index.'.'.($fields[str_replace('water_meter.', '', $field)] ?? 'waterHasMeter')] = $messages;
+                                }
+                                throw ValidationException::withMessages($errors);
+                            }
+                        }
                         $records[$entity][$key] = $record;
                         $counts[$new ? 'created' : 'updated']++;
                     }

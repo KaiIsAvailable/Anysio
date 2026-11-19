@@ -15,6 +15,7 @@
         renewalStartDate: @js(old('start_date', '')),
         submittingLease: false,
         checkoutSubmitting: false,
+        refundReasonOpen: false,
         submitError: '',
         refundData: {},
         refundLoading: false,
@@ -104,7 +105,6 @@
         },
         
         openModal(detail = {}) {
-            console.log('🚀 [Debug] openModal received detail:', detail);
 
             let rawStatus = detail.status ? String(detail.status) : 'New';
             if (rawStatus === 'R' || rawStatus === 'Renew') rawStatus = 'Renew';
@@ -120,29 +120,6 @@
             this.refundForceRefresh = rawStatus === 'Check Out';
             this.formLeaseId = (detail.leaseId && detail.leaseId !== '0') ? String(detail.leaseId) : '';
             this.open = true;
-
-            // 🔍 COMPREHENSIVE LEASE, INVOICE & ITEM INSPECTOR
-            if (this.formLeaseId) {
-                const leaseObj = typeof allLeases !== 'undefined' ? allLeases[this.formLeaseId] : null;
-                const previewObj = typeof leasePreviewData !== 'undefined' ? leasePreviewData[this.formLeaseId] : null;
-
-                console.group(`🔍 [Lease Data Inspector for ID: ${this.formLeaseId}]`);
-                console.log('📋 Full Lease Object from allLeases:', leaseObj);
-                console.log('💰 Lease Preview Data from leasePreviewData:', previewObj);
-
-                if (previewObj && previewObj.invoices) {
-                    console.log('📄 Invoices found:', previewObj.invoices);
-                    previewObj.invoices.forEach((inv, index) => {
-                        console.group(`--- Invoice #${index + 1} (ID: ${inv.id}, No: ${inv.invoice_no || 'N/A'}) ---`);
-                        console.log('Invoice Details:', inv);
-                        console.log('Invoice Items / Line Items:', inv.items || inv.invoice_items || 'No items property found');
-                        console.groupEnd();
-                    });
-                } else {
-                    console.log('⚠️ No invoices array found inside leasePreviewData for this lease ID.');
-                }
-                console.groupEnd();
-            }
 
             if (this.formStatus === 'Renew') {
                 this.action = 'renew';
@@ -167,7 +144,9 @@
      }"
      @open-lease-modal.window="openModal($event.detail)"
      x-init="if (open && action === 'checkout' && formLeaseId) $nextTick(() => { toggleLeaseSelect(formStatus); handleLeaseChange(formLeaseId); })"
-     @keydown.escape.window="if (!submittingLease && !checkoutSubmitting) open = false"
+     @keydown.escape.window="if (!submittingLease && !checkoutSubmitting) { if (refundReasonOpen) { $dispatch('close-refund-reason-modal'); } else { open = false; } }"
+     @open-refund-reason-modal.window="refundReasonOpen = true"
+     @close-refund-reason-modal.window="refundReasonOpen = false"
      x-show="open" 
      class="fixed inset-0 z-50 overflow-y-auto" 
      style="display: none;"
@@ -468,11 +447,18 @@
                                     }, 0);
                                 },
                                 handleFeeTypeAdded(detail) {
-                                    this.availableFeeTypes.push(detail);
+                                    const category = typeof detail?.category === 'object' ? detail.category?.value : detail?.category;
+                                    if (category !== 'item' || !detail?.id) return;
+                                    const fee = { ...detail, id: String(detail.id) };
+                                    const existing = this.availableFeeTypes.findIndex(item => String(item.id) === fee.id);
+                                    this.availableFeeTypes = existing === -1
+                                        ? [...this.availableFeeTypes, fee]
+                                        : this.availableFeeTypes.map((item, index) => index === existing ? fee : item);
+                                    window.allFeeTypes = this.availableFeeTypes;
                                     let lastItem = this.manualDeductions[this.manualDeductions.length - 1];
                                     if (lastItem && !lastItem.fee_type_id) {
-                                        lastItem.fee_type_id = detail.id;
-                                        this.updateItemPrice(this.manualDeductions.length - 1, detail.id);
+                                        lastItem.fee_type_id = fee.id;
+                                        this.updateItemPrice(this.manualDeductions.length - 1, fee.id);
                                     }
                                 },
                                 get activeRefund() {
@@ -647,20 +633,22 @@
                                 </div>
 
                                 {{-- Unified Container for Refund Settlement --}}
-                                <div class="bg-white rounded-xl border border-slate-200 shadow-xs overflow-hidden space-y-4">
+                                <div class="bg-white rounded-xl border border-slate-200 shadow-xs space-y-4">
                                     
                                     {{-- Sticky Header Bar (Now sticky relative to the unified card wrapper) --}}
-                                    <div class="sticky top-0 z-20 bg-white py-3 px-4 border-b border-slate-200 flex items-center justify-between">
+                                    <div class="sticky top-0 z-20 bg-white rounded-t-xl py-3 px-4 border-b border-slate-200 flex flex-wrap gap-3 items-center justify-between">
                                         <h4 class="text-xs font-bold text-slate-800 uppercase tracking-wider">
                                             {{ __('Refund Settlement Items') }}
                                         </h4>
 
                                         {{-- Action Buttons --}}
                                         <div class="flex items-center gap-3" x-show="['none', 'draft'].includes(refundStatus)">
+                                            @canany(['super-admin', 'fee types.item'])
                                             @canany(['super-admin', 'leases.add fee type'])
                                             <button type="button" @click="$dispatch('open-fee-type-modal', { category: 'item' })" class="inline-flex items-center text-xs font-bold text-gray-600 hover:text-indigo-600 transition-colors">
                                                 + Add Fee Type
                                             </button>
+                                            @endcanany
                                             @endcanany
                                             @canany(['super-admin', 'leases.add deduction item'])
                                             <button type="button" @click="addDeductionRow()" class="inline-flex items-center text-xs font-bold text-indigo-600 hover:text-indigo-700 transition-colors">
@@ -669,6 +657,7 @@
                                             @endcanany
                                         </div>
                                     </div>
+                                    <p class="px-4 text-xs text-gray-500">Maintenance is created for each deduction item only after Process Refund succeeds. Draft, pending and approved refunds do not create work orders. Unpaid-invoice deductions are excluded.</p>
 
                                     {{-- Main Summary Content Body (Padded inside the unified wrapper) --}}
                                     <div class="p-4 space-y-4">
@@ -696,8 +685,8 @@
                                         </div>
 
                                         {{-- 2. Custom Deductions & Charges Section --}}
-                                        <div class="space-y-3 pt-1" x-show="manualDeductions.length > 0 || refundStatus === 'none' || refundStatus === 'draft'" x-transition>
-                                            <div class="flex items-center justify-between" x-show="['none', 'draft'].includes(refundStatus) || manualDeductions.length > 0">
+                                        <div class="space-y-3 pt-1" x-show="manualDeductions.length > 0" x-cloak x-transition>
+                                            <div class="flex items-center justify-between">
                                                 <span class="text-[11px] font-bold text-slate-600 uppercase tracking-wider">{{ __('Custom Deductions & Charges') }}</span>
                                             </div>
 
@@ -726,6 +715,7 @@
                                                                     x-model="item.fee_type_id"
                                                                     ::name="'items['+index+'][fee_type_id]'"
                                                                     :options="$itemFeeTypes->map(fn($f) => ['value' => (string)$f->id, 'label' => $f->name . ' (Item)'])->values()"
+                                                                    x-effect="options = availableFeeTypes.map(fee => ({ value: String(fee.id), label: fee.name + ' (Item)' }))"
                                                                     placeholder="Select Item"
                                                                     :ignore-checkout-or-renew="true"
                                                                     @change="updateItemPrice(index, $event)" 
@@ -795,10 +785,6 @@
                                 </div>
                             </div>
 
-                            <div x-show="action === 'checkout' && refundReady" x-cloak class="space-y-2">
-                                <x-form.input-label for="refund-transition-reason" value="Reason for returning or revoking approval" />
-                                <textarea id="refund-transition-reason" name="transition_reason" rows="2" maxlength="1000" class="w-full rounded-lg border-gray-300 text-sm" placeholder="Required for Return to Draft or Revoke Approval">{{ old('transition_reason') }}</textarea>
-                            </div>
 
 
                             <div id="lease_charges_section" class="space-y-4 border-t border-gray-200 pt-6">
@@ -884,16 +870,62 @@
                                 <template x-if="action === 'checkout' && refundReady">
                                     <div class="flex flex-wrap items-center justify-end gap-2" x-data="{
                                         subAction: '',
-                                        async submitCheckout(routeUrl, actionName) {
+                                        transitionReason: @js(old('transition_reason', '')),
+                                        transitionAction: '',
+                                        transitionRoute: '',
+                                        transitionForm: null,
+                                        requestRefundReason(routeUrl, actionName) {
+                                            if (this.checkoutSubmitting || !this.refundReady || this.refundLoading || this.refundLoadError) return;
+                                            this.transitionAction = actionName;
+                                            this.transitionRoute = routeUrl;
+                                            this.transitionForm = $el.closest('form');
+                                            this.$dispatch('open-refund-reason-modal');
+                                        },
+                                        cancelRefundReason() {
+                                            if (this.checkoutSubmitting) return;
+                                            this.transitionAction = '';
+                                            this.transitionRoute = '';
+                                            this.transitionForm = null;
+                                            this.$dispatch('close-refund-reason-modal');
+                                        },
+                                        async confirmRefundReason(dialog) {
+                                            const field = dialog.querySelector('textarea');
+                                            field.setCustomValidity(this.transitionReason.trim() ? '' : 'Enter a reason.');
+                                            if (!field.reportValidity()) return;
+                                            if (!this.transitionForm || !['reject', 'revoke'].includes(this.transitionAction)) return;
+                                            await this.submitCheckout(this.transitionRoute, this.transitionAction, this.transitionForm);
+                                            this.$dispatch('close-refund-reason-modal');
+                                        },
+                                        async submitCheckout(routeUrl, actionName, sourceForm = null) {
                                             if (this.checkoutSubmitting || !this.refundReady || this.refundLoading || this.refundLoadError) return;
                                             this.checkoutSubmitting = true;
                                             this.subAction = actionName;
-                                            const form = $el.closest('form');
+                                            const form = sourceForm || $el.closest('form');
                                             let success = false;
                                             try { success = await this.sendLeaseForm(form, routeUrl); }
                                             finally { if (!success) { this.subAction = ''; this.checkoutSubmitting = false; } }
                                         }
-                                    }">
+                                    }" x-init="$watch('formLeaseId', () => { transitionReason = ''; transitionAction = ''; transitionForm = null; $dispatch('close-refund-reason-modal'); })">
+                                        <input type="hidden" name="transition_reason" :value="transitionReason">
+                                        <template x-if="refundReasonOpen">
+                                        <x-modals.confirmation-modal id="refund-reason-modal" title="Confirm Refund Change" :show="true" :closable="false">
+                                            <div class="p-6 space-y-4" data-refund-reason-dialog
+                                                x-init="$nextTick(() => $el.querySelector('textarea')?.focus())">
+                                                <p class="text-sm text-gray-600" x-text="transitionAction === 'revoke' ? 'Revoke approval and return this refund to Draft? Enter the reason for this change.' : 'Return this refund to Draft? Enter the reason for the correction.'"></p>
+                                                <div>
+                                                    <x-form.input-label for="refund-transition-reason" value="Reason" :required="true" />
+                                                    <x-form.textarea id="refund-transition-reason" x-model="transitionReason" rows="3" maxlength="1000" required
+                                                        ::disabled="checkoutSubmitting" @input="$el.setCustomValidity('')" placeholder="Explain why this refund needs to return to Draft." />
+                                                </div>
+                                                <div class="flex items-center justify-end gap-3">
+                                                    <x-form.secondary-button type="button" ::disabled="checkoutSubmitting" @click="cancelRefundReason()">Cancel</x-form.secondary-button>
+                                                    <x-form.primary-button type="button" variant="danger" loading="checkoutSubmitting" @click="confirmRefundReason($el.closest('[data-refund-reason-dialog]'))">
+                                                        <span x-text="transitionAction === 'revoke' ? 'Revoke Approval' : 'Return to Draft'"></span>
+                                                    </x-form.primary-button>
+                                                </div>
+                                            </div>
+                                        </x-modals.confirmation-modal>
+                                        </template>
                                         
                                         {{-- STEP 1 & 2: Save as Draft or Direct Confirm & Set as Pending --}}
                                             <div class="flex items-center gap-2" x-show="['none', 'draft'].includes(refundStatus)" x-cloak>
@@ -927,7 +959,7 @@
                                                 <x-form.secondary-button 
                                                     type="button"
                                                     loading="subAction === 'reject'" 
-                                                    @click="submitCheckout('{{ route('admin.refunds.reject') }}', 'reject')"
+                                                    @click="requestRefundReason('{{ route('admin.refunds.reject') }}', 'reject')"
                                                     class="!bg-red-600 !text-white !border-red-600 hover:!bg-red-700 focus:!ring-red-500">
                                                     Return to Draft
                                                 </x-form.secondary-button>
@@ -948,7 +980,7 @@
                                         {{-- STEP 4: APPROVED -> Proceed to Final Refund Payout --}}
                                             <div class="flex items-center gap-2" x-show="refundStatus === 'approved'" x-cloak>
                                                 @canany(['super-admin', 'leases.revoke refund approval'])
-                                                <x-form.secondary-button type="button" loading="subAction === 'revoke'" @click="submitCheckout('{{ route('admin.refunds.revoke-approval') }}', 'revoke')">
+                                                <x-form.secondary-button type="button" loading="subAction === 'revoke'" @click="requestRefundReason('{{ route('admin.refunds.revoke-approval') }}', 'revoke')">
                                                     Revoke Approval
                                                 </x-form.secondary-button>
                                                 @endcanany
@@ -1289,28 +1321,6 @@
                     formData.set('refund_context', JSON.stringify(refundContext));
                 }
 
-                console.groupCollapsed('[Lease Preview Debug]');
-                console.log('Selected template:', {
-                    id: selectedTemplateId,
-                    category: isRefundTemplate ? 'refund' : 'agreement',
-                });
-                console.log('Selected lease ID:', selectedLeaseId);
-                console.log('Selected lease preview data:', selectedLeaseData);
-                console.log('Lease inputs in DOM:', Array.from(
-                    document.querySelectorAll('input[name="lease_id"]')
-                ).map(input => ({
-                    id: input.id,
-                    value: input.value,
-                    disabled: input.disabled,
-                })));
-                console.log('Preview FormData:', Array.from(formData.entries()).map(([key, value]) => [
-                    key,
-                    value instanceof File ? `[File: ${value.name}]` : value,
-                ]));
-                console.log('Template variable names:', Array.from(
-                    templateData.content.matchAll(/data-variable=["']([^"']+)["']|\x7B\x7B\s*([a-zA-Z0-9_]+)\s*\x7D\x7D/g)
-                ).map(match => match[1] || match[2]));
-                console.groupEnd();
 
                 const response = await fetch('{{ route('admin.leases.preview-template') }}', {
                     method: 'POST',
@@ -1327,7 +1337,6 @@
                 }
 
                 const rendered = await response.json();
-                console.log('[Lease Preview Debug] Backend response:', rendered);
                 return { content: rendered.content, title: rendered.title };
             }
 
@@ -1578,42 +1587,10 @@
                     throw new Error('Incomplete checkout preview response.');
                 }
 
-                console.group('[Checkout Refund] Backend tenant bank details');
-                console.log('Lease ID:', leaseId);
-                console.log('Full checkout preview response:', loadedLeaseData);
-                console.log('Tenant bank details:', loadedLeaseData.tenant_bank_details || []);
-                console.groupEnd();
                 window.leasePreviewData[leaseId] = loadedLeaseData;
-
-                const refundSection = document.getElementById('checkout_refund_section');
-                if (refundSection && window.Alpine) {
-                    const checkoutData = window.Alpine.$data(refundSection);
-                    const modalRoot = document.getElementById('lease-create-modal-root');
-                    const rootData = modalRoot ? window.Alpine.$data(modalRoot) : null;
-                    if (checkoutData) {
-                        checkoutData.refundData = {
-                            ...checkoutData.refundData,
-                            [leaseId]: loadedLeaseData,
-                        };
-                        checkoutData.tenantBankDetails = loadedLeaseData.tenant_bank_details || [];
-                        checkoutData.selectedBankId = checkoutData.tenantBankDetails.find(bank => bank.is_default)?.id
-                            || checkoutData.tenantBankDetails[0]?.id
-                            || '';
-                    }
-                    if (rootData) {
-                        rootData.refundData = {
-                            ...rootData.refundData,
-                            [leaseId]: loadedLeaseData,
-                        };
-                    }
-                }
             }
 
             const leaseData = window.leasePreviewData[leaseId];
-            console.log('[Checkout Refund] Bank details used by frontend:', {
-                leaseId,
-                tenantBankDetails: leaseData?.tenant_bank_details || [],
-            });
             const refundSection = document.getElementById('checkout_refund_section');
             const checkoutData = refundSection && window.Alpine
                 ? window.Alpine.$data(refundSection)

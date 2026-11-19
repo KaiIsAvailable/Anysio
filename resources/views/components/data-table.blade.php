@@ -1,8 +1,8 @@
-@props(['collection', 'columns'])
+@props(['collection', 'columns', 'overflowVisible' => false])
 
-<div class="bg-white rounded-xl shadow-lg overflow-hidden border border-gray-100">
+<div @class(['bg-white rounded-xl shadow-lg border border-gray-100', 'overflow-visible' => $overflowVisible, 'overflow-hidden' => !$overflowVisible])>
     @if(isset($header))
-        <div class="p-5 border-b border-gray-100 bg-white">
+        <div class="rounded-t-xl p-5 border-b border-gray-100 bg-white">
             {{ $header }}
         </div>
     @endif

@@ -141,6 +141,8 @@
                     </div>
 
                     {{-- Actions --}}
+                    <x-utilities.water-meter-fields :location="$property" />
+
                     <div class="flex justify-end gap-2 pt-4 border-t border-gray-100">
                         <a href="{{ route('admin.properties.index') }}"
                            class="bg-white hover:bg-gray-50 text-slate-900 font-bold py-2 px-6 rounded-lg shadow border border-gray-200 transition">

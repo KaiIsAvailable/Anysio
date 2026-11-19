@@ -28,7 +28,7 @@ class TenantCustomerServiceTest extends TestCase
                 $t->string('id')->primary();
                 $t->timestamps();
                 $columns = match ($table) {
-                    'users' => ['name', 'email', 'password', 'role', 'email_verified_at'],
+                    'users' => ['name', 'email', 'password', 'role', 'email_verified_at', 'account_permissions'],
                     'tenants' => ['user_id', 'created_by'],
                     'owners' => ['user_id', 'agent_id'],
                     'properties' => ['name', 'owner_id', 'created_by'],
@@ -69,7 +69,8 @@ class TenantCustomerServiceTest extends TestCase
     private function user(string $role): User
     {
         $id = (string) Str::ulid();
-        DB::table('users')->insert(['id' => $id, 'name' => $role, 'email' => $id.'@example.test', 'role' => $role, 'email_verified_at' => now()]);
+        DB::table('users')->insert(['id' => $id, 'name' => $role, 'email' => $id.'@example.test', 'role' => $role, 'email_verified_at' => now(),
+            'account_permissions' => in_array($role, ['agentAdmin', 'ownerAdmin'], true) ? json_encode(['service request.tab', 'service request.reply']) : null]);
         return User::findOrFail($id);
     }
 
@@ -322,47 +323,216 @@ class TenantCustomerServiceTest extends TestCase
         return array_merge(['category' => 'QNA', 'subject' => 'Question', 'details' => 'Hello', 'items' => [['type' => 'text', 'text' => 'Hello']]], $extra);
     }
 
-    private function staffFor(string $boss, bool $permission = true, ?string $permissionTeam = null): User
+    private function staffFor(string $boss, bool $permission = true, ?string $permissionTeam = null, bool $reply = false): User
     {
         $staff = $this->user('staff');
         $management = (string) Str::ulid();
         DB::table('user_management')->insert(['id' => $management, 'user_id' => $boss]);
         DB::table('staff')->insert(['id' => (string) Str::ulid(), 'user_id' => $staff->id, 'user_mgnt_id' => $management]);
         if ($permission) {
-            $permissionId = DB::table('permissions')->where('name', 'maintenance.tab')->value('id')
-                ?? DB::table('permissions')->insertGetId(['name' => 'maintenance.tab', 'guard_name' => 'web']);
+            $permissionId = DB::table('permissions')->where('name', 'service request.tab')->value('id')
+                ?? DB::table('permissions')->insertGetId(['name' => 'service request.tab', 'guard_name' => 'web']);
             $team = $permissionTeam ?? $boss;
             $roleId = DB::table('roles')->insertGetId(['name' => 'Maintenance '.$staff->id, 'guard_name' => 'web', 'team_id' => $team]);
             DB::table('role_has_permissions')->insert(['permission_id' => $permissionId, 'role_id' => $roleId]);
+            if ($reply) {
+                $replyId = DB::table('permissions')->where('name', 'service request.reply')->value('id')
+                    ?? DB::table('permissions')->insertGetId(['name' => 'service request.reply', 'guard_name' => 'web']);
+                DB::table('role_has_permissions')->insert(['permission_id' => $replyId, 'role_id' => $roleId]);
+            }
             DB::table('model_has_roles')->insert(['role_id' => $roleId, 'model_type' => User::class, 'model_id' => $staff->id, 'team_id' => $team]);
         }
         return $staff;
     }
 
-    public function test_staff_uses_own_permission_and_effective_scope_but_cannot_send(): void
+    public function test_staff_uses_own_permission_and_effective_scope_to_send(): void
     {
         $ticket = $this->ticket();
         $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId, 'subject' => 'Scoped ticket']);
         $path = 'ticket-attachments/'.$ticket->id.'/'.Str::uuid().'.txt';
         Storage::disk('local')->put($path, 'Private attachment');
         $message = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => $path]);
-        foreach ([$this->managerId, $this->ownerId] as $boss) {
-            $staff = $this->staffFor($boss);
+        foreach ([$this->managerId] as $boss) {
+            $staff = $this->staffFor($boss, reply: true);
             $this->actingAs($staff);
             $this->get(route('admin.maintenance.index'))->assertOk()->assertSee('Scoped ticket')->assertSee('Maintenance');
-            $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()->assertJsonPath('ticket.can_send', false);
+            $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()->assertJsonPath('ticket.can_send', true);
             foreach ([false, true] as $download) $this->get(route('admin.maintenance.attachment', [$ticket, $message, 'download' => $download]))->assertOk();
             DB::table('ticket_msgs')->where('id', $message->id)->update(['status' => 'unread', 'read_at' => null, 'read_by' => null]);
             $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => [$message->id]])->assertOk()->assertJsonPath('unread_count', 0);
             $this->assertSame($staff->id, $message->fresh()->read_by);
             $this->assertDatabaseHas('audit_logs', ['auditable_id' => $message->id, 'event' => 'updated', 'user_id' => $staff->id]);
-            $this->postJson(route('admin.maintenance.reply', $ticket), $this->batch())->assertForbidden()->assertJsonStructure(['message']);
-            $this->post(route('admin.maintenance.reply', $ticket), ['items' => [['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('test.txt', 'No upload')]]], ['Accept' => 'application/json'])->assertForbidden();
-            $this->assertSame(1, $ticket->messages()->count());
-            $this->assertCount(1, Storage::disk('local')->allFiles());
+            $this->postJson(route('admin.maintenance.reply', $ticket), $this->batch())->assertOk();
+            $this->post(route('admin.maintenance.reply', $ticket), ['items' => [['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('test.txt', 'Staff upload')]]], ['Accept' => 'application/json'])->assertOk();
+            $this->assertSame(3, $ticket->messages()->count());
+            $this->assertCount(2, Storage::disk('local')->allFiles());
             $this->getJson(route('admin.customerService.show', $ticket))->assertForbidden();
             $this->patchJson(route('admin.customerService.update', $ticket), ['message' => 'Bypass'])->assertForbidden();
         }
+    }
+
+    public function test_service_request_opens_first_visible_conversation_and_preserves_explicit_selection(): void
+    {
+        $lease = $this->lease();
+        $first = $this->ticket();
+        $first->update(['lease_id' => $lease->id, 'receive_id' => $this->ownerId, 'subject' => 'First visible']);
+        $second = $this->ticket();
+        $second->update(['lease_id' => $lease->id, 'receive_id' => $this->ownerId, 'subject' => 'Second visible']);
+        $first->messages()->create(['sender_type' => 'tenant', 'message' => 'Latest conversation']);
+        $staff = $this->staffFor($this->managerId);
+        $this->actingAs($staff);
+
+        $this->get(route('admin.maintenance.index'))->assertOk()
+            ->assertViewHas('selectedTicket', fn ($selected) => $selected->is($first))
+            ->assertSee('data-selected-ticket="'.$first->id.'"', false)
+            ->assertSee('Latest conversation');
+        $this->get(route('admin.maintenance.index', ['ticket' => $second->id]))->assertOk()
+            ->assertViewHas('selectedTicket', fn ($selected) => $selected->is($second));
+        $this->get(route('admin.maintenance.index', ['search' => 'Second visible']))->assertOk()
+            ->assertViewHas('selectedTicket', fn ($selected) => $selected->is($second));
+        $this->get(route('admin.maintenance.index', ['search' => 'No matching conversation']))->assertOk()
+            ->assertViewHas('selectedTicket', null);
+        $foreign = $this->ticket(sender: $this->user('tenant')->id);
+        $this->get(route('admin.maintenance.index', ['ticket' => $foreign->id]))->assertForbidden();
+        $this->actingAs($this->tenantUser)->get(route('tenants.customerService.index'))->assertOk()
+            ->assertViewHas('selectedTicket', fn ($selected) => $selected->is($first))
+            ->assertSee('Latest conversation');
+        $this->get(route('tenants.customerService.index', ['ticket' => $second->id]))->assertOk()
+            ->assertViewHas('selectedTicket', fn ($selected) => $selected->is($second));
+        $this->get(route('tenants.customerService.index', ['search' => 'Second visible']))->assertOk()
+            ->assertViewHas('selectedTicket', fn ($selected) => $selected->is($second));
+        $this->get(route('tenants.customerService.index', ['search' => 'No matching conversation']))->assertOk()
+            ->assertViewHas('selectedTicket', null);
+        $this->get(route('tenants.customerService.index', ['ticket' => $foreign->id]))->assertForbidden();
+    }
+
+    public function test_chat_sender_labels_use_recorded_users_names_in_history_and_sync(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId]);
+        $manager = User::findOrFail($this->managerId);
+        $manager->update(['name' => 'Alice Manager']);
+        $this->actingAs($manager);
+        $ticket->messages()->create(['sender_type' => 'agentAdmin', 'message' => 'Manager response']);
+        $this->actingAs($this->tenantUser);
+        $history = $this->getJson(route('tenants.customerService.show', $ticket))->assertOk()
+            ->assertJsonPath('messages.0.sender_label', 'Alice Manager');
+
+        $staff = $this->staffFor($this->managerId, reply: true);
+        $staff->update(['name' => 'Bob <Support>']);
+        $this->actingAs($staff);
+        $ticket->messages()->create(['sender_type' => 'staff', 'message' => 'Staff response']);
+        $this->actingAs($this->tenantUser);
+        $this->getJson(route('tenants.customerService.index', [
+            'sync' => 1, 'ticket' => $ticket->id, 'cursor' => $history->json('cursor'),
+        ]))->assertOk()->assertJsonPath('messages.0.sender_label', 'Bob <Support>');
+        $this->get(route('tenants.customerService.index', ['ticket' => $ticket->id]))->assertOk()
+            ->assertSee('Alice Manager')->assertSee('Bob &lt;Support&gt;', false)
+            ->assertDontSee('Bob <Support>', false);
+
+        DB::table('users')->where('id', $staff->id)->delete();
+        $this->getJson(route('tenants.customerService.show', $ticket))->assertOk()
+            ->assertJsonPath('messages.1.sender_label', 'Unverified sender');
+    }
+
+    public function test_service_request_navigation_unread_state_respects_scope_and_message_direction(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId]);
+        $message = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Unread request']);
+        $secondMessage = $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Another unread message']);
+        $secondTicket = $this->ticket();
+        $secondTicket->update(['lease_id' => $ticket->lease_id, 'receive_id' => $this->ownerId]);
+        $thirdMessage = $secondTicket->messages()->create(['sender_type' => 'tenant', 'message' => 'Another conversation']);
+        $staff = $this->staffFor($this->managerId);
+        $url = route('admin.maintenance.unread');
+        $this->actingAs($staff);
+        $this->getJson($url)->assertOk()->assertJsonPath('unread_count', 3);
+        $ticket->messages()->create(['sender_type' => 'staff', 'message' => 'Outgoing reply']);
+        $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Incorrectly attributed tenant message']);
+        $ticket->messages()->create(['sender_type' => 'system', 'message' => 'System update']);
+        $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => [$message->id]])->assertOk();
+        $this->getJson($url)->assertOk()->assertJsonPath('unread_count', 2);
+        $this->postJson(route('admin.maintenance.markRead', $ticket), ['message_ids' => [$secondMessage->id]])->assertOk();
+        $this->postJson(route('admin.maintenance.markRead', $secondTicket), ['message_ids' => [$thirdMessage->id]])->assertOk();
+        $this->getJson($url)->assertOk()->assertJsonPath('unread_count', 0);
+
+        $otherTenant = $this->user('tenant');
+        $foreign = $this->ticket(sender: $otherTenant->id);
+        $foreign->update(['receive_id' => $this->user('owner')->id]);
+        $this->actingAs($otherTenant);
+        $foreign->messages()->create(['sender_type' => 'tenant', 'message' => 'Private unread']);
+        $this->actingAs($staff)->getJson($url)->assertOk()->assertExactJson(['unread_count' => 0]);
+        $this->actingAs($this->tenantUser)->getJson($url)->assertForbidden();
+        $this->actingAs($this->staffFor($this->managerId, false))->getJson($url)->assertForbidden();
+    }
+
+    public function test_tenant_help_and_support_badge_counts_only_own_incoming_unread_messages(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'Own unread message']);
+        $this->actingAs(User::findOrFail($this->managerId));
+        $reply = $ticket->messages()->create(['sender_type' => 'agentAdmin', 'message' => 'Management reply']);
+        $secondTicket = $this->ticket();
+        $secondReply = $secondTicket->messages()->create(['sender_type' => 'staff', 'message' => 'Another reply']);
+        $system = $ticket->messages()->create(['sender_type' => 'system', 'message' => 'Maintenance update']);
+        $foreign = $this->ticket(sender: $this->user('tenant')->id);
+        $foreign->messages()->create(['sender_type' => 'agentAdmin', 'message' => 'Foreign reply']);
+        DB::table('ticket_msgs')->insert([
+            'id' => (string) Str::ulid(), 'ticket_id' => $ticket->id,
+            'sender_type' => 'agentAdmin', 'message' => 'Unverified author', 'status' => 'unread',
+        ]);
+        $url = route('tenants.customerService.unread');
+        $this->getJson($url)->assertForbidden();
+        $this->actingAs($this->tenantUser);
+        $this->getJson($url)->assertOk()->assertExactJson(['unread_count' => 3]);
+        $this->get(route('tenants.customerService.index'))->assertOk()
+            ->assertSee('data-unread-url="'.$url.'"', false)->assertSee('Help &amp; Support', false);
+        $this->postJson(route('tenants.customerService.markRead', $ticket), ['message_ids' => [$reply->id]])->assertOk();
+        $this->getJson($url)->assertOk()->assertExactJson(['unread_count' => 2]);
+        $this->postJson(route('tenants.customerService.markRead', $ticket), ['message_ids' => [$system->id]])->assertOk();
+        $this->postJson(route('tenants.customerService.markRead', $secondTicket), ['message_ids' => [$secondReply->id]])->assertOk();
+        $this->getJson($url)->assertOk()->assertExactJson(['unread_count' => 0]);
+    }
+
+    public function test_staff_without_reply_permission_can_only_view_chat(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId]);
+        $staff = $this->staffFor($this->managerId);
+        $this->actingAs($staff);
+
+        $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()
+            ->assertJsonPath('ticket.can_send', false);
+        $this->get(route('admin.maintenance.index', ['ticket' => $ticket->id]))->assertOk()
+            ->assertSee('data-can-send="false"', false)->assertSee('data-can-attach="false"', false);
+        $url = route('admin.maintenance.reply', $ticket);
+        $this->postJson($url, $this->batch())->assertForbidden();
+        $this->from('/previous')->post($url, $this->batch())->assertRedirect('/previous')->assertSessionHas('error');
+        $this->post($url, ['items' => [['type' => 'file', 'file' => UploadedFile::fake()->createWithContent('test.txt', 'Blocked')]]], ['Accept' => 'application/json'])->assertForbidden();
+        $this->assertSame(0, $ticket->messages()->count());
+        $this->assertSame([], Storage::disk('local')->allFiles());
+    }
+
+    public function test_staff_reply_permission_is_rechecked_and_cannot_bypass_scope_or_closed_tickets(): void
+    {
+        $ticket = $this->ticket();
+        $ticket->update(['lease_id' => $this->lease()->id, 'receive_id' => $this->ownerId]);
+        $staff = $this->staffFor($this->managerId, reply: true);
+        $this->actingAs($staff);
+        $url = route('admin.maintenance.reply', $ticket);
+        $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()->assertJsonPath('ticket.can_send', true);
+
+        $ticket->update(['status' => 'closed']);
+        $this->postJson($url, $this->batch())->assertForbidden();
+        $ticket->update(['status' => 'pending']);
+        $otherStaff = $this->staffFor($this->user('agentAdmin')->id, reply: true);
+        $this->actingAs($otherStaff)->postJson($url, $this->batch())->assertForbidden();
+
+        DB::table('role_has_permissions')->where('permission_id', DB::table('permissions')->where('name', 'service request.reply')->value('id'))->delete();
+        $this->actingAs($staff)->postJson($url, $this->batch())->assertForbidden();
+        $this->getJson(route('admin.maintenance.show', $ticket))->assertOk()->assertJsonPath('ticket.can_send', false);
+        $this->assertSame(0, $ticket->messages()->count());
     }
 
     public function test_staff_cannot_inherit_boss_permission_or_cross_ticket_scope(): void
@@ -882,7 +1052,7 @@ class TenantCustomerServiceTest extends TestCase
     {
         $ticket = $this->ticket();
         $ticket->messages()->create(['sender_type' => 'tenant', 'message' => 'First details']);
-        $this->get(route('tenants.customerService.index'))->assertOk()->assertSee('Select a conversation')->assertSee('aria-label="New Complaint"', false)->assertDontSee('<table', false);
+        $this->get(route('tenants.customerService.index'))->assertOk()->assertSee('First details')->assertSee('aria-label="New Complaint"', false)->assertDontSee('<table', false);
         $this->get(route('tenants.customerService.index', ['ticket' => $ticket->id]))->assertOk()->assertSee('First details')->assertSee('data-selected-ticket="'.$ticket->id.'"', false)->assertSee('data-ticket-chat', false);
         $response = $this->getJson(route('tenants.customerService.show', [$ticket, 'fragment' => 1]))->assertOk()->assertJsonPath('ticket.id', $ticket->id)->assertJsonPath('messages.0.text', 'First details');
         $this->assertStringContainsString('data-ticket-chat', $response->json('html'));

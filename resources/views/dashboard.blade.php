@@ -264,11 +264,11 @@
                         <div id="refund-section" class="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col">
                             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                                 <h3 class="font-bold text-slate-900 text-base uppercase tracking-wider">Leases Pending Refund</h3>
-                                <span class="text-sm bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold whitespace-nowrap">
-                                    {{ $incompleteRefundLeases->total() }} Total
-                                </span>
+                                <div class="flex items-center gap-3">
+                                    <x-dashboard.month-filter prefix="refund" section="refund-section" />
+                                    <span class="text-sm bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-semibold whitespace-nowrap">{{ $incompleteRefundLeases->total() }} Total</span>
+                                </div>
                             </div>
-
                             <div class="overflow-x-auto">
                                 <table class="w-full text-left border-collapse">
                                     <thead>
@@ -362,6 +362,21 @@
                         </div>
                         @endcanany
 
+                        @canany(['super-admin', 'dashboard.ongoing maintenance list'])
+                        @if($ongoingMaintenance ?? null)
+                            <div id="maintenance-section" class="flex flex-col rounded-2xl border border-slate-100 bg-white p-6 shadow-sm">
+                                <div class="mb-4 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+                                    <h3 class="text-base font-bold uppercase tracking-wider text-slate-900">Ongoing Maintenance</h3>
+                                    <div class="flex items-center gap-3">
+                                        <x-dashboard.month-filter prefix="maintenance" section="maintenance-section" />
+                                        <span class="whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-1 text-sm font-semibold text-slate-600">{{ $ongoingMaintenance->total() }} Total</span>
+                                    </div>
+                                </div>
+                                <x-dashboard.maintenance-table :orders="$ongoingMaintenance" />
+                            </div>
+                            <div data-maintenance-action-host></div>
+                        @endif
+                        @endcanany
                         @canany(['super-admin', 'dashboard.lease list', 'dashboard.pending refund list'])
                         <x-modals.lease-create-modal
                             :tenants="$tenants"

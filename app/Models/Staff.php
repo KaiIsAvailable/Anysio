@@ -15,6 +15,7 @@ class Staff extends Model
         'user_id',
         'user_mgnt_id',
         'role',
+        'phone',
         'is_active',
     ];
 

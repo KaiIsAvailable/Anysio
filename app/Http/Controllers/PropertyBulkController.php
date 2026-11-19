@@ -18,6 +18,10 @@ class PropertyBulkController extends Controller
 
     public function index(Request $request, PropertyBulkService $properties, PropertyBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('property.bulk edit')) {
+            return view('errors.403');
+        }
+
         $permissions = $properties->permissions();
         if (! $permissions['property']['view'] || ! collect($permissions)->contains(fn ($actions) => $actions['create'] || $actions['edit'])) {
             return view('errors.403');
@@ -65,7 +69,7 @@ class PropertyBulkController extends Controller
         }
         $rows = $rows->unique('key')->values();
         $gridConfig = ['rowsUrl' => route('admin.properties.bulk-edit'), 'modalPrefix' => 'property-bulk', 'recordSingular' => 'record',
-            'nextCursor' => $cursors['property'] ?? null, 'cursors' => $cursors, 'permissions' => $permissions, 'hierarchy' => true];
+            'nextCursor' => $cursors['property'] ?? null, 'cursors' => $cursors, 'permissions' => $permissions, 'hierarchy' => true, 'canManageWaterMeters' => \App\Services\UtilitySetupService::canManageWaterMeters()];
         $ownerOptions = ['' => 'No owner / use property owner'] + $properties->selectableOwners($manager)->orderBy('name')->get(['id', 'name', 'email'])
             ->mapWithKeys(fn (User $owner) => [$owner->id => $owner->name.' ('.$owner->email.')'])->all();
         $draftKey = $this->draftKey($manager);
@@ -112,6 +116,10 @@ class PropertyBulkController extends Controller
 
     public function store(BulkPropertyRequest $request, PropertyBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('property.bulk edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         $manager = get_effective_user();
 
         return $this->startBulkSave($request, $operations, 'admin.properties', $manager ? $this->draftKey($manager) : '');
@@ -119,17 +127,25 @@ class PropertyBulkController extends Controller
 
     public function progress(string $requestKey, PropertyBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('property.bulk edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         return $this->operationProgress($requestKey, $operations);
     }
 
     public function complete(string $requestKey, PropertyBulkOperationService $operations)
     {
+        if (Gate::denies('super-admin') && Gate::denies('property.bulk edit')) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         return $this->completeBulkSave($requestKey, $operations, 'admin.properties', 'property', 'marked removed');
     }
 
     private function draftKey(User $manager): string
     {
-        $abilities = ['super-admin'];
+        $abilities = ['super-admin', 'utilities.manage meters'];
         foreach (PropertyBulkService::ENTITIES as $entity) {
             foreach (['create', 'edit', 'delete'] as $action) {
                 $abilities[] = $entity.'.'.$action;

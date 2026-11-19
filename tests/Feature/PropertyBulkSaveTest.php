@@ -52,10 +52,16 @@ class PropertyBulkSaveTest extends TestCase
                 $table->timestamps();
             });
         }
+        (require database_path('migrations/2026_11_13_000001_create_utility_services_table.php'))->up();
+        (require database_path('migrations/2026_11_13_000003_add_soft_deletes_to_utility_services.php'))->up();
+        Schema::table('utility_services', fn (Blueprint $table) => $table->string('billing_scope')->default('individual'));
+        Schema::create('utilities', function (Blueprint $table) {
+            $table->ulid('id')->primary(); $table->string('utility_service_id'); $table->timestamps();
+        });
         (require database_path('migrations/2026_11_16_000001_create_bulk_operations_table.php'))->up();
         Storage::fake('local');
         $this->manager = User::create(['name' => 'Manager', 'email' => 'manager@example.test', 'role' => 'agentAdmin', 'password' => 'secret', 'status' => 'active', 'email_verified_at' => now()]);
-        $this->grant(['property.tab', 'property.create', 'property.edit', 'property.delete']);
+        $this->grant(['property.tab', 'property.bulk edit', 'property.create', 'property.edit', 'property.delete']);
         $this->actingAs($this->manager);
         $this->owner = User::create(['name' => 'Owner', 'email' => 'owner@example.test', 'role' => 'owner', 'password' => 'secret', 'status' => 'active']);
         Owners::create(['user_id' => $this->owner->id, 'agent_id' => $this->manager->id]);
@@ -195,10 +201,10 @@ class PropertyBulkSaveTest extends TestCase
         $this->assertSame('Changed elsewhere', $property->fresh()->name);
 
         $operation = $operations->start($this->validated([$this->row()]), $this->manager, [], (string) Str::uuid(), 1, 'draft');
-        $this->grant(['property.tab']);
+        $this->grant(['property.tab', 'property.bulk edit']);
         $operations->process($operation->id);
         $this->assertSame('failed', $operation->fresh()->status);
-        $this->grant(['property.tab', 'property.create']);
+        $this->grant(['property.tab', 'property.bulk edit', 'property.create']);
         $operation = $operations->start($this->validated([$this->row()]), $this->manager, [], (string) Str::uuid(), 1, 'draft');
         Owners::where('user_id', $this->owner->id)->update(['agent_id' => 'other']);
         $operations->process($operation->id);
@@ -247,6 +253,7 @@ class PropertyBulkSaveTest extends TestCase
         BulkOperation::create(['module' => 'owner', 'actor_id' => $this->manager->id, 'manager_id' => $this->manager->id, 'request_key' => $otherKey, 'total' => 1, 'page' => 1, 'draft_key' => 'other']);
         $this->getJson(route('admin.properties.bulk-progress', $otherKey))->assertNotFound();
         $other = User::create(['name' => 'Other', 'email' => 'other@example.test', 'role' => 'agentAdmin', 'password' => 'secret', 'email_verified_at' => now()]);
+        $other->forceFill(['account_permissions' => ['property.tab', 'property.bulk edit']])->save();
         $this->actingAs($other)->getJson(route('admin.properties.bulk-progress', $operation->request_key))->assertNotFound();
         Cache::store('file')->forget('property-bulk-progress:'.$operation->id);
     }
@@ -266,20 +273,106 @@ class PropertyBulkSaveTest extends TestCase
     {
         Queue::fake();
         $property = $this->create();
-        $this->grant(['property.tab', 'property.create']);
+        $this->grant(['property.tab', 'property.bulk edit', 'property.create']);
         foreach (['update', 'remove'] as $action) {
             $this->post(route('admin.properties.bulk-save'), ['rows_json' => json_encode([$this->editRow($property, ['action' => $action])]), 'page' => 1])
                 ->assertSessionHas('error', 'You have no permission.');
         }
-        $this->grant(['property.tab']);
+        $this->grant(['property.tab', 'property.bulk edit']);
         $view = app(PropertyBulkController::class)->index(Request::create('/'), app(PropertyBulkService::class), app(PropertyBulkOperationService::class));
         $this->assertSame('errors.403', $view->name());
         Queue::assertNothingPushed();
     }
 
+    public function test_bulk_hierarchy_registers_only_selected_physical_meters_and_rejects_unauthorized_fields(): void
+    {
+        $this->hierarchyPermissions();
+        $rows = [$this->row(['entity' => 'property', 'clientKey' => 'new-property-1', 'waterHasMeter' => '0']),
+            $this->unitRow('new-property-1', ['waterHasMeter' => '1', 'waterMeterNumber' => 'UNIT-001', 'waterOpeningReading' => '0', 'waterOpeningDate' => '2026-01-01']),
+            $this->roomRow('new-unit-1', ['waterHasMeter' => '0'])];
+        try { app(PropertyBulkService::class)->save($this->validated($rows), $this->manager); $this->fail('Meter fields accepted without permission.'); }
+        catch (\Illuminate\Auth\Access\AuthorizationException $exception) { $this->assertSame(0, Property::count()); }
+        $this->manager->forceFill(['account_permissions' => [...$this->manager->account_permissions, 'utilities.manage meters']])->save();
+        Queue::fake();
+        $this->post(route('admin.properties.bulk-save'), ['rows_json' => json_encode($rows), 'page' => 1, 'request_key' => (string) Str::uuid()])
+            ->assertSessionHasNoErrors()->assertRedirect();
+        $operation = BulkOperation::sole();
+        (new SaveBulkOperation('property', $operation->id))->handle();
+        $this->assertSame('succeeded', $operation->fresh()->status, json_encode($operation->fresh()->errors));
+        $meter = \App\Models\UtilityService::sole();
+        $this->assertSame(Unit::sole()->id, $meter->location_id);
+        $this->assertSame('UNIT-001', $meter->meter_number);
+        $this->assertSame('0.000', $meter->opening_reading);
+        $this->assertSame('active', $meter->status);
+        $this->assertSame($this->manager->id, $meter->management_user_id);
+        $gridRow = app(PropertyBulkService::class)->row(Unit::sole(), 'unit');
+        $this->assertSame('1', $gridRow['waterHasMeter']);
+        $this->assertSame('2026-01-01', $gridRow['waterOpeningDate']);
+        $view = app(PropertyBulkController::class)->index(Request::create('/'), app(PropertyBulkService::class), app(PropertyBulkOperationService::class));
+        $source = str_replace(['<x-app-layout>', '</x-app-layout>'], '', file_get_contents(resource_path('views/adminSide/rooms/property/bulk-edit.blade.php')));
+        $html = Blade::render($source, $view->getData());
+        foreach (['Water Meter', 'Has Physical Meter?', 'Physical Meter Number', 'Opening Reading Date', 'row.waterOpeningDate', 'DD/MM/YYYY'] as $text) {
+            $this->assertStringContainsString($text, $html);
+        }
+        DB::table('utilities')->insert(['id' => (string) Str::ulid(), 'utility_service_id' => $meter->id]);
+        $change = $this->unitRow(Property::sole()->id, ['action' => 'update', 'id' => Unit::sole()->id,
+            'version' => $gridRow['version'], 'unitNo' => 'Should roll back', 'waterHasMeter' => '1', 'waterMeterNumber' => 'UNIT-001',
+            'waterOpeningReading' => '99', 'waterOpeningDate' => '2026-01-01']);
+        try { app(PropertyBulkService::class)->save($this->validated([$change]), $this->manager); $this->fail('History rewritten.'); }
+        catch (\Illuminate\Validation\ValidationException $exception) { $this->assertArrayHasKey('rows.0.waterOpeningReading', $exception->errors()); }
+        $this->assertSame('A-01', Unit::sole()->unit_no);
+        $this->assertSame('0.000', $meter->fresh()->opening_reading);
+    }
+
+    public function test_property_create_and_edit_register_water_meter_in_the_same_save(): void
+    {
+        $this->grant(['property.tab', 'property.create', 'property.edit', 'utilities.manage meters']);
+        $data = ['name' => 'Metered property', 'address' => '12 Main Street', 'city' => 'Ipoh', 'postcode' => '01234',
+            'state' => 'Perak', 'type' => 'Condo', 'has_owner' => '1', 'owner_id' => $this->owner->id,
+            'water_meter' => ['has_meter' => '1', 'meter_number' => 'MAIN-01', 'opening_reading' => '0', 'opening_reading_date' => '2026-01-01']];
+        $this->post(route('admin.properties.store'), $data)->assertSessionHasNoErrors()->assertSessionHas('success');
+        $property = Property::sole();
+        $meter = \App\Models\UtilityService::sole();
+        $this->assertSame($property->id, $meter->location_id);
+        $this->put(route('admin.properties.update', $property), array_replace($data, ['water_meter' => ['has_meter' => '1', 'meter_number' => 'MAIN-02']]))
+            ->assertSessionHasNoErrors()->assertSessionHas('success');
+        $this->assertSame('MAIN-02', $meter->fresh()->meter_number);
+        $this->assertSame(1, \App\Models\UtilityService::count());
+        $this->put(route('admin.properties.update', $property), array_replace($data, ['name' => 'Should roll back', 'water_meter' => ['has_meter' => '1', 'opening_reading' => '0']]))
+            ->assertSessionHasErrors('water_meter.opening_reading_date');
+        $this->assertSame('Metered property', $property->fresh()->name);
+    }
+
+    public function test_unit_and_room_create_and_edit_save_only_their_own_water_meter(): void
+    {
+        $this->hierarchyPermissions();
+        $this->manager->forceFill(['account_permissions' => [...$this->manager->account_permissions, 'utilities.manage meters']])->save();
+        $property = $this->create();
+        $meterData = ['has_meter' => '1', 'meter_number' => 'UNIT-001', 'opening_reading' => '0', 'opening_reading_date' => '2026-01-01'];
+        $unitData = ['property_id' => $property->id, 'owner_id' => $this->owner->id, 'unit_no' => 'Metered unit', 'floor' => 'G',
+            'has_rooms' => '0', 'status' => 'Vacant', 'water_meter' => $meterData];
+        $this->post(route('admin.units.store'), $unitData)->assertSessionHasNoErrors()->assertSessionHas('success');
+        $unit = Unit::sole();
+        $unitMeter = $unit->utilityServices()->sole();
+        $this->assertSame('0.000', $unitMeter->opening_reading);
+        $this->put(route('admin.units.update', $unit), array_replace($unitData, ['water_meter' => array_replace($meterData, ['meter_number' => 'UNIT-002'])]))
+            ->assertSessionHasNoErrors()->assertSessionHas('success');
+        $this->assertSame('UNIT-002', $unitMeter->fresh()->meter_number);
+        $roomData = ['unit_id' => $unit->id, 'room_no' => 'Metered room', 'room_type' => 'Single', 'status' => 'Vacant',
+            'water_meter' => array_replace($meterData, ['meter_number' => 'ROOM-001'])];
+        $this->post(route('admin.rooms.store'), $roomData)->assertSessionHasNoErrors()->assertSessionHas('success');
+        $room = Room::sole();
+        $roomMeter = $room->utilityServices()->sole();
+        $this->put(route('admin.rooms.update', $room), array_replace($roomData, ['water_meter' => array_replace($meterData, ['meter_number' => 'ROOM-002'])]))
+            ->assertSessionHasNoErrors()->assertSessionHas('success');
+        $this->assertSame('ROOM-002', $roomMeter->fresh()->meter_number);
+        $this->assertSame(2, \App\Models\UtilityService::count());
+        $this->assertSame(0, $property->utilityServices()->count());
+    }
+
     private function hierarchyPermissions(): void
     {
-        $this->grant(['property.tab', 'property.create', 'property.edit', 'property.delete', 'property.show unit',
+        $this->grant(['property.tab', 'property.bulk edit', 'property.create', 'property.edit', 'property.delete', 'property.show unit',
             'unit.create', 'unit.edit', 'unit.delete', 'unit.show room', 'room.create', 'room.edit', 'room.delete']);
     }
 
@@ -393,7 +486,7 @@ class PropertyBulkSaveTest extends TestCase
         $rows = [$this->unitRow($property->id), $this->roomRow('new-unit-1')];
         $operations = app(PropertyBulkOperationService::class);
         $operation = $operations->start($this->validated($rows), $this->manager, [], (string) Str::uuid(), 1, 'draft');
-        $this->grant(['property.tab', 'property.show unit', 'unit.create', 'unit.show room']);
+        $this->grant(['property.tab', 'property.bulk edit', 'property.show unit', 'unit.create', 'unit.show room']);
         $operations->process($operation->id);
         $this->assertSame('failed', $operation->fresh()->status);
         $this->assertDatabaseCount('units', 0);
@@ -534,5 +627,28 @@ class PropertyBulkSaveTest extends TestCase
         $this->assertSame(0, Property::count());
         $this->assertSame($auditCount, DB::table('audit_logs')->count());
         $this->assertSame('failed', $operation->fresh()->status);
+    }
+
+    public function test_bulk_edit_grant_is_required_for_page_requests_and_queued_writes(): void
+    {
+        Queue::fake();
+        $operations = app(PropertyBulkOperationService::class);
+        $operation = $operations->start($this->validated([$this->row()]), $this->manager, [], (string) Str::uuid(), 1, 'draft');
+        $this->grant(array_values(array_diff($this->manager->account_permissions, ['property.bulk edit'])));
+
+        $view = app(PropertyBulkController::class)->index(\Illuminate\Http\Request::create('/'), app(PropertyBulkService::class), $operations);
+        $this->assertSame('errors.403', $view->name());
+        $this->post(route('admin.properties.bulk-save'), ['rows_json' => json_encode([$this->row()]), 'page' => 1])
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->get(route('admin.properties.bulk-progress', $operation->request_key))
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->get(route('admin.properties.bulk-complete', $operation->request_key))
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertNull($operation->fresh()->acknowledged_at);
+
+        $operations->process($operation->id);
+        $this->assertSame('failed', $operation->fresh()->status);
+        $this->assertSame(['bulk' => ['You have no permission.']], $operation->fresh()->errors);
+        $this->assertDatabaseCount('properties', 0);
     }
 }

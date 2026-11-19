@@ -20,10 +20,17 @@ existing users are not automatically granted the new abilities. Blade uses
 Denied pages render `errors.403`; denied actions redirect back with the session
 error `You have no permission.`. Ownership checks remain enforced separately.
 
-Open Utilities and initialize services for the management account. Existing,
-inactive and soft-deleted services are skipped. No physical parent meter or
-opening reading is guessed. Confirm services by editing setup or saving readings;
-remove non-existent meters individually or with Delete Selected. History survives.
+Register water meters in the Water Meter section of property, unit and room
+create/edit forms or Property Bulk Edit. Select Yes only where a physical meter
+exists. Meter number is optional; opening reading and its actual observation date
+must either both be supplied or both be blank. Zero is a valid opening reading.
+Only selected locations get an active water service; there is no mass-initialize
+action. The water supplier account number on a unit remains separate.
+Meter setup requires utilities.manage meters (or super-admin) as well as the
+location action permission. Existing services are reused and account ownership is
+checked. Opening details with reading history remain protected; use Utilities for
+meter events, deactivation and historical corrections. Existing service and
+invoice history is preserved.
 
 Accounts without tariff settings automatically use the published LAP domestic
 individual-meter base schedule. No custom copy or assignment is required. Edit

@@ -4,7 +4,7 @@
             <x-application-logo class="w-8 h-8 fill-current text-indigo-600" />
         </a>
         <div class="space-x-8 font-medium text-sm"> <a href="#features" class="text-gray-600 hover:text-indigo-600 transition">Features</a>
-            <a href="#pricing" class="text-gray-600 hover:text-indigo-600 transition">Pricing</a>
+            {{-- <a href="#pricing" class="text-gray-600 hover:text-indigo-600 transition">Pricing</a> --}}
             <a href="{{ route('login') }}" class="text-gray-900 hover:text-indigo-600 transition">Login</a>
         </div>
     </nav>
@@ -37,6 +37,8 @@
         </div>
     </section>
 
+    {{-- Package pricing is temporarily hidden. --}}
+    @if(false)
     <section id="pricing" class="py-24">
         <div class="max-w-7xl mx-auto px-12 text-center">
             <h2 class="text-4xl font-bold mb-4">Transparent Pricing</h2>
@@ -91,6 +93,8 @@
             </div>
         </div>
     </section>
+
+    @endif
 
     <footer class="py-12 px-12 bg-gray-50 text-gray-600 text-sm border-t border-gray-200">
         <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8">

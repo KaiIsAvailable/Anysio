@@ -141,6 +141,7 @@
 
                                     @canany(['super-admin', 'property.edit', 'property.delete'])
                                         <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                                            @if($property->can_manage)
                                             <div class="flex items-center justify-center space-x-2" onclick="event.stopPropagation();">
                                                 @can('property.edit')
                                                 <a href="{{ route('admin.properties.edit', $property->id) }}"
@@ -179,6 +180,7 @@
                                                 @endif
                                                 @endcan
                                             </div>
+                                            @endif
                                         </td>
                                     @endcan
                                 </tr>

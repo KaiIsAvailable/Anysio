@@ -62,6 +62,19 @@ class Unit extends Model
         return $this->belongsTo(User::class, 'owner_id');
     }
 
+    public function scopeForViewing(Builder $query, ?User $manager): Builder
+    {
+        if (\Illuminate\Support\Facades\Gate::allows('super-admin')) {
+            return $query;
+        }
+
+        return match ($manager?->role) {
+            'agentAdmin' => $query->whereIn('units.owner_id', Owners::where('agent_id', $manager->id)->select('user_id')),
+            'ownerAdmin' => $query->where('units.owner_id', $manager->id),
+            default => $query->whereRaw('1 = 0'),
+        };
+    }
+
     public function scopeSearch(Builder $query, ?string $search): Builder
     {
         $search = trim($search ?? '');

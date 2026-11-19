@@ -62,6 +62,24 @@ class Property extends Model
         });
     }
 
+    /** A managed unit grants visibility of its parent, without granting management of that parent. */
+    public function scopeForViewing(Builder $query, ?User $manager): Builder
+    {
+        if (\Illuminate\Support\Facades\Gate::allows('super-admin')) {
+            return $query;
+        }
+        if (! $manager) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        return $query->where(function (Builder $visible) use ($manager) {
+            $visible->forManagement($manager);
+            if ($manager->role === 'agentAdmin') {
+                $visible->orWhereHas('units', fn (Builder $units) => $units->forViewing($manager));
+            }
+        });
+    }
+
     public function utilityServices(): \Illuminate\Database\Eloquent\Relations\MorphMany
     {
         return $this->morphMany(UtilityService::class, 'location');
@@ -95,11 +113,16 @@ class Property extends Model
                     ->select('properties.*', 'owners.name as owner_name', 'creators.name as creator_name');
     }
 
-    public static function availabilityStatusSql(): string
+    public static function availabilityStatusSql(?User $manager = null): string
     {
         $unitCounts = [];
         foreach (['vacant', 'occupied', 'maintenance'] as $status) {
-            $unitCounts[$status] = "(SELECT COUNT(*) FROM units WHERE units.property_id = properties.id AND LOWER(TRIM(units.status)) = '$status')";
+            $units = Unit::query()->whereColumn('units.property_id', 'properties.id')
+                ->whereRaw('LOWER(TRIM(units.status)) = ?', [$status]);
+            if ($manager) {
+                $units->forViewing($manager);
+            }
+            $unitCounts[$status] = '('.$units->selectRaw('COUNT(*)')->toRawSql().')';
         }
 
         return "CASE
@@ -110,7 +133,7 @@ class Property extends Model
             ELSE properties.status END";
     }
 
-    public function scopeSearch(Builder $query, ?string $search): Builder
+    public function scopeSearch(Builder $query, ?string $search, ?User $manager = null): Builder
     {
         $search = trim($search ?? '');
         if ($search === '') {
@@ -123,10 +146,10 @@ class Property extends Model
             $createdDate = sprintf('%04d-%02d-%02d', $dateParts[3], $dateParts[2], $dateParts[1]);
         }
 
-        return $query->where(function (Builder $q) use ($search, $createdDate) {
+        return $query->where(function (Builder $q) use ($search, $createdDate, $manager) {
             $q->where('properties.name', 'like', "%{$search}%")
                 ->orWhere('properties.type', 'like', "%{$search}%")
-                ->orWhereRaw(static::availabilityStatusSql().' LIKE ?', ["%{$search}%"])
+                ->orWhereRaw(static::availabilityStatusSql($manager).' LIKE ?', ["%{$search}%"])
                 ->orWhere('properties.address', 'like', "%{$search}%")
                 ->orWhere('properties.city', 'like', "%{$search}%")
                 ->orWhere('properties.postcode', 'like', "%{$search}%")
@@ -136,8 +159,8 @@ class Property extends Model
                         ->orWhere('users.email', 'like', "%{$search}%");
                 }))
                 ->orWhere('properties.created_at', 'like', "%{$search}%")
-                ->orWhereHas('units', fn ($units) => $units->where('units.unit_no', 'like', "%{$search}%"))
-                ->orWhereHas('units.rooms', fn ($rooms) => $rooms->where('rooms.room_no', 'like', "%{$search}%"));
+                ->orWhereHas('units', fn ($units) => $units->when($manager, fn ($units) => $units->forViewing($manager))->where('units.unit_no', 'like', "%{$search}%"))
+                ->orWhereHas('units.rooms', fn ($rooms) => $rooms->when($manager, fn ($rooms) => $rooms->whereHas('unit', fn ($units) => $units->forViewing($manager)))->where('rooms.room_no', 'like', "%{$search}%"));
 
             if ($createdDate !== null) {
                 $q->orWhereDate('properties.created_at', $createdDate);
@@ -145,7 +168,7 @@ class Property extends Model
         });
     }
 
-    public function scopeWithSearchMatches(Builder $query, ?string $search): Builder
+    public function scopeWithSearchMatches(Builder $query, ?string $search, ?User $manager = null): Builder
     {
         $search = trim($search ?? '');
         if ($search === '') {
@@ -153,8 +176,8 @@ class Property extends Model
         }
 
         return $query->with([
-            'units' => fn ($units) => $units->where('units.unit_no', 'like', "%{$search}%")->orderBy('units.unit_no'),
-            'rooms' => fn ($rooms) => $rooms->where('rooms.room_no', 'like', "%{$search}%")
+            'units' => fn ($units) => $units->when($manager, fn ($units) => $units->forViewing($manager))->where('units.unit_no', 'like', "%{$search}%")->orderBy('units.unit_no'),
+            'rooms' => fn ($rooms) => $rooms->when($manager, fn ($rooms) => $rooms->whereHas('unit', fn ($units) => $units->forViewing($manager)))->where('rooms.room_no', 'like', "%{$search}%")
                 ->with('unit:id,unit_no')->orderBy('rooms.room_no'),
         ]);
     }

@@ -4,7 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Services\UtilitySetupService;
 
-use App\Models\{Property, Owners, Room, Unit};
+use App\Models\{Property, Room, Unit};
 use App\Traits\RoleBasedDataTrait;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\{Auth, Gate, DB};
@@ -24,43 +24,20 @@ class PropertyController extends Controller
         $user = get_effective_user();
 
         // Calculate from current units so existing stale parent statuses display correctly.
-        $availabilitySql = Property::availabilityStatusSql();
+        $availabilitySql = Property::availabilityStatusSql($user);
 
         // 1. 构建基础查询，带上必要的 Join
-        $query = Property::query()
+        $query = Property::query()->forViewing($user)
             ->leftJoin('users as owners', 'properties.owner_id', '=', 'owners.id')
             ->leftJoin('users as creators', 'properties.created_by', '=', 'creators.id')
             ->select('properties.*', 'owners.name as owner_name', 'creators.name as creator_name')
             ->selectRaw("$availabilitySql AS availability_status")
             ->withCount([
-                'units',
-                'units as vacant_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'vacant'"),
-                'units as occupied_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'occupied'"),
-                'units as maintenance_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'maintenance'"),
+                'units' => fn ($q) => $q->forViewing($user),
+                'units as vacant_units_count' => fn ($q) => $q->forViewing($user)->whereRaw("LOWER(TRIM(status)) = 'vacant'"),
+                'units as occupied_units_count' => fn ($q) => $q->forViewing($user)->whereRaw("LOWER(TRIM(status)) = 'occupied'"),
+                'units as maintenance_units_count' => fn ($q) => $q->forViewing($user)->whereRaw("LOWER(TRIM(status)) = 'maintenance'"),
             ]);
-
-        $query->where(function ($q) use ($user) {
-            if (Gate::allows('super-admin')) {
-                return; // 超管不过滤
-            }
-
-            if ($user->role === 'agentAdmin') {
-                // Agent 只能看所属 Owner 的房源
-                $ownerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-                $q->where(function ($sub) use ($ownerIds, $user) {
-                    $sub->whereIn('properties.owner_id', $ownerIds)
-                        ->orWhere('properties.created_by', $user->id);
-                });
-            } elseif ($user->role === 'ownerAdmin') {
-                // Owner 只能看自己创建的 OR 自己是 Owner 的
-                $q->where(function ($sub) use ($user) {
-                    $sub->where('properties.created_by', $user->id)
-                        ->orWhere('properties.owner_id', $user->id);
-                });
-            } else {
-                $q->whereRaw('1 = 0'); // 没权限就返回空
-            }
-        });
 
         // 💡 重点：严格对齐 index.blade.php 中的 6 列 (Name, Type, Status, Owner, Address, Created)
         $sortMapping = [
@@ -73,7 +50,7 @@ class PropertyController extends Controller
         ];
 
         // 💡 重点：搜索只搜表格里显示的列 (Address 包含了 City, Postcode, State 所以一起搜)
-        $query->search($search)->withSearchMatches($search);
+        $query->search($search, $user)->withSearchMatches($search, $user);
 
         $sortParam = $request->query('sort');
         $field = Str::beforeLast($sortParam, '_');
@@ -86,6 +63,11 @@ class PropertyController extends Controller
         }
 
         $properties = $query->paginate(10)->onEachSide(1)->appends($request->query());
+
+        $manageableIds = $user ? Property::forManagement($user)->whereKey($properties->getCollection()->modelKeys())->pluck('id')->flip() : collect();
+        foreach ($properties as $property) {
+            $property->setAttribute('can_manage', $manageableIds->has($property->id));
+        }
 
         return view('adminSide.rooms.property.index', compact('properties'));
     }
@@ -170,15 +152,21 @@ class PropertyController extends Controller
             return view('errors.403');
         }
         
+        $user = get_effective_user();
+        if (! Property::forViewing($user)->whereKey($property->id)->exists()) {
+            return view('errors.403');
+        }
+        $canManageProperty = $this->canManageProperty($property);
+
         $property->load('owner');
         $property->loadCount([
-            'units as vacant_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'vacant'"),
-            'units as occupied_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'occupied'"),
-            'units as maintenance_units_count' => fn ($q) => $q->whereRaw("LOWER(TRIM(status)) = 'maintenance'"),
+            'units as vacant_units_count' => fn ($q) => $q->forViewing($user)->whereRaw("LOWER(TRIM(status)) = 'vacant'"),
+            'units as occupied_units_count' => fn ($q) => $q->forViewing($user)->whereRaw("LOWER(TRIM(status)) = 'occupied'"),
+            'units as maintenance_units_count' => fn ($q) => $q->forViewing($user)->whereRaw("LOWER(TRIM(status)) = 'maintenance'"),
         ]);
 
         // 从当前 Property 下的单位开始查询
-        $query = Unit::query()
+        $query = Unit::query()->forViewing($user)
             ->where('property_id', $property->id)
             ->leftJoin('users as owners', 'units.owner_id', '=', 'owners.id')
             ->select('units.*', 'owners.name as owner_name')
@@ -192,18 +180,7 @@ class PropertyController extends Controller
         // 💡 重点：搜索逻辑严格限制在 Unit No, Status 和 Owner Name
         $query->search($request->input('search'))->withSearchMatches($request->input('search'));
 
-        $user = get_effective_user();
-
-        $property->load(['units' => function ($query) use ($user) {
-            if (!Gate::allows('super-admin')) {
-                if (Gate::allows('agent-admin')) {
-                    $allowedOwnerIds = Owners::where('agent_id', $user->id)->pluck('user_id');
-                    $query->whereIn('owner_id', $allowedOwnerIds);
-                } elseif (Gate::allows('owner-admin')) {
-                    $query->where('owner_id', $user->id);
-                }
-            }
-        }]);
+        $property->load(['units' => fn ($query) => $query->forViewing($user)]);
 
         // 💡 重点：排序白名单，严格对齐 show.blade.php 里的 4 个 TH
         $sortMapping = [
@@ -224,12 +201,12 @@ class PropertyController extends Controller
 
         $units = $query->paginate(10)->onEachSide(1)->appends($request->query());
 
-        return view('adminSide.rooms.property.show', compact('property', 'units'));
+        return view('adminSide.rooms.property.show', compact('property', 'units', 'canManageProperty'));
     }
 
     public function edit(Property $property)
     {
-        if (Gate::denies('super-admin') && Gate::denies('property.edit')) {
+        if ((Gate::denies('super-admin') && Gate::denies('property.edit')) || ! $this->canManageProperty($property)) {
             return view('errors.403');
         }
 
@@ -254,7 +231,7 @@ class PropertyController extends Controller
 
     public function update(Request $request, Property $property)
     {
-        if (Gate::denies('super-admin') && Gate::denies('property.edit')) {
+        if ((Gate::denies('super-admin') && Gate::denies('property.edit')) || ! $this->canManageProperty($property)) {
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
@@ -294,6 +271,10 @@ class PropertyController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
+        if (! $this->canManageProperty(Property::findOrFail($id))) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         try {
             DB::beginTransaction();
 
@@ -321,6 +302,10 @@ class PropertyController extends Controller
             return redirect()->back()->with('error', 'You have no permission.');
         }
 
+        if (! $this->canManageProperty(Property::findOrFail($id))) {
+            return redirect()->back()->with('error', 'You have no permission.');
+        }
+
         try {
             DB::beginTransaction();
 
@@ -342,5 +327,11 @@ class PropertyController extends Controller
             DB::rollBack();
             return back()->with('error', 'Restore failed: ' . $e->getMessage());
         }
+    }
+    private function canManageProperty(Property $property): bool
+    {
+        $manager = get_effective_user();
+
+        return $manager && Property::forManagement($manager)->whereKey($property->id)->exists();
     }
 }

@@ -33,8 +33,13 @@ class PropertySearchTest extends TestCase
         Schema::create('units', function (Blueprint $table) {
             $table->string('id')->primary();
             $table->string('property_id');
+            $table->string('owner_id')->nullable();
             $table->string('unit_no');
             $table->string('status');
+        });
+        Schema::create('owners', function (Blueprint $table) {
+            $table->string('user_id');
+            $table->string('agent_id');
         });
         Schema::create('rooms', function (Blueprint $table) {
             $table->string('id')->primary();
@@ -50,9 +55,9 @@ class PropertySearchTest extends TestCase
             ['id' => 'p2', 'owner_id' => 'other-owner', 'name' => 'Hidden House', 'type' => 'Landed', 'status' => 'Maintenance', 'address' => '90 Another Street', 'city' => 'Ipoh', 'postcode' => '30000', 'state' => 'Perak', 'created_at' => '2025-01-02 09:30:00'],
         ]);
         DB::table('units')->insert([
-            ['id' => 'u1', 'property_id' => 'p1', 'unit_no' => 'A-08-01', 'status' => 'Vacant'],
-            ['id' => 'u2', 'property_id' => 'p1', 'unit_no' => 'A-08-02', 'status' => 'Maintenance'],
-            ['id' => 'u3', 'property_id' => 'p2', 'unit_no' => 'Private-Unit', 'status' => 'Maintenance'],
+            ['id' => 'u1', 'property_id' => 'p1', 'owner_id' => 'owner', 'unit_no' => 'A-08-01', 'status' => 'Vacant'],
+            ['id' => 'u2', 'property_id' => 'p1', 'owner_id' => 'owner', 'unit_no' => 'A-08-02', 'status' => 'Maintenance'],
+            ['id' => 'u3', 'property_id' => 'p2', 'owner_id' => 'other-owner', 'unit_no' => 'Private-Unit', 'status' => 'Maintenance'],
         ]);
         DB::table('rooms')->insert([
             ['id' => 'r1', 'unit_id' => 'u1', 'room_no' => 'Master-101'],
@@ -152,5 +157,72 @@ class PropertySearchTest extends TestCase
                 $this->assertStringNotContainsString('<tr', $html);
             }
         }
+    }
+
+    private function actAsAgentWithSharedProperty(): User
+    {
+        $this->superAdmin = false;
+        $agent = (new User)->forceFill(['id' => 'agent-a', 'role' => 'agentAdmin', 'account_permissions' => ['property.tab', 'property.show unit', 'property.edit', 'property.delete']]);
+        $this->actingAs($agent);
+        Gate::before(fn ($user, $ability) => $ability === 'super-admin' ? false : in_array($ability, ['property.tab', 'property.show unit', 'property.edit', 'property.delete']));
+        DB::table('owners')->insert(['user_id' => 'owner', 'agent_id' => $agent->id]);
+        DB::table('properties')->where('id', 'p1')->update(['owner_id' => null, 'created_by' => 'super-admin']);
+        DB::table('units')->where('id', 'u2')->update(['owner_id' => 'other-owner']);
+
+        return $agent;
+    }
+
+    public function test_agent_sees_ownerless_super_admin_property_through_managed_unit_only(): void
+    {
+        $agent = $this->actAsAgentWithSharedProperty();
+        $controller = app(PropertyController::class);
+        $properties = $controller->index(Request::create('/'))->getData()['properties'];
+        $this->assertSame(['p1'], $properties->pluck('id')->all());
+        $property = $properties->first();
+        $this->assertSame('super-admin', $property->created_by);
+        $this->assertNull($property->owner_id);
+        $this->assertSame(1, $property->units_count);
+        $this->assertSame(1, $property->vacant_units_count);
+        $this->assertSame(0, $property->maintenance_units_count);
+        $this->assertSame('Vacant', $property->availability_status);
+        $this->assertFalse($property->can_manage);
+        $this->assertFalse(Property::forManagement($agent)->whereKey('p1')->exists());
+
+        $data = $controller->show(Request::create('/'), Property::findOrFail('p1'))->getData();
+        $this->assertSame(['u1'], $data['units']->pluck('id')->all());
+        $this->assertSame(['u1'], $data['property']->units->pluck('id')->all());
+        $this->assertSame(0, $data['property']->maintenance_units_count);
+        $this->assertFalse($data['canManageProperty']);
+        $this->assertSame('errors.403', $controller->show(Request::create('/'), Property::findOrFail('p2'))->name());
+    }
+
+    public function test_shared_property_searches_and_hints_do_not_expose_other_owners_units_or_rooms(): void
+    {
+        $this->actAsAgentWithSharedProperty();
+        $controller = app(PropertyController::class);
+        foreach (['A-08-02', 'Master-102', 'Private-Unit', 'Private-Room', 'Maintenance'] as $search) {
+            $properties = $controller->index(Request::create('/', 'GET', ['search' => $search]))->getData()['properties'];
+            $this->assertSame(0, $properties->total(), $search);
+        }
+        foreach (['A-08', 'Master'] as $search) {
+            $property = $controller->index(Request::create('/', 'GET', ['search' => $search]))->getData()['properties']->sole();
+            $html = Blade::render('<x-table.property-search-matches :property="$property" />', compact('property'));
+            $this->assertStringNotContainsString('A-08-02', $html);
+            $this->assertStringNotContainsString('Master-102', $html);
+            $this->assertStringContainsString($search === 'Master' ? 'Master-101' : 'A-08-01', $html);
+        }
+    }
+
+    public function test_unit_management_does_not_authorize_modifying_or_deleting_shared_parent(): void
+    {
+        $this->actAsAgentWithSharedProperty();
+        $controller = app(PropertyController::class);
+        $property = Property::findOrFail('p1');
+        $this->assertSame('errors.403', $controller->edit($property)->name());
+        $this->assertSame('You have no permission.', $controller->update(Request::create('/'), $property)->getSession()->get('error'));
+        $this->assertSame('You have no permission.', $controller->destroy('p1')->getSession()->get('error'));
+        $this->assertSame('You have no permission.', $controller->restore('p1')->getSession()->get('error'));
+        $this->assertSame('Occupied', $property->fresh()->status);
+        $this->assertSame('Maintenance', DB::table('units')->where('id', 'u2')->value('status'));
     }
 }

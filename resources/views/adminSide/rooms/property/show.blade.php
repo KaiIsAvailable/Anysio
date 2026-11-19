@@ -20,6 +20,7 @@
                 </div>
                 <div class="flex flex-shrink-0 flex-wrap items-center gap-3" x-data="{creatingUnit: false, editingProperty: false}">
                     @canany(['super-admin', 'property.edit'])
+                    @if($canManageProperty)
                         <x-form.secondary-button
                             loading="editingProperty"
                             @click="editingProperty = true; window.location.href = '{{ route('admin.properties.edit', $property->id) }}'">
@@ -28,6 +29,7 @@
                             </svg>
                             Edit Property
                         </x-form.secondary-button>
+                    @endif
                     @endcanany
                     @canany(['super-admin', 'unit.create'])
                     <x-form.primary-button

@@ -54,7 +54,7 @@
 
                             {{-- 2. 模式切换 --}}
                             @php
-                                $isFixed = $package->price > 0;
+                                $isFixed = old('comm_type', $package->price > 0 ? 'fixed' : 'percentage') === 'fixed';
                             @endphp
                             <div class="mb-6">
                                 <label class="block text-sm font-semibold text-gray-700 mb-2">Revenue Model</label>
@@ -78,7 +78,7 @@
                                     <div class="mt-1 relative w-full">
                                         <x-form.text-input type="number" name="commission_display" id="commission_display" 
                                             value="{{ old('commission_display', $package->commission_rate / 100) }}"
-                                            {{ $isFixed ? 'disabled' : '' }}
+                                            :disabled="$isFixed"
                                             min="1" max="100" step="0.01" class="block w-full pr-10 focus:ring-indigo-500"
                                             onwheel="this.blur()" />
                                         <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -92,7 +92,7 @@
                                     <div class="mt-1 relative w-full">
                                         <x-form.text-input type="number" step="0.01" name="price_display" id="price_display" 
                                             value="{{ old('price_display', $package->price / 100) }}"
-                                            {{ !$isFixed ? 'disabled' : '' }}
+                                            :disabled="!$isFixed"
                                             class="block w-full focus:ring-indigo-500"
                                             onwheel="this.blur()" />
                                     </div>
@@ -147,6 +147,10 @@
     <script>
         document.querySelectorAll('input[name="comm_type"]').forEach((radio) => {
             radio.addEventListener('change', function() {
+                const isFixed = this.value === 'fixed';
+                document.getElementById('commission_display').disabled = isFixed;
+                document.getElementById('price_display').disabled = !isFixed;
+
                 if (this.value === 'percentage') {
                     document.getElementById('section_percentage').classList.remove('hidden');
                     document.getElementById('section_fixed').classList.add('hidden');

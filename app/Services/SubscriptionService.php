@@ -1,12 +1,48 @@
 <?php
 namespace App\Services;
 
-use App\Models\{User, UserManagement, Invoice, RefCodePackage, DocumentSequence, DocumentTemplate};
+use App\Models\{User, UserManagement, Invoice, RefCodePackage, DocumentTemplate};
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
 class SubscriptionService
 {
+    /** Resolve renewals on page access as well as login, serialized per account. */
+    public function ensureRenewalInvoice(User $user): ?Invoice
+    {
+        if (!in_array($user->role, [User::ROLE_OWNER_ADMIN, User::ROLE_AGENT_ADMIN], true)) {
+            return null;
+        }
+        $notice = app(SettingService::class)->getSystemEarlyPaymentSettings();
+
+        return DB::transaction(function () use ($user, $notice) {
+            $management = UserManagement::where('user_id', $user->id)->lockForUpdate()->first();
+            if (!$management || !$management->end_date || $management->subscription_status !== 'active') {
+                return null;
+            }
+            $expired = $management->end_date->lte(today());
+            if (!$expired && (!$notice['is_active'] || today()->lt($management->end_date->copy()->subDays($notice['value']['days'])))) {
+                return null;
+            }
+            $package = $management->package;
+            if (!$package || $package->price <= 0) {
+                return null;
+            }
+            $invoice = $this->generateInvoice($user, $package);
+            if ($expired) {
+                $management->update(['subscription_status' => 'pending']);
+            }
+
+            return $invoice;
+        });
+    }
+
+    public function requiresPayment(?UserManagement $management, ?Invoice $invoice): bool
+    {
+        // An administrator can extend access without settling or voiding the invoice.
+        return $invoice !== null && (!$management || !$management->end_date
+            || $management->end_date->lte(today()));
+    }
+
     /**
      * Called after a new ownerAdmin/agentAdmin user is created.
      * Creates UserManagement record and generates invoice if package has a price.
@@ -43,6 +79,21 @@ class SubscriptionService
 
     public function generateInvoice(User $user, RefCodePackage $package): ?Invoice
     {
+        return DB::transaction(function () use ($user, $package) {
+            $management = UserManagement::where('user_id', $user->id)->lockForUpdate()->firstOrFail();
+            $existing = Invoice::where('user_id', $user->id)->where('context', 'subscription')
+                ->whereIn('status', ['unpaid', 'partial', 'overdue'])->latest()->first();
+            if ($existing) {
+                return $existing;
+            }
+            $user->setRelation('user_management', $management);
+
+            return $this->createInvoice($user, $package);
+        });
+    }
+
+    private function createInvoice(User $user, RefCodePackage $package): ?Invoice
+    {
         if ($package->price <= 0) {
             return null; 
         }
@@ -63,7 +114,9 @@ class SubscriptionService
             'document_template_id' => $template?->id,
             'type'           => 'subscription',
             'period'         => now()->startOfMonth()->toDateString(),
-            'due_date'       => now()->addDays(7)->toDateString(),
+            'due_date'       => $user->user_management->subscription_status === 'active'
+                ? $user->user_management->end_date?->toDateString() ?? now()->addDays(7)->toDateString()
+                : now()->addDays(7)->toDateString(),
             'total_amount'   => $package->price,
             'amount_paid'    => 0,
             'amount_balance' => $package->price,
@@ -98,25 +151,6 @@ class SubscriptionService
     private function generateInvoiceNo(): string
     {
         $admin = User::where('role', 'admin')->firstOrFail();
-        $sequence = DocumentSequence::firstOrCreate(
-            [
-                'user_id' => $admin->id,
-                'category' => 'invoice',
-            ],
-            [
-                'sequence' => [
-                    'prefix' => 'INV',
-                    'next_number' => 1,
-                    'padding' => 5,
-                ],
-            ]
-        );
-        $config = $sequence->sequence;
-        $invoiceNo = $config['prefix'] . str_pad($config['next_number'], $config['padding'], '0', STR_PAD_LEFT);
-        $config['next_number']++;
-        $sequence->sequence = $config;
-        $sequence->save();
-
-        return $invoiceNo;
+        return app(DocumentSequenceService::class)->generateInvoiceNumber($admin);
     }
 }

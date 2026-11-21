@@ -4,10 +4,12 @@ use App\Http\Controllers\UtilityController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/utilities', [UtilityController::class, 'index'])->name('utilities.index');
+Route::middleware(\App\Http\Middleware\ResolveSettingsAccount::class)->group(function () {
 Route::get('/utilities/tariffs', [\App\Http\Controllers\UtilityTariffController::class, 'index'])->name('utilities.tariffs');
 Route::post('/utilities/tariffs', [\App\Http\Controllers\UtilityTariffController::class, 'store'])->name('utilities.tariffs.store');
 Route::patch('/utilities/tariffs/{tariff}', [\App\Http\Controllers\UtilityTariffController::class, 'toggle'])->name('utilities.tariffs.toggle');
 Route::post('/utilities/tariffs/{tariff}/assign', [\App\Http\Controllers\UtilityTariffController::class, 'assign'])->name('utilities.tariffs.assign');
+});
 Route::get('/utilities/charges/{utility}', [\App\Http\Controllers\UtilityBillingController::class, 'show'])->name('utilities.charges.show');
 Route::post('/utilities/charges/{utility}/allocations', [\App\Http\Controllers\UtilityBillingController::class, 'allocate'])->name('utilities.allocations.store');
 Route::delete('/utilities/charges/{utility}/allocations', [\App\Http\Controllers\UtilityBillingController::class, 'revoke'])->name('utilities.allocations.revoke');

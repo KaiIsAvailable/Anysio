@@ -37,24 +37,7 @@
     'resources/js/userManagement.js',
     'resources/js/room.js',
     ])
-    @auth
-    @php
-    $effectiveUser = get_effective_user();
 
-    $userMgmt = \App\Models\UserManagement::where('user_id', $effectiveUser->id)->first();
-
-    $latestSubscriptionInvoice = \App\Models\Invoice::where('user_id', $effectiveUser->id)
-    ->where('context', 'subscription')
-    ->whereIn('status', ['unpaid', 'partial', 'overdue'])
-    ->latest()
-    ->first();
-
-    // 🔥 Remove 'staff' from the exclusion list so staff also trigger the payment block/modal
-    // if their workspace/parent admin hasn't paid.
-    $mustPay = $latestSubscriptionInvoice !== null
-    && auth()->user()->role !== 'admin';
-    @endphp
-    @endauth
 
 
     @stack('scripts')
@@ -68,27 +51,27 @@
 
         @auth
         @php
-        $effectiveUser = get_effective_user();
-        $effectiveUserId = $effectiveUser ? $effectiveUser->id : auth()->id();
+        $mustPay = false;
+        $earlyPaymentAvailable = false;
+        // Viewing another account's settings must not run its subscription lifecycle.
+        if (Gate::denies('super-admin')) {
+            $effectiveUser = get_effective_user();
+            $effectiveUserId = $effectiveUser ? $effectiveUser->id : auth()->id();
 
-        // 1. 检查 User Management 状态 (基于 effective user)
-        $userMgmt = \App\Models\UserManagement::where(
-        'user_id',
-        $effectiveUserId
-        )->first();
-
-        // 2. 获取需要付款的 Subscription Invoice (基于 effective user)
-        $latestSubscriptionInvoice = \App\Models\Invoice::where(
-        'user_id',
-        $effectiveUserId
-        )
-        ->where('context', 'subscription')
-        ->whereIn('status', ['unpaid', 'partial', 'overdue'])
-        ->latest()
-        ->first();
-
-        $mustPay = $latestSubscriptionInvoice !== null
-        && optional($effectiveUser)->role !== 'admin';
+            $subscriptionService = app(\App\Services\SubscriptionService::class);
+            if ($effectiveUser) {
+                $subscriptionService->ensureRenewalInvoice($effectiveUser);
+            }
+            $userMgmt = \App\Models\UserManagement::where('user_id', $effectiveUserId)->first();
+            $latestSubscriptionInvoice = \App\Models\Invoice::where('user_id', $effectiveUserId)
+                ->where('context', 'subscription')
+                ->whereIn('status', ['unpaid', 'partial', 'overdue'])
+                ->latest()->first();
+            $mustPay = optional($effectiveUser)->role !== 'admin'
+                && $subscriptionService->requiresPayment($userMgmt, $latestSubscriptionInvoice);
+            $earlyPaymentAvailable = !$mustPay && $latestSubscriptionInvoice !== null
+                && optional($effectiveUser)->role !== 'admin';
+        }
         @endphp
         @endauth
 
@@ -113,13 +96,17 @@
             这里只保留一次 make_payment。
             之前你的 app.blade.php 引入了两次，会造成重复 Modal。
         --}}
-        @if($mustPay ?? false)
+        @if(($mustPay ?? false) || ($earlyPaymentAvailable ?? false))
 
         <main x-data="{ openPayment: true }" @class(['flex min-h-0 flex-1 flex-col' => $fullHeight])>
 
+            @if($earlyPaymentAvailable ?? false)
+                <x-ui.advance-payment-notice :expires-at="$userMgmt->end_date" :invoice-id="$latestSubscriptionInvoice->id" />
+            @endif
+
             @include(
             'components.modals.make_payment',
-            ['invoice' => $latestSubscriptionInvoice]
+            ['invoice' => $latestSubscriptionInvoice, 'dismissible' => !$mustPay]
             )
 
             <x-auth-session-status class="mb-4" :status="session('status')" />

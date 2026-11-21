@@ -1,9 +1,12 @@
 {{-- Anysio Subscription Payment Modal --}}
 <div x-data="{ 
-    openPayment: true, 
+    openPayment: @js(!($dismissible ?? false)),
+    dismissible: @js($dismissible ?? false),
     shakePayment: false,
     isUploading: false 
-}" x-init="$watch('openPayment', value => document.body.style.overflow = value ? 'hidden' : '')" x-cloak>
+}" x-init="if (openPayment) document.body.style.overflow = 'hidden'; $watch('openPayment', value => document.body.style.overflow = value ? 'hidden' : '')"
+    @open-subscription-payment.window="openPayment = true"
+    @keydown.escape.window="if (dismissible) openPayment = false" x-cloak>
 
     @php
         $payment = $invoice->latestPayment;
@@ -18,13 +21,17 @@
         $invoiceContent = optional($invoice->documentTemplate)->html_template ?? optional($invoice->documentTemplate)->html_content ?? '';
     @endphp
 
+    @if(!($dismissible ?? false) && (!$payment || $payment->status !== 'pending'))
+        <x-form.form id="subscription-payment-logout" method="POST" action="{{ route('logout') }}" :autofocus="false" class="hidden" />
+    @endif
+
     <template x-teleport="body">
         <div x-show="openPayment" class="fixed inset-0 z-[100] flex items-center justify-center p-4">
 
             {{-- 背景遮罩：修正变量名映射 --}}
             <div class="absolute inset-0">
                 <x-ui.blur-overlay show="openPayment"
-                    onClose="shakePayment = true; setTimeout(() => shakePayment = false, 400)" 
+                    onClose="if (dismissible) { openPayment = false } else { shakePayment = true; setTimeout(() => shakePayment = false, 400) }"
                     zIndex="z-[100]" />
             </div>
 
@@ -38,7 +45,10 @@
                 {{-- Header --}}
                 <div class="p-6 border-b border-gray-100 bg-gray-50/50 flex items-center justify-between">
                     <div>
-                        <h3 class="text-xl font-black text-slate-800">Subscription Payment</h3>
+                        <h3 class="text-xl font-black text-slate-800">{{ ($dismissible ?? false) ? __('Advance Payment') : __('Subscription Payment') }}</h3>
+                        @if($dismissible ?? false)
+                            <p class="mt-1 text-sm text-slate-500">{{ __('Make an advance payment before your subscription expires on :date.', ['date' => $userMgmt->end_date->format('d/m/Y')]) }}</p>
+                        @endif
                         <p class="text-xs text-slate-500 mt-1 uppercase tracking-widest font-bold">Invoice: <span
                                 class="text-indigo-600">{{ $invoice?->invoice_no }}</span></p>
                         @if(!$payment || $payment->status !== 'pending')
@@ -50,6 +60,14 @@
                             </p>
                         @endif
                     </div>
+                    @if($dismissible ?? false)
+                        <button type="button" @click="openPayment = false" aria-label="{{ __('Close advance payment') }}"
+                            class="ml-3 shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="m6 6 12 12M6 18 18 6" />
+                            </svg>
+                        </button>
+                    @endif
                 </div>
 
                 {{-- 情况 A：已经上传了收据，等待审核 --}}
@@ -322,12 +340,15 @@
 
                             {{-- Buttons --}}
                             <div class="p-5 flex flex-col-reverse sm:flex-row gap-3">
-                                {{-- Logout / Cancel --}}
-                                <x-form.form method="POST" action="{{ route('logout') }}" class="flex-1">
-                                    <x-form.secondary-button type="submit" class="w-full justify-center rounded-xl py-3">
-                                        Later
+                                @if($dismissible ?? false)
+                                    <x-form.secondary-button type="button" @click="openPayment = false" class="flex-1 justify-center rounded-xl py-3">
+                                        {{ __('Cancel') }}
                                     </x-form.secondary-button>
-                                </x-form.form>
+                                @else
+                                    <x-form.secondary-button type="submit" form="subscription-payment-logout" class="flex-1 justify-center rounded-xl py-3">
+                                        {{ __('Later') }}
+                                    </x-form.secondary-button>
+                                @endif
 
                                 {{-- Submit --}}
                                 <div class="flex-1">

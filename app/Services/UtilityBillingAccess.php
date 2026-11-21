@@ -11,6 +11,7 @@ class UtilityBillingAccess
     {
         if (Gate::allows('super-admin')) {
             $id = $request->validate(['management_user_id' => ['nullable', 'ulid']])['management_user_id'] ?? null;
+            if (!$id && $request->attributes->get('settings_account')) return $request->attributes->get('settings_account');
             return $id ? User::whereIn('role', [User::ROLE_OWNER_ADMIN, User::ROLE_AGENT_ADMIN])->findOrFail($id)
                 : ($platform ? Auth::user() : null);
         }

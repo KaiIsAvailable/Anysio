@@ -8,9 +8,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
-use Carbon\Carbon;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\DB;
 use App\Services\SubscriptionService;
 
 class AuthenticatedSessionController extends Controller
@@ -30,47 +28,13 @@ class AuthenticatedSessionController extends Controller
     {
         $request->authenticate();
         $request->session()->regenerate();
+        $request->session()->put('subscription_notice_login', (string) \Illuminate\Support\Str::uuid());
         $user = get_effective_user();
 
         // 1. 支付状态优先拦截 (仅限 Admin)
         if (in_array($user->role, ['ownerAdmin', 'agentAdmin'])) {
-            $mgmt = $user->user_management;
-            
-            if ($mgmt && $mgmt->end_date) {
-                $isExpired = Carbon::parse($mgmt->end_date)->startOfDay()->isPast();
+            app(SubscriptionService::class)->ensureRenewalInvoice($user);
 
-                // Log the check details to the 'testing' channel
-                Log::channel('testing')->info('Subscription Expiry Check on Login', [
-                    'user_id'     => $user->id,
-                    'end_date'    => $mgmt->end_date,
-                    'status'      => $mgmt->subscription_status,
-                    'is_expired'  => $isExpired,
-                ]);
-
-                if ($isExpired && $mgmt->subscription_status === 'active') {
-                    try {
-                        DB::transaction(function () use ($user, $mgmt) {
-                            $mgmt->update(['subscription_status' => 'pending']);
-
-                            $subscriptionService = new SubscriptionService();
-                            $invoice = $subscriptionService->generateInvoice($user, $mgmt->package);
-
-                            Log::channel('testing')->info('Renewal Invoice Generated Successfully', [
-                                'user_id'    => $user->id,
-                                'invoice_no' => $invoice->invoice_no,
-                                'amount'     => $invoice->total_amount,
-                            ]);
-                        });
-                    } catch (\Exception $e) {
-                        Log::channel('testing')->error('Subscription Renewal Failed', [
-                            'user_id' => $user->id,
-                            'error'   => $e->getMessage(),
-                            'trace'   => $e->getTraceAsString(),
-                        ]);
-                    }
-                }
-            }
-            
             return redirect()->route(app(\App\Services\LandingPageService::class)->routeFor(Auth::user()));
         }
 

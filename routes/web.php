@@ -94,7 +94,7 @@ Route::get('/run-seeders-xyz', function (Request $request) {
     } catch (\Exception $e) {
         return redirect()->to($redirectTo)->with('error', 'Error: ' . $e->getMessage());
     }
-})->name('run.seeders');
+})->middleware(['auth', 'can:super-admin'])->name('run.seeders');
 
 //run migrate
 Route::get('/run-migrations-xyz', function (Request $request) {
@@ -109,7 +109,7 @@ Route::get('/run-migrations-xyz', function (Request $request) {
         
         return redirect()->to($redirectTo)->with('error', 'Migration Error: ' . $e->getMessage());
     }
-})->name('run.migrations');
+})->middleware(['auth', 'can:super-admin'])->name('run.migrations');
 
 Route::get('/check-php', function () {
     return phpversion();

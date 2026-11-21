@@ -92,6 +92,12 @@ if (!function_exists('get_effective_user')) {
         $user = \Illuminate\Support\Facades\Auth::user();
         if (!$user) return null;
 
+        // Only settings middleware can select a management account; the actor stays unchanged.
+        $settingsAccount = request()->attributes->get('settings_account');
+        if ($user->role === \App\Models\User::ROLE_ADMIN && $settingsAccount instanceof \App\Models\User) {
+            return $settingsAccount;
+        }
+
         if ($user->role === 'staff') {
             $staff = \App\Models\Staff::where('user_id', $user->id)->first();
             

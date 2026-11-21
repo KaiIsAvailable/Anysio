@@ -1,6 +1,11 @@
 <?php
 
 return [
+    'early_payment_config' => [
+        'number' => 14,
+        'mode' => 'days',
+        'days' => 14,
+    ],
     // Reuse the reference schedules so tariff defaults have one source of truth.
     'utility_tariff_config' => [
         'default_profile' => 'water_perak_domestic',

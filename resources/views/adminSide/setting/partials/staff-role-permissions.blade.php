@@ -17,7 +17,7 @@
             @endcanany
         </header>
 
-        <x-modals.staff-role-modal />
+        <x-modals.staff-role-modal :management-user-id="request()->attributes->get('settings_account')?->id" />
 
         @if($roles->isEmpty())
             <p class="py-6 text-center text-sm text-gray-500">{{ __('No roles found. Create a staff role to get started.') }}</p>
@@ -31,6 +31,9 @@
             <form action="{{ route('admin.settings.user-role-permissions.update') }}" method="POST" @submit="savingPermissions = true; $dispatch('form-loading', true)" @pageshow.window="savingPermissions = false" class="space-y-3">
                 @csrf
                 @method('PUT')
+                @if(request()->attributes->get('settings_account'))
+                    <input type="hidden" name="account_id" value="{{ request()->attributes->get('settings_account')->id }}">
+                @endif
                 <input type="hidden" name="active_tab" value="permissions">
                 <input type="hidden" name="role_tab" :value="roleTab">
 

@@ -7,6 +7,30 @@ use Illuminate\Support\Facades\Log;
 
 class SettingService
 {
+    public function getSystemEarlyPaymentSettings(): array
+    {
+        $admin = User::where('role', User::ROLE_ADMIN)->oldest()->orderBy('id')->first();
+
+        return $admin
+            ? $this->getEffectiveSettings($admin)['early_payment_config']
+            : ['value' => config('settings.early_payment_config'), 'is_active' => true];
+    }
+
+    public function saveSystemEarlyPaymentSettings(array $data): void
+    {
+        $admin = User::where('role', User::ROLE_ADMIN)->oldest()->orderBy('id')->firstOrFail();
+        $number = (int) $data['number'];
+        $days = $number * match ($data['mode']) {
+            'months' => 30,
+            'years' => 365,
+            default => 1,
+        };
+        Setting::updateOrCreate(['user_id' => $admin->id, 'key' => 'early_payment_config'], [
+            'value' => ['number' => $number, 'mode' => $data['mode'], 'days' => $days],
+            'is_active' => (bool) $data['is_active'],
+        ]);
+    }
+
     public static function recurringInvoiceRules(): array
     {
         return [

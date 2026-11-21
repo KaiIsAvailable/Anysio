@@ -20,7 +20,7 @@ class RoleController extends Controller
 
         // 💡 1. Determine the target team_id: 
         // If the current user is an admin (and provided a target user_id in the request), use that. Otherwise, use their own ID.
-        $userId = ($currentUser->role === 'admin' || Gate::allows('super-admin')) 
+        $userId = !$request->attributes->has('settings_account') && ($currentUser->role === 'admin' || Gate::allows('super-admin'))
             ? $request->input('user_id', $currentUser->id) 
             : $currentUser->id;
 
@@ -98,8 +98,7 @@ class RoleController extends Controller
 
         // 3. Redirect back while preserving the tab
         if ($activeTab) {
-            $previousUrl = strtok(url()->previous(), '?');
-            return redirect()->to($previousUrl . '?tab=' . $activeTab)->with('success', 'Role deleted successfully.');
+            return redirect()->route('admin.settings.index', ['tab' => $activeTab, 'account_id' => $request->attributes->get('settings_account')?->id])->with('success', 'Role deleted successfully.');
         }
     }
 }

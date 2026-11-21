@@ -39,7 +39,8 @@
                             let payload = {
                                 name: newRoleName,
                                 permissions: selectedPermissions,
-                                user_id: formData.get('user_id')
+                                user_id: formData.get('user_id'),
+                                ...(formData.get('account_id') ? { account_id: formData.get('account_id') } : {})
                             };
 
                             return fetch('{{ route('admin.roles.store') }}', {

@@ -14,18 +14,7 @@ class AccountPermissionController extends Controller
     {
         Gate::authorize('super-admin');
 
-        $accounts = User::whereIn('role', [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN])
-            ->orderBy('name')->get(['id', 'name', 'email', 'role']);
-        $selectedId = $request->query('account_id', $accounts->first()?->id);
-        $account = $selectedId
-            ? User::whereIn('role', [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN])->findOrFail($selectedId)
-            : null;
-        $modules = config('permissions.modules', []);
-
-        return view('adminSide.setting.account-permissions', compact('accounts', 'account', 'modules') +
-            app(\App\Services\FeeTypeService::class)->settingsData($request->only('search', 'category')) + [
-                'settings' => app(\App\Services\SettingService::class)->getEffectiveSettings(),
-            ]);
+        return redirect()->route('admin.settings.index', ['tab' => 'permissions', 'account_id' => $request->query('account_id')]);
     }
 
     public function update(Request $request, User $user)

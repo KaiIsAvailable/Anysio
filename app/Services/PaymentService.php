@@ -18,6 +18,15 @@ class PaymentService
      */
     public function submitReceipt(Invoice $invoice, User $user, array $data): Payment {
         return DB::transaction(function () use ($invoice, $user, $data) {
+            $invoice = Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+            if ($invoice->context === 'subscription') {
+                abort_unless($invoice->user_id === get_effective_user()?->id, 403);
+                if ($invoice->amount_balance <= 0 || $invoice->isVoid()) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'invoice' => 'This subscription invoice is already settled or void.',
+                    ]);
+                }
+            }
             // Prevent duplicate pending submission
             $existing = Payment::where('invoice_id', $invoice->id)
                 ->where('submitted_by', $user->id)

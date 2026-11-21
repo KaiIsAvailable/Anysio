@@ -17,6 +17,6 @@ return [
         'service request'   => ['tab', 'reply'],
         'maintenance'       => ['tab', 'view', 'create', 'edit', 'assign', 'complete'],
         'staff'             => ['tab', 'create', 'edit', 'delete', 'show'],
-        'settings'          => ['payment tab', 'late payment setting', 'edit late payment', 'payment collection setting', 'edit payment collection', 'lease tab', 'recurring invoice setting', 'edit recurring invoice', 'pending renewal setting', 'edit pending renewal', 'lease configuration setting', 'edit lease configuration', 'utility tab', 'edit utility meter prices', 'user role tab', 'create new role', 'edit user role', 'delete user role']
+        'settings'          => ['payment tab', 'late payment setting', 'edit late payment', 'payment collection setting', 'edit payment collection', 'lease tab', 'recurring invoice setting', 'edit recurring invoice', 'pending renewal setting', 'edit pending renewal', 'lease configuration setting', 'edit lease configuration', 'utility tab', 'edit utility meter prices', 'system tab', 'user role tab', 'create new role', 'edit user role', 'delete user role']
     ],
 ];

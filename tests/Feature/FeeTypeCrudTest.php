@@ -136,7 +136,7 @@ class FeeTypeCrudTest extends TestCase
         $this->assertStringNotContainsString('@click="activeTab = \'fee-types\'"', $html);
     }
 
-    public function test_system_settings_preloads_fees_alongside_account_permissions(): void
+    public function test_system_settings_preloads_fees_alongside_shared_settings(): void
     {
         $this->prepareSettingsPage();
         $actor = User::findOrFail('a');
@@ -145,12 +145,10 @@ class FeeTypeCrudTest extends TestCase
         $this->fee(['is_system' => true, 'name' => 'Shared system fee']);
         $this->request([], 'GET');
         $view = app(SettingsController::class)->index(app(SettingService::class));
-        $this->assertSame('adminSide.setting.account-permissions', $view->name());
+        $this->assertSame('adminSide.setting.index', $view->name());
         $this->assertCount(1, $view->getData()['feeTypes']);
-        $html = $view->with('errors', new ViewErrorBag)->render();
-        $this->assertStringContainsString('@click="activeTab = \'fee-types\'"', $html);
-        $this->assertStringContainsString('@click="activeTab = \'accounts\'"', $html);
-        $this->assertStringNotContainsString('loadingFeeTypes', $html);
+        $this->assertArrayHasKey('roles', $view->getData());
+        $this->assertArrayHasKey('settingsAccounts', $view->getData());
     }
 
     public function test_adding_a_fee_from_settings_preserves_the_active_fee_tab(): void

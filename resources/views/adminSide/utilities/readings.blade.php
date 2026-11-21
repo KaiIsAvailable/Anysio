@@ -8,6 +8,10 @@
 
         $earlierMonthLabel = \Carbon\Carbon::parse($month.'-01')->subMonthsNoOverflow(2)->format('m/Y');
 
+        $previousYearsLabel = substr($earlierMonthLabel, 3) === substr($previousMonthLabel, 3)
+            ? substr($previousMonthLabel, 3)
+            : substr($earlierMonthLabel, 3).'/'.substr($previousMonthLabel, 3);
+
         $oldRows = json_decode(old('readings', 'null'), true);
 
         $oldSelection = json_decode(old('selected_services', '[]'), true);
@@ -178,13 +182,23 @@
 
 
 
-                <div class="md:rounded-xl md:border md:border-gray-100 md:bg-white md:shadow-lg">
+                <div class="rounded-xl border border-gray-200 bg-white md:border-gray-100 md:shadow-lg">
 
-                    <div class="md:overflow-x-auto">
+                    <div class="md:overflow-x-auto" role="region" aria-label="Water meter readings">
+                        <div class="min-w-0">
 
+                        <div class="sticky top-0 z-20 grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] items-end border-b border-gray-200 bg-gray-50 text-sm font-semibold text-gray-600 md:hidden">
+                            <span class="flex items-center gap-2 px-2 py-3">
+                                @canany(['super-admin', 'utilities.manage meters'])
+                                    <x-form.checkbox x-show="manageMeters" aria-label="Select all water meters" x-bind:checked="allSelected" x-bind:indeterminate="selectedIds.length > 0 && !allSelected" @change="toggleAllMeters($event.target.checked)" />
+                                @endcanany
+                                <span>{{ $previousYearsLabel }}<span class="mt-1 block font-normal">Previous</span></span>
+                            </span>
+                            <span class="px-2 py-3 text-indigo-600">{{ $currentMonthLabel }}<span class="mt-1 block font-normal">Current (m³)</span></span>
+                        </div>
                         <table class="w-full md:min-w-[760px] text-left md:divide-y md:divide-gray-200">
 
-                            <thead class="block rounded-t-xl bg-gray-50 md:table-header-group"><tr class="grid grid-cols-3 md:table-row"><th class="col-span-3 px-4 py-3 md:w-12 md:py-4" x-show="manageMeters">
+                            <thead class="hidden rounded-t-xl bg-gray-50 md:table-header-group"><tr class="grid grid-cols-3 md:table-row"><th class="col-span-3 px-4 py-3 md:w-12 md:py-4" x-show="manageMeters">
 
                                 @canany(['super-admin', 'utilities.manage meters'])
 <x-form.checkbox aria-label="Select all water meters" x-bind:checked="allSelected" x-bind:indeterminate="selectedIds.length > 0 && !allSelected" @change="toggleAllMeters($event.target.checked)" />
@@ -194,11 +208,11 @@
 
                                 <template x-for="node in visibleHierarchy" :key="node.key">
 
-                                    <tbody class="mb-3 block rounded-xl border border-gray-200 md:mb-0 md:table-row-group md:rounded-none md:border-0" x-data="{ row: readingRow(node) }" :class="node.level === 0 ? 'bg-indigo-50' : (node.level === 1 ? 'bg-gray-50' : 'bg-white')">
+                                    <tbody class="block border-b border-gray-200 last:border-b-0 md:mb-0 md:table-row-group md:rounded-none md:border-0" x-data="{ row: readingRow(node), detailsOpen: false }" x-id="['water-meter-details']" :class="node.level === 0 ? 'bg-indigo-50' : (node.level === 1 ? 'bg-gray-50' : 'bg-white')">
 
-                                    <tr class="grid grid-cols-3 md:table-row">
+                                    <tr class="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] items-center md:table-row">
 
-                                        <td class="col-span-3 px-4 py-2 md:table-cell md:py-4" x-show="manageMeters">
+                                        <td class="hidden px-4 py-2 md:table-cell md:py-4" x-show="manageMeters">
 
                                             @canany(['super-admin', 'utilities.manage meters'])
 <template x-if="row"><x-form.checkbox x-model="selectedIds" x-bind:value="row.id" x-bind:aria-label="'Select ' + row.label" /></template>
@@ -206,39 +220,47 @@
 
                                         </td>
 
-                                        <td class="col-span-3 py-3 pr-4 md:table-cell md:py-4" x-bind:colspan="row ? 1 : (manageMeters ? 5 : 4)" :style="{ paddingLeft: (16 + node.level * 12) + 'px' }">
+                                        <td class="col-span-2 min-w-0 pb-0 pt-2 pr-2 max-md:!pl-2 md:table-cell md:py-4 md:pr-4" x-bind:colspan="row ? 1 : (manageMeters ? 5 : 4)" :style="{ paddingLeft: (16 + node.level * 12) + 'px' }">
 
                                             <div class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                                                @canany(['super-admin', 'utilities.manage meters'])
+                                                    <template x-if="manageMeters && row"><x-form.checkbox class="self-center md:hidden" x-model="selectedIds" x-bind:value="row.id" x-bind:aria-label="'Select ' + row.label" /></template>
+                                                @endcanany
+                                                <span class="hidden text-sm text-slate-900 md:inline" :class="node.level === 0 ? 'font-bold' : 'font-semibold'" x-text="node.label"></span>
+                                                <button type="button" class="min-w-0 break-words text-left text-sm font-semibold text-indigo-600 underline decoration-dotted underline-offset-4 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 md:hidden"
+                                                    x-show="row" @click="detailsOpen = !detailsOpen" :aria-expanded="detailsOpen" :aria-controls="$id('water-meter-details')" :aria-label="'Reading details for ' + node.label" x-text="node.label"></button>
+                                                <span x-show="!row" class="break-words text-sm font-semibold text-slate-900 md:hidden" x-text="node.label"></span>
 
-                                                <span class="text-sm text-slate-900" :class="node.level === 0 ? 'font-bold' : 'font-semibold'" x-text="node.label"></span>
-
-                                                <span x-show="manageMeters || !row" class="text-xs" :class="!row ? 'text-gray-400' : (row.setupStatus === 'unconfirmed' ? 'text-amber-700' : 'text-green-700')" x-text="!row ? '- No meter configured' : (row.setupStatus === 'unconfirmed' ? '- Unconfirmed' : '- Active')"></span>
+                                                <span x-show="manageMeters || !row" class="text-xs" :class="[!row ? 'text-gray-400' : (row.setupStatus === 'unconfirmed' ? 'text-amber-700' : 'text-green-700'), row ? 'hidden md:inline' : '']" x-text="!row ? '- No meter configured' : (row.setupStatus === 'unconfirmed' ? '- Unconfirmed' : '- Active')"></span>
 
                                             </div>
 
-                                            <template x-if="row"><p class="mt-1 text-xs text-gray-500 md:hidden" x-text="row.location"></p></template>
 
-                                            <template x-if="row?.meter"><p class="mt-1 text-xs text-gray-500" x-text="'Meter: ' + row.meter"></p></template>
+                                            <template x-if="row?.meter"><p class="mt-1 hidden text-xs text-gray-500 md:block" x-text="'Meter: ' + row.meter"></p></template>
 
                                         </td>
 
-                                        <td class="min-w-0 align-top px-2 py-3 md:table-cell md:px-6 md:py-4 md:w-48" x-show="row">
+                                        <td class="hidden min-w-0 px-1 py-2 align-top md:table-cell md:px-6 md:py-4 md:w-48" x-show="row">
 
                                             <template x-if="row"><div>
 
-                                                <x-form.text-input readonly class="bg-gray-50 text-slate-700 md:max-w-40" x-bind:value="row.earlierPrevious ?? ''" placeholder="—" x-bind:aria-label="'First previous reading for ' + row.location" />
-                                                <p class="mt-1 text-xs text-gray-500" x-show="row.earlierPreviousDate" x-text="formatReadingDate(row.earlierPreviousDate)"></p>
+                                                <p class="hidden min-h-[38px] items-center text-sm tabular-nums text-slate-700 md:flex" x-text="(row.earlierPrevious ?? '') === '' ? '—' : row.earlierPrevious" x-bind:aria-label="'First previous reading for ' + row.location"></p>
+                                                <p class="mt-1 hidden text-xs text-gray-500 md:block" x-show="row.earlierPreviousDate" x-text="formatReadingDate(row.earlierPreviousDate)"></p>
 
                                             </div></template>
 
                                         </td>
 
-                                        <td class="min-w-0 align-top px-2 py-3 md:table-cell md:px-6 md:py-4 md:w-56" x-show="row">
+                                        <td class="min-w-0 px-2 pb-2 pt-1 align-top md:table-cell md:px-6 md:py-4 md:w-56" x-show="row">
 
                                             <template x-if="row"><div>
 
-                                                <x-form.text-input readonly class="bg-gray-50 text-slate-700 md:max-w-40" x-bind:value="row.previous ?? ''" placeholder="—" x-bind:aria-label="'Second previous reading for ' + row.location" />
-                                                <p class="mt-1 text-xs text-gray-500" x-show="row.previousDate" x-text="formatReadingDate(row.previousDate)"></p>
+                                                <div class="space-y-1 whitespace-nowrap text-sm tabular-nums text-slate-700 md:hidden">
+                                                    <p><span class="text-gray-500">{{ substr($earlierMonthLabel, 0, 2) }} - </span><span x-text="(row.earlierPrevious ?? '') === '' ? '—' : row.earlierPrevious"></span></p>
+                                                    <p><span class="text-gray-500">{{ substr($previousMonthLabel, 0, 2) }} - </span><span x-text="(row.previous ?? '') === '' ? '—' : row.previous"></span></p>
+                                                </div>
+                                                <p class="hidden min-h-[38px] items-center text-sm tabular-nums text-slate-700 md:flex" x-text="(row.previous ?? '') === '' ? '—' : row.previous" x-bind:aria-label="'Second previous reading for ' + row.location"></p>
+                                                <p class="mt-1 hidden text-xs text-gray-500 md:block" x-show="row.previousDate" x-text="formatReadingDate(row.previousDate)"></p>
 
                                                 <template x-if="row.events?.length"><div class="mt-2"><x-form.input-select :options="['' => 'No meter event']" disabled-when="row.locked" x-effect="options = [{ value: '', label: 'No meter event' }, ...row.events.map(e => ({ value: e.id, label: e.type + ' - ' + e.event_date }))]; selectedValues = [row.eventId || '']" @change="if ($event.detail) row.eventId = $event.detail.value || ''" /></div></template>
 
@@ -250,7 +272,7 @@
 
                                         </td>
 
-                                        <td class="min-w-0 align-top px-2 py-3 md:table-cell md:px-6 md:py-4 md:w-72" x-show="row">
+                                        <td class="min-w-0 px-2 pb-2 pt-1 align-top md:table-cell md:px-6 md:py-4 md:w-72" x-show="row">
 
                                             <template x-if="row"><div>
 
@@ -270,7 +292,7 @@
 
                                                 </div>
 
-                                                <div class="mt-1 flex items-center gap-2">
+                                                <div class="mt-1 hidden items-center gap-2 md:flex">
                                                     <p class="text-xs text-gray-500" x-show="calculation(row).usage !== null"><span x-text="calculation(row).usage"></span> m³ used <span x-show="calculation(row).amount !== null" x-text="'· ' + money(calculation(row).amount ?? 0)"></span></p>
                                                     <x-form.input-label x-show="manageMeters" class="shrink-0 [&_[role=tooltip]]:left-auto [&_[role=tooltip]]:right-0 [&_[role=tooltip]]:translate-x-0">
                                                         <x-slot:info>
@@ -280,7 +302,7 @@
                                                     </x-form.input-label>
                                                 </div>
 
-                                                <p class="mt-1 flex flex-wrap items-center gap-1 text-xs font-semibold text-indigo-600" x-show="row.invoiced">
+                                                <p class="mt-1 hidden flex-wrap items-center gap-1 text-xs font-semibold text-indigo-600 md:flex" x-show="row.invoiced">
                                                     <span x-text="row.invoiceNo ? 'Invoice generated:' : 'Invoice generated'"></span>
                                                     @canany(['super-admin', 'invoice.view invoice'])
                                                         <button type="button" x-show="row.invoiceDocumentUrl" @click="window.openLeaseInvoiceDocument(row.invoiceDocumentUrl, 'Invoice: ' + row.invoiceNo)"
@@ -295,7 +317,7 @@
 
                                         </td>
 
-                                        <td class="col-span-3 px-4 py-3 md:table-cell md:px-6 md:py-4 md:w-36" x-show="manageMeters && row">
+                                        <td class="col-span-2 px-4 py-3 md:table-cell md:px-6 md:py-4 md:w-36" x-show="manageMeters && row">
 
                                             <template x-if="row"><div class="flex flex-wrap items-center gap-2">
 
@@ -325,6 +347,27 @@
 
                                     </tr>
 
+                                    <tr x-show="row && detailsOpen" x-cloak class="block md:hidden">
+                                        <td class="block border-t border-gray-200 px-3 py-3 text-xs text-gray-600" :id="$id('water-meter-details')" colspan="2">
+                                            <template x-if="row"><div class="space-y-2">
+                                                <p class="font-semibold text-slate-900" x-text="row.location"></p>
+                                                <p x-show="row.meter" x-text="'Physical meter: ' + (row.meter || '')"></p>
+                                                <div class="grid grid-cols-2 gap-3">
+                                                    <p><span class="block text-gray-500">1st previous reading date</span><span x-text="formatReadingDate(row.earlierPreviousDate)"></span></p>
+                                                    <p><span class="block text-gray-500">2nd previous reading date</span><span x-text="formatReadingDate(row.previousDate)"></span></p>
+                                                </div>
+                                                <p x-show="calculation(row).usage !== null"><span x-text="calculation(row).usage"></span> m³ used <span x-show="calculation(row).amount !== null" x-text="'· ' + money(calculation(row).amount ?? 0)"></span></p>
+                                                <p x-show="row.invoiced" class="font-semibold text-indigo-600">
+                                                    <span>Invoice generated:</span>
+                                                    @canany(['super-admin', 'invoice.view invoice'])
+                                                        <button type="button" x-show="row.invoiceDocumentUrl" @click="window.openLeaseInvoiceDocument(row.invoiceDocumentUrl, 'Invoice: ' + row.invoiceNo)" class="underline" x-text="row.invoiceNo"></button>
+                                                    @endcanany
+                                                    <span x-show="!row.invoiceDocumentUrl" x-text="row.invoiceNo"></span>
+                                                </p>
+                                            </div></template>
+                                        </td>
+                                    </tr>
+
                                     <tr x-show="row && !row.locked && entryError(row)" x-cloak class="block md:table-row">
 
                                         <td x-bind:colspan="manageMeters ? 6 : 4" class="block px-4 pb-3 text-sm text-red-600 md:table-cell md:px-6" role="alert">
@@ -342,6 +385,7 @@
                             <tbody x-show="visibleHierarchy.length === 0"><tr><td x-bind:colspan="manageMeters ? 6 : 4" class="px-6 py-12 text-center text-sm text-gray-500">No managed properties or units found.</td></tr></tbody>
 
                         </table>
+                        </div>
 
                     </div>
 

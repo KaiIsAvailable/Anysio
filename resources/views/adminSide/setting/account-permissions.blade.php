@@ -6,13 +6,22 @@
     <div class="py-6">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <section class="bg-white shadow-sm sm:rounded-lg border border-gray-200 p-4 sm:p-5 space-y-4"
-                x-data="{ activeTab: @js(request('tab') === 'fee-types' || session('fee_types_tab') || old('tab') === 'fee-types' ? 'fee-types' : 'accounts') }">
+                x-data="{ activeTab: @js(old('tab', request('tab')) === 'system' ? 'system' : (request('tab') === 'fee-types' || session('fee_types_tab') || old('tab') === 'fee-types' ? 'fee-types' : 'accounts')) }">
                 <nav class="flex gap-4 border-b border-gray-200 pb-3 text-sm font-medium" aria-label="{{ __('Settings sections') }}">
                     <button type="button" @click="activeTab = 'accounts'" :class="activeTab === 'accounts' ? 'text-indigo-600' : 'text-gray-500 hover:text-indigo-600'">{{ __('Account Permissions') }}</button>
+                    <a href="{{ route('admin.settings.index', ['tab' => 'utility']) }}" class="text-gray-500 hover:text-indigo-600">{{ __('Utility') }}</a>
                     @canany(['super-admin', 'fee types.view'])
                     <button type="button" @click="activeTab = 'fee-types'" :class="activeTab === 'fee-types' ? 'text-indigo-600' : 'text-gray-500 hover:text-indigo-600'">{{ __('Fee Types') }}</button>
                     @endcanany
+                    @canany(['super-admin'])
+                    <button type="button" @click="activeTab = 'system'" :class="activeTab === 'system' ? 'text-indigo-600' : 'text-gray-500 hover:text-indigo-600'">{{ __('System') }}</button>
+                    @endcanany
                 </nav>
+                @canany(['super-admin'])
+                <div x-show="activeTab === 'system'" x-cloak>
+                    @include('adminSide.setting.partials.system')
+                </div>
+                @endcanany
                 <div x-show="activeTab === 'fee-types'" x-cloak>
                     @include('adminSide.setting.partials.fee-types')
                 </div>

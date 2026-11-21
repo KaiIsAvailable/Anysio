@@ -1851,10 +1851,13 @@ class UtilitySetupTest extends TestCase
         $this->assertSame('12/2026', $january['previousMonth']);
         $this->get(route('admin.utilities.readings', ['month' => '2027-01']))->assertOk()
             ->assertSee('11/2026')->assertSee('12/2026')->assertSee('01/2027')
+            ->assertDontSee('2026/2027')
             ->assertSee('1st previous reading')->assertSee('2nd previous reading')
             ->assertDontSee('x-model="row.previous"', false)
             ->assertSee('formatReadingDate(row.previousDate)', false)
             ->assertSee('formatReadingDate(row.earlierPreviousDate)', false);
+        $this->get(route('admin.utilities.readings', ['month' => '2027-02']))->assertOk()
+            ->assertSee('2026/2027')->assertSee('02/2027');
         $input = $this->readingInput($january, ['current' => '18']);
         $input['month'] = '2027-01'; $input['reading_date'] = '2027-01-13';
         $this->saveReading($input);

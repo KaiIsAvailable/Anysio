@@ -17,12 +17,12 @@
             'used' => !$feeType->is_system && ($feeType->invoice_items_exists || $feeType->lease_charges_exists || $feeType->refund_items_exists || $feeType->maintenance_items_exists),
             'editable' => !$feeType->is_system && Gate::any(['super-admin', 'fee types.edit']),
             'can_toggle' => Gate::any(['super-admin', 'fee types.change status']) && !($feeType->is_system && (!$feeType->is_active || $feeType->settingKey() === 'service_late_payment_penalty')),
-            'delete_url' => !$feeType->is_system && Gate::any(['super-admin', 'fee types.delete']) ? route('admin.fee-types.destroy', $feeType) : null,
+            'delete_url' => !$feeType->is_system && Gate::any(['super-admin', 'fee types.delete']) ? route('admin.fee-types.destroy', ['fee_type' => $feeType, 'account_id' => request()->attributes->get('settings_account')?->id]) : null,
             'deleted' => false,
         ]];
     })->all();
     $feeConfig = ['rows' => $feeRows, 'fee' => $oldFee, 'defaultCategory' => isset($categoryOptions['invoice']) ? 'invoice' : (array_key_first($categoryOptions) ?? ''), 'editing' => (bool) session('fee_types_editing', false),
-        'saveUrl' => route('admin.fee-types.batch'), 'saveError' => __('Unable to save fee types. Your edits are retained. Please try again.'),
+        'saveUrl' => route('admin.fee-types.batch', ['account_id' => request()->attributes->get('settings_account')?->id]), 'saveError' => __('Unable to save fee types. Your edits are retained. Please try again.'),
         'deleteError' => __('Unable to delete this fee type. Please try again.')];
 @endphp
 <section class="bg-white shadow-sm rounded-lg border border-gray-200 p-4 sm:p-6 space-y-5"
@@ -55,6 +55,7 @@
             @change="if ($event.detail?.value && $event.detail.value !== @js(request('category', 'all'))) {
                 const target = new URL(@js(route('admin.fee-types.index')));
                 target.searchParams.set('category', $event.detail.value);
+                if (@js(request()->attributes->get('settings_account')?->id)) target.searchParams.set('account_id', @js(request()->attributes->get('settings_account')?->id));
                 if (@js(request('search', ''))) target.searchParams.set('search', @js(request('search', '')));
                 window.location.assign(target.href);
             }" />

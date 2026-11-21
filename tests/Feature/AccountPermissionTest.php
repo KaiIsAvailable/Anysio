@@ -34,6 +34,9 @@ class AccountPermissionTest extends TestCase
             DB::table('users')->insert(['id' => $this->ids[$name], 'name' => $name, 'email' => $name.'@example.com', 'role' => $role, 'email_verified_at' => now()]);
         }
         (require database_path('migrations/2026_11_07_000001_add_account_permissions_to_users_table.php'))->up();
+        Schema::create('settings', function (Blueprint $table) {
+            $table->id(); $table->string('user_id'); $table->string('key'); $table->text('value'); $table->boolean('is_active')->default(true); $table->timestamps();
+        });
 
         Schema::create('user_management', function (Blueprint $table) {
             $table->string('id')->primary(); $table->string('user_id'); $table->softDeletes();
@@ -483,7 +486,7 @@ class AccountPermissionTest extends TestCase
         }
     }
 
-    public function test_settings_renders_compact_account_editor_for_system_admin(): void
+    private function prepareSharedSettings(): void
     {
         (require database_path('migrations/2026_01_03_144458_create_fee_type_table.php'))->up();
         (require database_path('migrations/2026_10_20_112823_add_prices_to_fee_types_table.php'))->up();
@@ -492,23 +495,164 @@ class AccountPermissionTest extends TestCase
                 $table->id(); $table->string('fee_type_id')->nullable();
             });
         }
-        Schema::create('settings', function (Blueprint $table) {
-            $table->id(); $table->string('user_id'); $table->string('key'); $table->text('value'); $table->boolean('is_active');
+        Schema::table('permissions', fn (Blueprint $table) => $table->timestamps());
+        Schema::create('invoices', function (Blueprint $table) {
+            $table->string('id')->primary(); $table->string('user_id'); $table->string('context'); $table->string('status'); $table->softDeletes(); $table->timestamps();
         });
+        Schema::create('utility_services', function (Blueprint $table) {
+            $table->string('id')->primary(); $table->string('management_user_id'); $table->string('type'); $table->softDeletes();
+        });
+        $this->mock(\App\Services\UtilityTariffManagementService::class)->shouldReceive('catalog')->andReturn([]);
+        $this->mock(\App\Services\UtilitySetupService::class)->shouldReceive('managedLocations')->andReturn(collect());
+    }
+
+    public function test_settings_uses_shared_page_and_super_admin_account_selector(): void
+    {
+        $this->prepareSharedSettings();
         $this->actingAs($this->user('system'));
-        $view = app(SettingsController::class)->index(app(SettingService::class));
-        $this->assertSame('adminSide.setting.account-permissions', $view->name());
-        $this->assertCount(3, $view->getData()['accounts']);
-        // Render the actual editor body independently of the global subscription layout.
-        $source = file_get_contents(resource_path('views/adminSide/setting/account-permissions.blade.php'));
-        $source = preg_replace('/<x-slot name="header">.*?<\/x-slot>/s', '', $source);
-        $source = str_replace(['<x-app-layout>', '</x-app-layout>'], ['<div>', '</div>'], $source);
-        $html = Blade::render($source, array_merge($view->getData(), ['errors' => new ViewErrorBag()]));
-        $this->assertStringContainsString('Account Permissions', $html);
-        $this->assertStringContainsString('Edit Permissions', $html);
-        $this->assertStringContainsString('tenant.edit', $html);
-        $this->assertStringContainsString('Save Permissions', $html);
-        $this->assertStringNotContainsString('Create New Role', $html);
+        $response = $this->get(route('admin.settings.index', ['account_id' => $this->ids['abc']]));
+        $response->assertOk()->assertViewIs('adminSide.setting.index')->assertViewHas('settingsAccountId', $this->ids['abc'])
+            ->assertSee('Management Account')->assertSee('Staff Role Permissions')->assertSee('Create New Role')
+            ->assertSee('Accountant')->assertDontSee('Account Permissions')
+            ->assertSee('name="account_id" value="'.$this->ids['abc'].'"', false);
+        $this->assertCount(3, $response->original->getData()['settingsAccounts']);
+        $this->assertSame($this->ids['system'], get_effective_user()->id);
+        foreach (['payment', 'lease', 'utility', 'fee-types', 'system', 'permissions'] as $tab) {
+            $response->assertSee("activeTab = '$tab'", false);
+        }
+    }
+
+    public function test_super_admin_selection_changes_settings_fees_and_roles_without_changing_the_actor(): void
+    {
+        $this->prepareSharedSettings();
+        $subscriptions = $this->mock(\App\Services\SubscriptionService::class);
+        $subscriptions->shouldNotReceive('ensureRenewalInvoice');
+        $subscriptions->shouldNotReceive('requiresPayment');
+        foreach (['abc' => 9, 'def' => 19] as $name => $days) {
+            DB::table('settings')->insert(['user_id' => $this->ids[$name], 'key' => 'due_date_config', 'value' => json_encode(['days' => $days])]);
+            \Illuminate\Database\Eloquent\Model::withoutEvents(fn () => \App\Models\FeeType::create([
+                'user_id' => $this->ids[$name], 'name' => $name.' private fee', 'category' => 'item', 'is_system' => false, 'is_active' => true,
+            ]));
+        }
+        DB::table('roles')->insert(['id' => 2, 'team_id' => $this->ids['def'], 'name' => 'Other team role', 'guard_name' => 'web']);
+        $this->actingAs($this->user('system'));
+        foreach (['abc' => 9, 'def' => 19] as $name => $days) {
+            $response = $this->get(route('admin.settings.index', ['account_id' => $this->ids[$name], 'tab' => 'permissions']));
+            $response->assertOk()->assertViewHas('settingsAccountId', $this->ids[$name]);
+            $data = $response->original->getData();
+            $this->assertSame($days, data_get($data, 'settings.due_date_config.value.days'));
+            $this->assertSame([$name.' private fee'], $data['feeTypes']->pluck('name')->all());
+            $this->assertSame([$this->ids[$name]], $data['roles']->pluck('team_id')->unique()->all());
+            $this->assertSame($this->ids['system'], get_effective_user()->id);
+        }
+        $this->get(route('admin.settings.index'))->assertOk()->assertViewHas('settingsAccountId', $this->ids['abc']);
+        $this->assertDatabaseCount('invoices', 0);
+    }
+
+    public function test_normal_account_settings_still_run_subscription_checks_for_its_own_account(): void
+    {
+        $this->prepareSharedSettings();
+        $this->grant('abc', ['profile menu.setting', 'settings.payment tab']);
+        $this->actingAs($this->user('abc'));
+        $subscriptions = $this->mock(\App\Services\SubscriptionService::class);
+        $subscriptions->shouldReceive('ensureRenewalInvoice')->once()
+            ->with(\Mockery::on(fn ($user) => $user->id === $this->ids['abc']))->andReturnNull();
+        $subscriptions->shouldReceive('requiresPayment')->once()->andReturnFalse();
+        $this->get(route('admin.settings.index'))->assertOk()->assertDontSee('id="settings-account"', false);
+    }
+
+    public function test_super_admin_saves_only_selected_account_payment_and_lease_settings(): void
+    {
+        $this->prepareSharedSettings();
+        $this->actingAs($this->user('system'));
+        $this->patch(route('admin.settings.update'), ['account_id' => $this->ids['def'], 'tab' => 'lease', 'due_date_config' => ['days' => 18]])
+            ->assertRedirect(route('admin.settings.index', ['tab' => 'lease', 'account_id' => $this->ids['def']]));
+        $this->patch(route('admin.settings.update'), ['account_id' => $this->ids['def'], 'tab' => 'payment', 'payment_config' => ['allow_unpaid_penalty' => true]])
+            ->assertRedirect(route('admin.settings.index', ['tab' => 'payment', 'account_id' => $this->ids['def']]));
+        $this->assertSame(18, data_get(app(SettingService::class)->getEffectiveSettings($this->ids['def']), 'due_date_config.value.days'));
+        $this->assertTrue(data_get(app(SettingService::class)->getEffectiveSettings($this->ids['def']), 'payment_config.value.allow_unpaid_penalty'));
+        $this->assertSame(0, DB::table('settings')->where('user_id', '!=', $this->ids['def'])->count());
+        $this->patchJson(route('admin.settings.update'), ['due_date_config' => ['days' => 27]])->assertUnprocessable()->assertJsonValidationErrors('account_id');
+    }
+
+    public function test_selected_account_is_enforced_for_fee_creation_updates_and_deletion(): void
+    {
+        $this->prepareSharedSettings();
+        $this->actingAs($this->user('system'));
+        $response = $this->postJson(route('admin.fee-types.store'), ['account_id' => $this->ids['def'], 'name' => 'Selected fee', 'category' => 'item'])->assertOk();
+        $feeId = $response->json('feeType.id');
+        $this->assertDatabaseHas('fee_types', ['id' => $feeId, 'user_id' => $this->ids['def']]);
+        $this->putJson(route('admin.fee-types.batch'), ['account_id' => $this->ids['abc'], 'fees' => [['id' => $feeId, 'name' => 'Forged']]])->assertNotFound();
+        $this->deleteJson(route('admin.fee-types.destroy', $feeId), ['account_id' => $this->ids['abc']])->assertNotFound();
+        $this->putJson(route('admin.fee-types.batch'), ['account_id' => $this->ids['def'], 'fees' => [['id' => $feeId, 'name' => 'Renamed']]])->assertOk()->assertJsonPath('success', true);
+        $this->deleteJson(route('admin.fee-types.destroy', $feeId), ['account_id' => $this->ids['def']])->assertOk()->assertJsonPath('success', true);
+        $this->assertDatabaseMissing('fee_types', ['id' => $feeId]);
+    }
+
+    public function test_super_admin_creates_edits_and_deletes_roles_only_in_selected_account(): void
+    {
+        $this->prepareSharedSettings();
+        $this->grant('def', ['tenant.edit']);
+        $this->actingAs($this->user('system'));
+        $response = $this->postJson(route('admin.roles.store'), ['account_id' => $this->ids['def'], 'name' => 'Selected role', 'permissions' => ['tenant.edit']])->assertCreated();
+        $roleId = $response->json('role.id');
+        $this->assertDatabaseHas('roles', ['id' => $roleId, 'team_id' => $this->ids['def']]);
+        $this->put(route('admin.settings.user-role-permissions.update'), ['account_id' => $this->ids['abc'], 'permissions' => [$roleId => ['tenant.edit' => '1']]])
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->put(route('admin.settings.user-role-permissions.update'), ['account_id' => $this->ids['def'], 'permissions' => []])
+            ->assertRedirect(route('admin.settings.index', ['tab' => 'permissions', 'account_id' => $this->ids['def']]));
+        $this->assertDatabaseHas('role_has_permissions', ['role_id' => 1, 'permission_id' => 1]);
+        $this->assertDatabaseMissing('role_has_permissions', ['role_id' => $roleId]);
+        $this->delete(route('admin.roles.destroy', $roleId), ['account_id' => $this->ids['abc']])->assertRedirect()->assertSessionHas('error');
+        $this->assertDatabaseHas('roles', ['id' => $roleId]);
+        $this->delete(route('admin.roles.destroy', $roleId), ['account_id' => $this->ids['def'], 'active_tab' => 'permissions'])
+            ->assertRedirect(route('admin.settings.index', ['tab' => 'permissions', 'account_id' => $this->ids['def']]));
+        $this->assertDatabaseMissing('roles', ['id' => $roleId]);
+    }
+
+    public function test_other_users_cannot_select_accounts_and_normal_settings_have_no_selector(): void
+    {
+        $this->prepareSharedSettings();
+        $this->grant('abc', ['profile menu.setting', 'settings.payment tab', 'settings.edit recurring invoice']);
+        $this->actingAs($this->user('abc'));
+        $this->get(route('admin.settings.index'))->assertOk()->assertDontSee('id="settings-account"', false);
+        $this->getJson(route('admin.settings.index', ['account_id' => $this->ids['def']]))->assertForbidden();
+        $this->patchJson(route('admin.settings.update'), ['account_id' => $this->ids['def'], 'due_date_config' => ['days' => 32]])->assertForbidden();
+        $this->postJson(route('admin.roles.store'), ['account_id' => $this->ids['def'], 'name' => 'Forged'])->assertForbidden();
+        $this->assertSame(0, DB::table('settings')->count());
+        $this->actingAs($this->user('staff-a'));
+        $this->getJson(route('admin.settings.index', ['account_id' => $this->ids['def']]))->assertForbidden();
+    }
+
+    public function test_selection_rejects_non_management_users_and_conflicting_ids(): void
+    {
+        $this->actingAs($this->user('system'));
+        foreach ([$this->ids['staff-a'], $this->ids['system'], (string) Str::ulid()] as $id) {
+            $this->getJson(route('admin.settings.index', ['account_id' => $id]))->assertNotFound();
+        }
+        $this->patchJson(route('admin.settings.update'), ['account_id' => $this->ids['abc'], 'management_user_id' => $this->ids['def']])->assertForbidden();
+        $this->postJson(route('admin.roles.store'), ['account_id' => $this->ids['abc'], 'user_id' => $this->ids['def'], 'name' => 'Conflicting target'])->assertForbidden();
+    }
+
+    public function test_selected_account_does_not_change_global_system_settings_scope(): void
+    {
+        $this->prepareSharedSettings();
+        $this->actingAs($this->user('system'));
+        $this->patch(route('admin.settings.update'), ['account_id' => $this->ids['def'], 'early_payment_config' => ['number' => 3, 'mode' => 'days', 'is_active' => '0']])
+            ->assertRedirect(route('admin.settings.index', ['tab' => 'system', 'account_id' => $this->ids['def']]));
+        $this->assertDatabaseHas('settings', ['user_id' => $this->ids['system'], 'key' => 'early_payment_config', 'is_active' => false]);
+        $this->assertDatabaseMissing('settings', ['user_id' => $this->ids['def']]);
+    }
+
+    public function test_utility_settings_actions_use_selected_account_and_preserve_selection(): void
+    {
+        $this->prepareSharedSettings();
+        $this->actingAs($this->user('system'));
+        $this->mock(\App\Services\UtilityTariffManagementService::class)->shouldReceive('save')->once()
+            ->with(\Mockery::on(fn ($user) => $user->id === $this->ids['def']), ['name' => 'Selected rates'], false)
+            ->andReturn(new \App\Models\UtilityTariffVersion(['version' => 2]));
+        $this->post(route('admin.utilities.tariffs.store'), ['account_id' => $this->ids['def'], 'tariff' => ['name' => 'Selected rates']])
+            ->assertRedirect(route('admin.settings.index', ['tab' => 'utility', 'management_user_id' => $this->ids['def']]));
     }
 
     public function test_staff_role_editor_renders_shared_controls_and_preserves_its_submission_format(): void
@@ -565,6 +709,43 @@ class AccountPermissionTest extends TestCase
         $this->actingAs($this->user('ghi'))->get(route('dashboard'))->assertRedirect(route('profile.edit'));
     }
 
+    public function test_system_tab_permission_is_visible_but_cannot_be_delegated_or_used_by_other_accounts(): void
+    {
+        $this->grant('abc', ['settings.system tab', 'settings.create new role', 'settings.edit user role', 'tenant.edit']);
+        DB::table('permissions')->insert(['id' => 2, 'name' => 'settings.system tab', 'guard_name' => 'web']);
+        DB::table('role_has_permissions')->insert(['role_id' => 1, 'permission_id' => 2]);
+        foreach (['abc', 'staff-a'] as $name) {
+            $this->assertFalse(Gate::forUser($this->user($name))->allows('settings.system tab'));
+        }
+        $this->assertTrue(Gate::forUser($this->user('system'))->allows('settings.system tab'));
+        foreach (['abc', 'system'] as $name) {
+            $this->assertNotContains('settings.system tab', app(AccountPermissionService::class)->delegatablePermissions($this->user($name)));
+        }
+        $this->actingAs($this->user('abc'));
+        $html = view('adminSide.setting.partials.staff-role-permissions', [
+            'roles' => \App\Models\Role::with('permissions')->where('team_id', $this->ids['abc'])->get(),
+            'modules' => config('permissions.modules'), 'errors' => new ViewErrorBag,
+        ])->render();
+        $this->assertStringContainsString('System tab', $html);
+        $this->assertStringContainsString('value="settings.system tab" x-model="selected" :disabled="!editingPermissions || true"', $html);
+        $this->post(route('admin.roles.store'), ['name' => 'Forbidden system role', 'permissions' => ['settings.system tab']])
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->put(route('admin.settings.user-role-permissions.update'), ['permissions' => [1 => ['settings.system tab' => '1']]])
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertDatabaseMissing('roles', ['name' => 'Forbidden system role']);
+    }
+
+    public function test_system_routes_stay_super_admin_only_even_with_a_forged_system_tab_grant(): void
+    {
+        $this->prepareSharedSettings();
+        $this->grant('abc', ['settings.system tab', 'profile menu.setting']);
+        $this->actingAs($this->user('abc'));
+        $this->get(route('admin.settings.index', ['tab' => 'system']))->assertViewIs('errors.403');
+        $this->patch(route('admin.settings.update'), ['early_payment_config' => ['number' => 5, 'mode' => 'days', 'is_active' => '1']])
+            ->assertRedirect()->assertSessionHas('error', 'You have no permission.');
+        $this->assertDatabaseMissing('settings', ['key' => 'early_payment_config']);
+    }
+
     public function test_landing_page_uses_settings_or_safe_profile_fallback_and_preserves_portals(): void
     {
         $landing = app(\App\Services\LandingPageService::class);
@@ -575,5 +756,38 @@ class AccountPermissionTest extends TestCase
         $this->assertSame('dashboard', $landing->routeFor($this->user('system')));
         $this->assertSame('admin.owners.dashboard', $landing->routeFor(new User(['role' => 'owner'])));
         $this->assertSame('tenants.dashboard', $landing->routeFor(new User(['role' => 'tenant'])));
+    }
+
+    public function test_guests_cannot_run_migrations_or_seeders(): void
+    {
+        \Illuminate\Support\Facades\Artisan::shouldReceive('call')->never();
+        foreach (['run.migrations', 'run.seeders'] as $route) {
+            $this->get(route($route))->assertRedirect(route('login'));
+        }
+    }
+
+    public function test_owner_agent_and_staff_accounts_cannot_run_migrations_or_seeders(): void
+    {
+        \Illuminate\Support\Facades\Artisan::shouldReceive('call')->never();
+        foreach (['abc', 'ghi', 'staff-a'] as $name) {
+            $this->actingAs($this->user($name));
+            foreach (['run.migrations', 'run.seeders'] as $route) {
+                $this->getJson(route($route, ['seeder' => 'PermissionRouteTestSeeder']))->assertForbidden();
+            }
+        }
+    }
+
+    public function test_system_admin_can_run_migrations_and_seeders_without_changing_existing_responses(): void
+    {
+        // Mock Artisan: authorization tests must never execute actual migrations or seeds.
+        \Illuminate\Support\Facades\Artisan::shouldReceive('call')->once()->with('migrate', ['--force' => true])->andReturn(0);
+        \Illuminate\Support\Facades\Artisan::shouldReceive('call')->once()->with('db:seed', [
+            '--class' => 'PermissionRouteTestSeeder', '--force' => true,
+        ])->andReturn(0);
+        $this->actingAs($this->user('system'));
+        $this->get(route('run.migrations'))->assertRedirect(route('dashboard'))
+            ->assertSessionHas('success', 'Migrations executed successfully!');
+        $this->get(route('run.seeders', ['seeder' => 'PermissionRouteTestSeeder']))->assertRedirect(route('dashboard'))
+            ->assertSessionHas('success', 'Seeder [PermissionRouteTestSeeder] executed successfully!');
     }
 }

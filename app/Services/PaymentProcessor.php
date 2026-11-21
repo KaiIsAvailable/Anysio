@@ -293,14 +293,14 @@ class PaymentProcessor
         }
 
         // Handle subscription activation logic if applicable...
-        if (strtolower($invoice->type ?? '') === 'subscription') {
+        if (strtolower($invoice->type ?? '') === 'subscription' && $invoice->amount_balance <= 0) {
             $userToActivate = $invoice->user ?? $invoice->lease?->tenant?->user;
 
             if ($userToActivate) {
                 $startDate = null;
                 $endDate = null;
 
-                $userManagement = UserManagement::where('user_id', $userToActivate->id)->first();
+                $userManagement = UserManagement::where('user_id', $userToActivate->id)->lockForUpdate()->first();
                 $package = $userManagement?->package;
 
                 if ($package) {
@@ -320,7 +320,9 @@ class PaymentProcessor
                 ];
 
                 if ($startDate && $endDate) {
-                    $updateData['start_date'] = $startDate->toDateString();
+                    if ($userManagement->subscription_status !== 'active' || !$currentEndDate || $currentEndDate->lte(today())) {
+                        $updateData['start_date'] = $startDate->toDateString();
+                    }
                     $updateData['end_date']   = $endDate->toDateString();
                 }
 

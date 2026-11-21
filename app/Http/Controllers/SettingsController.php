@@ -2,7 +2,7 @@
 namespace App\Http\Controllers;
 
 use App\FeeTypeCategory;
-use App\Models\{Invoice, Role};
+use App\Models\{Invoice, Role, User};
 use App\Services\{SettingService, InvoiceService, FeeTypeService};
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\{Log, Auth, Gate};
@@ -12,6 +12,9 @@ class SettingsController extends Controller
 {
     public function index(SettingService $settingService)
     {
+        if (request('tab') === 'system' && Gate::denies('super-admin')) {
+            return view('errors.403');
+        }
         $feeTypesRequest = request('tab') === 'fee-types';
         $canFeeTypes = Gate::any(['super-admin', 'fee types.view']);
         if ($feeTypesRequest && !$canFeeTypes) return view('errors.403');
@@ -27,16 +30,12 @@ class SettingsController extends Controller
 
         // Utilities-only staff and platform account selection use the same settings view,
         // without loading unrelated payment settings or staff-role data.
-        if ($utilityRequest && (Gate::allows('super-admin') || Gate::denies('profile menu.setting'))) {
+        if ($utilityRequest && Gate::denies('super-admin') && Gate::denies('profile menu.setting')) {
             $tariffManager = app(\App\Services\UtilityBillingAccess::class)->manager(request(), true);
             return view('adminSide.setting.index', ['utilityOnly' => true, 'tariffManager' => $tariffManager,
                 'settings' => $settingService->getEffectiveSettings($tariffManager),
                 'feeTypeSettings' => $canFeeTypes ? $settingService->getEffectiveSettings() : []] +
                 ($canFeeTypes ? app(FeeTypeService::class)->settingsData(request()->only('search', 'category')) : []));
-        }
-
-        if (Gate::allows('super-admin')) {
-            return app(AccountPermissionController::class)->index(request());
         }
 
         if (Gate::denies('super-admin') && Gate::denies('profile menu.setting')) {
@@ -55,7 +54,11 @@ class SettingsController extends Controller
             $category->value => ucfirst($category->value)
         ])->toArray();
 
-        $roles = Role::where('team_id', $user->id)->get();
+        $roles = Role::with('permissions')->where('team_id', $user->id)->get();
+        $settingsAccounts = Gate::allows('super-admin')
+            ? User::whereIn('role', [User::ROLE_OWNER_ADMIN, User::ROLE_AGENT_ADMIN])->orderBy('name')->orderBy('id')->get(['id', 'name', 'email', 'role'])
+            : collect();
+        $settingsAccountId = request()->attributes->get('settings_account')?->id;
 
         $modules = config('permissions.modules', []);
     
@@ -90,18 +93,35 @@ class SettingsController extends Controller
             'feeTypeCategoryOptions',
             'roles',
             'modules',
+            'settingsAccounts',
+            'settingsAccountId',
         ) + ($canFeeTypes ? app(FeeTypeService::class)->settingsData(request()->only('search', 'category')) : []));
     }
 
     public function update(Request $request, SettingService $settingService)
     {
+        if ($request->has('early_payment_config')) {
+            if (Gate::denies('super-admin')) {
+                return back()->with('error', 'You have no permission.');
+            }
+            $data = $request->validate([
+                'early_payment_config' => ['required', 'array:number,mode,is_active'],
+                'early_payment_config.number' => ['required', 'integer', 'between:1,365'],
+                'early_payment_config.mode' => ['required', 'in:days,months,years'],
+                'early_payment_config.is_active' => ['required', 'boolean'],
+            ]);
+            $settingService->saveSystemEarlyPaymentSettings($data['early_payment_config']);
+
+            return redirect()->route('admin.settings.index', ['tab' => 'system', 'account_id' => $request->attributes->get('settings_account')?->id])
+                ->with('success', 'Early payment notification settings updated successfully.');
+        }
         if ($request->has('utility_tariff_config')) {
             if (Gate::denies('super-admin') && Gate::denies('settings.edit utility meter prices')) {
                 return redirect()->back()->with('error', 'You have no permission.');
             }
             $request->validate(['utility_tariff_config' => ['required', 'array']]);
             app(\App\Services\UtilityTariffService::class)->save(get_effective_user()->id, $request->input('utility_tariff_config'));
-            return redirect()->route('admin.settings.index', ['tab' => 'utility', 'tariff' => $request->input('utility_tariff_config.profile_id')])
+            return redirect()->route('admin.settings.index', ['tab' => 'utility', 'tariff' => $request->input('utility_tariff_config.profile_id'), 'account_id' => $request->attributes->get('settings_account')?->id])
                 ->with('success', 'Utility meter prices updated successfully.');
         }
         if ($request->has('due_date_config')) {
@@ -157,8 +177,7 @@ class SettingsController extends Controller
         $activeTab = $request->input('tab') ?? $request->query('tab');
 
         if ($activeTab) {
-            $previousUrl = strtok(url()->previous(), '?');
-            return redirect()->to($previousUrl . '?tab=' . $activeTab)->with('status', 'settings-updated');
+            return redirect()->route('admin.settings.index', ['tab' => $activeTab, 'account_id' => $request->attributes->get('settings_account')?->id])->with('success', 'Settings updated successfully.');
         }
 
         return redirect()->back()->with('status', 'settings-updated');
@@ -185,7 +204,7 @@ class SettingsController extends Controller
 
     public function userRolePermissions()
     {
-        return redirect()->route('admin.settings.index', ['tab' => 'permissions']);
+        return redirect()->route('admin.settings.index', ['tab' => 'permissions', 'account_id' => request()->attributes->get('settings_account')?->id]);
     }
 
     public function updateRolePermissions(Request $request)
@@ -247,9 +266,7 @@ class SettingsController extends Controller
         $activeTab = $request->input('active_tab', 'permissions');
         $roleTab = $request->input('role_tab');
 
-        $previousUrl = strtok(url()->previous(), '?');
-        
-        return redirect()->to($previousUrl . '?tab=' . $activeTab . '&role_tab=' . $roleTab)
+        return redirect()->route('admin.settings.index', ['tab' => $activeTab, 'role_tab' => $roleTab, 'account_id' => $request->attributes->get('settings_account')?->id])
             ->with('success', 'Staff role permissions updated successfully.');
     }
 }

@@ -6,12 +6,15 @@ use App\Models\{Role, Staff, User, UserManagement};
 
 class AccountPermissionService
 {
+    private const SUPER_ADMIN_ONLY = ['settings.system tab'];
+
     public function delegatablePermissions(User $manager): array
     {
-        if ($manager->role === User::ROLE_ADMIN) return self::names();
+        $permissions = array_values(array_diff(self::names(), self::SUPER_ADMIN_ONLY));
+        if ($manager->role === User::ROLE_ADMIN) return $permissions;
         if (!in_array($manager->role, [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN], true)) return [];
 
-        return array_values(array_intersect(self::names(), $manager->account_permissions ?? []));
+        return array_values(array_intersect($permissions, $manager->account_permissions ?? []));
     }
 
     public static function names(): array
@@ -37,6 +40,8 @@ class AccountPermissionService
         if ($user->role === User::ROLE_ADMIN) {
             return true;
         }
+
+        if (in_array($ability, self::SUPER_ADMIN_ONLY, true)) return false;
 
         if (in_array($user->role, [User::ROLE_AGENT_ADMIN, User::ROLE_OWNER_ADMIN], true)) {
             return in_array($ability, $user->account_permissions ?? [], true);

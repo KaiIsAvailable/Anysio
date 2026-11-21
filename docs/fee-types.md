@@ -9,6 +9,12 @@ types with Settings, so tabs switch instantly and retain pending edits. This add
 one fee-list query (with reference checks) and its markup to the initial page load.
 Users without fee-view permission load no fee data. Direct fee links and filters
 open Settings with Fee Types selected; fee-only access remains supported.
+Super admin uses the same Settings page and selects a management account at the
+top. The selection travels with each form and fee action; it never changes the
+logged-in actor or persists as a session-wide impersonation. Other users remain
+scoped to their own management account. Staff roles use the same selected account;
+the separate Account Permissions screen is no longer used. Existing account access
+rules are preserved. System early-payment settings remain global.
 Enable Edit unlocks inline custom names, item original/sell prices and availability
 switches. One sticky Save Changes button submits only changed fields in a single
 transaction; Cancel discards pending edits. Delete confirms and submits separately,

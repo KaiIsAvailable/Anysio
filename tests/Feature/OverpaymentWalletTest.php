@@ -133,6 +133,46 @@ class OverpaymentWalletTest extends TestCase
         ]));
     }
 
+    private function subscriptionFixture(): void
+    {
+        Schema::create('user_management', function (Blueprint $t) {
+            $t->string('id')->primary(); $t->string('user_id'); $t->string('package_id');
+            $t->string('subscription_status'); $t->date('start_date'); $t->date('end_date');
+            $t->timestamps(); $t->softDeletes();
+        });
+        Schema::create('ref_code_packages', function (Blueprint $t) {
+            $t->string('id')->primary(); $t->string('price_mode');
+        });
+        DB::table('ref_code_packages')->insert(['id' => 'monthly', 'price_mode' => 'monthly']);
+        DB::table('user_management')->insert([
+            'id' => 'subscription', 'user_id' => 'tenant', 'package_id' => 'monthly',
+            'subscription_status' => 'active', 'start_date' => '2026-10-01', 'end_date' => '2026-11-01',
+        ]);
+        DB::table('invoices')->where('id', 'original')->update([
+            'type' => 'subscription', 'context' => 'subscription', 'user_id' => 'tenant', 'lease_id' => null,
+        ]);
+    }
+
+    public function test_early_subscription_payment_extends_expiry_and_preserves_the_current_start_date(): void
+    {
+        $this->subscriptionFixture();
+        $this->record(100);
+        $management = \App\Models\UserManagement::findOrFail('subscription');
+        $this->assertSame('active', $management->subscription_status);
+        $this->assertSame('2026-10-01', $management->start_date->toDateString());
+        $this->assertSame('2026-12-02', $management->end_date->toDateString());
+    }
+
+    public function test_partial_subscription_payment_does_not_extend_expiry(): void
+    {
+        $this->subscriptionFixture();
+        $this->record(50);
+        $this->assertSame('partial', Invoice::findOrFail('original')->status);
+        $this->assertSame('2026-11-01', \App\Models\UserManagement::findOrFail('subscription')->end_date->toDateString());
+        $this->record(50);
+        $this->assertSame('2026-12-02', \App\Models\UserManagement::findOrFail('subscription')->end_date->toDateString());
+    }
+
     public function test_overpayment_pays_earlier_same_lease_invoices_and_returns_actual_fee_names_and_amounts(): void
     {
         $this->enable();

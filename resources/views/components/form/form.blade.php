@@ -1,4 +1,4 @@
-@props(['action' => '', 'method' => 'POST', 'async' => false, 'preserveTextareaEnter' => false, 'guardComposition' => false, 'autofocus' => true, 'focusErrors' => false])
+@props(['action' => '', 'method' => 'POST', 'async' => false, 'preserveTextareaEnter' => false, 'guardComposition' => false, 'autofocus' => true, 'focusErrors' => false, 'preserveSettingsAccount' => true])
 
 @php
     $realMethod = in_array(strtoupper($method), ['GET', 'POST']) ? $method : 'POST';
@@ -126,6 +126,9 @@
     @keydown.enter="handleEnter($event)"
 >
     @csrf
+    @if($preserveSettingsAccount && request()->attributes->get('settings_account') && Gate::allows('super-admin'))
+        <input type="hidden" name="account_id" value="{{ request()->attributes->get('settings_account')->id }}">
+    @endif
     @if($spoofMethod) @method($spoofMethod) @endif
     {{ $slot }}
 </form>

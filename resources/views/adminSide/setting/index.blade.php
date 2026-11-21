@@ -15,8 +15,9 @@
             'payment' => 'settings.payment tab',
             'lease' => 'settings.lease tab',
             'utility' => 'settings.utility tab',
-            'permissions' => 'settings.user role tab',
             'fee-types' => 'fee types.view',
+            'permissions' => 'settings.user role tab',
+            'system' => 'settings.system tab',
         ])->filter(fn ($permission, $tab) => $tab === 'fee-types' ? $canFeeTypes : ((!$utilityOnly || $tab === 'utility')
             && ($tab === 'utility' ? $canUtilityTariffs : Gate::any(['super-admin', $permission]))))->keys()->all();
         $requestedTab = session('fee_types_tab') || old('tab') === 'fee-types' ? 'fee-types' : request('tab');
@@ -24,12 +25,32 @@
     @endphp
     <div class="py-12" x-data="{ activeTab: @js($initialTab) }">
         <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
+            @canany(['super-admin'])
+            <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+                <x-form.form method="GET" action="{{ route('admin.settings.index') }}" :autofocus="false" :preserve-settings-account="false" :data-account-id="$settingsAccountId ?? ''" @pageshow.window="loading = false" class="sm:max-w-lg">
+                    <input type="hidden" name="tab" :value="activeTab">
+                    <x-form.input-label for="settings-account" :value="__('Management Account')" />
+                    <x-form.input-select id="settings-account" name="account_id"
+                        :options="($settingsAccounts ?? collect())->map(fn ($account) => ['value' => $account->id, 'label' => $account->name.' — '.$account->email])->all()"
+                        :value="$settingsAccountId ?? null" :disabled="($settingsAccounts ?? collect())->isEmpty()"
+                        disabled-when="loading"
+                        :placeholder="__('Select a management account...')"
+                        @change="if ($event.detail?.value && $event.detail.value !== $el.closest('form').dataset.accountId && !loading) {
+                            loading = true;
+                            const target = new URL($el.closest('form').action);
+                            target.searchParams.set('account_id', $event.detail.value);
+                            target.searchParams.set('tab', activeTab);
+                            window.location.assign(target.href);
+                        }" />
+                </x-form.form>
+            </section>
+            @endcanany
             
             <!-- Navigation Tabs Header -->
             <div class="bg-white shadow sm:rounded-lg p-4 flex space-x-4 border-b border-gray-200">
                 @if($feeTypesOnly)
                     @canany(['super-admin'])
-                    <a href="{{ route('admin.settings.index') }}" class="py-2 px-1 border-b-2 border-transparent text-gray-500 text-sm font-medium">{{ __('Account Permissions') }}</a>
+                    <a href="{{ route('admin.settings.index') }}" class="py-2 px-1 border-b-2 border-transparent text-gray-500 text-sm font-medium">{{ __('Settings') }}</a>
                     @else
                     @foreach(['payment' => ['Payment', 'settings.payment tab'], 'lease' => ['Lease', 'settings.lease tab'], 'utility' => ['Utility', 'settings.utility tab'], 'permissions' => ['Staff Role Permissions', 'settings.user role tab']] as $tab => [$label, $permission])
                         @canany(['super-admin', $permission])
@@ -69,6 +90,16 @@
                 @endcanany
 
                 @endif
+                @if($canFeeTypes)
+                <button type="button" @click="activeTab = 'fee-types'"
+                    :class="activeTab === 'fee-types' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                    class="py-2 px-1 border-b-2 font-medium text-sm transition">{{ __('Fee Types') }}</button>
+                @endif
+                @canany(['super-admin'])
+                <button type="button" @click="activeTab = 'system'"
+                    :class="activeTab === 'system' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                    class="py-2 px-1 border-b-2 font-medium text-sm transition">{{ __('System') }}</button>
+                @endcanany
                 @unless($utilityOnly)
                 @canany(['super-admin', 'settings.user role tab'])
                 <button type="button" 
@@ -80,11 +111,7 @@
                 @endcanany
 
                 @endunless
-                @if($canFeeTypes)
-                <button type="button" @click="activeTab = 'fee-types'"
-                    :class="activeTab === 'fee-types' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
-                    class="py-2 px-1 border-b-2 font-medium text-sm transition">{{ __('Fee Types') }}</button>
-                @endif
+
                 <!--<button type="button"
                         @click="activeTab = 'tenant'" 
                         :class="activeTab === 'tenant' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
@@ -101,6 +128,11 @@
             </div>
 
             <div class="space-y-6">
+            @canany(['super-admin'])
+            <div x-show="activeTab === 'system'" x-cloak>
+                @include('adminSide.setting.partials.system')
+            </div>
+            @endcanany
             @if($canFeeTypes)
             <div x-show="activeTab === 'fee-types'" x-cloak>
                 @include('adminSide.setting.partials.fee-types')
